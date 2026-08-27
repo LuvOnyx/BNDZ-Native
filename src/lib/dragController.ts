@@ -8,6 +8,7 @@
  * first click of a double-click does not hijack into fluid-drag.
  */
 const DRAG_THRESHOLD_PX = 10;
+const NATIVE_DRAG_THRESHOLD_PX = 6;
 const DOUBLE_CLICK_GUARD_MS = 320;
 /**
  * Hold after threshold before drag arms. Explorer-like DragDetect needs both
@@ -39,6 +40,15 @@ let marqueeDragOccurred = false;
 let lastPointerDownAt = 0;
 let session: DragSession | null = null;
 let dragThresholdMet = false;
+
+let dragThresholdPx = DRAG_THRESHOLD_PX;
+let dragThresholdHitsRequired = 2;
+
+/** WinUI / WebView2 native shell — snappier arm like Explorer DragDetect. */
+export function configureExplorerGradeDragThreshold(enabled: boolean) {
+  dragThresholdPx = enabled ? NATIVE_DRAG_THRESHOLD_PX : DRAG_THRESHOLD_PX;
+  dragThresholdHitsRequired = enabled ? 1 : 2;
+}
 
 export function hasMetDragThreshold() {
   return dragThresholdMet;
@@ -138,10 +148,10 @@ export function trackDragPointer(clientX: number, clientY: number): boolean {
   if (!session) return false;
   const dx = Math.abs(clientX - session.startX);
   const dy = Math.abs(clientY - session.startY);
-  if (dx > DRAG_THRESHOLD_PX || dy > DRAG_THRESHOLD_PX) {
+  if (dx > dragThresholdPx || dy > dragThresholdPx) {
     session.thresholdHits += 1;
-    // Require two consecutive samples past threshold to ignore single-sample jitter.
-    if (session.thresholdHits >= 2) {
+    // Require consecutive samples past threshold to ignore single-sample jitter (web default).
+    if (session.thresholdHits >= dragThresholdHitsRequired) {
       session.moved = true;
       dragThresholdMet = true;
     }

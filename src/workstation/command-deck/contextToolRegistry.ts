@@ -142,7 +142,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('project-sandbox', 'Sandbox', 'folder_tree', 'project-sandbox'),
         tool('library-health', 'Health', 'health', 'library-health'),
         tool('branching-time', 'Branches', 'history_ui', 'branching-time'),
-        tool('ghost-link', 'Ghost-Link', 'emblem-symbolic-link', 'ghost-link'),
+        tool('ghost-link', 'Ghost-Link', 'link', 'ghost-link'),
         tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
         tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
         tool('continuum-compose', 'Continuum', 'view_grid', undefined, 'host'),

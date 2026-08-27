@@ -267,7 +267,7 @@ function FileListRow(props: FileListRowProps) {
       id={`fs-item-${entity.id}`}
       data-id={entity.id}
       data-peer-label={peerLabel || undefined}
-      className={`fs-item-wrapper ${isGridMode ? `fs-grid-item${isDrive ? '' : ' bndz-view-grid'}${gridDenseHideCaption ? ' bndz-tile--dense' : ''}` : isListMode ? `fs-list-item${isDrive ? '' : ' bndz-view-list'}${listDenseChrome ? ' bndz-tile--dense' : ''}` : `fs-list-item bndz-view-details flex items-center ${isDrive ? 'mb-1 p-1' : ''}`} ${isGridMode ? 'flex flex-col items-stretch justify-start w-full' : isListMode ? 'flex items-center w-full min-w-0' : ''} border border-transparent cursor-default
+      className={`fs-item-wrapper ${isGridMode ? `fs-grid-item${isDrive ? '' : ' bndz-view-grid'}${gridDenseHideCaption ? ' bndz-tile--dense' : ''}` : isListMode ? `fs-list-item${isDrive ? '' : ' bndz-view-list'}${listDenseChrome ? ' bndz-tile--dense' : ''}` : `fs-list-item bndz-view-details flex items-center ${isDrive ? 'mb-1 p-1' : ''}`} ${isGridMode ? 'flex flex-col items-stretch justify-start w-full' : isListMode ? 'flex items-center w-full min-w-0' : ''} border border-transparent cursor-pointer
         ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected || !!config.underlineSelectedRows ? 'underline decoration-[#007acc]' : ''}` : (mouseRt.highlightHovered || config.highlightHoveredItems !== false) ? ((isGridMode || isListMode) && !isDrive ? 'bndz-tile--hoverable' : (isDetailsMode ? 'bndz-tile--hoverable' : (!isDrive ? 'hover:bg-[#2a2d2e]' : ''))) : ''}
         ${isFocused && !showSelectionChrome ? 'ring-1 ring-inset ring-white/30' : ''}
         ${peerLabel ? 'fs-item-wrapper--peer-share' : ''}

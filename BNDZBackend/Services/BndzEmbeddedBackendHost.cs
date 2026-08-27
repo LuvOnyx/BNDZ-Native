@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BNDZ.Services;
@@ -179,6 +180,66 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    /// <summary>Dedicated OLE STA thread for modal DoDragDrop (WinUI must not block).</summary>
+    public static void RunOnOleDragSta(Action action, bool block = true)
+    {
+#if BNDZ_HEADLESS_CORE
+        BndzOleDragStaThread.Run(action, block);
+#else
+        _ = block;
+        action();
+#endif
+    }
+
+    /// <summary>Enqueue OLE work on the next WinUI dispatcher turn (never inline).</summary>
+    public static void SetHostStaInvokeNextTick(Action<Action>? invokeNextTick)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostStaInvokeNextTick(invokeNextTick); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostStaInvokeNextTick: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Run OLE work on WinUI dispatcher after delayMs (ghost handoff before DoDragDrop).</summary>
+    public static void SetHostStaInvokeDelayed(Action<Action, int>? invokeDelayed)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostStaInvokeDelayed(invokeDelayed); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostStaInvokeDelayed: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Fire-and-forget FE ghost dismiss before DoDragDrop blocks STA.</summary>
+    public static void SetOleEscalateFeDismiss(Action? dismiss)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetOleEscalateFeDismiss(dismiss); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetOleEscalateFeDismiss: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>
+    /// WinUI: run OLE only after WebView2 ghost-dismiss script completes (or times out).
+    /// </summary>
+    public static void SetRunOleAfterFeHandoff(Action<Action>? runAfterHandoff)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetRunOleAfterFeHandoff(runAfterHandoff); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetRunOleAfterFeHandoff: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Physical px height of caption/menubar for outbound OLE top-chrome escalate.</summary>
+    public static void SetOutboundTopChromePx(int physicalPx)
+    {
+        try { WebView2DropTargetService.SetOutboundTopChromePx(physicalPx); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetOutboundTopChromePx: {ex.Message}"); }
+    }
+
     /// <summary>WinUI CraftPaneHost: map OLE screen coords to WebView2 CSS client space.</summary>
     public static void ConfigureHeadlessDropBridge(
         Func<double, double, (double X, double Y)>? screenToClientMapper,
@@ -212,7 +273,13 @@ public static class BndzEmbeddedBackendHost
         try
         {
             _host?.RegisterHostOleDropTarget();
-            return WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero;
+            WebView2DropTargetService.SetOutboundDragResumeRegistration(() =>
+            {
+                try { _host?.RegisterHostOleDropTarget(); }
+                catch (Exception resumeEx) { Debug.WriteLine($"[BndzEmbeddedBackendHost] resume OLE: {resumeEx.Message}"); }
+            });
+            // Only latch success on a Chromium/InputSite child — top-level registration is never used.
+            return WebView2DropTargetService.IsRegisteredOnChromeChild;
         }
         catch (Exception ex)
         {
@@ -221,6 +288,39 @@ public static class BndzEmbeddedBackendHost
         }
 #else
         return false;
+#endif
+    }
+
+    public static bool IsOleRegisteredOnChromeChild
+    {
+        get
+        {
+#if BNDZ_HEADLESS_CORE
+            return WebView2DropTargetService.IsRegisteredOnChromeChild;
+#else
+            return false;
+#endif
+        }
+    }
+
+    public static IntPtr RegisteredOleWebViewHwnd
+    {
+        get
+        {
+#if BNDZ_HEADLESS_CORE
+            return WebView2DropTargetService.RegisteredWebViewHwnd;
+#else
+            return IntPtr.Zero;
+#endif
+        }
+    }
+
+    public static bool IsScreenPointOutsideOleWebView(int screenX, int screenY)
+    {
+#if BNDZ_HEADLESS_CORE
+        return WebView2DropTargetService.IsScreenPointOutsideRegisteredWebView(screenX, screenY);
+#else
+        return true;
 #endif
     }
 
@@ -306,6 +406,67 @@ public static class BndzEmbeddedBackendHost
         if (string.IsNullOrWhiteSpace(responseJson))
             return null;
         return JsonDocument.Parse(responseJson);
+#endif
+    }
+
+    public static void HandleStartDragSync(string requestJson)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        if (_host is null) return;
+        _host.HandleDragNotifySync(requestJson);
+#endif
+    }
+
+    /// <summary>WinUI timer poll — escalate FILE_DRAG_ACTIVE when cursor leaves WebView HWND.</summary>
+    public static bool TryEscalateOutboundOleDrag()
+    {
+#if BNDZ_HEADLESS_CORE
+        if (!IsReady || _host is null) return false;
+        try { return _host.TryEscalateOutboundOleDrag(); }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[BndzEmbeddedBackendHost] TryEscalateOutboundOleDrag: {ex.Message}");
+            return false;
+        }
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>True while native ole32 DoDragDrop is on the stack — skip HWND re-register.</summary>
+    public static bool IsOutboundOleDragActive
+    {
+        get
+        {
+#if BNDZ_HEADLESS_CORE
+            try { return _host?.IsOutboundOleDragActive == true; }
+            catch { return false; }
+#else
+            return false;
+#endif
+        }
+    }
+
+    /// <summary>True while inbound IDropTarget is revoked for outbound DoDragDrop.</summary>
+    public static bool IsInboundSuspendedForOutbound
+    {
+        get
+        {
+            try { return WebView2DropTargetService.IsInboundSuspendedForOutbound; }
+            catch { return false; }
+        }
+    }
+
+    /// <summary>WinUI top strip over WebView during outbound OLE / top-chrome handoff.</summary>
+    public static bool ShouldShowOleTopGhostMask()
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { return _host?.ShouldShowOleTopGhostMask() == true; }
+        catch { return false; }
+#else
+        return false;
 #endif
     }
 

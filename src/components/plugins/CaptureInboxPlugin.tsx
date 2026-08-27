@@ -64,6 +64,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function captureListSignature(list: { captures?: unknown[]; watching?: boolean; captureFolder?: string }): string {
+  const caps = (list.captures || []) as Array<Record<string, unknown>>;
+  const ids = caps.map(c => String(c.id ?? c.Id ?? '')).join(',');
+  return `${!!list.watching}|${list.captureFolder || ''}|${ids}`;
+}
+
 export default function CaptureInboxPlugin({
   currentPath,
 }: {
@@ -75,29 +81,47 @@ export default function CaptureInboxPlugin({
   const [busy, setBusy] = useState(false);
   const [captureFolder, setCaptureFolder] = useState('');
   const [folderDraft, setFolderDraft] = useState('');
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSnapshotRef = useRef('');
+  const folderEditingRef = useRef(false);
+  const visibleRef = useRef(typeof document !== 'undefined' ? document.visibilityState === 'visible' : true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { force?: boolean }) => {
+    if (!visibleRef.current && !opts?.force) return;
     try {
-      const [list, status] = await Promise.all([
-        IPC.captureInboxList(40),
-        IPC.captureInboxStatus(),
-      ]);
+      const list = await IPC.captureInboxList(40);
+      const snapshot = captureListSignature(list);
+      if (!opts?.force && snapshot === lastSnapshotRef.current) {
+        setLastRefreshedAt(Date.now());
+        return;
+      }
+      lastSnapshotRef.current = snapshot;
       setCaptures((list.captures || []).map(c => normalizeCapture(c as Record<string, unknown>)));
-      setWatching(!!list.watching || !!status.watching);
-      const folder = list.captureFolder || status.captureFolder || '';
+      setWatching(!!list.watching);
+      const folder = list.captureFolder || '';
       setCaptureFolder(folder);
-      setFolderDraft(folder);
+      if (!folderEditingRef.current) setFolderDraft(folder);
+      setLastRefreshedAt(Date.now());
     } catch (e) {
       pushToast({ kind: 'error', title: 'Capture Inbox refresh failed', message: String(e) });
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh({ force: true }); }, [refresh]);
+
+  useEffect(() => {
+    const onVis = () => {
+      visibleRef.current = document.visibilityState === 'visible';
+      if (visibleRef.current) void refresh();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [refresh]);
 
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => { void refresh(); }, watching ? 4000 : 12000);
+    pollRef.current = setInterval(() => { void refresh(); }, watching ? 12000 : 45000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [watching, refresh]);
 
@@ -107,7 +131,8 @@ export default function CaptureInboxPlugin({
       const r = await IPC.captureFromClipboard();
       if (!r.ok) throw new Error(r.error || 'No image on clipboard');
       pushToast({ kind: 'success', title: 'Captured', message: r.entry?.fileName || 'Saved to Capture Inbox' });
-      await refresh();
+      lastSnapshotRef.current = '';
+      await refresh({ force: true });
     } catch (e) {
       pushToast({ kind: 'error', title: 'Capture failed', message: String(e) });
     } finally {
@@ -142,7 +167,8 @@ export default function CaptureInboxPlugin({
       if (!r.ok) throw new Error('Could not set capture folder');
       setCaptureFolder(r.captureFolder || folderDraft.trim());
       pushToast({ kind: 'success', title: 'Capture folder updated' });
-      await refresh();
+      lastSnapshotRef.current = '';
+      await refresh({ force: true });
     } catch (e) {
       pushToast({ kind: 'error', title: 'Folder update failed', message: String(e) });
     } finally {
@@ -158,6 +184,13 @@ export default function CaptureInboxPlugin({
   const useCurrentFolder = () => {
     if (currentPath) setFolderDraft(toWindowsPath(currentPath));
   };
+
+  const statusHint = watching
+    ? 'Watching clipboard images — file copy/cut is ignored.'
+    : 'Manual capture only — enable Watch to auto-save new screenshots.';
+  const refreshedLabel = lastRefreshedAt
+    ? (Date.now() - lastRefreshedAt < 60_000 ? 'Synced just now' : `Synced ${relativeTime(new Date(lastRefreshedAt).toISOString())}`)
+    : 'Syncing…';
 
   return (
     <PluginPanelShell
@@ -177,7 +210,7 @@ export default function CaptureInboxPlugin({
           <PluginToolbarButton onClick={openFolder} disabled={!captureFolder} title="Open capture folder">
             <Icons8Icon id="folder_open_ui" size={14} />
           </PluginToolbarButton>
-          <PluginToolbarButton onClick={() => void refresh()} disabled={busy} title="Refresh">
+          <PluginToolbarButton onClick={() => void refresh({ force: true })} disabled={busy} title="Refresh">
             <Icons8Icon id="refresh_ui" size={14} />
           </PluginToolbarButton>
         </div>
@@ -197,7 +230,9 @@ export default function CaptureInboxPlugin({
         <div className="flex flex-wrap gap-2 mt-3">
           <PluginStatCard label="Captures" value={String(captures.length)} icon="image_ui" />
           <PluginStatCard label="Watcher" value={watching ? 'On' : 'Off'} icon="eye_ui" accent={watching ? '#34d399' : undefined} />
+          <PluginStatCard label="Sync" value={refreshedLabel} icon="refresh_ui" />
         </div>
+        <p className="text-[10px] text-gray-500 mt-2">{statusHint}</p>
       </PluginHeroStrip>
 
       <PluginSectionTitle>Capture folder</PluginSectionTitle>
@@ -207,6 +242,8 @@ export default function CaptureInboxPlugin({
             <input
               className={PLUGIN_INPUT_CLASS}
               value={folderDraft}
+              onFocus={() => { folderEditingRef.current = true; }}
+              onBlur={() => { folderEditingRef.current = false; }}
               onChange={e => setFolderDraft(e.target.value)}
               placeholder="Folder for saved captures…"
             />

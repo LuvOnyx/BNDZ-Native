@@ -19,6 +19,7 @@ import {
 } from './fileDragSession';
 import { recordExternalDragHover, recordPointerDragHover } from './fileDragHover';
 import { hitTestMagnetAtPoint } from '../components/DropMagnetStrip';
+import { isQueuedIpcResult } from './transferIpc';
 import { IPC } from './ipcBridge';
 import { appendDropStackPaths } from './dropStackStore';
 
@@ -427,12 +428,25 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
   return true;
 }
 
+let lastInboundDropKey = '';
+let lastInboundDropMs = 0;
+
+function shouldDedupeInboundDrop(paths: string[]): boolean {
+  const key = [...paths].sort().join('\0');
+  const now = Date.now();
+  if (key === lastInboundDropKey && now - lastInboundDropMs < 600) return true;
+  lastInboundDropKey = key;
+  lastInboundDropMs = now;
+  return false;
+}
+
 /**
  * External OLE drop from WPF host — only fires when drop landed in our window.
  * Falls back to active-pane folder when coord hit-tests miss (125% DPI, etc.).
  */
 export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Promise<boolean> {
   if (!opts.paths?.length) return false;
+  if (shouldDedupeInboundDrop(opts.paths)) return true;
   if (!busContext) {
     pendingDrops.push(opts);
     return false;
@@ -446,7 +460,7 @@ export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Pro
       opts.paths,
       opts.preferredEffect === 'move' ? 'move' : 'copy',
     );
-    if (res.ok) {
+    if (res.ok || isQueuedIpcResult(res)) {
       lastDropDebug = { clientX, clientY, coordSource: 'htmlTarget', destPath: `magnet:${magnetId}`, source: 'externalOle', committed: true };
       window.dispatchEvent(new CustomEvent('bndz-magnet-applied', { detail: { magnetId, paths: opts.paths } }));
       return true;

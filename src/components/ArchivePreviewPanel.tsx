@@ -25,10 +25,10 @@ import {
   hitTestArchiveRootAtPoint,
   hitTestListBodyAtPoint,
   isInternalFileDragChromeAtPoint,
-  isPointerOutsideWebViewViewport,
   stashOleDragSession,
 } from '../lib/fileDragSession';
 import { setDragGhostPosition, armDragGhost } from '../lib/pointerDragGhost';
+import { onHostOleDragEscalated } from '../lib/fileDragUiCleanup';
 import { IPC } from '../lib/ipcBridge';
 import DragGhostPortal from './DragGhostPortal';
 import { prefetchArchiveEntryTemp, resolveArchiveEntryTempPaths } from '../lib/archiveExtractCache';
@@ -357,16 +357,39 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     };
 
     let oleDragStarted = false;
-    let outsideChromeStreak = 0;
+    let hostOleEscalated = false;
     let pathsPromise: Promise<string[]> | null = null;
 
     const captureOpts = { capture: true } as const;
 
-    const cleanupListeners = (onMove: (ev: PointerEvent) => void, onUp: (ev: PointerEvent) => void) => {
+    const cleanupListeners = (onMove: (ev: PointerEvent) => void, onUp: (ev: PointerEvent) => void, onCancel?: (ev: PointerEvent) => void) => {
       document.removeEventListener('pointermove', onMove, captureOpts);
       document.removeEventListener('pointerup', onUp, captureOpts);
-      document.removeEventListener('pointercancel', onUp, captureOpts);
+      document.removeEventListener('pointercancel', onCancel ?? onUp, captureOpts);
+      window.removeEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
     };
+
+    const onHostOleEscalate = () => {
+      if (oleDragStarted) return;
+      const drag = dragRef.current;
+      if (!drag?.paths?.length) return;
+      hostOleEscalated = true;
+      oleDragStarted = true;
+      stashOleDragSession({
+        paths: drag.paths,
+        op: 'copy',
+        sourcePaneId: 'archive-preview',
+        sourceTabPath: winPath,
+      });
+      endFileDragSession();
+      setArchiveDragGhost(null);
+      onHostOleDragEscalated();
+      dispatchPointerFileDragActive(false);
+      cleanupListeners(onMove, onUp, onCancel);
+      dragRef.current = null;
+    };
+
+    window.addEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
 
     const showArchiveGhost = (drag: ArchiveDragState, preparing: boolean) => {
       armDragGhost(
@@ -426,12 +449,14 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             sourcePaneId: 'archive-preview',
             sourceTabPath: winPath,
           });
+          IPC.notifyFileDragActive(true, paths);
           showArchiveGhost(live, false);
         }).catch(() => {
           setStatus('Could not extract for drag.');
           dragRef.current = null;
           setArchiveDragGhost(null);
           dispatchPointerFileDragActive(false);
+          IPC.notifyFileDragActive(false);
           endFileDragSession();
         });
       }
@@ -442,35 +467,15 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
       }
 
       if (!drag.paths?.length) return;
-
-      // OLE only with extracted temps while button is down AND pointer left the WebView.
-      if (!isPointerOutsideWebViewViewport(ev.clientX, ev.clientY)) {
-        outsideChromeStreak = 0;
-        return;
-      }
-
-      outsideChromeStreak++;
-      if (outsideChromeStreak < 2) return;
-
-      oleDragStarted = true;
-      stashOleDragSession({
-        paths: drag.paths,
-        op: 'copy',
-        sourcePaneId: 'archive-preview',
-        sourceTabPath: winPath,
-      });
-      setArchiveDragGhost(null);
-      dispatchPointerFileDragActive(false);
-      cleanupListeners(onMove, onUp);
-      dragRef.current = null;
-      IPC.startDrag(drag.paths);
-      setStatus(`Dragging ${drag.paths.length} item(s) — drop on desktop or folder.`);
+      if (hostOleEscalated) return;
+      // Host poll is authoritative for leave-window → DoDragDrop.
     };
 
     const onUp = async (ev: PointerEvent) => {
       if (ev.pointerId !== capturePointerId) return;
-      cleanupListeners(onMove, onUp);
+      cleanupListeners(onMove, onUp, onCancel);
       dispatchPointerFileDragActive(false);
+      if (!oleDragStarted) IPC.notifyFileDragActive(false);
       if (oleDragStarted) {
         dragRef.current = null;
         setArchiveDragGhost(null);
@@ -506,9 +511,25 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
       endFileDragSession();
     };
 
+    const onCancel = (ev: PointerEvent) => {
+      // Leaving the WebView cancels the pointer — keep FILE_DRAG_ACTIVE armed so the
+      // host poll can still escalate to DoDragDrop after the cursor leaves the window.
+      if (ev.pointerId !== capturePointerId) return;
+      const drag = dragRef.current;
+      if (drag && (drag.active || drag.preparing || drag.paths?.length) && !oleDragStarted && !hostOleEscalated) {
+        document.removeEventListener('pointermove', onMove, captureOpts);
+        document.removeEventListener('pointerup', onUp, captureOpts);
+        document.removeEventListener('pointercancel', onCancel, captureOpts);
+        setArchiveDragGhost(null);
+        dispatchPointerFileDragActive(false);
+        return;
+      }
+      void onUp(ev);
+    };
+
     document.addEventListener('pointermove', onMove, captureOpts);
     document.addEventListener('pointerup', onUp, captureOpts);
-    document.addEventListener('pointercancel', onUp, captureOpts);
+    document.addEventListener('pointercancel', onCancel, captureOpts);
   };
 
   const handleEntryMouseMove = () => {

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
+import { isQueuedIpcResult } from '../../lib/transferIpc';
 import { assertIpcOk, runPluginRefresh } from '../../lib/pluginRefresh';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
@@ -150,6 +151,14 @@ export default function DropMagnetPlugin({
       const res = await IPC.magnetApplyDrop(magnet.id, selectedPaths, 'copy');
       if (!res.ok) {
         pushToast(res.error || 'Magnet apply failed.');
+        return;
+      }
+      if (isQueuedIpcResult(res)) {
+        pushToast({
+          kind: 'success',
+          title: magnet.name,
+          message: 'Magnet route queued — see transfer panel.',
+        });
         return;
       }
       pushToast({

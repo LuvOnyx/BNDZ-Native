@@ -288,7 +288,7 @@ public sealed class FileTransferQueueService
             job.Status = FileTransferJobStatus.Running;
             job.StartedUtc ??= DateTime.UtcNow;
         }
-        NotifyChanged();
+        NotifyChanged(throttle: true);
     }
 
     public void MarkCompleted(string operationId, string? verifyMode = null, string? verifyStatus = null)
@@ -302,8 +302,9 @@ public sealed class FileTransferQueueService
         else if (string.Equals(job.Action, "copy", StringComparison.OrdinalIgnoreCase)
                  || string.Equals(job.Action, "move", StringComparison.OrdinalIgnoreCase))
         {
-            // BNDZ buffered copy always SHA-256 verifies; mark verified unless already set.
-            if (job.VerifyStatus is "pending" or null or "")
+            // Only the BNDZ buffered engine SHA-256 verifies — don't stamp "Verified" on native/TeraCopy.
+            if (string.Equals(job.Engine, "bndz", StringComparison.OrdinalIgnoreCase)
+                && job.VerifyStatus is "pending" or null or "")
             {
                 job.VerifyMode = "sha256";
                 job.VerifyStatus = "verified";
@@ -430,7 +431,9 @@ public sealed class FileTransferQueueService
         if (_cancelSources.TryGetValue(operationId, out var cts))
         {
             try { cts.Cancel(); } catch { /* ignore */ }
-            MarkCancelled(operationId);
+            // Do NOT MarkCancelled yet — STA IFileOperation may still be running.
+            // Worker catches OperationCanceledException and marks terminal then;
+            // early cancelled status reinjected optimistic tombstones mid-delete/move.
             return true;
         }
 
@@ -442,6 +445,7 @@ public sealed class FileTransferQueueService
 
         if (_jobs.TryGetValue(operationId, out var running) && running.Status == FileTransferJobStatus.Running)
         {
+            // No CTS (edge) — terminal cancel so UI does not spin forever.
             MarkCancelled(operationId);
             return true;
         }
@@ -800,8 +804,20 @@ public sealed class FileTransferQueueService
         }
     }
 
-    private void NotifyChanged()
+    private long _lastProgressNotifyMs;
+
+    private void NotifyChanged(bool throttle = false)
     {
+        if (throttle)
+        {
+            var now = Environment.TickCount64;
+            if (now - _lastProgressNotifyMs < 100) return;
+            _lastProgressNotifyMs = now;
+        }
+        else
+        {
+            _lastProgressNotifyMs = Environment.TickCount64;
+        }
         QueueChanged?.Invoke();
         MaybePersist();
     }

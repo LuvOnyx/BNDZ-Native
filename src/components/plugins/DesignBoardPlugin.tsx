@@ -205,6 +205,15 @@ export default function DesignBoardPlugin({
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [expanded, popout, boardKey, isPluginTabActive, postResize]);
 
+  // Expand / popout: show inspector panels (nested dock boots panels-hidden + bottom strip).
+  useEffect(() => {
+    if (!expanded && !popout) return;
+    const timers = [80, 220, 600].map((ms) =>
+      window.setTimeout(() => postToBoard({ type: 'showPanels' }), ms),
+    );
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [expanded, popout, boardKey, postToBoard]);
+
   useEffect(() => {
     const root = boardRef.current;
     if (!root || typeof ResizeObserver === 'undefined') return;

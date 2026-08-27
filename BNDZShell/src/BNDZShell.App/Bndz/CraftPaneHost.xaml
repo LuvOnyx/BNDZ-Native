@@ -15,6 +15,7 @@
             VerticalAlignment="Stretch"
             DefaultBackgroundColor="Transparent"
             Loaded="PaneWebView_Loaded" />
+        <!-- Removed opaque OleGhostMask — it covered File/Edit menubar during in-app drags. -->
         <TextBlock
             x:Name="PaneStatusHint"
             Style="{StaticResource BndzBodyTextBlockStyle}"

@@ -170,9 +170,25 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "==> Re-sync UI after shell build" -ForegroundColor Cyan
 Sync-UiAssetsToShellOutput
 
+# Stage a fresh copy for convenience paths — run-bndz-native prefers bin, but keep artifacts current.
+Write-Host "==> Stage artifacts\bndzshell-debug from x64 Debug" -ForegroundColor Cyan
+$x64Out = Get-ChildItem -Path (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\x64\Debug") -Directory -Recurse -Filter "net*-windows*" -EA SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName "BNDZShell.exe") } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if ($null -eq $x64Out) {
+    Write-Host "  WARN: no x64 Debug output folder to stage" -ForegroundColor DarkYellow
+} else {
+    $stage = Join-Path $root "artifacts\bndzshell-debug"
+    New-Item -ItemType Directory -Force -Path $stage | Out-Null
+    robocopy $x64Out.FullName $stage /MIR /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "robocopy artifacts stage failed ($LASTEXITCODE)" }
+    Write-Host "  staged $($x64Out.FullName) -> $stage" -ForegroundColor DarkCyan
+}
+
 Write-Host ""
-Write-Host "Ready - launch either:" -ForegroundColor Green
-Write-Host "  scripts\run-bndz-native.cmd"
+Write-Host "Ready - launch:" -ForegroundColor Green
+Write-Host "  scripts\run-bndz-native.cmd  (prefers bin\x64\Debug, then artifacts)"
 Write-Host "  or double-click BNDZShell.exe under bin\x64\Debug\net*-windows*\"
 Write-Host "  ARM64: bin\ARM64\Debug\net*-windows*\ (when built)"
 Write-Host "(Unpackaged self-contained WinAppSDK - MSIX register no longer required.)"

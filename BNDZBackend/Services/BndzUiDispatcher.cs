@@ -102,4 +102,16 @@ internal static class BndzUiDispatcher
             action();
             return 0;
         });
+
+    public static void BeginInvoke(Action action)
+    {
+        if (action is null) return;
+        var d = Require();
+        if (d.CheckAccess())
+        {
+            _ = d.BeginInvoke(DispatcherPriority.Input, action);
+            return;
+        }
+        _ = d.BeginInvoke(DispatcherPriority.Input, action);
+    }
 }

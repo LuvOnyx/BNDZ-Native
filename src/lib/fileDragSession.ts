@@ -194,6 +194,9 @@ let pendingOleSession: FileDragSessionState | null = null;
 export function beginFileDragSession(state: FileDragSessionState) {
   activeSession = state;
   pendingOleSession = null;
+  try {
+    window.dispatchEvent(new CustomEvent('bndz-pointer-file-drag-active', { detail: { active: true } }));
+  } catch { /* ignore */ }
 }
 
 export function getFileDragSession(): FileDragSessionState | null {
@@ -203,6 +206,9 @@ export function getFileDragSession(): FileDragSessionState | null {
 export function endFileDragSession() {
   activeSession = null;
   // Keep pendingOleSession — OLE DoDragDrop may still complete after pointer-up.
+  try {
+    window.dispatchEvent(new CustomEvent('bndz-pointer-file-drag-active', { detail: { active: false } }));
+  } catch { /* ignore */ }
 }
 
 /** Call when escalating an in-app drag to native OLE so move/copy intent survives the drop. */
@@ -249,6 +255,31 @@ const INTERNAL_DRAG_CHROME_SELECTORS = [
   '.sidebar-pin-row',
 ];
 
+/**
+ * Selectors used only for OLE edge-band veto. Full-bleed workspace/pane wrappers are
+ * excluded — they cover the entire viewport including the 10px edge and blocked escalate.
+ */
+const OLE_EDGE_CHROME_SELECTORS = [
+  '[data-tab-id]',
+  '[data-tabstrip]',
+  '[data-new-tab-zone]',
+  '[data-breadcrumb-path]',
+  '[data-nav-path]',
+  '[data-list-body]',
+  '.fs-list-header',
+  '.bndz-chrome-tabstrip',
+  '.bndz-chrome-toolbar',
+  '.bndz-chrome-omnibar',
+  '.bndz-chrome-sidebar',
+  '.bndz-chrome-menubar',
+  '.bndz-chrome-bottom',
+  '.bndz-chrome-preview',
+  '.bndz-chrome-statusbar',
+  '.bndz-archive-root',
+  '.sidebar-pin-row',
+  '[data-bndz-workspace-surface]',
+];
+
 /** Archive preview surface at pointer (for drag-out / drop-in routing). */
 export function hitTestArchiveRootAtPoint(clientX: number, clientY: number): HTMLElement | null {
   return hitTestClosestAtPoint(clientX, clientY, '.bndz-archive-root[data-archive-path]')
@@ -278,7 +309,22 @@ export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number
   return false;
 }
 
-/** True when archive drag should escalate to native OLE (desktop / Explorer), not in-app list. */
+/** Narrow chrome check for OLE edge escalate (excludes full-bleed workspace wrappers). */
+export function isOleEdgeChromeAtPoint(clientX: number, clientY: number): boolean {
+  for (const el of elementsAtPoint(clientX, clientY)) {
+    for (const selector of OLE_EDGE_CHROME_SELECTORS) {
+      if (el.closest(selector)) return true;
+    }
+  }
+  if (hitTestTabByRect(clientX, clientY)) return true;
+  if (hitTestListBodyAtPoint(clientX, clientY)) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-nav-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-breadcrumb-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-archive-root')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-sidebar')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-tabstrip]')) return true;
+  return false;
+}
 
 /** True when the pointer left the WebView CSS viewport (desktop / other apps) — OLE escalate. */
 export function isPointerOutsideWebViewViewport(clientX: number, clientY: number, marginPx = 8): boolean {
@@ -287,11 +333,74 @@ export function isPointerOutsideWebViewViewport(clientX: number, clientY: number
   return clientX < -marginPx || clientY < -marginPx || clientX > w + marginPx || clientY > h + marginPx;
 }
 
+/** WebView2 clamps client coords — desktop drags usually hit the viewport edge first. */
+export function isPointerNearWebViewViewportEdge(clientX: number, clientY: number, edgePx = 10): boolean {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+  if (w <= 0 || h <= 0) return false;
+  return clientX <= edgePx || clientY <= edgePx || clientX >= w - edgePx || clientY >= h - edgePx;
+}
 
-export function shouldArchiveEscalateToOle(clientX: number, clientY: number): boolean {
+/** Screen-space leave check — works when clientX/Y are clamped by WebView2. */
+export function isPointerOutsideScreenWindow(screenX: number, screenY: number, marginPx = 4): boolean {
+  if (typeof window === 'undefined') return false;
+  const left = window.screenX;
+  const top = window.screenY;
+  const right = left + window.outerWidth;
+  const bottom = top + window.outerHeight;
+  return screenX < left - marginPx
+    || screenY < top - marginPx
+    || screenX > right + marginPx
+    || screenY > bottom + marginPx;
+}
+
+/** True when pointer is in the top caption/menubar band (screen coords). */
+export function isPointerNearWindowTopChrome(screenY: number, chromePx = 48): boolean {
+  if (typeof window === 'undefined') return false;
+  const top = window.screenY;
+  const band = Math.max(24, chromePx);
+  return screenY >= top && screenY < top + band;
+}
+
+/**
+ * Escalate in-app pointer drag to native OLE (Explorer/desktop).
+ * Host FILE_DRAG_ACTIVE poll is authoritative; this is the FE backup path.
+ */
+export function shouldEscalateFileDragToOle(
+  clientX: number,
+  clientY: number,
+  overInternalChrome: boolean,
+  outsideChromeStreak: number,
+  screenX?: number,
+  screenY?: number,
+): boolean {
+  // True leave of the OS window → host OLE. Do NOT treat "outside WebView viewport"
+  // alone as escalate — that killed FluidDragStack tooltips while still inside BNDZ.
+  if (typeof screenX === 'number' && typeof screenY === 'number'
+    && isPointerOutsideScreenWindow(screenX, screenY)) {
+    return true;
+  }
+  if (overInternalChrome || outsideChromeStreak < 2) return false;
+  return isPointerNearWebViewViewportEdge(clientX, clientY);
+}
+
+/** True when archive drag should escalate to native OLE (desktop / Explorer), not in-app list. */
+export function shouldArchiveEscalateToOle(
+  clientX: number,
+  clientY: number,
+  outsideChromeStreak = 0,
+  screenX?: number,
+  screenY?: number,
+): boolean {
   if (isArchiveInternalDropTargetAtPoint(clientX, clientY)) return false;
-  return isOutsideArchivePreviewAtPoint(clientX, clientY)
-    && !isInternalFileDragChromeAtPoint(clientX, clientY);
+  if (typeof screenX === 'number' && typeof screenY === 'number'
+    && isPointerOutsideScreenWindow(screenX, screenY)) {
+    return true;
+  }
+  if (!isOutsideArchivePreviewAtPoint(clientX, clientY)) return false;
+  if (isInternalFileDragChromeAtPoint(clientX, clientY)) return false;
+  if (outsideChromeStreak < 2) return false;
+  return isPointerNearWebViewViewportEdge(clientX, clientY);
 }
 
 /** True when pointer is over an in-app drop target for archive extract-and-copy. */

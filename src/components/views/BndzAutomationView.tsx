@@ -132,6 +132,8 @@ type AutomationFlowPaneProps = {
   savedViewport: AutomationViewport;
   /** When true, skip restore so a single fitView owns first paint. */
   skipViewportRestore: boolean;
+  /** Animate edges while a pipeline run is active. */
+  edgesAnimate: boolean;
   onInit: (inst: ReactFlowInstance) => void;
   onNodesChange: OnNodesChange<Node<NodeData>>;
   onEdgesChange: OnEdgesChange<Edge>;
@@ -197,6 +199,7 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
   zoomOnScroll,
   savedViewport,
   skipViewportRestore,
+  edgesAnimate,
   onInit,
   onNodesChange,
   onEdgesChange,
@@ -269,7 +272,7 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         maxZoom={1.8}
         defaultEdgeOptions={{
           type: 'smoothstep',
-          animated: false,
+          animated: edgesAnimate,
           style: { stroke: '#34d399', strokeWidth: 2.25 },
         }}
         connectionLineStyle={{ stroke: '#6ee7b7', strokeWidth: 2, strokeDasharray: '6 4' }}
@@ -955,6 +958,20 @@ export default function BndzAutomationView() {
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [armed]);
+
+  // Pulse pipeline wires while running or while armed watchers are live.
+  useEffect(() => {
+    const animate = running || (armed && (liveStatus?.watchers?.some(w => w.live) ?? false));
+    setEdges(eds => {
+      let changed = false;
+      const next = eds.map(e => {
+        if (!!e.animated === animate) return e;
+        changed = true;
+        return { ...e, animated: animate };
+      });
+      return changed ? next : eds;
+    });
+  }, [running, armed, liveStatus, setEdges]);
 
   useEffect(() => {
     const onSeed = () => applySeed();
@@ -1760,6 +1777,7 @@ export default function BndzAutomationView() {
           zoomOnScroll={zoomOnScroll}
           savedViewport={savedViewport}
           skipViewportRestore={skipViewportRestore}
+          edgesAnimate={running || (armed && liveWatchers > 0)}
           onInit={onFlowInit}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

@@ -441,7 +441,15 @@ public class FileOperationService
             }
             else
             {
-                await CopyFileBufferedAsync(src, dest, cancellationToken).ConfigureAwait(false);
+                await CopyFileBufferedAsync(src, dest, cancellationToken, (fileDone, fileTotal) =>
+                {
+                    var soFar = transferred + fileDone;
+                    double speedNow = sw.Elapsed.TotalSeconds > 0 ? soFar / sw.Elapsed.TotalSeconds : 0;
+                    int pctNow = totalBytes > 0
+                        ? (int)Math.Clamp(soFar * 100 / totalBytes, 0, 99)
+                        : (int)((i + 1) * 100.0 / work.Count);
+                    onProgress?.Invoke(operationId, pctNow, src, soFar, totalBytes, speedNow, i, work.Count);
+                }).ConfigureAwait(false);
                 if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
                     throw new IOException($"Copy verification failed for {Path.GetFileName(src)}");
                 if (preservePermissions) TryPreservePermissions(src, dest);
@@ -475,7 +483,11 @@ public class FileOperationService
         return createdPaths;
     }
 
-    private static async Task CopyFileBufferedAsync(string sourceFile, string destinationFile, CancellationToken cancellationToken = default)
+    private static async Task CopyFileBufferedAsync(
+        string sourceFile,
+        string destinationFile,
+        CancellationToken cancellationToken = default,
+        Action<long, long>? onByteProgress = null)
     {
         const int bufferSize = 1024 * 1024;
         await using var sourceStream = new FileStream(
@@ -485,11 +497,24 @@ public class FileOperationService
             destinationFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         var buffer = new byte[bufferSize];
+        var fileTotal = sourceStream.Length;
+        long fileDone = 0;
+        var lastReportMs = 0L;
         int read;
         while ((read = await sourceStream.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken).ConfigureAwait(false)) > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await destinationStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            fileDone += read;
+            if (onByteProgress != null)
+            {
+                var now = Environment.TickCount64;
+                if (now - lastReportMs >= 100 || fileDone >= fileTotal)
+                {
+                    lastReportMs = now;
+                    onByteProgress(fileDone, fileTotal);
+                }
+            }
         }
         await destinationStream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }

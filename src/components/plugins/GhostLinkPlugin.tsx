@@ -22,7 +22,7 @@ import {
 export const GhostLinkPluginDef = {
   id: 'ghost-link',
   name: 'Ghost-Link',
-  icon: 'emblem_symbolic_link',
+  icon: 'link',
   description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,

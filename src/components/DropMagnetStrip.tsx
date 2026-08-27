@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { IPC } from '../lib/ipcBridge';
 import { pushToast } from './ToastHost';
 import { runPluginRefresh } from '../lib/pluginRefresh';
+import { isQueuedIpcResult } from '../lib/transferIpc';
 
 type MagnetRow = {
   id: string;
@@ -56,6 +57,15 @@ export default function DropMagnetStrip({ externalDragActive, pendingPaths, onAp
         return;
       }
       const magnet = magnets.find(m => m.id === magnetId);
+      if (isQueuedIpcResult(res)) {
+        pushToast({
+          kind: 'success',
+          title: magnet?.name ?? 'Magnet',
+          message: 'Routing queued — see transfer panel.',
+        });
+        onApplied?.();
+        return;
+      }
       pushToast({
         kind: 'success',
         title: magnet?.name ?? 'Magnet',

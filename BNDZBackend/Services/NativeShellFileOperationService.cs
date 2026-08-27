@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -47,43 +48,36 @@ public sealed class NativeShellFileOperationService
         Action<string, int, string, long, long, double, int, int>? onProgress = null,
         CancellationToken cancellationToken = default,
         bool showProgress = true,
-        Action<string, string>? onAccessDenied = null)
+        Action<string, string>? onAccessDenied = null,
+        IntPtr ownerHwnd = default)
     {
-        // IFileOperation / Explorer progress UI require STA. Never run progress UI on MTA thread-pool.
-        if (showProgress)
+        // IFileOperation requires STA whether or not the Explorer progress UI is shown.
+        // Running silent ops on the MTA thread-pool caused flaky cancel/progress and hung sinks.
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
         {
-            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var thread = new Thread(() =>
+            try
             {
-                try
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    RunOperation(operationId, action, sources, target, bypassRecycleBin, onProgress, cancellationToken, showProgress: true, onAccessDenied);
-                    tcs.TrySetResult();
-                }
-                catch (OperationCanceledException oce)
-                {
-                    tcs.TrySetCanceled(oce.CancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    tcs.TrySetException(ex);
-                }
-            })
+                cancellationToken.ThrowIfCancellationRequested();
+                RunOperation(operationId, action, sources, target, bypassRecycleBin, onProgress, cancellationToken, showProgress, onAccessDenied, ownerHwnd);
+                tcs.TrySetResult();
+            }
+            catch (OperationCanceledException oce)
             {
-                IsBackground = true,
-                Name = "BNDZ-NativeShellOp",
-            };
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            return tcs.Task;
-        }
-
-        return Task.Run(() =>
+                tcs.TrySetCanceled(oce.CancellationToken);
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        })
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            RunOperation(operationId, action, sources, target, bypassRecycleBin, onProgress, cancellationToken, showProgress: false, onAccessDenied);
-        }, cancellationToken);
+            IsBackground = true,
+            Name = showProgress ? "BNDZ-NativeShellOp" : "BNDZ-NativeShellOp-Silent",
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return tcs.Task;
     }
 
     private static void RunOperation(
@@ -95,21 +89,33 @@ public sealed class NativeShellFileOperationService
         Action<string, int, string, long, long, double, int, int>? onProgress,
         CancellationToken cancellationToken,
         bool showProgress,
-        Action<string, string>? onAccessDenied)
+        Action<string, string>? onAccessDenied,
+        IntPtr ownerHwnd)
     {
         sources = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
         target = NormalizePath(target);
         action = (action ?? "copy").ToLowerInvariant();
         var total = Math.Max(sources.Count, 1);
+        var totalBytes = EstimateTotalBytes(sources);
 
-        onProgress?.Invoke(operationId, 0, sources.FirstOrDefault() ?? "", 0, 0, 0, 0, total);
+        onProgress?.Invoke(operationId, 0, sources.FirstOrDefault() ?? "", 0, totalBytes, 0, 0, total);
 
         try
         {
-            ExecuteWithVanara(operationId, action, sources, target, bypassRecycleBin, showProgress, onProgress, total);
+            ExecuteWithVanara(operationId, action, sources, target, bypassRecycleBin, showProgress, onProgress, total, totalBytes, cancellationToken, ownerHwnd);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Win32Exception) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException("Windows shell operation was cancelled.", cancellationToken);
         }
         catch (Exception ex)
         {
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException("Windows shell operation was cancelled.", cancellationToken);
             var classified = PrivilegePolicyService.Classify(ex, "This file operation");
             if (classified.NeedsElevation)
             {
@@ -131,7 +137,7 @@ public sealed class NativeShellFileOperationService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        onProgress?.Invoke(operationId, 100, sources.LastOrDefault() ?? target, 0, 0, 0, total, total);
+        onProgress?.Invoke(operationId, 100, sources.LastOrDefault() ?? target, totalBytes, totalBytes, 0, total, total);
     }
 
     private static void ExecuteWithVanara(
@@ -142,7 +148,10 @@ public sealed class NativeShellFileOperationService
         bool bypassRecycleBin,
         bool showProgress,
         Action<string, int, string, long, long, double, int, int>? onProgress,
-        int total)
+        int total,
+        long totalBytes,
+        CancellationToken cancellationToken,
+        IntPtr ownerHwnd)
     {
         // Allow Explorer-quality conflict UI always — never silent overwrite.
         // Silent only hides the progress window; collisions still prompt.
@@ -150,72 +159,224 @@ public sealed class NativeShellFileOperationService
         if (!(action == "delete" && bypassRecycleBin))
             flags |= ShellFileOperations.OperationFlags.AllowUndo;
         if (!showProgress)
+        {
             flags |= ShellFileOperations.OperationFlags.Silent;
+            // FOFX_SHOWSILENTPROGRESS (0x04000000) — keep IFileOperation progress sink
+            // callbacks so the BNDZ transfer panel moves without an Explorer modal.
+            flags |= (ShellFileOperations.OperationFlags)0x04000000;
+        }
 
         using var op = new ShellFileOperations { Options = flags };
-        var completed = 0;
+        if (ownerHwnd != IntPtr.Zero)
+            op.OwnerWindow = ownerHwnd;
+        var currentFile = sources.FirstOrDefault() ?? "";
+        var itemsDone = 0;
+        var lastReportMs = 0L;
+        var lastShellPct = 0;
+        var lastReportUtc = DateTime.UtcNow;
+        long lastBytes = 0;
 
-        void Bump(string? current)
+        void ThrowIfCanceled()
         {
-            completed = Math.Min(completed + 1, total);
-            var pct = total > 0 ? (int)(completed * 100.0 / total) : 100;
-            onProgress?.Invoke(operationId, pct, current ?? "", 0, 0, 0, completed, total);
+            if (!cancellationToken.IsCancellationRequested) return;
+            // E_FAIL from progress sink aborts IFileOperation mid-flight (Files / shell pattern).
+            throw new Win32Exception(unchecked((int)0x80004005));
         }
 
-        switch (action)
+        void Report(int pct, string? file, bool force = false)
         {
-            case "delete":
-                foreach (var src in sources)
-                {
-                    using var item = new ShellItem(src);
-                    op.QueueDeleteOperation(item);
-                }
-                break;
-
-            case "copy":
-                QueueCopyOrMove(op, sources, target, move: false, Bump);
-                break;
-
-            case "move":
-                if (sources.Count == 1 && IsSameDirectoryRename(sources[0], target))
-                    QueueSingleTargetMove(op, sources[0], target, Bump);
-                else
-                    QueueCopyOrMove(op, sources, target, move: true, Bump);
-                break;
-
-            case "create-dir":
-                if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
-                else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
-                return;
-
-            case "create-file":
+            ThrowIfCanceled();
+            if (onProgress == null) return;
+            var now = Environment.TickCount64;
+            if (!force && now - lastReportMs < 100 && pct < 99) return;
+            lastReportMs = now;
+            var clamped = Math.Clamp(pct, 0, 99);
+            long bytesDone = 0;
+            double speed = 0;
+            if (totalBytes > 0)
             {
-                var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
-                if (!string.IsNullOrEmpty(filePath))
+                bytesDone = (long)(totalBytes * (clamped / 100.0));
+                var elapsed = (DateTime.UtcNow - lastReportUtc).TotalSeconds;
+                if (elapsed > 0.05 && bytesDone >= lastBytes)
+                    speed = (bytesDone - lastBytes) / elapsed;
+                lastBytes = bytesDone;
+                lastReportUtc = DateTime.UtcNow;
+            }
+            onProgress.Invoke(
+                operationId,
+                clamped,
+                file ?? currentFile,
+                bytesDone,
+                totalBytes,
+                speed,
+                itemsDone,
+                total);
+        }
+
+        void OnPreItem(object? sender, ShellFileOperations.ShellFileOpEventArgs e)
+        {
+            ThrowIfCanceled();
+            try
+            {
+                var path = TryShellItemPath(e.SourceItem);
+                if (!string.IsNullOrWhiteSpace(path))
+                    currentFile = path;
+                // Prefer IFileOperation UpdateProgress %. Item events only fill gaps when shell % is silent.
+                if (lastShellPct <= 0)
                 {
-                    var dir = Path.GetDirectoryName(filePath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                        Directory.CreateDirectory(dir);
-                    if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
+                    var denom = Math.Max(total * 4, itemsDone + 4);
+                    Report(Math.Min(90, Math.Max(1, (int)(itemsDone * 100.0 / denom))), currentFile, force: true);
                 }
-                return;
+                else
+                {
+                    Report(lastShellPct, currentFile, force: true);
+                }
+            }
+            catch (Win32Exception) { throw; }
+            catch { /* never break shell op on progress */ }
+        }
+
+        void OnPostItem(object? sender, ShellFileOperations.ShellFileOpEventArgs e)
+        {
+            ThrowIfCanceled();
+            itemsDone++;
+            try
+            {
+                var path = TryShellItemPath(e.SourceItem) ?? TryShellItemPath(e.DestItem);
+                if (!string.IsNullOrWhiteSpace(path))
+                    currentFile = path!;
+            }
+            catch { /* ignore */ }
+            if (lastShellPct <= 0)
+            {
+                var denom = Math.Max(total * 4, itemsDone + 3);
+                Report(Math.Min(90, Math.Max(1, (int)(itemsDone * 100.0 / denom))), currentFile, force: true);
+            }
+            else
+            {
+                Report(lastShellPct, currentFile, force: true);
+            }
+        }
+
+        void OnUpdateProgress(object? sender, ProgressChangedEventArgs e)
+        {
+            ThrowIfCanceled();
+            lastShellPct = Convert.ToInt32(e.ProgressPercentage);
+            Report(lastShellPct, currentFile);
+        }
+
+        op.UpdateProgress += OnUpdateProgress;
+        op.PreCopyItem += OnPreItem;
+        op.PreMoveItem += OnPreItem;
+        op.PreDeleteItem += OnPreItem;
+        op.PostCopyItem += OnPostItem;
+        op.PostMoveItem += OnPostItem;
+        op.PostDeleteItem += OnPostItem;
+
+        try
+        {
+            switch (action)
+            {
+                case "delete":
+                    foreach (var src in sources)
+                    {
+                        using var item = new ShellItem(src);
+                        op.QueueDeleteOperation(item);
+                    }
+                    break;
+
+                case "copy":
+                    QueueCopyOrMove(op, sources, target, move: false);
+                    break;
+
+                case "move":
+                    if (sources.Count == 1 && IsSameDirectoryRename(sources[0], target))
+                        QueueSingleTargetMove(op, sources[0], target);
+                    else
+                        QueueCopyOrMove(op, sources, target, move: true);
+                    break;
+
+                case "create-dir":
+                    if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
+                    else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
+                    return;
+
+                case "create-file":
+                {
+                    var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                    if (!string.IsNullOrEmpty(filePath))
+                    {
+                        var dir = Path.GetDirectoryName(filePath);
+                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                            Directory.CreateDirectory(dir);
+                        if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
+                    }
+                    return;
+                }
+
+                default:
+                    return;
             }
 
-            default:
-                return;
+            Report(1, currentFile, force: true);
+            try
+            {
+                op.PerformOperations();
+            }
+            catch (Win32Exception) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException("Windows shell operation was cancelled.", cancellationToken);
+            }
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException("Windows shell operation was cancelled.", cancellationToken);
+            if (op.AnyOperationsAborted)
+                throw new OperationCanceledException("Windows shell operation was aborted.");
         }
+        finally
+        {
+            op.UpdateProgress -= OnUpdateProgress;
+            op.PreCopyItem -= OnPreItem;
+            op.PreMoveItem -= OnPreItem;
+            op.PreDeleteItem -= OnPreItem;
+            op.PostCopyItem -= OnPostItem;
+            op.PostMoveItem -= OnPostItem;
+            op.PostDeleteItem -= OnPostItem;
+        }
+    }
 
-        op.PerformOperations();
-        if (op.AnyOperationsAborted)
-            throw new OperationCanceledException("Windows shell operation was aborted.");
+    /// <summary>
+    /// Best-effort size sum so the transfer panel can show bytes/speed for native IFileOperation
+    /// (the shell progress sink only exposes percent).
+    /// </summary>
+    private static long EstimateTotalBytes(IReadOnlyList<string> sources)
+    {
+        long total = 0;
+        foreach (var src in sources)
+        {
+            try
+            {
+                if (File.Exists(src))
+                {
+                    total += new FileInfo(src).Length;
+                    continue;
+                }
+                if (!Directory.Exists(src)) continue;
+                foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+                {
+                    try { total += new FileInfo(file).Length; }
+                    catch { /* skip locked/unreadable */ }
+                }
+            }
+            catch { /* skip inaccessible roots */ }
+        }
+        return total;
     }
 
     private static void QueueCopyOrMove(
         ShellFileOperations op,
         List<string> sources,
         string targetDir,
-        bool move,
-        Action<string?> bump)
+        bool move)
     {
         if (sources.Count == 0) return;
         var dest = targetDir.TrimEnd('\\');
@@ -236,15 +397,9 @@ public sealed class NativeShellFileOperationService
         {
             using var sourceItem = new ShellItem(src);
             if (move)
-            {
                 op.QueueMoveOperation(sourceItem, destFolder);
-                bump(src);
-            }
             else
-            {
                 op.QueueCopyOperation(sourceItem, destFolder);
-                bump(src);
-            }
         }
     }
 
@@ -269,7 +424,7 @@ public sealed class NativeShellFileOperationService
             throw new OperationCanceledException("Copy to device was aborted.");
     }
 
-    private static void QueueSingleTargetMove(ShellFileOperations op, string source, string targetPath, Action<string?> bump)
+    private static void QueueSingleTargetMove(ShellFileOperations op, string source, string targetPath)
     {
         using var sourceItem = new ShellItem(source);
         var destDir = ParentDirectoryPath(targetPath);
@@ -286,7 +441,24 @@ public sealed class NativeShellFileOperationService
 
         using var destFolder = new ShellFolder(destDir);
         op.QueueMoveOperation(sourceItem, destFolder, newName);
-        bump(targetPath);
+    }
+
+    private static string? TryShellItemPath(ShellItem? item)
+    {
+        if (item is null) return null;
+        try
+        {
+            var fs = item.FileSystemPath;
+            if (!string.IsNullOrWhiteSpace(fs)) return fs;
+        }
+        catch { /* ignore */ }
+        try
+        {
+            var name = item.Name;
+            if (!string.IsNullOrWhiteSpace(name)) return name;
+        }
+        catch { /* ignore */ }
+        return null;
     }
 
     private static string ParentDirectoryPath(string path)

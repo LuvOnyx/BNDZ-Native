@@ -5,9 +5,11 @@ using System.Text.Json;
 using BNDZ.Services;
 using BNDZShell.Bndz;
 using Microsoft.UI;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Windows.Graphics;
 using WinRT.Interop;
 
 namespace BNDZShell;
@@ -197,6 +199,13 @@ public sealed partial class MainWindow : Window
             tb.ButtonInactiveForegroundColor = ColorHelper.FromArgb(0x99, 0xFF, 0xFF, 0xFF);
             tb.BackgroundColor = Colors.Transparent;
             tb.InactiveBackgroundColor = Colors.Transparent;
+            // File/Edit band must Passthrough so WebView2 gets first click (caption otherwise eats it).
+            ApplyMenubarInputRegions();
+            if (Content is FrameworkElement root)
+            {
+                root.SizeChanged -= OnRootSizeChangedForMenubar;
+                root.SizeChanged += OnRootSizeChangedForMenubar;
+            }
             if (_launch.IsSticky)
             {
                 try
@@ -249,6 +258,52 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[BNDZShell] titlebar: {ex.Message}");
+        }
+    }
+
+    private void OnRootSizeChangedForMenubar(object sender, SizeChangedEventArgs e)
+        => ApplyMenubarInputRegions();
+
+    /// <summary>
+    /// WinUI caption covers the top band by default. Mark File/Edit (left ~520px of ~36px)
+    /// as Passthrough so WebView2 receives clicks; keep Caption on the trailing drag strip.
+    /// </summary>
+    private void ApplyMenubarInputRegions()
+    {
+        if (_launch.IsSticky || _appWindow is null) return;
+        try
+        {
+            var source = InputNonClientPointerSource.GetForWindowId(_appWindow.Id);
+            var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
+            if (scale < 0.5) scale = 1.0;
+            var menuH = (int)Math.Round(36 * scale);
+            var menuW = (int)Math.Round(520 * scale);
+            var winW = _appWindow.Size.Width;
+            if (winW <= 0 || menuH <= 0) return;
+
+            source.ClearRegionRects(NonClientRegionKind.Passthrough);
+            source.ClearRegionRects(NonClientRegionKind.Caption);
+
+            var passW = Math.Min(menuW, winW);
+            if (passW > 0)
+            {
+                source.SetRegionRects(
+                    NonClientRegionKind.Passthrough,
+                    [new RectInt32(0, 0, passW, menuH)]);
+            }
+
+            var capX = passW;
+            var capW = winW - capX;
+            if (capW > 0)
+            {
+                source.SetRegionRects(
+                    NonClientRegionKind.Caption,
+                    [new RectInt32(capX, 0, capW, menuH)]);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] menubar input regions: {ex.Message}");
         }
     }
 

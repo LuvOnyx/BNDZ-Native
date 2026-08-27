@@ -4273,12 +4273,13 @@ namespace BNDZ
                 else if (type == "MAGNET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payload.GetRawText(), IpcJsonOptions)
+                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid magnet payload.");
                             var saved = _dropMagnetService.SaveMagnet(recipe);
                             PostMeshIpcResult(idProp, "MAGNET_SAVE_RESULT", new { ok = true, magnet = saved });
@@ -5487,12 +5488,13 @@ namespace BNDZ
                 else if (type == "JOB_TICKET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var ticket = JsonSerializer.Deserialize<JobTicket>(payload.GetRawText(), IpcJsonOptions)
+                            var ticket = JsonSerializer.Deserialize<JobTicket>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid ticket payload.");
                             var saved = JobTicketService.Instance.Save(ticket);
                             PostMeshIpcResult(idProp, "JOB_TICKET_SAVE_RESULT", new { ok = true, ticket = saved });
@@ -9436,7 +9438,7 @@ namespace BNDZ
                         _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority, target);
                         _fileTransferQueue.MarkFailed(operationId, policyMsg);
                         if (!string.IsNullOrEmpty(idProp))
-                            PostMeshIpcResult(idProp, "EXECUTE_FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
+                            PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
                         return;
                     }
                 }

@@ -145,6 +145,19 @@ function SortablePaneTab({
     id: tab.id,
     disabled: !!tab.locked || !!suspendTabReorder,
   });
+  // dnd-kit PointerSensor should ignore non-primary buttons; wrap so right-click always
+  // reaches onContextMenu (host TrackPopupMenu / React tab menu).
+  const dragListeners = React.useMemo(() => {
+    if (!listeners) return listeners;
+    const onPointerDown = listeners.onPointerDown as ((e: React.PointerEvent) => void) | undefined;
+    return {
+      ...listeners,
+      onPointerDown: (e: React.PointerEvent) => {
+        if (e.button !== 0) return;
+        onPointerDown?.(e);
+      },
+    };
+  }, [listeners]);
   const pressRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const [liveWidth, setLiveWidth] = React.useState<number | null>(null);
   const effectiveWidth = liveWidth ?? customWidth;
@@ -231,7 +244,7 @@ function SortablePaneTab({
       }`}
       data-workspace-tab={isBndzCanvasPath(tab.path) ? 'spatial' : isBndzAutomationPath(tab.path) ? 'automation' : undefined}
       {...attributes}
-      {...listeners}
+      {...dragListeners}
       role="tab"
       aria-selected={isActive}
       tabIndex={-1}
@@ -346,6 +359,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
+      // Left-button only — right-click must reach onContextMenu for tab menus.
       activationConstraint: { distance: suspendTabReorder ? 99999 : 6 },
     }),
   );

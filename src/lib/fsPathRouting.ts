@@ -2,7 +2,7 @@
 
 import { isBndzRamPath } from './bndzVirtualViews';
 import { isMeshPath, normalizeMeshPath, parseMeshPath } from './meshPaths';
-import { normalizePanePath, toWindowsPath } from './pathUtils';
+import { isUriJunkPath, joinPanePath, normalizePanePath, toWindowsPath } from './pathUtils';
 
 export type DropRoute =
   | { kind: 'local'; op: 'copy' | 'move' }
@@ -34,6 +34,28 @@ export function canonicalDropPath(path: string): string {
     return pane;
   }
   return toWindowsPath(path);
+}
+
+/** Resolve a listing entity to a drag path — never stream or file: URI junk. */
+export function resolveEntityDragPath(
+  entity: { name: string; path?: string; id?: string; fsPath?: string },
+  panePath: string,
+): string {
+  const raw = entity.fsPath
+    ? String(entity.fsPath)
+    : entity.path
+      ? String(entity.path)
+      : joinPanePath(panePath, entity);
+  const trimmed = raw.trim();
+  const slashed = trimmed.replace(/\\/g, '/');
+  if (isUriJunkPath(trimmed)) {
+    return canonicalDropPath(joinPanePath(panePath, { name: entity.name, id: entity.id }));
+  }
+  // Corrupted listing path stuck on file%3A artifact while entity is a different item.
+  if (/[/]file%3A$/i.test(slashed) && entity.name !== 'file%3A') {
+    return canonicalDropPath(joinPanePath(panePath, { name: entity.name, id: entity.id }));
+  }
+  return canonicalDropPath(raw);
 }
 
 export function meshRemoteDirFromDest(destPath: string): { hostId: string; remotePath: string } | null {

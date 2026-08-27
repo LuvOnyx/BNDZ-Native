@@ -546,7 +546,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     if (config.folderContentsPreview === false || !isDir || folderChildren.length === 0) return null;
     return (
       <div className="bndz-preview-contents-panel flex flex-col min-h-0 flex-1 overflow-hidden rounded-xl border">
-        <div className="bndz-panel-section-title px-2 py-1.5 border-b flex items-center justify-between gap-2 shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
+        <div className="bndz-panel-section-title px-2 py-1.5 border-b flex items-center justify-between gap-2 shrink-0" style={{ borderColor: 'var(--bndz-border-subtle, #2a2a30)' }}>
           <span>Contents preview</span>
           {browsePath && path && browsePath !== path && (
             <button

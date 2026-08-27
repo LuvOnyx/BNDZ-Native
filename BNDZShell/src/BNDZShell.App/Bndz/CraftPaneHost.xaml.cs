@@ -5,7 +5,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using BNDZ.Services;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -48,6 +52,9 @@ public sealed partial class CraftPaneHost : UserControl
 	public IntPtr HostWindowHandle { get; set; }
 
 	private bool _oleDropRegistered;
+	private Microsoft.UI.Dispatching.DispatcherQueueTimer? _fileDragEscalateTimer;
+	private bool _fileDragEscalateArmed;
+	private bool _oleGhostMaskVisible;
 
 	private static CoreWebView2Environment? s_sharedPaneEnv;
 	private static readonly SemaphoreSlim s_envLock = new(1, 1);
@@ -189,14 +196,19 @@ public sealed partial class CraftPaneHost : UserControl
 			SyncRasterizationScale();
 			if (XamlRoot is not null)
 				XamlRoot.Changed += (_, _) => SyncRasterizationScale();
-			// Desktop → studio canvas: OLE host drop + React studioDropBridge (WinUI WebView2
-			// has no AllowExternalDrop XAML API like WPF; do not set a missing member).
-			try
-			{
-				var prop = PaneWebView.GetType().GetProperty("AllowExternalDrop");
-				prop?.SetValue(PaneWebView, true);
-			}
-			catch (Exception dropEx) { Debug.WriteLine($"[CraftPaneHost] AllowExternalDrop: {dropEx.Message}"); }
+            // Desktop → BNDZ: AllowExternalDrop=true so WebView2 does not install a blocking
+            // DROPEFFECT_NONE target. BNDZ Revoke+Register overlays our IDropTarget on every
+            // Chromium/InputSite child under the host.
+            try
+            {
+                var prop = PaneWebView.GetType().GetProperty("AllowExternalDrop");
+                prop?.SetValue(PaneWebView, true);
+                var controllerProp = PaneWebView.GetType().GetProperty("CoreWebView2Controller")
+                    ?? PaneWebView.GetType().GetProperty("Controller");
+                var controller = controllerProp?.GetValue(PaneWebView);
+                controller?.GetType().GetProperty("AllowExternalDrop")?.SetValue(controller, true);
+            }
+            catch (Exception dropEx) { Debug.WriteLine($"[CraftPaneHost] AllowExternalDrop: {dropEx.Message}"); }
 			// Let WinUI ExtendsContentIntoTitleBar caption buttons receive clicks over WebView2.
 			try { core.Settings.IsNonClientRegionSupportEnabled = true; }
 			catch (Exception ncEx) { Debug.WriteLine($"[CraftPaneHost] IsNonClientRegionSupportEnabled: {ncEx.Message}"); }
@@ -347,8 +359,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 	
 	/// <summary>
-	/// OLE DoDragDrop must run on the WinUI STA that owns the mouse. Blocking-wait enqueue
-	/// so thread-pool START_DRAG handlers can synchronously enter the drag loop.
+	/// Modal DoDragDrop must run on the WinUI STA (Explorer model). Blocking is expected during drag.
 	/// </summary>
 	private void WireHostStaInvokeForOle()
 	{
@@ -371,18 +382,278 @@ public sealed partial class CraftPaneHost : UserControl
 				    finally { done.Set(); }
 			    }))
 			{
-				throw new InvalidOperationException("WinUI DispatcherQueue rejected OLE STA enqueue.");
+				throw new InvalidOperationException("WinUI DispatcherQueue rejected OLE STA invoke.");
 			}
 			if (!done.Wait(TimeSpan.FromMinutes(10)))
 				throw new TimeoutException("OLE DoDragDrop STA invoke timed out.");
 			if (err != null) throw err;
 		});
+		BndzEmbeddedBackendHost.SetHostStaInvokeNextTick(action =>
+		{
+			if (action is null) return;
+			if (!dq.TryEnqueue(() =>
+			    {
+				    try { action(); }
+				    catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE next-tick: {ex.Message}"); }
+			    }))
+			{
+				Debug.WriteLine("[CraftPaneHost] OLE next-tick enqueue rejected — running inline");
+				try { action(); } catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE inline: {ex.Message}"); }
+			}
+		});
+		BndzEmbeddedBackendHost.SetHostStaInvokeDelayed((action, delayMs) =>
+		{
+			if (action is null) return;
+			var ms = Math.Clamp(delayMs, 16, 500);
+			var timer = DispatcherQueue.CreateTimer();
+			timer.Interval = TimeSpan.FromMilliseconds(ms);
+			timer.IsRepeating = false;
+			timer.Tick += (_, _) =>
+			{
+				timer.Stop();
+				try { action(); }
+				catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE delayed: {ex.Message}"); }
+			};
+			timer.Start();
+		});
+		// Hide every fluid/list ghost node — lead/card/pill survive if we only hide the stack root
+		// after React re-commits display (stuck MOVE under WinUI menubar).
+		const string GhostDismissScript =
+			"try{" +
+			"document.documentElement.classList.add('bndz-ole-drag-handoff');" +
+			"var veil=document.getElementById('bndz-ole-veil');" +
+			"if(!veil){veil=document.createElement('div');veil.id='bndz-ole-veil';" +
+			"veil.setAttribute('aria-hidden','true');" +
+			"veil.style.cssText='position:fixed;inset:0;z-index:2147483646;pointer-events:none;" +
+			"background:transparent;opacity:0;';document.documentElement.appendChild(veil);}" +
+			"document.querySelectorAll(" +
+			"'.bndz-fluid-drag-stack,.bndz-fluid-drag-lead,.bndz-fluid-drag-card,.bndz-fluid-drag-multi-pill," +
+			".bndz-fluid-drag-overflow-badge,.bndz-drag-ghost-root,.bndz-drag-ghost-card'" +
+			").forEach(function(el){" +
+			"el.style.setProperty('display','none','important');" +
+			"el.style.setProperty('visibility','hidden','important');" +
+			"el.style.setProperty('opacity','0','important');" +
+			"el.style.setProperty('pointer-events','none','important');});" +
+			"var f=window.__bndzDismissDragGhost;f?f():window.dispatchEvent(new CustomEvent('bndz-ole-drag-escalated'));" +
+			"}catch(e){}";
+
+		BndzEmbeddedBackendHost.SetOleEscalateFeDismiss(() =>
+		{
+			var core = PaneWebView.CoreWebView2;
+			if (core is null) return;
+			// Fire-and-forget — must NOT block-wait on UI thread (deadlocks script completion).
+			_ = core.ExecuteScriptAsync(GhostDismissScript);
+		});
+		// Ghost dismiss runs in parallel — DoDragDrop must start while LMB is still down.
+		BndzEmbeddedBackendHost.SetRunOleAfterFeHandoff(oleAction =>
+		{
+			if (oleAction is null) return;
+			try
+			{
+				var core = PaneWebView.CoreWebView2;
+				core?.ExecuteScriptAsync(GhostDismissScript);
+			}
+			catch { /* ignore */ }
+			if (!dq.TryEnqueue(() =>
+			    {
+				    try
+				    {
+					    File.AppendAllText(
+						    Path.Combine(
+							    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+							    "BNDZ", "ole-dnd.log"),
+						    $"{DateTime.Now:HH:mm:ss.fff} FE ghost dismiss ready why=immediate-next-tick{Environment.NewLine}");
+				    }
+				    catch { /* ignore */ }
+				    try { oleAction(); }
+				    catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE immediate: {ex.Message}"); }
+			    }))
+			{
+				try { oleAction(); }
+				catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE inline: {ex.Message}"); }
+			}
+		});
+		try
+		{
+			var scale = XamlRoot?.RasterizationScale ?? 1.0;
+			// Match MainWindow menubar/caption (~36dip) with headroom for React chrome.
+			BndzEmbeddedBackendHost.SetOutboundTopChromePx((int)Math.Round(48 * Math.Max(1.0, scale)));
+		}
+		catch { /* ignore */ }
+
+		if (!_oleWireStartupLogged)
+		{
+			_oleWireStartupLogged = true;
+			try
+			{
+				var dir = Path.Combine(
+					Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+					"BNDZ");
+				Directory.CreateDirectory(dir);
+				File.AppendAllText(
+					Path.Combine(dir, "ole-dnd.log"),
+					$"{DateTime.Now:HH:mm:ss.fff} STARTUP ole-wire topChrome=on awaitHandoff=on topMask=on ownedPayload=hdrop-only acceptGate=fb!=0&&fb!=7 feedbackTrusted=on denyTrayDrop=on pathSanitize=on dropVerify=on forensics=on build={DateTime.Now:yyyyMMdd-HHmm}{Environment.NewLine}");
+			}
+			catch { /* never break host on logging */ }
+		}
+	}
+
+	private static bool _oleWireStartupLogged;
+
+	private void StartFileDragEscalatePoll()
+	{
+		_fileDragEscalateArmed = true;
+		if (_fileDragEscalateTimer is null)
+		{
+			_fileDragEscalateTimer = DispatcherQueue.CreateTimer();
+			_fileDragEscalateTimer.Interval = TimeSpan.FromMilliseconds(16);
+			_fileDragEscalateTimer.Tick += (_, _) =>
+			{
+				if (!_fileDragEscalateArmed)
+				{
+					StopFileDragEscalatePoll();
+					return;
+				}
+				try
+				{
+					var stopPoll = BndzEmbeddedBackendHost.TryEscalateOutboundOleDrag();
+					SyncOleGhostMask(BndzEmbeddedBackendHost.ShouldShowOleTopGhostMask());
+					if (stopPoll)
+						StopFileDragEscalatePoll();
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine($"[CraftPaneHost] escalate poll: {ex.Message}");
+				}
+			};
+		}
+		if (!_fileDragEscalateTimer.IsRunning)
+			_fileDragEscalateTimer.Start();
+	}
+
+	private void StopFileDragEscalatePoll()
+	{
+		_fileDragEscalateArmed = false;
+		try { _fileDragEscalateTimer?.Stop(); } catch { /* ignore */ }
+		SyncOleGhostMask(false);
+	}
+
+	/// <summary>
+	/// Agent/CI smoke: %LocalAppData%\BNDZ\ole-smoke.json {"paths":["C:\\..."]} arms FILE_DRAG_ACTIVE.
+	/// </summary>
+	private void TryRunOleSmokeArmDeferred()
+	{
+		var timer = DispatcherQueue.CreateTimer();
+		timer.Interval = TimeSpan.FromMilliseconds(700);
+		timer.Tick += (_, _) =>
+		{
+			timer.Stop();
+			TryRunOleSmokeArmCore();
+			StartOleSmokePoll();
+		};
+		timer.Start();
+	}
+
+	/// <summary>Poll for late ole-smoke.json (automation writes after UI_READY + mouse down).</summary>
+	private void StartOleSmokePoll()
+	{
+		if (_oleSmokePollTimer is not null) return;
+		_oleSmokePollAttempts = 0;
+		_oleSmokePollTimer = DispatcherQueue.CreateTimer();
+		_oleSmokePollTimer.Interval = TimeSpan.FromMilliseconds(400);
+		_oleSmokePollTimer.Tick += (_, _) =>
+		{
+			_oleSmokePollAttempts++;
+			try { TryRunOleSmokeArmCore(); }
+			catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OleSmokePoll: {ex.Message}"); }
+			if (_oleSmokePollAttempts >= 300) // ~2 min
+				StopOleSmokePoll();
+		};
+		_oleSmokePollTimer.Start();
+	}
+
+	private void StopOleSmokePoll()
+	{
+		try { _oleSmokePollTimer?.Stop(); } catch { /* ignore */ }
+		_oleSmokePollTimer = null;
+	}
+
+	private Microsoft.UI.Dispatching.DispatcherQueueTimer? _oleSmokePollTimer;
+	private int _oleSmokePollAttempts;
+
+	private void TryRunOleSmokeArmCore()
+	{
+		var logDir = Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+			"BNDZ");
+		var logFile = Path.Combine(logDir, "ole-dnd.log");
+		void SmokeLog(string msg)
+		{
+			try
+			{
+				Directory.CreateDirectory(logDir);
+				File.AppendAllText(logFile, $"{DateTime.Now:HH:mm:ss.fff} {msg}{Environment.NewLine}");
+			}
+			catch { /* ignore */ }
+		}
+
+		try
+		{
+			var trigger = Path.Combine(logDir, "ole-smoke.json");
+			if (!File.Exists(trigger)) return;
+			var json = File.ReadAllText(trigger);
+			using var doc = JsonDocument.Parse(json);
+			var paths = new List<string>();
+			if (doc.RootElement.TryGetProperty("paths", out var arr) && arr.ValueKind == JsonValueKind.Array)
+			{
+				foreach (var pe in arr.EnumerateArray())
+				{
+					var s = pe.GetString();
+					if (!string.IsNullOrWhiteSpace(s)) paths.Add(s);
+				}
+			}
+			try { File.Delete(trigger); } catch { /* one-shot */ }
+			if (paths.Count == 0)
+			{
+				SmokeLog("OLE smoke skip paths=0");
+				return;
+			}
+
+			var msg = JsonSerializer.Serialize(new
+			{
+				type = "FILE_DRAG_ACTIVE",
+				payload = new { active = true, paths },
+			});
+			BndzEmbeddedBackendHost.HandleStartDragSync(msg);
+			SmokeLog($"OLE smoke host-direct arm paths={paths.Count} sample={paths[0]}");
+			StartFileDragEscalatePoll();
+			StopOleSmokePoll();
+		}
+		catch (Exception ex)
+		{
+			SmokeLog($"OLE smoke error {ex.Message}");
+			Debug.WriteLine($"[CraftPaneHost] OleSmokeArm: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// Opaque WinUI strip over the WebView top — hides a React MOVE card clamped under the menubar
+	/// even when ExecuteScript is late. Shell IDataObject owns the cursor outside the HWND.
+	/// </summary>
+	private void SyncOleGhostMask(bool oleActive)
+	{
+		_ = oleActive;
+		// Mask removed — CSS handoff hides React ghost without painting over the menubar.
 	}
 
 /// <summary>Register native OLE IDropTarget on WebView2 child HWND (desktop → BNDZ drops).</summary>
 	internal void TryRegisterOleDropTarget()
 	{
 		if (!_initialized || PaneWebView.CoreWebView2 is null)
+			return;
+		// Never revoke/re-register mid outbound DoDragDrop — that produced REGISTER lines
+		// during an active drag and helped yield effect=NONE at the desktop.
+		if (BndzEmbeddedBackendHost.IsOutboundOleDragActive)
 			return;
 		var hwnd = HostWindowHandle;
 		if (hwnd == IntPtr.Zero)
@@ -413,11 +684,17 @@ public sealed partial class CraftPaneHost : UserControl
 				clientW,
 				clientH);
 
-			_oleDropRegistered = BndzEmbeddedBackendHost.RegisterHostOleDropTarget();
+			var ok = BndzEmbeddedBackendHost.RegisterHostOleDropTarget();
+			_oleDropRegistered = ok;
 			if (!_oleDropRegistered)
 			{
 				Debug.WriteLine("[CraftPaneHost] OLE drop target registration pending — WebView2 HWND not ready.");
 				ScheduleOleDropRetry();
+			}
+			else
+			{
+				// Chromium often re-installs its IDropTarget after first paint — reclaim shortly after.
+				ScheduleOleDropReassert();
 			}
 		}
 		catch (Exception ex)
@@ -427,15 +704,17 @@ public sealed partial class CraftPaneHost : UserControl
 	}
 
 	private int _oleDropRetryGeneration;
+	private int _oleDropReassertGeneration;
 
 	private void ScheduleOleDropRetry()
 	{
 		var generation = ++_oleDropRetryGeneration;
 		_ = Task.Run(async () =>
 		{
-			for (var attempt = 0; attempt < 8 && generation == _oleDropRetryGeneration; attempt++)
+			// ~20 attempts over ~8s until Chrome_WidgetWin_1 exists.
+			for (var attempt = 0; attempt < 20 && generation == _oleDropRetryGeneration; attempt++)
 			{
-				await Task.Delay(attempt == 0 ? 120 : 250).ConfigureAwait(false);
+				await Task.Delay(attempt == 0 ? 100 : 400).ConfigureAwait(false);
 				try
 				{
 					DispatcherQueue?.TryEnqueue(() =>
@@ -448,6 +727,37 @@ public sealed partial class CraftPaneHost : UserControl
 				catch { /* ignore */ }
 				if (_oleDropRegistered)
 					break;
+			}
+		});
+	}
+
+	/// <summary>Re-register after navigation/paint — short reclaim only (no infinite heartbeat).</summary>
+	private void ScheduleOleDropReassert()
+	{
+		var generation = ++_oleDropReassertGeneration;
+		_ = Task.Run(async () =>
+		{
+			foreach (var delayMs in new[] { 300, 800, 1600, 3200 })
+			{
+				await Task.Delay(delayMs).ConfigureAwait(false);
+				if (generation != _oleDropReassertGeneration) return;
+				try
+				{
+                    DispatcherQueue?.TryEnqueue(() =>
+					{
+						if (generation != _oleDropReassertGeneration) return;
+						if (!_initialized || PaneWebView.CoreWebView2 is null) return;
+						if (HostWindowHandle == IntPtr.Zero) return;
+						if (BndzEmbeddedBackendHost.IsOutboundOleDragActive
+						    || BndzEmbeddedBackendHost.IsInboundSuspendedForOutbound)
+							return;
+						var ok = BndzEmbeddedBackendHost.RegisterHostOleDropTarget();
+						_oleDropRegistered = ok;
+						if (!ok)
+							ScheduleOleDropRetry();
+					});
+				}
+				catch { /* ignore */ }
 			}
 		});
 	}
@@ -822,9 +1132,112 @@ public sealed partial class CraftPaneHost : UserControl
 				PaneMessage?.Invoke(this, root.Clone());
 				return;
 			}
+			if (type is "START_DRAG")
+			{
+				try { BndzEmbeddedBackendHost.HandleStartDragSync(raw); }
+				catch (Exception dragEx) { Debug.WriteLine($"[CraftPaneHost] START_DRAG sync: {dragEx.Message}"); }
+				StopFileDragEscalatePoll();
+				return;
+			}
+			if (type is "OLE_DND_DEBUG")
+			{
+				try
+				{
+					var detail = "?";
+					if (root.TryGetProperty("payload", out var dbgPayload))
+					{
+						if (dbgPayload.TryGetProperty("kind", out var kindEl))
+							detail = kindEl.GetString() ?? "?";
+						if (dbgPayload.TryGetProperty("entityId", out var entEl) && entEl.ValueKind == JsonValueKind.String)
+							detail += $" id={entEl.GetString()}";
+						if (dbgPayload.TryGetProperty("sample", out var sampleEl) && sampleEl.ValueKind == JsonValueKind.Array
+							&& sampleEl.GetArrayLength() > 0
+							&& sampleEl[0].ValueKind == JsonValueKind.String)
+							detail += $" sample={sampleEl[0].GetString()}";
+						if (dbgPayload.TryGetProperty("active", out var actDbg))
+							detail += $" active={actDbg.ValueKind == JsonValueKind.True}";
+						if (dbgPayload.TryGetProperty("pathCount", out var pcEl) && pcEl.TryGetInt32(out var pc))
+							detail += $" paths={pc}";
+						if (dbgPayload.TryGetProperty("rejectedCount", out var rcEl) && rcEl.TryGetInt32(out var rc))
+							detail += $" rejected={rc}";
+						if (dbgPayload.TryGetProperty("localCount", out var lcEl) && lcEl.TryGetInt32(out var lc))
+							detail += $" local={lc}";
+						if (dbgPayload.TryGetProperty("thumb", out var thEl) && thEl.ValueKind == JsonValueKind.True)
+							detail += " block=thumb";
+						if (dbgPayload.TryGetProperty("bg", out var bgEl) && bgEl.ValueKind == JsonValueKind.True)
+							detail += " block=bg";
+						if (dbgPayload.TryGetProperty("disallowList", out var dlEl))
+							detail += dlEl.ValueKind == JsonValueKind.True ? " disallowList=1" : " disallowList=0";
+						if (dbgPayload.TryGetProperty("thumbDrag", out var tdEl))
+							detail += tdEl.ValueKind == JsonValueKind.True ? " thumbDrag=1" : " thumbDrag=0";
+						if (dbgPayload.TryGetProperty("bgWindow", out var bwEl))
+							detail += bwEl.ValueKind == JsonValueKind.True ? " bgWindow=1" : " bgWindow=0";
+						if (dbgPayload.TryGetProperty("fluidDrag", out var fdEl))
+							detail += fdEl.ValueKind == JsonValueKind.False ? " fluidDrag=0" : " fluidDrag=1";
+						if (dbgPayload.TryGetProperty("bgProcessing", out var bpEl))
+							detail += bpEl.ValueKind == JsonValueKind.False ? " bgProc=0" : " bgProc=1";
+						if (dbgPayload.TryGetProperty("queueOps", out var qoEl))
+							detail += qoEl.ValueKind == JsonValueKind.False ? " queueOps=0" : " queueOps=1";
+					}
+					File.AppendAllText(
+						Path.Combine(
+							Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+							"BNDZ", "ole-dnd.log"),
+						$"{DateTime.Now:HH:mm:ss.fff} FE_DEBUG {detail}{Environment.NewLine}");
+				}
+				catch { /* ignore */ }
+				return;
+			}
+			if (type is "FILE_DRAG_ACTIVE")
+			{
+				try
+				{
+					BndzEmbeddedBackendHost.HandleStartDragSync(raw);
+					var active = false;
+					if (root.TryGetProperty("payload", out var dragPayload)
+						&& dragPayload.ValueKind == JsonValueKind.Object
+						&& dragPayload.TryGetProperty("active", out var actEl))
+					{
+						active = actEl.ValueKind == JsonValueKind.True;
+					}
+					if (active) StartFileDragEscalatePoll();
+					else if (!BndzEmbeddedBackendHost.IsOutboundOleDragActive)
+						StopFileDragEscalatePoll();
+					else
+						StartFileDragEscalatePoll(); // keep dismiss alive through DoDragDrop handoff
+				}
+				catch (Exception dragEx) { Debug.WriteLine($"[CraftPaneHost] FILE_DRAG_ACTIVE: {dragEx.Message}"); }
+				return;
+			}
+			if (type is "OLE_ESCALATE_NOW")
+			{
+				try
+				{
+					StartFileDragEscalatePoll();
+					BndzEmbeddedBackendHost.HandleStartDragSync(raw);
+					// Force path may start DoDragDrop inline — keep poll for ghost dismiss.
+					StartFileDragEscalatePoll();
+				}
+				catch (Exception escEx) { Debug.WriteLine($"[CraftPaneHost] OLE_ESCALATE_NOW: {escEx.Message}"); }
+				return;
+			}
 			// React painted — hide any residual host spinner and flush queued selection.
 			if (type is "BNDZ_UI_READY")
 			{
+				try
+				{
+					var bundle = "?";
+					if (root.TryGetProperty("payload", out var uiPayload)
+						&& uiPayload.TryGetProperty("bundle", out var bundleEl)
+						&& bundleEl.ValueKind == JsonValueKind.String)
+						bundle = bundleEl.GetString() ?? "?";
+					File.AppendAllText(
+						Path.Combine(
+							Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+							"BNDZ", "ole-dnd.log"),
+						$"{DateTime.Now:HH:mm:ss.fff} UI_READY bundle={bundle}{Environment.NewLine}");
+				}
+				catch { /* never break host on logging */ }
 				PaneStatusHint.Visibility = Visibility.Collapsed;
 				_documentReady = true;
 				_readyWatchGeneration++;
@@ -832,6 +1245,7 @@ public sealed partial class CraftPaneHost : UserControl
 				PaneMessage?.Invoke(this, root.Clone());
 				// Forward to headless backend so PushDrivesUpdate / warm paths run (not pane-local only).
 				_ = ForwardUiReadyToBackendAsync(raw);
+				TryRunOleSmokeArmDeferred();
 				return;
 			}
 			if (type is "BNDZ_UI_CRASH")
@@ -918,71 +1332,98 @@ public sealed partial class CraftPaneHost : UserControl
 	}
 
 	/// <summary>
-	/// Handle SHOW_HOST_CONTEXT_MENU entirely in WinUI — avoids hidden-WPF-window positioning glitches.
-	/// clientX/Y arrive in CSS pixels (=DIPs at any scale) from the WebView; WinUI ShowAt accepts DIPs.
+	/// Host-owned context menu via Win32 TrackPopupMenu.
+	/// MenuFlyout.ShowAt(WebView2) is unreliable (often invisible / no Closed result) — Win32
+	/// popups paint above the compositor and match Explorer tab chrome.
 	/// </summary>
 	private void HandleShowHostContextMenu(JsonElement root, string? requestId)
 	{
-		if (!_initialized || PaneWebView.CoreWebView2 is null)
-		{
-			PostJsonRaw(HostMenuResultJson(requestId, null));
-			return;
-		}
 		try
 		{
 			var payload = root.TryGetProperty("payload", out var p) ? p : default;
-			var clientX = payload.ValueKind != JsonValueKind.Undefined
-				&& payload.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number
-				? cx.GetDouble() : 0.0;
-			var clientY = payload.ValueKind != JsonValueKind.Undefined
-				&& payload.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number
-				? cy.GetDouble() : 0.0;
-
-			var flyout = new MenuFlyout();
-			var chosen = false;
-
-			if (payload.ValueKind != JsonValueKind.Undefined
-				&& payload.TryGetProperty("items", out var itemsEl)
-				&& itemsEl.ValueKind == JsonValueKind.Array)
+			var hwnd = HostWindowHandle;
+			if (hwnd == IntPtr.Zero)
 			{
-				foreach (var item in itemsEl.EnumerateArray())
-				{
-					var isSep = item.TryGetProperty("separator", out var sep) && sep.ValueKind == JsonValueKind.True;
-					if (isSep)
-					{
-						flyout.Items.Add(new MenuFlyoutSeparator());
-						continue;
-					}
-					var label = item.TryGetProperty("label", out var lbl) ? lbl.GetString() ?? "" : "";
-					var itemId = item.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-					var disabled = item.TryGetProperty("disabled", out var dis) && dis.GetBoolean();
-					var capturedId = itemId;
-					var capturedRid = requestId;
-
-					var mi = new MenuFlyoutItem { Text = label };
-					if (disabled)
-						mi.IsEnabled = false;
-					mi.Click += (_, _) =>
-					{
-						chosen = true;
-						PostJsonRaw(HostMenuResultJson(capturedRid, capturedId));
-					};
-					flyout.Items.Add(mi);
-				}
+				PostJsonRaw(HostMenuResultJson(requestId, null));
+				return;
 			}
 
-			flyout.Closed += (_, _) =>
+			var idByCmd = new Dictionary<int, string>();
+			var hMenu = CreatePopupMenu();
+			if (hMenu == IntPtr.Zero)
 			{
-				if (!chosen)
-					PostJsonRaw(HostMenuResultJson(requestId, null));
-			};
+				PostJsonRaw(HostMenuResultJson(requestId, null));
+				return;
+			}
 
-			var opts = new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+			try
 			{
-				Position = new Windows.Foundation.Point(clientX, clientY),
-				Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft,
-			};
-			flyout.ShowAt(PaneWebView, opts);
+				var nextCmd = 1000;
+				if (payload.ValueKind != JsonValueKind.Undefined
+					&& payload.TryGetProperty("items", out var itemsEl)
+					&& itemsEl.ValueKind == JsonValueKind.Array)
+				{
+					foreach (var item in itemsEl.EnumerateArray())
+					{
+						var isSep = item.TryGetProperty("separator", out var sep) && sep.ValueKind == JsonValueKind.True;
+						if (isSep)
+						{
+							AppendMenu(hMenu, MF_SEPARATOR, 0, string.Empty);
+							continue;
+						}
+						var label = item.TryGetProperty("label", out var lbl) ? lbl.GetString() ?? "" : "";
+						if (string.IsNullOrWhiteSpace(label)) continue;
+						var itemId = item.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+						var disabled = item.TryGetProperty("disabled", out var dis) && dis.ValueKind == JsonValueKind.True;
+						var cmd = nextCmd++;
+						if (!string.IsNullOrEmpty(itemId))
+							idByCmd[cmd] = itemId!;
+						var flags = disabled ? MF_STRING | MF_GRAYED : MF_STRING;
+						AppendMenu(hMenu, flags, (nuint)cmd, label);
+					}
+				}
+
+				if (idByCmd.Count == 0)
+				{
+					PostJsonRaw(HostMenuResultJson(requestId, null));
+					return;
+				}
+
+				// Prefer live cursor — right-click just happened; CSS→screen mapping is DPI-fragile.
+				if (!GetCursorPos(out var pt))
+				{
+					var clientX = payload.ValueKind != JsonValueKind.Undefined
+						&& payload.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number
+						? (int)Math.Round(cx.GetDouble()) : 0;
+					var clientY = payload.ValueKind != JsonValueKind.Undefined
+						&& payload.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number
+						? (int)Math.Round(cy.GetDouble()) : 0;
+					pt = new POINT { X = clientX, Y = clientY };
+					ClientToScreen(hwnd, ref pt);
+				}
+
+				SetForegroundWindow(hwnd);
+				// TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_LEFTALIGN
+				var selected = (int)TrackPopupMenu(
+					hMenu,
+					TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD,
+					pt.X,
+					pt.Y,
+					0,
+					hwnd,
+					IntPtr.Zero);
+				// Required so the next click is not swallowed after TrackPopupMenu.
+				PostMessage(hwnd, WM_NULL, IntPtr.Zero, IntPtr.Zero);
+
+				string? chosen = null;
+				if (selected != 0 && idByCmd.TryGetValue(selected, out var mapped))
+					chosen = mapped;
+				PostJsonRaw(HostMenuResultJson(requestId, chosen));
+			}
+			finally
+			{
+				DestroyMenu(hMenu);
+			}
 		}
 		catch (Exception ex)
 		{
@@ -993,6 +1434,41 @@ public sealed partial class CraftPaneHost : UserControl
 
 	private static string HostMenuResultJson(string? requestId, string? chosen) =>
 		JsonSerializer.Serialize(new { type = "HOST_CONTEXT_MENU_RESULT", id = requestId, payload = chosen });
+
+	private const uint MF_STRING = 0x0000;
+	private const uint MF_GRAYED = 0x0001;
+	private const uint MF_SEPARATOR = 0x0800;
+	private const uint TPM_LEFTALIGN = 0x0000;
+	private const uint TPM_RIGHTBUTTON = 0x0002;
+	private const uint TPM_RETURNCMD = 0x0100;
+	private const uint WM_NULL = 0x0000;
+
+	[StructLayout(LayoutKind.Sequential)]
+	private struct POINT { public int X; public int Y; }
+
+	[DllImport("user32.dll")]
+	private static extern bool GetCursorPos(out POINT lpPoint);
+
+	[DllImport("user32.dll")]
+	private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+	[DllImport("user32.dll")]
+	private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+	[DllImport("user32.dll")]
+	private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+	[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+	private static extern IntPtr CreatePopupMenu();
+
+	[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+	private static extern bool AppendMenu(IntPtr hMenu, uint uFlags, nuint uIDNewItem, string lpNewItem);
+
+	[DllImport("user32.dll")]
+	private static extern bool DestroyMenu(IntPtr hMenu);
+
+	[DllImport("user32.dll")]
+	private static extern nint TrackPopupMenu(IntPtr hMenu, uint uFlags, int x, int y, int nReserved, IntPtr hWnd, IntPtr prcRect);
 
 	public event EventHandler<JsonElement>? PaneMessage;
 

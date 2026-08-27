@@ -22,6 +22,7 @@ import {
   type DuplicateCleanupPreview,
   type OrganizePlanEntry,
 } from '../../lib/storageOrganize';
+import { isQueuedIpcResult } from '../../lib/transferIpc';
 
 export type StorageWizardMode = 'organize' | 'cleanup';
 
@@ -169,19 +170,26 @@ export default function StorageCleanupWizard({
     if (!organizePlan.length) return;
     setExecuting(true);
     let moved = 0;
+    let queued = 0;
     try {
       const mkdirDone = new Set<string>();
       for (const entry of organizePlan) {
         const destDir = entry.dest.replace(/\\[^\\]+$/, '');
         if (!mkdirDone.has(destDir.toLowerCase())) {
-          await IPC.executeFsOperation(`org-mkdir-${destDir}`, 'create-dir', destDir, '');
+          const mkRes = await IPC.executeFsOperation(`org-mkdir-${destDir}`, 'create-dir', destDir, '');
+          if (isQueuedIpcResult(mkRes)) queued += 1;
           mkdirDone.add(destDir.toLowerCase());
         }
-        await IPC.executeFsOperation(`org-move-${entry.name}-${moved}`, 'move', entry.file, entry.dest);
-        moved++;
+        const mvRes = await IPC.executeFsOperation(`org-move-${entry.name}-${moved}`, 'move', entry.file, entry.dest);
+        if (isQueuedIpcResult(mvRes)) queued += 1;
+        else moved += 1;
       }
       setResultOk(true);
-      setResultMessage(`Organized ${moved} file(s) into category subfolders.`);
+      setResultMessage(
+        queued > 0
+          ? `Organize queued (${organizePlan.length} ops) — see transfer panel.`
+          : `Organized ${moved} file(s) into category subfolders.`,
+      );
       setStep('done');
     } catch (err: unknown) {
       setResultOk(false);
@@ -196,15 +204,21 @@ export default function StorageCleanupWizard({
     if (!dupPreview.length) return;
     setExecuting(true);
     let deleted = 0;
+    let queued = 0;
     try {
       for (const group of dupPreview) {
         for (const p of group.deletePaths) {
-          await IPC.executeFsOperation(`dup-del-${deleted}`, 'delete', p, '');
-          deleted++;
+          const res = await IPC.executeFsOperation(`dup-del-${deleted}`, 'delete', p, '');
+          if (isQueuedIpcResult(res)) queued += 1;
+          else deleted += 1;
         }
       }
       setResultOk(true);
-      setResultMessage(`Removed ${deleted} duplicate file(s). Reclaimed ~${formatStorageSize(totalReclaimable)}.`);
+      setResultMessage(
+        queued > 0
+          ? `Duplicate cleanup queued (${queued} deletes) — see transfer panel.`
+          : `Removed ${deleted} duplicate file(s). Reclaimed ~${formatStorageSize(totalReclaimable)}.`,
+      );
       setStep('done');
     } catch (err: unknown) {
       setResultOk(false);

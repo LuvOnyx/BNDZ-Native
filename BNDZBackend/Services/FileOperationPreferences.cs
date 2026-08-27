@@ -81,6 +81,8 @@ public sealed class FileOperationPreferences
 
     public bool ShouldShowNativeProgress(string action, IReadOnlyList<string> sources, string target)
     {
+        // Background processing owns progress in the BNDZ transfer panel — no Explorer modal.
+        if (BackgroundProcessing) return false;
         if (ProgressDialogModeless) return false;
         if (!NativeShowProgress) return false;
         if (UseCustomCopy && action == "copy" && ForAllCopyOperations && NoProgressDialogOnDuplications)

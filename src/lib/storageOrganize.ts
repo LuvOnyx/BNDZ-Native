@@ -150,20 +150,27 @@ export function buildOrganizePlanForMode(
 export async function applyOrganizePlan(
   plan: OrganizePlanEntry[],
   executeFs: (id: string, op: string, src: string, dest: string) => Promise<unknown>,
-): Promise<number> {
+): Promise<{ moved: number; queued: number }> {
   let moved = 0;
+  let queued = 0;
   const mkdirDone = new Set<string>();
   for (const entry of plan) {
     const destDir = entry.dest.replace(/\\[^\\]+$/, '');
     const key = destDir.toLowerCase();
     if (!mkdirDone.has(key)) {
-      await executeFs(`org-mkdir-${destDir}`, 'create-dir', destDir, '');
+      const mkRes = await executeFs(`org-mkdir-${destDir}`, 'create-dir', destDir, '');
+      if (isQueuedFsResult(mkRes)) queued += 1;
       mkdirDone.add(key);
     }
-    await executeFs(`org-move-${entry.name}-${moved}`, 'move', entry.file, entry.dest);
-    moved++;
+    const mvRes = await executeFs(`org-move-${entry.name}-${moved + queued}`, 'move', entry.file, entry.dest);
+    if (isQueuedFsResult(mvRes)) queued += 1;
+    else moved += 1;
   }
-  return moved;
+  return { moved, queued };
+}
+
+function isQueuedFsResult(res: unknown): boolean {
+  return !!res && typeof res === 'object' && (res as { background?: boolean }).background === true;
 }
 
 export function groupOrganizePlanByBucket(plan: OrganizePlanEntry[]): Record<string, OrganizePlanEntry[]> {

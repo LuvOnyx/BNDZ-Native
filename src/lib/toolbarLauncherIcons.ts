@@ -1,5 +1,5 @@
 /** Bump when PNG/SVG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '20';
+export const LAUNCHER_ICON_REV = '21';
 
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
@@ -118,6 +118,13 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   send: 'send.png',
   upload: 'upload.png',
   download: 'download.png',
+  download_ui: 'download.png',
+  clipboard_ui: 'clipboard.png',
+  smart_view: 'smart_tools.png',
+  edit_image: 'edit-image.svg',
+  data_warning: 'warning.png',
+  'emblem-symbolic-link': 'emblem-symbolic-link.svg',
+  'emblem-shared': 'emblem-shared.svg',
   plus_ui: 'plus_ui.png',
   minus_ui: 'minus_ui.png',
   lock_ui: 'lock_ui.png',
@@ -279,7 +286,8 @@ export const UI_GLYPH_IDS = new Set([
 
 export function launcherIconUrl(id: string): string | undefined {
   const base = id.startsWith('tag__') ? 'tag_manager' : id;
-  const file = TOOLBAR_LAUNCHER_ICONS[base];
+  const snake = base.replace(/-/g, '_');
+  const file = TOOLBAR_LAUNCHER_ICONS[base] ?? TOOLBAR_LAUNCHER_ICONS[snake];
   if (!file) return undefined;
   if (file.startsWith('Ui/')) return `/${file}?v=${LAUNCHER_ICON_REV}`;
   return `/launcher-icons/${file}?v=${LAUNCHER_ICON_REV}`;

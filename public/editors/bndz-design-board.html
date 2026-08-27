@@ -193,18 +193,32 @@
     }
     #main.panels-hidden #left-sidebar,
     #main.panels-hidden #right-sidebar { display: none; }
-    #main.panels-hidden.dock-bottom-inspector #right-sidebar,
-    #main.panels-hidden.dock-left-inspector #right-sidebar { display: none !important; }
-    /* Collapse reserved dock rows/cols so workspace gets real height when panels are hidden */
+    /* Nested dock: keep inspector visible as a bottom/left strip while layers stay collapsed. */
     #main.panels-hidden.dock-bottom-inspector {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-      --bottom-panel-h: 0px;
+      grid-template-rows: minmax(0, 1fr) var(--bottom-panel-h, 200px);
+      --bottom-panel-h: 200px;
+      --right-sidebar-w: 0px;
+    }
+    #main.panels-hidden.dock-bottom-inspector #left-sidebar { display: none !important; }
+    #main.panels-hidden.dock-bottom-inspector #right-sidebar {
+      display: flex !important;
+      grid-column: 1 / -1;
+      grid-row: 2;
+      max-height: var(--bottom-panel-h, 200px);
+      flex-direction: row;
+      flex-wrap: nowrap;
+      overflow-x: auto;
     }
     #main.panels-hidden.dock-left-inspector {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: var(--right-sidebar-w, minmax(240px, 280px)) minmax(0, 1fr);
       --left-sidebar-w: 0px;
-      --right-sidebar-w: 0px;
+      --right-sidebar-w: minmax(240px, 280px);
+    }
+    #main.panels-hidden.dock-left-inspector #left-sidebar { display: none !important; }
+    #main.panels-hidden.dock-left-inspector #right-sidebar {
+      display: flex !important;
+      order: -1;
     }
     #main.panels-hidden #workspace { min-height: 1px; }
     #main.dock-left-inspector { grid-template-columns: var(--right-sidebar-w, minmax(268px, 300px)) 1fr var(--left-sidebar-w, 220px); }
@@ -836,6 +850,32 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 .field input[type="number"],.field input[type="text"],.hexinput,.mini.field{
   border-radius:8px!important;border:1px solid var(--line-strong)!important;
   background:#14161b!important;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)!important;
+}
+/* Hide ugly native spin buttons — scrub / type instead */
+.field input[type="number"],.mini.field[type="number"],.fx-pop input[type="number"],#stroke-smooth-n{
+  -moz-appearance:textfield;appearance:textfield;
+}
+.field input[type="number"]::-webkit-outer-spin-button,
+.field input[type="number"]::-webkit-inner-spin-button,
+.mini.field[type="number"]::-webkit-outer-spin-button,
+.mini.field[type="number"]::-webkit-inner-spin-button,
+.fx-pop input[type="number"]::-webkit-outer-spin-button,
+.fx-pop input[type="number"]::-webkit-inner-spin-button,
+#stroke-smooth-n::-webkit-outer-spin-button,
+#stroke-smooth-n::-webkit-inner-spin-button{
+  -webkit-appearance:none;margin:0;
+}
+.fx-pop .field{position:relative}
+.fx-pop .field input[type="number"]{padding-right:8px!important;text-align:center;font-variant-numeric:tabular-nums}
+.range{
+  -webkit-appearance:none;appearance:none;height:6px;border-radius:999px;outline:none;
+  background:linear-gradient(90deg,rgba(13,153,255,.55),rgba(13,153,255,.2));
+  border:1px solid rgba(255,255,255,.08);
+}
+.range::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:linear-gradient(180deg,#5cc2ff,#0d99ff);border:2px solid #0a1a28;
+  box-shadow:0 0 0 3px rgba(13,153,255,.22),0 2px 6px rgba(0,0,0,.4);cursor:grab;
 }
 
 /* ---------- Proto / export modals ---------- */
@@ -1669,14 +1709,15 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
   /* ---------------- Canvas ---------------- */
   const workspace = $('#workspace');
-  // Bottom-dock embed: hide side panels immediately so the canvas column gets full width.
-  // Do not keep dock-bottom/left while panels are hidden — reserved rows zero workspace height.
+  // Bottom-dock embed: collapse the layers rail but keep the inspector strip visible.
   try {
     if (window.self !== window.top) {
       const embedMain = $('#main');
       if (embedMain) {
-        embedMain.classList.add('panels-hidden');
-        embedMain.classList.remove('dock-bottom-inspector', 'dock-left-inspector');
+        embedMain.classList.add('panels-hidden', 'dock-bottom-inspector');
+        embedMain.classList.remove('dock-left-inspector');
+        try { localStorage.setItem('bndz-db-panels-hidden', '1'); } catch { /* ignore */ }
+        try { localStorage.setItem('bndz-db-panel-dock', 'bottom'); } catch { /* ignore */ }
       }
     }
   } catch { /* ignore */ }
@@ -1833,7 +1874,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     gradAngle: 0,
     gradFocalX: 0.5,
     gradFocalY: 0.5,
-    stroke: '#FFFFFF', strokeWidth: 2,
+    stroke: '#FFFFFF', strokeWidth: 3,
     strokeSmoothUi: 8, // UI 0→8% effective floor
     colorTarget: 'fill', // 'fill' | 'stroke' — swatches / eyedropper land here
     strokeCap: 'round', strokeJoin: 'round', dash: 'solid',
@@ -2526,9 +2567,10 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       return false;
     }
     embedPanelsCollapsedOnce = true;
-    main.classList.add('panels-hidden');
-    main.classList.remove('dock-bottom-inspector', 'dock-left-inspector');
+    main.classList.add('panels-hidden', 'dock-bottom-inspector');
+    main.classList.remove('dock-left-inspector');
     try { localStorage.setItem('bndz-db-panels-hidden', '1'); } catch { /* ignore */ }
+    try { localStorage.setItem('bndz-db-panel-dock', 'bottom'); } catch { /* ignore */ }
     requestAnimationFrame(() => afterLayoutClassChange());
     return true;
   }
@@ -2815,10 +2857,12 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   function newLine(x, y) {
     return new fabric.Line([x, y, x, y], Object.assign({
       stroke: state.stroke || '#FFFFFF',
-      strokeWidth: Math.max(1, state.strokeWidth),
+      strokeWidth: Math.max(2.5, state.strokeWidth || 3),
       strokeUniform: true,
       fill: '',
-      perPixelTargetFind: true,
+      // Padding beats per-pixel for thin strokes — easier grab on dark canvas.
+      perPixelTargetFind: false,
+      padding: 14,
       isBoardLine: true,
       hasControls: false,
       hasBorders: false,
@@ -3363,20 +3407,22 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (e && (e.type === 'mousedown' || e.type === 'pointerdown')) {
       const origin = { x: p.x, y: p.y };
       const wantCurve = !!(e.altKey || e.metaKey);
-      const bendThresh = Math.max(6 / canvas.getZoom(), Math.min(28 / canvas.getZoom(), 14 / canvas.getZoom()));
+      const bendThresh = Math.max(4 / canvas.getZoom(), Math.min(18 / canvas.getZoom(), 10 / canvas.getZoom()));
       const clearCurve = () => {
         pt.outX = pt.outY = pt.inX = pt.inY = null;
         pt.nodeType = 'corner';
         penHandles.forEach((h) => canvas.remove(h)); penHandles = [];
       };
       const dragToCurve = (opt) => {
-        if (!wantCurve && !(opt.e && (opt.e.altKey || opt.e.metaKey))) {
-          if (pt.nodeType === 'smooth') { clearCurve(); drawPenTemp(canvas.getPointer(opt.e)); }
-          return;
-        }
         const q = canvas.getPointer(opt.e);
         const dx = q.x - origin.x, dy = q.y - origin.y;
         const dist = Math.hypot(dx, dy);
+        // Alt/meta OR drag past threshold starts a smooth handle (pressure-free pen).
+        const allowCurve = wantCurve || dist >= bendThresh || !!(opt.e && (opt.e.altKey || opt.e.metaKey));
+        if (!allowCurve) {
+          if (pt.nodeType === 'smooth') { clearCurve(); drawPenTemp(q); }
+          return;
+        }
         if (dist < bendThresh) {
           if (pt.nodeType === 'smooth') { clearCurve(); drawPenTemp(q); }
           return;
@@ -3585,7 +3631,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
           left: mx, top: my, originX: 'center', originY: 'center', radius: 6,
           fill: 'rgba(13,153,255,.45)', stroke: '#0d99ff', strokeWidth: 1.5,
           hasControls: false, hasBorders: false, isGuide: true, excludeFromExport: true,
-          __pathMid: i, hoverCursor: 'ns-resize', padding: 10,
+          __pathMid: i, hoverCursor: 'move', padding: 10,
         });
         mid.on('moving', () => {
           prev.outX = mid.left; prev.outY = mid.top; prev.nodeType = 'smooth';
@@ -4157,10 +4203,16 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         return;
       }
       if (kind === 'arrow') {
-        canvas.remove(obj);
-        const arr = makeArrow(obj.x1, obj.y1, obj.x2, obj.y2);
-        canvas.add(arr);
-        finalizeNew(arr, 'arrow');
+        // Keep as editable board line + arrow flag (Group escaped endpoint edit).
+        obj.set({
+          isArrow: true,
+          isBoardLine: true,
+          strokeWidth: Math.max(2.5, state.strokeWidth || 3),
+          perPixelTargetFind: false,
+          padding: 14,
+        });
+        finalizeNew(obj, 'arrow');
+        attachLineEndpoints(obj);
       } else {
         finalizeNew(obj, kind);
       }
@@ -4195,8 +4247,35 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     return pathObj;
   }
 
+
+  /* ---- arrowhead render for isArrow board lines ---- */
+  canvas.on('after:render', () => {
+    const ctx = canvas.getContext();
+    if (!ctx) return;
+    canvas.getObjects().forEach((o) => {
+      if (!o || o.type !== 'line' || !o.isArrow || o.isGuide) return;
+      const abs = (typeof getLineAbsPoints === 'function') ? getLineAbsPoints(o) : null;
+      const x1 = abs ? abs.p1.x : o.x1, y1 = abs ? abs.p1.y : o.y1;
+      const x2 = abs ? abs.p2.x : o.x2, y2 = abs ? abs.p2.y : o.y2;
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      const sw = Math.max(2, o.strokeWidth || 2);
+      const head = Math.max(12, sw * 3.4);
+      ctx.save();
+      ctx.translate(x2, y2);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-head, head * 0.45);
+      ctx.lineTo(-head, -head * 0.45);
+      ctx.closePath();
+      ctx.fillStyle = o.stroke || '#FFFFFF';
+      ctx.fill();
+      ctx.restore();
+    });
+  });
+
   canvas.on('path:created', (e) => {
-    const p = e.path;
+    let p = e.path;
     if (!p) return;
     if (state.tool === 'eraser') { p.set({ globalCompositeOperation: 'destination-out' }); }
     else {
@@ -4204,13 +4283,25 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       p.set({
         fill: '',
         stroke: state.stroke || '#FFFFFF',
-        strokeWidth: Math.max(1, state.strokeWidth),
+        strokeWidth: Math.max(2, state.strokeWidth || 3),
         strokeLineCap: state.strokeCap,
         strokeLineJoin: state.strokeJoin,
+        objectCaching: false,
       });
+      // Convert freehand into the same editable node model as Pen.
+      const pts = derivePathEditPtsFromCmds(p);
+      if (pts && pts.length >= 2) {
+        p.pathEditPts = clonePathPts(pts);
+        p.pathClosed = false;
+        p = bakePathWorldGeometry(p) || p;
+      }
     }
     p.name = autoName('path'); p.id = uid();
     updateLayers(); pushHistory();
+    if (state.tool === 'pencil' && p.type === 'path' && p.pathEditPts && p.pathEditPts.length >= 2) {
+      try { canvas.setActiveObject(p); enterPathEdit(p); } catch (err) { /* ignore */ }
+      toast('Pencil → nodes — drag handles to refine');
+    }
   });
 
   canvas.on('selection:created', () => { syncInspector(); updateLayers(); updateStatus(); });
@@ -4631,8 +4722,11 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
   /* ---------------- Object ops ---------------- */
   function deleteSelected() {
+    clearHoverNodes();
+    clearLineEndpoints();
+    clearPathEdit();
     const objs = canvas.getActiveObjects(); if (!objs.length) return;
-    objs.forEach((o) => canvas.remove(o));
+    objs.forEach((o) => { if (!o.isGuide) canvas.remove(o); });
     canvas.discardActiveObject(); canvas.requestRenderAll();
     updateLayers(); syncInspector(); pushHistory(); toast('Deleted');
   }
@@ -4934,8 +5028,10 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     main.classList.toggle('panels-hidden');
     const hidden = main.classList.contains('panels-hidden');
     if (hidden) {
-      // Collapsed dock rows must not reserve height while panels are hidden.
-      main.classList.remove('dock-bottom-inspector', 'dock-left-inspector');
+      // Keep a bottom inspector strip so Fill/Stroke/Align stay reachable in the plugin dock.
+      main.classList.add('dock-bottom-inspector');
+      main.classList.remove('dock-left-inspector');
+      try { localStorage.setItem('bndz-db-panel-dock', 'bottom'); } catch { /* ignore */ }
     }
     try { localStorage.setItem('bndz-db-panels-hidden', hidden ? '1' : '0'); } catch { /* ignore */ }
     requestAnimationFrame(() => { afterLayoutClassChange(); toast(hidden ? 'Panels hidden' : 'Panels shown'); });
@@ -5066,10 +5162,12 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     try {
       const panelsHidden = localStorage.getItem('bndz-db-panels-hidden') === '1';
       const dock = localStorage.getItem('bndz-db-panel-dock') || 'right';
-      // Never restore dock-bottom/left while panels are hidden — zeros workspace height.
+      // Panels hidden still shows inspector when docked bottom/left (CSS allows the strip).
       if (panelsHidden) {
         main.classList.add('panels-hidden');
         main.classList.remove('dock-left-inspector', 'dock-bottom-inspector');
+        if (dock === 'left') main.classList.add('dock-left-inspector');
+        else main.classList.add('dock-bottom-inspector');
       } else {
         if (dock === 'left') main.classList.add('dock-left-inspector');
         else if (dock === 'bottom') main.classList.add('dock-bottom-inspector');
@@ -5775,6 +5873,21 @@ window.addEventListener('keydown', onKeyDown);
         });
         toast('Placed ' + Math.min(items.length, 8) + ' image' + (items.length === 1 ? '' : 's'));
       });
+      return;
+    }
+    if (d.type === 'showPanels' || d.type === 'setPanels') {
+      const main = $('#main');
+      if (!main) return;
+      const show = d.type === 'showPanels' || d.visible !== false;
+      if (show) {
+        main.classList.remove('panels-hidden');
+        try { localStorage.setItem('bndz-db-panels-hidden', '0'); } catch { /* ignore */ }
+      } else {
+        main.classList.add('panels-hidden', 'dock-bottom-inspector');
+        main.classList.remove('dock-left-inspector');
+        try { localStorage.setItem('bndz-db-panels-hidden', '1'); } catch { /* ignore */ }
+      }
+      requestAnimationFrame(() => afterLayoutClassChange());
       return;
     }
     if (d.type === 'action') {

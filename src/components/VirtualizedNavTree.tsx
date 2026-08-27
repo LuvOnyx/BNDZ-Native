@@ -19,14 +19,13 @@ import {
   endFileDragSession,
   getFileDragSession,
   hitTestNavTreeAtPoint,
-  isInternalFileDragChromeAtPoint,
-  isPointerOutsideWebViewViewport,
   stashOleDragSession,
 } from '../lib/fileDragSession';
 import {
   dispatchPointerFileDragActive,
   dispatchPointerFileDragMove,
 } from '../lib/pointerFileDragBridge';
+import { onHostOleDragEscalated } from '../lib/fileDragUiCleanup';
 import type { ClipboardAction } from '../data/ClipboardContext';
 import { getClipboardMarkForEntity } from '../lib/clipboardVisual';
 import { panePathsEqual } from '../lib/pathUtils';
@@ -611,6 +610,7 @@ export function VirtualizedNavTree({
     const capturePointerId = e.pointerId;
     const rowEl = (e.currentTarget as HTMLElement);
     let oleStarted = false;
+    let hostOleEscalated = false;
     let outsideChromeStreak = 0;
     let sessionStarted = false;
     let captured = false;
@@ -618,10 +618,23 @@ export function VirtualizedNavTree({
     const cleanup = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
       if (captured) {
         try { rowEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
       }
+    };
+
+    const onHostOleEscalate = () => {
+      if (oleStarted) return;
+      hostOleEscalated = true;
+      oleStarted = true;
+      suppressTreeClickRef.current = true;
+      dispatchPointerFileDragActive(false);
+      stashOleDragSession(getFileDragSession());
+      endFileDragSession();
+      onHostOleDragEscalated();
+      cleanup();
     };
 
     const onMove = (ev: PointerEvent) => {
@@ -641,29 +654,19 @@ export function VirtualizedNavTree({
           sourceTabPath: row.path!,
         });
         dispatchPointerFileDragActive(true);
+        IPC.notifyFileDragActive(true, [winPath]);
+        window.addEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
       }
       dispatchPointerFileDragMove(ev.clientX, ev.clientY);
-      if (!isPointerOutsideWebViewViewport(ev.clientX, ev.clientY)) {
-        outsideChromeStreak = 0;
-        return;
-      }
-      outsideChromeStreak++;
-      if (outsideChromeStreak < 2) return;
-      oleStarted = true;
-      suppressTreeClickRef.current = true;
-      dispatchPointerFileDragActive(false);
-      stashOleDragSession(getFileDragSession());
-      endFileDragSession();
-      cleanup();
-      IPC.startDrag([winPath], {
-        extended: !!config.extendedCompatibilityForClipboardAndDragAndDrop,
-      });
+      if (hostOleEscalated) return;
+      // Host poll is authoritative for leave-window → DoDragDrop; no FE START_DRAG backup.
     };
 
     const onUp = (ev: PointerEvent) => {
       if (ev.pointerId !== capturePointerId) return;
       cleanup();
       if (oleStarted) return;
+      IPC.notifyFileDragActive(false);
       const session = getFileDragSession();
       if (!session) {
         dispatchPointerFileDragActive(false);
@@ -692,9 +695,27 @@ export function VirtualizedNavTree({
       dispatchPointerFileDragActive(false);
     };
 
+    const onCancel = (ev: PointerEvent) => {
+      // Leaving the WebView cancels the pointer — keep FILE_DRAG_ACTIVE armed so the
+      // host poll can still escalate to DoDragDrop after the cursor leaves the window.
+      if (ev.pointerId !== capturePointerId) return;
+      if (sessionStarted && !oleStarted && !hostOleEscalated) {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        if (captured) {
+          try { rowEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
+          captured = false;
+        }
+        dispatchPointerFileDragActive(false);
+        return;
+      }
+      onUp(ev);
+    };
+
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+    window.addEventListener('pointercancel', onCancel);
   }, [config.dragDropSameVolumeAction, config.dragDropCrossVolumeAction, config.selectConfig2, config.selectConfig3, disallowDragFromTree, onFileDrop]);
 
   const handleDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {

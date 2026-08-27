@@ -4,7 +4,7 @@
  */
 
 import { nativeCall, dedupeInFlight, registerIpcPushHandler } from './ipcCore';
-import { normalizePanePath } from './pathUtils';
+import { isValidOutboundDragPath, normalizePanePath, toWindowsPath } from './pathUtils';
 import { EMPTY_LICENSE_STATUS, PENDING_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
 import { entityHasTag } from './tagUtils';
 import { formatPathsForClipboard } from './clipboardPathFormat';
@@ -192,6 +192,10 @@ export const IPC = {
           window.dispatchEvent(new CustomEvent('bndz-external-drop', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DROP_FAILED') {
           window.dispatchEvent(new CustomEvent('bndz-external-drop-failed', { detail: data.payload }));
+        } else if (data.type === 'OLE_DRAG_ESCALATED') {
+          window.dispatchEvent(new CustomEvent('bndz-ole-drag-escalated', { detail: data.payload }));
+        } else if (data.type === 'OLE_DRAG_ENDED') {
+          window.dispatchEvent(new CustomEvent('bndz-ole-drag-ended', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DRAG_HOVER') {
           window.dispatchEvent(new CustomEvent('bndz-external-drag-hover', { detail: data.payload }));
         } else if (data.type === 'FOLDER_SIZE_PROGRESS') {
@@ -409,12 +413,21 @@ export const IPC = {
 
   notifyUiReady() {
     if (!this.isNative) return;
+    let bundle = 'unknown';
+    try {
+      const scriptEl = document.querySelector('script[type="module"][src*="index-"]') as HTMLScriptElement | null;
+      const src = scriptEl?.src ?? '';
+      const tail = src.split('/').pop() ?? '';
+      const m = tail.match(/index-([A-Za-z0-9_-]+)\.js/i);
+      if (m) bundle = m[1];
+    } catch { /* ignore */ }
     (window as any).chrome.webview.postMessage({
       type: 'BNDZ_UI_READY',
       payload: {
         innerWidth: window.innerWidth,
         innerHeight: window.innerHeight,
         devicePixelRatio: window.devicePixelRatio,
+        bundle,
       },
     });
   },
@@ -1100,16 +1113,65 @@ export const IPC = {
   },
 
   startDrag(paths: string | string[], opts?: { extended?: boolean }) {
-    if (this.isNative) {
+    if (!this.isNative) return;
+    const raw = (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
+    const normalized = raw.map(p => toWindowsPath(String(p)));
+    const list = normalized.filter(isValidOutboundDragPath);
+    const rejected = normalized.filter(p => !isValidOutboundDragPath(p));
+    (window as any).chrome.webview.postMessage({
+      type: 'START_DRAG',
+      payload: {
+        paths: list,
+        rejected: rejected.length ? rejected : undefined,
+        extended: !!opts?.extended,
+      },
+    });
+  },
+
+  /** Forensic drag logging — always on in native shell (ole-dnd.log). */
+  postOleDndDebug(payload: Record<string, unknown>) {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({ type: 'OLE_DND_DEBUG', payload });
+    } catch { /* ignore */ }
+  },
+
+  /** Arm host OLE escalate poll while an in-app file drag is active (leave-WebView → DoDragDrop). */
+  notifyFileDragActive(active: boolean, paths?: string | string[]) {
+    if (!this.isNative) return;
+    const raw = paths == null ? [] : (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
+    const normalized = raw.map(p => toWindowsPath(String(p)));
+    const list = normalized.filter(isValidOutboundDragPath);
+    const rejected = normalized.filter(p => !isValidOutboundDragPath(p));
+    (window as any).chrome.webview.postMessage({
+      type: 'FILE_DRAG_ACTIVE',
+      payload: {
+        active: !!active && list.length > 0,
+        paths: list,
+        rejected: rejected.length ? rejected : undefined,
+      },
+    });
+    this.postOleDndDebug({
+      kind: 'FILE_DRAG_ACTIVE',
+      active: !!active && list.length > 0,
+      rawCount: raw.length,
+      pathCount: list.length,
+      rejectedCount: rejected.length,
+    });
+  },
+
+  /**
+   * Force host OLE handoff now (WebView2 pointercancel at left/right/bottom often fires
+   * before the cursor reaches the host rim poll zone).
+   */
+  requestOleEscalateNow(why = 'fe') {
+    if (!this.isNative) return;
+    try {
       (window as any).chrome.webview.postMessage({
-        type: 'START_DRAG',
-        payload: {
-          paths,
-          // Settings → Extended compatibility for clipboard and drag and drop
-          extended: !!opts?.extended,
-        },
+        type: 'OLE_ESCALATE_NOW',
+        payload: { why },
       });
-    }
+    } catch { /* ignore */ }
   },
 
   clearThumbnailCache(): Promise<{ success: boolean; filesRemoved?: number; bytesFreed?: number; error?: string }> {

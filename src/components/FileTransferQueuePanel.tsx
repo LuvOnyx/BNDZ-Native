@@ -12,6 +12,7 @@ import {
 } from '../lib/fileTransferQueue';
 import { motionTransferDismiss } from '../lib/bndzMotion';
 import { useAppConfig } from '../data/configContext';
+import { isOleDragHandoffActive, subscribeOleDragHandoff } from '../lib/fileDragUiCleanup';
 
 type Props = {
   className?: string;
@@ -51,6 +52,7 @@ function JobRow({
   onToggleError,
   dismissing,
   rowRef,
+  showSpeedEta = true,
 }: {
   job: FileTransferJobDto;
   onCancel: (id: string) => void;
@@ -61,12 +63,13 @@ function JobRow({
   onToggleError: () => void;
   dismissing?: boolean;
   rowRef?: (el: HTMLDivElement | null) => void;
+  showSpeedEta?: boolean;
 }) {
   const canCancel = (job.status === 'queued' || job.status === 'running' || job.status === 'paused') && !cancelling;
-  const canPause = job.status === 'running' && !cancelling;
+  const canPause = job.status === 'running' && !cancelling && job.engine !== 'native';
   const canResume = job.status === 'paused' && !cancelling;
   const engineLabel = job.engine === 'native' ? 'Windows' : job.engine === 'teracopy' ? 'TeraCopy' : 'BNDZ';
-  const progressLine = formatTransferProgressLine(job);
+  const progressLine = formatTransferProgressLine(job, showSpeedEta);
   const destination = formatTransferDestination(job);
 
   const statusColor =
@@ -197,6 +200,7 @@ function JobRow({
 export default function FileTransferQueuePanel({ className = '', enabled = true }: Props) {
   const { config } = useAppConfig();
   const autoClear = config.autoClearFinishedTransfers !== false;
+  const showSpeedEta = config.showTransferSpeedEta !== false;
   const [state, setState] = useState<FileTransferQueueState>({ queuedCount: 0, activeCount: 0, jobs: [] });
   const [expanded, setExpanded] = useState(readTransferExpandedPreference);
   const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>({});
@@ -206,6 +210,20 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
   const rowElsRef = useRef<Record<string, HTMLDivElement | null>>({});
   const clearTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const animatingRef = useRef<Record<string, boolean>>({});
+  const [oleHandoff, setOleHandoff] = useState(() => isOleDragHandoffActive());
+  const [pointerFileDrag, setPointerFileDrag] = useState(false);
+
+  useEffect(() => subscribeOleDragHandoff(() => {
+    setOleHandoff(isOleDragHandoffActive());
+  }), []);
+
+  useEffect(() => {
+    const onActive = (ev: Event) => {
+      setPointerFileDrag(!!(ev as CustomEvent<{ active?: boolean }>).detail?.active);
+    };
+    window.addEventListener('bndz-pointer-file-drag-active', onActive);
+    return () => window.removeEventListener('bndz-pointer-file-drag-active', onActive);
+  }, []);
 
   const setExpandedAndPersist = (next: boolean | ((prev: boolean) => boolean)) => {
     setExpanded(prev => {
@@ -244,7 +262,40 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
           return changed ? nextMap : prev;
         });
       });
-      unsubProgress = IPC.onProgress((payload: { percentage?: number; operationId?: string }) => {
+      unsubProgress = IPC.onProgress((payload: {
+        percentage?: number;
+        operationId?: string;
+        currentFile?: string;
+        bytesTransferred?: number;
+        totalBytes?: number;
+        speedBytesPerSecond?: number;
+        itemsCompleted?: number;
+        totalItems?: number;
+      }) => {
+        const opId = payload?.operationId;
+        if (!opId || !alive) return;
+        setState(prev => {
+          let changed = false;
+          const jobs = prev.jobs.map(j => {
+            if (j.operationId !== opId) return j;
+            changed = true;
+            const nextProgress = payload.percentage != null
+              ? Math.min(99, Math.max(0, payload.percentage))
+              : j.progress;
+            return {
+              ...j,
+              progress: j.status === 'completed' ? 100 : nextProgress,
+              currentFile: payload.currentFile ?? j.currentFile,
+              bytesTransferred: payload.bytesTransferred ?? j.bytesTransferred,
+              totalBytes: payload.totalBytes ?? j.totalBytes,
+              speedBytesPerSecond: payload.speedBytesPerSecond ?? j.speedBytesPerSecond,
+              itemsCompleted: payload.itemsCompleted ?? j.itemsCompleted,
+              itemsTotal: payload.totalItems ?? j.itemsTotal,
+              status: j.status === 'queued' ? 'running' as const : j.status,
+            };
+          });
+          return changed ? { ...prev, jobs, activeCount: Math.max(prev.activeCount, 1) } : prev;
+        });
         if ((payload?.percentage ?? 0) >= 100) {
           if (progressPoll) clearTimeout(progressPoll);
           progressPoll = setTimeout(() => { void refresh(); }, 200);
@@ -357,6 +408,8 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
   if (failedRecent > 0) summaryParts.push(`${failedRecent} failed`);
   if (cancelledRecent > 0 && state.activeCount === 0) summaryParts.push(`${cancelledRecent} cancelled`);
 
+  if (!enabled || oleHandoff || pointerFileDrag) return null;
+
   return (
     <div className={`bndz-transfer-panel shrink-0 ${className}`}>
       <div className="bndz-transfer-header w-full flex items-center gap-2 px-3 py-2">
@@ -407,6 +460,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
               }))}
               dismissing={!!dismissingIds[job.operationId]}
               rowRef={el => { rowElsRef.current[job.operationId] = el; }}
+              showSpeedEta={showSpeedEta}
             />
           ))}
         </div>

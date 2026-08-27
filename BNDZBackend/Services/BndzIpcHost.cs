@@ -184,8 +184,28 @@ namespace BNDZ.Services
         /// has no button-down state and instant-completes outbound drags.
         /// </summary>
         private Action<Action>? _hostStaInvoke;
+        /// <summary>Always enqueue on the next dispatcher turn (never run inline).</summary>
+        private Action<Action>? _hostStaInvokeNextTick;
+        /// <summary>Run on WinUI dispatcher after N ms (lets WebView2 ExecuteScript + PostWebMessage finish).</summary>
+        private Action<Action, int>? _hostStaInvokeDelayed;
+        /// <summary>Run FE ghost dismiss (fire-and-forget — never block-wait on UI thread).</summary>
+        private Action? _oleEscalateFeDismiss;
+        /// <summary>
+        /// WinUI: dismiss FE ghost via ExecuteScript, then run OLE on the dispatcher once the
+        /// script completes (or a short timeout). Prevents DoDragDrop from blocking the STA
+        /// before WebView2 paints display:none on the React MOVE card.
+        /// </summary>
+        private Action<Action>? _runOleAfterFeHandoff;
 
         public void SetHostStaInvoke(Action<Action>? invoke) => _hostStaInvoke = invoke;
+
+        public void SetHostStaInvokeNextTick(Action<Action>? invokeNextTick) => _hostStaInvokeNextTick = invokeNextTick;
+
+        public void SetHostStaInvokeDelayed(Action<Action, int>? invokeDelayed) => _hostStaInvokeDelayed = invokeDelayed;
+
+        public void SetOleEscalateFeDismiss(Action? dismiss) => _oleEscalateFeDismiss = dismiss;
+
+        public void SetRunOleAfterFeHandoff(Action<Action>? runAfterHandoff) => _runOleAfterFeHandoff = runAfterHandoff;
 
         private void InvokeOnOleDragSta(Action action)
         {
@@ -197,6 +217,49 @@ namespace BNDZ.Services
             }
             // Classic WPF MainWindow / browser-dev fallback.
             BndzUiDispatcher.Invoke(action);
+        }
+
+        /// <summary>Schedule OLE work on the next dispatcher turn so PostWebMessage / ExecuteScript can run.</summary>
+        private void ScheduleOleDragOnNextTick(Action action)
+        {
+            if (action is null) return;
+            if (_hostStaInvokeNextTick != null)
+            {
+                _hostStaInvokeNextTick(action);
+                return;
+            }
+            if (_hostStaInvoke != null)
+            {
+                _hostStaInvoke(action);
+                return;
+            }
+            BndzUiDispatcher.BeginInvoke(action);
+        }
+
+        /// <summary>Defer modal DoDragDrop until FE ghost dismiss has painted (or timed out).</summary>
+        private void ScheduleOleDragAfterFeHandoff(Action action)
+        {
+            if (action is null) return;
+            // Preferred: await ExecuteScript completion so the MOVE card is gone before DoDragDrop
+            // freezes the UI thread (script completions stall while OLE pumps).
+            if (_runOleAfterFeHandoff != null)
+            {
+                _runOleAfterFeHandoff(action);
+                return;
+            }
+            const int delayMs = 96;
+            if (_hostStaInvokeDelayed != null)
+            {
+                try { _oleEscalateFeDismiss?.Invoke(); } catch { /* ignore */ }
+                _hostStaInvokeDelayed(action, delayMs);
+                return;
+            }
+            // Classic WPF fallback — coarse sleep off UI thread then marshal DoDragDrop.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+                InvokeOnOleDragSta(action);
+            });
         }
 
         /// <summary>Screen → WebView2 CSS client coords for headless WinUI hosts (BNDZShell).</summary>
@@ -228,6 +291,302 @@ namespace BNDZ.Services
         {
             WebView2DropTargetService.Revoke();
         }
+
+        private void ClearFileDragSession()
+        {
+            _fileDragSessionActive = false;
+            _fileDragSessionPaths = null;
+            _fileDragEscalateEdgeStreak = 0;
+            _fileDragButtonUpSinceMs = 0;
+        }
+
+        private static void OleDndLog(string message)
+        {
+            try
+            {
+                var dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BNDZ");
+                Directory.CreateDirectory(dir);
+                var line = $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}";
+                File.AppendAllText(Path.Combine(dir, "ole-dnd.log"), line);
+            }
+            catch { /* never break drag on logging */ }
+            Debug.WriteLine($"[OleDnd] {message}");
+        }
+
+        private static void LogFileDragFeRejects(JsonElement payload)
+        {
+            if (payload.ValueKind != JsonValueKind.Object) return;
+            if (!payload.TryGetProperty("rejected", out var rejEl) || rejEl.ValueKind != JsonValueKind.Array) return;
+            foreach (var pe in rejEl.EnumerateArray())
+            {
+                var s = pe.GetString();
+                if (!string.IsNullOrWhiteSpace(s))
+                    OleDndLog($"FILE_DRAG_ACTIVE fe-reject={s}");
+            }
+        }
+
+        public bool IsOutboundOleDragActive => _bndzOleDragActive;
+
+        /// <summary>Deprecated — opaque top mask broke the React menubar; ghost hide is CSS-only now.</summary>
+        public bool ShouldShowOleTopGhostMask() => false;
+
+        /// <summary>
+        /// WinUI poll: while FE has an armed file drag, escalate to DoDragDrop when the cursor
+        /// leaves the host window (CSS coords cannot detect this under WebView2).
+        /// </summary>
+        /// <param name="force">
+        /// FE edge/pointercancel backup — WebView2 often cancels before the cursor reaches the
+        /// host rim; escalate immediately while the session is still armed.
+        /// </param>
+        public bool TryEscalateOutboundOleDrag(bool force = false)
+        {
+            // While OLE is live (incl. handoff delay before DoDragDrop), keep killing the FE ghost.
+            if (_bndzOleDragActive)
+            {
+                var nowDismiss = Environment.TickCount64;
+                if (nowDismiss - _lastProactiveGhostDismissMs >= 32)
+                {
+                    _lastProactiveGhostDismissMs = nowDismiss;
+                    try { _oleEscalateFeDismiss?.Invoke(); }
+                    catch { /* ignore */ }
+                }
+                return false;
+            }
+
+            if (!_fileDragSessionActive || _fileDragSessionPaths == null || _fileDragSessionPaths.Length == 0)
+                return true; // idle — stop WinUI poll
+
+            if (!GetCursorPos(out var pt)) return false;
+
+            const int VK_LBUTTON = 0x01;
+            bool buttonDown = (GetAsyncKeyStateShort(VK_LBUTTON) & 0x8000) != 0;
+
+            bool shouldEscalate = false;
+            if (WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
+                || _hostWindowHandle != IntPtr.Zero)
+            {
+                shouldEscalate = WebView2DropTargetService.ShouldHostEscalateOutboundDrag(pt.X, pt.Y);
+                // FE pointercancel/edge backup: allow a slightly deeper rim so side exits
+                // match the top menubar path without stealing mid-list in-app drops.
+                if (!shouldEscalate && force
+                    && !WebView2DropTargetService.IsCursorDeepInsideHost(pt.X, pt.Y, insetPx: 72))
+                {
+                    shouldEscalate = true;
+                }
+            }
+            else if (force)
+            {
+                shouldEscalate = true;
+            }
+
+            // Hide FE ghost only when escalate is committed — not while dragging over menubar/list.
+            if (shouldEscalate)
+            {
+                var nowDismiss = Environment.TickCount64;
+                if (nowDismiss - _lastProactiveGhostDismissMs >= 32)
+                {
+                    _lastProactiveGhostDismissMs = nowDismiss;
+                    try { _oleEscalateFeDismiss?.Invoke(); }
+                    catch { /* ignore */ }
+                }
+            }
+
+            if (!shouldEscalate)
+            {
+                // Do NOT clear on short button-up flickers after pointercancel — that killed
+                // outbound drags before the cursor left the window. Only disarm after a long
+                // idle (user abandoned) or FILE_DRAG_ACTIVE(false) / successful escalate.
+                // Side exits often lose the button bit before the cursor clears the host.
+                if (!buttonDown)
+                {
+                    if (_fileDragButtonUpSinceMs == 0)
+                        _fileDragButtonUpSinceMs = Environment.TickCount64;
+                    else if (Environment.TickCount64 - _fileDragButtonUpSinceMs >= 4500)
+                    {
+                        OleDndLog($"session idle-clear (button up 4.5s) cursor=({pt.X},{pt.Y})");
+                        ClearFileDragSession();
+                        return true;
+                    }
+                }
+                else
+                {
+                    _fileDragButtonUpSinceMs = 0;
+                }
+                return false;
+            }
+
+            // Do not require VK_LBUTTON — Chromium capture loss often clears the bit while the
+            // user is still holding. QueryContinueDrag owns drop/cancel once DoDragDrop runs.
+            _fileDragButtonUpSinceMs = 0;
+            var paths = _fileDragSessionPaths;
+            ClearFileDragSession();
+            var pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
+            var escalateWhy = force
+                ? $"fe-force:{WebView2DropTargetService.DescribeOutboundEscalateReason(pt.X, pt.Y)}"
+                : WebView2DropTargetService.DescribeOutboundEscalateReason(pt.X, pt.Y);
+            OleDndLog($"ESCALATE DoDragDrop count={paths.Length} cursor=({pt.X},{pt.Y}) btnDown={buttonDown} why={escalateWhy} {pathSummary}");
+
+            // Latch OLE-active BEFORE dismiss/register races — mid-drag REGISTER yields effect=NONE.
+            _bndzOleDragActive = true;
+            WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+
+            // 1) Kill FE ghost first — fire-and-forget ExecuteScript (never block-wait on UI thread).
+            try { _oleEscalateFeDismiss?.Invoke(); }
+            catch (Exception dismissEx) { OleDndLog($"FE ghost dismiss error {dismissEx.Message}"); }
+
+            // 2) PostWebMessage so ipcBridge dispatches bndz-ole-drag-escalated in parallel.
+            try
+            {
+                DeliverIpcJson(JsonSerializer.Serialize(new
+                {
+                    type = "OLE_DRAG_ESCALATED",
+                    payload = new { paths, source = "host-leave-webview", why = escalateWhy },
+                }));
+            }
+            catch { /* best-effort FE handoff */ }
+
+            // 3) Time-based defer — dispatcher tick bursts finish before WebView2 runs script.
+            var capturedPaths = paths;
+            ScheduleOleDragAfterFeHandoff(() =>
+            {
+                try { ExecuteNativeFileDrag(capturedPaths); }
+                catch (Exception ex)
+                {
+                    _bndzOleDragActive = false;
+                    OleDndLog($"deferred ExecuteNativeFileDrag {ex.Message}");
+                    try
+                    {
+                        DeliverIpcJson(JsonSerializer.Serialize(new
+                        {
+                            type = "OLE_DRAG_ENDED",
+                            payload = new { ok = false, error = ex.Message },
+                        }));
+                    }
+                    catch { /* ignore */ }
+                }
+            });
+            // Keep poll alive through handoff/DoDragDrop so dismiss scripts continue.
+            return false;
+        }
+
+        /// <summary>DoDragDrop on a dedicated OLE STA thread (WinUI must not block on modal OLE).</summary>
+        private void ExecuteNativeFileDrag(string[] pathArray)
+        {
+            if (pathArray == null || pathArray.Length == 0) return;
+            var pathSummary = BndzOutboundDragHelper.FormatPathSummary(pathArray);
+
+            void FinishOleDrag(bool ok, string? error = null)
+            {
+                _bndzOleDragActive = false;
+                try
+                {
+                    object payload = ok
+                        ? new { ok = true }
+                        : new { ok = false, error = error ?? "unknown" };
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "OLE_DRAG_ENDED",
+                        payload,
+                    }));
+                }
+                catch { /* ignore */ }
+                PostFileTransferQueueChanged();
+            }
+
+            try
+            {
+                _bndzOleDragActive = true;
+                if (_hostWindowHandle != IntPtr.Zero)
+                {
+                    var capturedHwnd = WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
+                        ? WebView2DropTargetService.RegisteredWebViewHwnd
+                        : _hostWindowHandle;
+                    var capturedPaths = pathArray;
+                    InvokeOnOleDragSta(() =>
+                    {
+                        IDisposable? lifetime = null;
+                        var ok = true;
+                        string? errMsg = null;
+                        try
+                        {
+                            var payload = BndzOutboundDragHelper.CreateDataObjectWithKind(capturedPaths);
+                            lifetime = payload.Lifetime;
+                            var dataObject = payload.Data;
+                            var cleanSummary = BndzOutboundDragHelper.FormatPathSummary(payload.Paths);
+                            OleDndLog($"payload kind={payload.Kind} {cleanSummary}");
+                            try { dataObject = (System.Runtime.InteropServices.ComTypes.IDataObject)AttachShellDragImage(dataObject, payload.Paths); }
+                            catch (Exception imgEx) { Debug.WriteLine($"[START_DRAG] STA drag image: {imgEx.Message}"); }
+                            WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+                            try
+                            {
+                                WebView2DropTargetService.RunNativeDragDrop(capturedHwnd, dataObject, cleanSummary, payload.Paths);
+                            }
+                            finally
+                            {
+                                WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            ok = false;
+                            errMsg = ex.Message;
+                            OleDndLog($"ExecuteNativeFileDrag failed {ex.Message} paths={pathSummary}");
+                            Debug.WriteLine($"[START_DRAG] {ex.Message}");
+                        }
+                        finally
+                        {
+                            try { lifetime?.Dispose(); } catch { /* ignore */ }
+                            FinishOleDrag(ok, errMsg);
+                        }
+                    });
+                }
+                else
+                {
+                    if (!IsVisible)
+                    {
+                        Debug.WriteLine("[START_DRAG] refused: headless host with no HWND yet");
+                        FinishOleDrag(false, "no HWND");
+                    }
+                    else
+                    {
+                        // Classic WPF DragDrop path — WPF DataObject; native path uses ShellDataObject above.
+                        var dataObject = new System.Windows.DataObject();
+                        dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
+                        dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(1 | 2 | 4)));
+                        object dragPayload = dataObject;
+                        try { dragPayload = AttachShellDragImage(dataObject, pathArray); }
+                        catch (Exception dragImgEx) { Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}"); }
+                        System.Windows.DragDrop.DoDragDrop(this, dragPayload, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
+                        FinishOleDrag(true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                OleDndLog($"ExecuteNativeFileDrag outer {ex.Message} paths={pathSummary}");
+                Debug.WriteLine($"[START_DRAG] {ex.Message}");
+                FinishOleDrag(false, ex.Message);
+            }
+        }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetCursorPos(out POINT_S pt);
+
+        [DllImport("user32.dll", EntryPoint = "GetAsyncKeyState")]
+        private static extern short GetAsyncKeyStateShort(int vKey);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetWindowRect(IntPtr hWnd, out RECT_S lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT_S { public int X; public int Y; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT_S { public int Left; public int Top; public int Right; public int Bottom; }
 
         /// <summary>Path A fallback: Chromium attempted file: navigation from external drop.</summary>
         public void NotifyNavigationFileDrop(string localPath)
@@ -841,6 +1200,128 @@ namespace BNDZ.Services
         public Task<string> HandleIpcAsync(string requestJson) => HandleBackendHostIpcCoreAsync(requestJson);
         public Task<string> HandleBackendHostIpcAsync(string requestJson) => HandleIpcAsync(requestJson);
 
+        /// <summary>Sync fast-path for drag notify IPC — must not block on async pump (WinUI STA).</summary>
+        public void HandleDragNotifySync(string requestJson)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(requestJson);
+                var root = doc.RootElement;
+                var type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                if (string.IsNullOrEmpty(type)) return;
+
+                if (type == "FILE_DRAG_ACTIVE")
+                {
+                    if (_bndzOleDragActive)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE ignored — native DoDragDrop in progress");
+                        return;
+                    }
+                    var payload = root.TryGetProperty("payload", out var p) ? p : default;
+                    var active = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("active", out var aEl)
+                        && aEl.ValueKind == JsonValueKind.True;
+                    var recvPathCount = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("paths", out var recvPathsEl)
+                        && recvPathsEl.ValueKind == JsonValueKind.Array
+                        ? recvPathsEl.GetArrayLength()
+                        : 0;
+                    var recvRejCount = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("rejected", out var recvRejEl)
+                        && recvRejEl.ValueKind == JsonValueKind.Array
+                        ? recvRejEl.GetArrayLength()
+                        : 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE recv sync active={active} paths={recvPathCount} feRejected={recvRejCount}");
+                    LogFileDragFeRejects(payload);
+                    if (!active)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm — active=false from FE");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pe in pathsEl.EnumerateArray())
+                        {
+                            var s = pe.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) paths.Add(NormalizeFsPath(s));
+                        }
+                    }
+                    if (paths.Count == 0)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm — FE sent zero paths after filter");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var filtered = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejected);
+                    if (filtered.Length == 0)
+                    {
+                        OleDndLog($"FILE_DRAG_ACTIVE disarm — no valid paths (rejected {rejected})");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    _fileDragSessionPaths = filtered;
+                    _fileDragSessionActive = true;
+                    _fileDragEscalateEdgeStreak = 0;
+                    _fileDragButtonUpSinceMs = 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE arm paths={filtered.Length} hwnd=0x{_hostWindowHandle:X} wv=0x{WebView2DropTargetService.RegisteredWebViewHwnd:X}");
+                    return;
+                }
+
+                if (type == "OLE_ESCALATE_NOW")
+                {
+                    var why = "fe";
+                    if (root.TryGetProperty("payload", out var escPayload)
+                        && escPayload.ValueKind == JsonValueKind.Object
+                        && escPayload.TryGetProperty("why", out var whyEl))
+                    {
+                        why = whyEl.GetString() ?? "fe";
+                    }
+                    OleDndLog($"OLE_ESCALATE_NOW recv why={why} armed={_fileDragSessionActive}");
+                    // Force escalate — WebView2 pointercancel at left/right/bottom often fires
+                    // before the host rim poll can see the cursor leave.
+                    TryEscalateOutboundOleDrag(force: true);
+                    return;
+                }
+
+                if (type == "START_DRAG")
+                {
+                    if (_bndzOleDragActive) return;
+                    var payload = root.TryGetProperty("payload", out var p) ? p : default;
+                    if (payload.ValueKind != JsonValueKind.Object) return;
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pe in pathsEl.EnumerateArray())
+                        {
+                            var s = pe.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) paths.Add(NormalizeFsPath(s));
+                        }
+                    }
+                    else if (payload.TryGetProperty("path", out var pathEl))
+                    {
+                        var single = pathEl.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(single)) paths.Add(NormalizeFsPath(single));
+                    }
+                    if (paths.Count == 0) return;
+                    ClearFileDragSession();
+                    var filteredStart = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedStart);
+                    if (filteredStart.Length == 0)
+                    {
+                        OleDndLog($"START_DRAG sync reject all (rejected {rejectedStart})");
+                        return;
+                    }
+                    OleDndLog($"START_DRAG sync paths={filteredStart.Length}");
+                    ExecuteNativeFileDrag(filteredStart);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OleDrag] HandleDragNotifySync: {ex.Message}");
+            }
+        }
+
         /// <summary>Sync wrapper for callers that still expect a string return on the UI thread.</summary>
         public string HandleBackendHostIpc(string requestJson)
             => HandleBackendHostIpcCoreAsync(requestJson).ConfigureAwait(false).GetAwaiter().GetResult();
@@ -867,12 +1348,23 @@ namespace BNDZ.Services
                 }
 
                 // Notify-only / fire-and-forget — acknowledge without waiting on a RESULT.
-                // START_DRAG blocks in DoDragDrop — never wait for a RESULT (IPC.startDrag has no id).
+                if (string.Equals(type, "START_DRAG", StringComparison.Ordinal)
+                    || string.Equals(type, "FILE_DRAG_ACTIVE", StringComparison.Ordinal)
+                    || string.Equals(type, "OLE_ESCALATE_NOW", StringComparison.Ordinal))
+                {
+                    await ProcessIncomingIpcMessageAsync(messageStr).ConfigureAwait(false);
+                    return JsonSerializer.Serialize(new
+                    {
+                        type = "UI_READY_ACK",
+                        id,
+                        payload = new { ok = true, mode = "backend-host", notify = type },
+                    }, opts);
+                }
+
                 if (string.Equals(type, "BNDZ_UI_READY", StringComparison.Ordinal)
                     || string.Equals(type, "UI_READY", StringComparison.Ordinal)
                     || string.Equals(type, "NOTIFY_UI_READY", StringComparison.Ordinal)
-                    || string.Equals(type, "EXTERNAL_DRAG_HOVER_REPORT", StringComparison.Ordinal)
-                    || string.Equals(type, "START_DRAG", StringComparison.Ordinal))
+                    || string.Equals(type, "EXTERNAL_DRAG_HOVER_REPORT", StringComparison.Ordinal))
                 {
                     _ = ProcessIncomingIpcMessageAsync(messageStr);
                     return JsonSerializer.Serialize(new
@@ -1100,15 +1592,27 @@ namespace BNDZ.Services
         private static string NormalizeFsPath(string path)
         {
             if (string.IsNullOrEmpty(path)) return "";
+            // Prefer existence-checked sanitize for drag/FS ops; fall back to shape normalize.
+            var clean = BndzOutboundDragHelper.SanitizeExistingPath(path, out _);
+            if (!string.IsNullOrEmpty(clean)) return clean!;
+
             if (path.StartsWith("::{")) return path;
             if (path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)) return path;
-            if (path.StartsWith("/")) path = path.Substring(1);
-            path = path.Replace("/", "\\");
-            while (path.Contains("\\\\")) path = path.Replace("\\\\", "\\");
-            if (path.StartsWith("\\") && path.Length >= 3 && char.IsLetter(path[1]) && path[2] == ':')
-                path = path.TrimStart('\\');
-            if (path.EndsWith(":") && path.Length == 2) path += "\\";
-            return path;
+            var p = path.Trim().Trim('"');
+            try
+            {
+                if (p.StartsWith("file:", StringComparison.OrdinalIgnoreCase)
+                    && Uri.TryCreate(p, UriKind.Absolute, out var uri) && uri.IsFile)
+                    p = uri.LocalPath;
+            }
+            catch { /* keep */ }
+            if (p.StartsWith("/")) p = p.Substring(1);
+            p = p.Replace("/", "\\");
+            while (p.Contains("\\\\")) p = p.Replace("\\\\", "\\");
+            if (p.StartsWith("\\") && p.Length >= 3 && char.IsLetter(p[1]) && p[2] == ':')
+                p = p.TrimStart('\\');
+            if (p.EndsWith(":") && p.Length == 2) p += "\\";
+            return p;
         }
 
         private static string ExpandShellTemplate(string template, string workingDir, string itemPath, string command)
@@ -1327,38 +1831,55 @@ namespace BNDZ.Services
         }
         /// <summary>True while BNDZ-initiated DoDragDrop is running (OLE re-entry into our window).</summary>
         private bool _bndzOleDragActive;
+        private bool _fileDragSessionActive;
+        private string[]? _fileDragSessionPaths;
+        private int _fileDragEscalateEdgeStreak;
+        /// <summary>Tick when LBUTTON was first observed up while an armed session stayed inside the host.</summary>
+        private long _fileDragButtonUpSinceMs;
+        private long _lastProactiveGhostDismissMs;
 
         /// <summary>
-        /// Attach a shell drag image via IDragSourceHelper::InitializeFromWindow (Explorer-class ghost).
+        /// Attach an Explorer-class drag ghost. WebView2 HWNDs do not handle DI_GETDRAGIMAGE,
+        /// so we must use <c>InitializeFromBitmap</c> (not InitializeFromWindow).
+        /// Returns the (possibly wrapped) data object that must be passed to DoDragDrop.
         /// </summary>
-        private void AttachShellDragImage(System.Windows.DataObject dataObject, string[] paths)
+        private object AttachShellDragImage(object dataObject, string[] paths)
         {
-            if (dataObject == null || paths == null || paths.Length == 0) return;
+            if (dataObject == null || paths == null || paths.Length == 0) return dataObject!;
             try
             {
-                var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
-                if (hwnd == IntPtr.Zero) return;
-
-                var clsid = Type.GetTypeFromCLSID(new Guid("DE5BF786-477A-11D2-839D-00C04FD918D0"));
-                if (clsid == null) return;
-                var helperObj = Activator.CreateInstance(clsid);
-                if (helperObj is not Vanara.PInvoke.Shell32.IDragSourceHelper helper) return;
-
-                var oleUnk = System.Runtime.InteropServices.Marshal.GetIUnknownForObject(dataObject);
+                System.Runtime.InteropServices.ComTypes.IDataObject? comData =
+                    dataObject as System.Runtime.InteropServices.ComTypes.IDataObject;
+                IntPtr oleUnk = IntPtr.Zero;
                 try
                 {
-                    var comData = (System.Runtime.InteropServices.ComTypes.IDataObject)
-                        System.Runtime.InteropServices.Marshal.GetObjectForIUnknown(oleUnk);
-                    helper.InitializeFromWindow(new Vanara.PInvoke.HWND(hwnd), IntPtr.Zero, comData);
+                    if (comData is null)
+                    {
+                        oleUnk = System.Runtime.InteropServices.Marshal.GetIUnknownForObject(dataObject);
+                        comData = (System.Runtime.InteropServices.ComTypes.IDataObject)
+                            System.Runtime.InteropServices.Marshal.GetObjectForIUnknown(oleUnk)!;
+                    }
+                    var original = comData;
+                    if (BndzShellDragImage.TryAttach(ref comData, paths))
+                        OleDndLog($"shell drag image attached count={paths.Length}");
+                    else
+                    {
+                        comData = original;
+                        OleDndLog("shell drag image attach skipped/failed — continuing with owned-hdrop IDataObject");
+                    }
+                    return comData;
                 }
                 finally
                 {
-                    System.Runtime.InteropServices.Marshal.Release(oleUnk);
+                    if (oleUnk != IntPtr.Zero)
+                        System.Runtime.InteropServices.Marshal.Release(oleUnk);
                 }
             }
             catch (Exception ex)
             {
+                OleDndLog($"shell drag image error {ex.Message}");
                 Debug.WriteLine($"[START_DRAG] IDragSourceHelper: {ex.Message}");
+                return dataObject;
             }
         }
 
@@ -1557,6 +2078,11 @@ namespace BNDZ.Services
             // onDrop: convert coords, apply dedup guard, post EXTERNAL_FILES_DROPPED.
             void OleDrop(string[] paths, double screenX, double screenY, uint grfEffect, bool fromBndzOle)
             {
+                if (paths == null || paths.Length == 0)
+                {
+                    PostExternalFileDropFailed(Array.Empty<string>(), "No extractable paths in drop payload (OLE path).");
+                    return;
+                }
                 var pt = OleScreenToWebViewClient(screenX, screenY);
                 var resolved = ResolveDropCoords(pt);
                 var effect = grfEffect == 2u ? "move" : "copy"; // DROPEFFECT_MOVE=2
@@ -1933,11 +2459,25 @@ namespace BNDZ.Services
             }).ConfigureAwait(false);
         }
 
-        private void EnrichDirListingEntries(List<DirListingSharedBuffer.DirEntryDto> entries)
+        private void EnrichDirListingEntries(List<DirListingSharedBuffer.DirEntryDto> entries, string? listingFolderPath = null)
         {
+            FilterTombstonedListingEntries(entries, listingFolderPath);
             DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
             DirListingSharedBuffer.EnrichWithReparseLinks(entries, p => _ghostLinkService.IsGhostLink(p));
         }
+
+        /// <summary>Hide delete/move/rename sources still in flight so refetch cannot flicker rows back.</summary>
+        private static void FilterTombstonedListingEntries(
+            List<DirListingSharedBuffer.DirEntryDto> entries,
+            string? listingFolderPath)
+        {
+            if (entries == null || entries.Count == 0) return;
+            var store = TombstoneSnapshotStore.Instance;
+            entries.RemoveAll(e => store.IsListingEntryHidden(e.Path, e.Name, listingFolderPath));
+        }
+
+        private static bool ShouldSkipTombstonedEntry(DirListingSharedBuffer.DirEntryDto entry, string listingFolderPath)
+            => TombstoneSnapshotStore.Instance.IsListingEntryHidden(entry.Path, entry.Name, listingFolderPath);
 
         private async Task StreamDirContentsAsync(string path, string? idProp, CancellationToken ct)
         {
@@ -1957,7 +2497,8 @@ namespace BNDZ.Services
                 var discEntries = await Task.Run(() => DiscUtilsVolumeService.TryList(resolvedForGate ?? path), ct).ConfigureAwait(false);
                 if (discEntries != null)
                 {
-                    EnrichDirListingEntries(discEntries);
+                    FilterTombstonedListingEntries(discEntries, path);
+                    EnrichDirListingEntries(discEntries, path);
                     await PostDirListingPageAsync(idProp, path, discEntries, partial: false).ConfigureAwait(false);
                     return;
                 }
@@ -1984,6 +2525,7 @@ namespace BNDZ.Services
 
                     await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, ct).ConfigureAwait(false))
                     {
+                        if (ShouldSkipTombstonedEntry(entry, path)) continue;
                         pipeAll.Add(entry);
                         if (!pipeFirstPosted && pipeAll.Count >= pipeFirstPaint)
                         {
@@ -1996,7 +2538,7 @@ namespace BNDZ.Services
                         }
                     }
 
-                    EnrichDirListingEntries(pipeAll);
+                    EnrichDirListingEntries(pipeAll, path);
                     if (!pipeFirstPosted)
                     {
                         _backendHostListingFirstPaintCounts[key] = 0;
@@ -2031,6 +2573,7 @@ namespace BNDZ.Services
 
             await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, ct).ConfigureAwait(false))
             {
+                if (ShouldSkipTombstonedEntry(entry, path)) continue;
                 all.Add(entry);
                 pending.Add(entry);
 
@@ -2049,8 +2592,8 @@ namespace BNDZ.Services
 
             if (!firstPosted)
             {
+                EnrichDirListingEntries(all, path);
                 await PostDirListingPageAsync(idProp, path, all, partial: false).ConfigureAwait(false);
-                EnrichDirListingEntries(all);
                 if (all.Count > 0)
                     await PostDirListingAppendAsync(idProp, path, all).ConfigureAwait(false);
                 return;
@@ -2059,7 +2602,7 @@ namespace BNDZ.Services
             if (pending.Count > 0)
                 await PostDirListingStreamAsync(idProp, path, pending).ConfigureAwait(false);
 
-            EnrichDirListingEntries(all);
+            EnrichDirListingEntries(all, path);
             await PostDirListingAppendAsync(idProp, path, all).ConfigureAwait(false);
         }
 
@@ -2833,6 +3376,74 @@ namespace BNDZ.Services
                         DeliverIpcJson(JsonSerializer.Serialize(response));
                     });
                 }
+                else if (type == "FILE_DRAG_ACTIVE")
+                {
+                    if (_bndzOleDragActive)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE ignored (async) — native DoDragDrop in progress");
+                        return;
+                    }
+                    var payload = root.TryGetProperty("payload", out var p) ? p : default;
+                    var active = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("active", out var aEl)
+                        && aEl.ValueKind == JsonValueKind.True;
+                    var recvPathCountAsync = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("paths", out var recvPathsElAsync)
+                        && recvPathsElAsync.ValueKind == JsonValueKind.Array
+                        ? recvPathsElAsync.GetArrayLength()
+                        : 0;
+                    var recvRejCountAsync = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("rejected", out var recvRejElAsync)
+                        && recvRejElAsync.ValueKind == JsonValueKind.Array
+                        ? recvRejElAsync.GetArrayLength()
+                        : 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE recv async active={active} paths={recvPathCountAsync} feRejected={recvRejCountAsync}");
+                    LogFileDragFeRejects(payload);
+                    if (!active)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) — active=false from FE");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pe in pathsEl.EnumerateArray())
+                        {
+                            var s = pe.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) paths.Add(NormalizeFsPath(s));
+                        }
+                    }
+                    if (paths.Count == 0)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) — FE sent zero paths after filter");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var filteredAsync = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedAsync);
+                    if (filteredAsync.Length == 0)
+                    {
+                        OleDndLog($"FILE_DRAG_ACTIVE disarm (async) — no valid paths (rejected {rejectedAsync})");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    _fileDragSessionPaths = filteredAsync;
+                    _fileDragSessionActive = true;
+                    _fileDragButtonUpSinceMs = 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE arm (async) paths={filteredAsync.Length}");
+                }
+                else if (type == "OLE_ESCALATE_NOW")
+                {
+                    var whyAsync = "fe";
+                    if (root.TryGetProperty("payload", out var escPayloadAsync)
+                        && escPayloadAsync.ValueKind == JsonValueKind.Object
+                        && escPayloadAsync.TryGetProperty("why", out var whyElAsync))
+                    {
+                        whyAsync = whyElAsync.GetString() ?? "fe";
+                    }
+                    OleDndLog($"OLE_ESCALATE_NOW recv async why={whyAsync} armed={_fileDragSessionActive}");
+                    PostToUi(() => TryEscalateOutboundOleDrag(force: true));
+                }
                 else if (type == "START_DRAG")
                 {
                     var payload = root.GetProperty("payload");
@@ -2851,64 +3462,15 @@ namespace BNDZ.Services
                         if (!string.IsNullOrWhiteSpace(single)) paths.Add(NormalizeFsPath(single));
                     }
                     if (paths.Count == 0) return;
-                    var pathArray = paths.ToArray();
-
-                    // DoDragDrop must run synchronously while the mouse button is still down,
-                    // on the WinUI STA that owns the mouse — never BndzUiDispatcher (wrong queue).
-                    void RunOleDrag()
+                    ClearFileDragSession();
+                    var filteredStartAsync = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedStartAsync);
+                    if (filteredStartAsync.Length == 0)
                     {
-                        try
-                        {
-                            // _bndzOleDragActive lets our IDropTarget recognise internal re-entry
-                            // and honour move intent when the drag lands back on BNDZ.
-                            _bndzOleDragActive = true;
-                            if (_hostWindowHandle != IntPtr.Zero)
-                            {
-                                var capturedHwnd = WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
-                                    ? WebView2DropTargetService.RegisteredWebViewHwnd
-                                    : _hostWindowHandle;
-                                var capturedPaths = pathArray;
-                                InvokeOnOleDragSta(() =>
-                                {
-                                    // Build IDataObject on the same STA as DoDragDrop (apartment affinity).
-                                    var dataObject = new System.Windows.DataObject();
-                                    dataObject.SetData(System.Windows.DataFormats.FileDrop, capturedPaths);
-                                    dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(5)));
-                                    try { AttachShellDragImage(dataObject, capturedPaths); }
-                                    catch (Exception imgEx) { Debug.WriteLine($"[START_DRAG] STA drag image: {imgEx.Message}"); }
-                                    WebView2DropTargetService.RunNativeDragDrop(capturedHwnd, dataObject);
-                                });
-                            }
-                            else
-                            {
-                                // Classic WPF path only when this window is shown.
-                                // Headless BNDZShell without a host HWND must not DoDragDrop(this).
-                                if (!IsVisible)
-                                {
-                                    Debug.WriteLine("[START_DRAG] refused: headless host with no HWND yet");
-                                }
-                                else
-                                {
-                                    var dataObject = new System.Windows.DataObject();
-                                    dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
-                                    dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(5)));
-                                    try { AttachShellDragImage(dataObject, pathArray); }
-                                    catch (Exception dragImgEx) { Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}"); }
-                                    System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"[START_DRAG] {ex.Message}");
-                        }
-                        finally
-                        {
-                            _bndzOleDragActive = false;
-                        }
+                        OleDndLog($"START_DRAG async reject all (rejected {rejectedStartAsync})");
+                        return;
                     }
-
-                    RunOleDrag();
+                    OleDndLog($"START_DRAG async paths={filteredStartAsync.Length}");
+                    ExecuteNativeFileDrag(filteredStartAsync);
                 }
                 else if (type == "CLEAR_THUMBNAIL_CACHE")
                 {
@@ -3178,7 +3740,7 @@ namespace BNDZ.Services
                                 all = new List<DirListingSharedBuffer.DirEntryDto>();
                                 await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, cts.Token).ConfigureAwait(false))
                                     all.Add(entry);
-                                EnrichDirListingEntries(all);
+                                EnrichDirListingEntries(all, path);
                             }
 
                             var skip = _backendHostListingFirstPaintCounts.TryGetValue(key, out var painted) ? painted : 0;
@@ -4521,12 +5083,13 @@ namespace BNDZ.Services
                 else if (type == "MAGNET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payload.GetRawText(), IpcJsonOptions)
+                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid magnet payload.");
                             var saved = _dropMagnetService.SaveMagnet(recipe);
                             PostMeshIpcResult(idProp, "MAGNET_SAVE_RESULT", new { ok = true, magnet = saved });
@@ -5735,12 +6298,13 @@ namespace BNDZ.Services
                 else if (type == "JOB_TICKET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var ticket = JsonSerializer.Deserialize<JobTicket>(payload.GetRawText(), IpcJsonOptions)
+                            var ticket = JsonSerializer.Deserialize<JobTicket>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid ticket payload.");
                             var saved = JobTicketService.Instance.Save(ticket);
                             PostMeshIpcResult(idProp, "JOB_TICKET_SAVE_RESULT", new { ok = true, ticket = saved });
@@ -9519,6 +10083,8 @@ namespace BNDZ.Services
             PostToUi(() =>
             {
                 if (!HasLiveUiTransport()) return;
+                // Outbound OLE + in-app file drag — suppress panel churn until the gesture completes.
+                if (_bndzOleDragActive || _fileDragSessionActive) return;
                 var evt = new
                 {
                     type = "FILE_TRANSFER_QUEUE_CHANGED",
@@ -9909,7 +10475,7 @@ namespace BNDZ.Services
                         _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority, target);
                         _fileTransferQueue.MarkFailed(operationId, policyMsg);
                         if (!string.IsNullOrEmpty(idProp))
-                            PostMeshIpcResult(idProp, "EXECUTE_FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
+                            PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
                         return;
                     }
                 }
@@ -10036,7 +10602,8 @@ namespace BNDZ.Services
                             OnProgress,
                             ct,
                             prefs.ShouldShowNativeProgress(action, sources, target),
-                            OnAccessDenied).ConfigureAwait(false);
+                            OnAccessDenied,
+                            _hostWindowHandle).ConfigureAwait(false);
                         RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
                     }
                     else
@@ -10842,7 +11409,7 @@ namespace BNDZ.Services
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "MAGNET_APPLY_DROP_RESULT", forceWaitForIpcResult: true).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "MAGNET_APPLY_DROP_RESULT").ConfigureAwait(false);
         }
 
         private static void CopyDirectoryForMagnet(string sourceDir, string destDir, HashSet<string>? visited = null)

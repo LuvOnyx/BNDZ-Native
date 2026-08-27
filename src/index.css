@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Hide classic number steppers app-wide — type values or use custom controls */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 :root {
   --scrollbar-thumb: #3a3a3a;
   --scrollbar-thumb-hover: #555;
@@ -33,7 +44,9 @@
   --bndz-surface-raised: #2b2b2b;
   --bndz-surface-chrome: #252526;
   --bndz-surface-panel: #252526;
-  --bndz-border-subtle: #454545;
+  /* Charcoal hairline — never white-10% on dark Contents Preview / chrome edges. */
+  --bndz-border-subtle: #2a2a30;
+  --border-subtle: #2a2a30;
   --bndz-transfer-accent: #0078d4;
   --bndz-transfer-accent-dim: #094771;
 
@@ -1798,6 +1811,15 @@
 
   /* View-mode buttons: glow stays fully INSIDE the button box (inset only) so
      nothing spills out of the toolbar container or changes layout size. */
+  .bndz-list-views-cluster {
+    max-width: 100%;
+  }
+  .bndz-view-mode-strip {
+    flex: 0 0 auto;
+  }
+  .bndz-view-extras {
+    flex: 0 0 auto;
+  }
   .bndz-view-mode-btn {
     border-radius: var(--bndz-radius-sm);
     transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
@@ -2339,6 +2361,18 @@ html.theme-light .bndz-chrome-workspace,
 html.theme-light .bndz-file-list-scroll {
   background: #ffffff !important;
   color: rgba(0, 0, 0, 0.88) !important;
+}
+
+/* Contents Preview — dark charcoal edges (Tailwind bare `border` = currentColor ≈ white). */
+.bndz-preview-contents-panel {
+  border: 1px solid var(--bndz-border-subtle, #2a2a30) !important;
+}
+.bndz-preview-contents-panel .bndz-panel-section-title,
+.bndz-preview-contents-panel > .border-b {
+  border-color: var(--bndz-border-subtle, #2a2a30) !important;
+}
+.bndz-preview-folder-strip {
+  border-color: var(--bndz-border-subtle, #1a1a1e) !important;
 }
 
 html.theme-light .bndz-chrome-preview,
@@ -2980,15 +3014,15 @@ html[data-list-font-aa="greyscale"] .bndz-file-list-scroll {
 
 .fs-list-item {
   overflow: hidden;
-  cursor: default;
+  cursor: pointer;
 }
 
 .fs-item-wrapper {
-  cursor: default;
+  cursor: pointer;
 }
 
 .fs-item-wrapper[draggable="true"] {
-  cursor: default;
+  cursor: pointer;
   -webkit-user-drag: none;
 }
 
@@ -11820,13 +11854,15 @@ html[data-theme] .nav-tree-row:focus-visible {
     0 2px 8px rgba(0, 0, 0, 0.5);
 }
 .bndz-automation-flow .react-flow__edge-path {
-  stroke: #7eb8e8 !important;
+  stroke: #34d399 !important;
   stroke-width: 2.25px !important;
+  filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.55));
 }
 .bndz-automation-flow .react-flow__edge.selected .react-flow__edge-path,
 .bndz-automation-flow .react-flow__edge:focus .react-flow__edge-path {
-  stroke: #b8e0ff !important;
+  stroke: #6ee7b7 !important;
   stroke-width: 2.75px !important;
+  filter: drop-shadow(0 0 6px rgba(110, 231, 183, 0.7));
 }
 .bndz-automation-flow .react-flow__connection-path {
   stroke: #9ad4ff !important;
@@ -12386,39 +12422,12 @@ html[data-theme] .nav-tree-row:focus-visible {
     inset 0 -1px 0 rgba(0,0,0,0.45);
 }
 .bndz-pin-module {
-  position: absolute; display: flex; flex-direction: column; gap: 8px;
-  padding: 12px 12px 10px 16px; border-radius: 12px;
-  border: 1px solid #3a4048;
-  background: linear-gradient(180deg, #2a2f36 0%, #161a20 100%);
-  box-shadow: 0 18px 40px rgba(0,0,0,0.52), 0 1px 0 rgba(255,255,255,0.07) inset;
-  cursor: default; user-select: none; overflow: hidden; isolation: isolate;
-  transition: border-color 0.18s, box-shadow 0.2s, transform 0.2s;
-}
-.bndz-rack-pin-main { position: relative; z-index: 1; display: flex; gap: 12px; align-items: flex-start; padding-left: 6px; }
-.bndz-rack-pin-body { flex: 1; min-width: 0; }
-.bndz-rack-keys { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); }
-.bndz-rack-key {
-  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px;
-  border-radius: 5px; border: 1px solid #3a4048;
-  background: linear-gradient(180deg, #343a42, #1e2228);
-  color: #b8bec8; font-size: 9px; font-weight: 650; cursor: pointer;
-  box-shadow: 0 2px 0 #0a0c0e, 0 1px 0 rgba(255,255,255,0.06) inset;
-}
-.bndz-rack-key:hover { border-color: color-mix(in srgb, var(--ws-accent, #c4a35a) 50%, #3a4048); color: #e8eaed; }
-.bndz-rack-key.is-primary {
-  border-color: color-mix(in srgb, var(--ws-accent, #c4a35a) 55%, #3a4048);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--ws-accent, #c4a35a) 35%, #343a42), #1e2228);
-  color: #fff4d6;
-}
-.bndz-rack-pin:hover:not(.is-dragging) { transform: translateY(-2px); border-color: color-mix(in srgb, var(--ws-accent, #c4a35a) 45%, #3a4048); }
-.bndz-rack-pin.is-selected {
-  border-color: color-mix(in srgb, var(--ws-accent, #c4a35a) 75%, #fff);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ws-accent, #c4a35a) 45%, transparent), 0 16px 36px rgba(0,0,0,0.5);
-  z-index: 12;
-}
-.bndz-rack-pin.is-dragging {
-  will-change: transform; z-index: 30; transition: none !important;
-  box-shadow: 0 24px 48px rgba(0,0,0,0.58);
+  /* Glass DNA lives on .bndz-spatial-card.bndz-pin-module below — keep this as a thin alias only. */
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  isolation: isolate;
 }
 .bndz-automation-flow.is-node-dragging .bndz-rack-module {
   transition: none !important; transform: none !important;
@@ -13360,17 +13369,8 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-automation-flow .react-flow__minimap {
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
-.bndz-automation-flow .react-flow__edge-path {
-  stroke: #7eb8e8;
-  stroke-width: 2;
-}
-.bndz-automation-flow .react-flow__edge.selected .react-flow__edge-path,
-.bndz-automation-flow .react-flow__edge:focus .react-flow__edge-path {
-  stroke: #a8d4f5;
-  stroke-width: 2.5;
-}
 .bndz-automation-flow .react-flow__connection-line {
-  stroke: #7eb8e8;
+  stroke: #9ad4ff;
   stroke-width: 2;
 }
 .bndz-ws-tools-hero {
@@ -14701,6 +14701,31 @@ html[data-theme] .nav-tree-row:focus-visible {
 }
 .bndz-gpu-viewport canvas { contain: strict; touch-action: none; }
 .bndz-fluid-drag-stack { pointer-events: none; will-change: transform; }
+/* Host OLE handoff — React ghost cannot paint outside WebView2 HWND. */
+html.bndz-ole-drag-handoff .bndz-fluid-drag-stack,
+html.bndz-ole-drag-handoff .bndz-fluid-drag-lead,
+html.bndz-ole-drag-handoff .bndz-fluid-drag-card,
+html.bndz-ole-drag-handoff .bndz-fluid-drag-multi-pill,
+html.bndz-ole-drag-handoff .bndz-fluid-drag-overflow-badge,
+html.bndz-ole-drag-handoff .bndz-drag-ghost-root,
+html.bndz-ole-drag-handoff .bndz-drag-ghost-card,
+html.bndz-ole-drag-handoff [data-fluid-lead],
+html.bndz-ole-drag-handoff [data-fluid-fan],
+html.bndz-ole-drag-handoff [data-fluid-pill],
+html.bndz-ole-drag-handoff [data-fluid-badge] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: none !important;
+}
+/* Block list/sidebar clicks while shell DoDragDrop owns the gesture. */
+html.bndz-ole-drag-handoff [data-list-body],
+html.bndz-ole-drag-handoff [data-nav-path],
+html.bndz-ole-drag-handoff .bndz-chrome-sidebar,
+html.bndz-ole-drag-handoff .bndz-chrome-tabstrip {
+  pointer-events: none !important;
+}
 .bndz-fluid-drag-lead {
   position: relative;
   display: flex;
@@ -15114,15 +15139,6 @@ html[data-theme] .nav-tree-row:focus-visible {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 .bndz-spatial-wire-canvas { pointer-events: none; contain: layout paint; }
-.bndz-spatial-pip-thumb {
-  display: block;
-  margin: 10px auto 6px;
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(0,0,0,0.25);
-}
 
 /* Automation branch handles + armed state */
 .bndz-flow-node--branch { min-width: 210px; }
@@ -15160,18 +15176,20 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-flow-edge--true .react-flow__edge-path { stroke: #34d399; }
 .bndz-flow-edge--false .react-flow__edge-path { stroke: #f87171; }
 
-/* Running / armed edges — static stroke only (no drop-shadow pulse; keeps canvas FPS clean) */
+/* Running / armed edges — glow + React Flow animated dash when pipeline is live */
 .bndz-automation.is-running .bndz-automation-flow .react-flow__edge-path {
-  stroke: #38bdf8;
-  stroke-width: 2.5;
+  stroke: #38bdf8 !important;
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.65));
 }
 .bndz-automation.is-running .bndz-automation-canvas-wrap {
   box-shadow: inset 0 0 40px rgba(56, 189, 248, 0.06);
 }
 
 .bndz-automation.is-armed-live .bndz-automation-flow .react-flow__edge-path {
-  stroke: #34d399;
-  stroke-width: 2;
+  stroke: #34d399 !important;
+  stroke-width: 2.25px !important;
+  filter: drop-shadow(0 0 5px rgba(52, 211, 153, 0.6));
 }
 
 .bndz-ws-chip--armed {
@@ -16029,7 +16047,7 @@ html[data-bndz-shell="native-host"] [data-window-btn] {
 }
 /* WinUI caption buttons overlay the top-right — pad clear space; do NOT mark the whole
    menubar as app-region:drag (WebView2 non-client hit-test races steal first clicks on File/Edit).
-   Drag only an explicit trailing strip; JS windowChrome('drag') still owns empty-bar dragging. */
+   Drag only an explicit trailing strip (CSS app-region:drag) — do not also IPC-drag. */
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar {
   padding-right: max(138px, env(titlebar-area-height, 32px)) !important;
   app-region: no-drag;
@@ -16047,6 +16065,7 @@ html[data-bndz-shell="native-host"] .bndz-chrome-menubar .bndz-menubar-drag-stri
   -webkit-app-region: drag;
 }
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-menu-trigger],
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-bndz-menubar-logo],
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar button,
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar a,
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar input,
