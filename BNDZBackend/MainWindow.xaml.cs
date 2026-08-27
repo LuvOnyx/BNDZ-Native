@@ -15,6 +15,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using BNDZ.Services;
 using BNDZ.Services.Mesh;
+using BNDZ.Services.Mesh.Incus;
 using BNDZ.Services.MeshDrop;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
@@ -954,15 +955,21 @@ namespace BNDZ
         private static string NormalizeFsPath(string path)
         {
             if (string.IsNullOrEmpty(path)) return "";
+            var trimmed = path.Trim().Trim('"');
+            var meshProbe = trimmed.Replace('\\', '/');
+            if (!meshProbe.StartsWith('/')) meshProbe = "/" + meshProbe;
+            if (MeshPath.IsMeshPath(meshProbe))
+                return MeshPath.Normalize(meshProbe);
+
             if (path.StartsWith("::{")) return path;
             if (path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)) return path;
-            if (path.StartsWith("/")) path = path.Substring(1);
-            path = path.Replace("/", "\\");
-            while (path.Contains("\\\\")) path = path.Replace("\\\\", "\\");
-            if (path.StartsWith("\\") && path.Length >= 3 && char.IsLetter(path[1]) && path[2] == ':')
-                path = path.TrimStart('\\');
-            if (path.EndsWith(":") && path.Length == 2) path += "\\";
-            return path;
+            if (trimmed.StartsWith("/")) trimmed = trimmed.Substring(1);
+            trimmed = trimmed.Replace("/", "\\");
+            while (trimmed.Contains("\\\\")) trimmed = trimmed.Replace("\\\\", "\\");
+            if (trimmed.StartsWith("\\") && trimmed.Length >= 3 && char.IsLetter(trimmed[1]) && trimmed[2] == ':')
+                trimmed = trimmed.TrimStart('\\');
+            if (trimmed.EndsWith(":") && trimmed.Length == 2) trimmed += "\\";
+            return trimmed;
         }
 
         private static string ExpandShellTemplate(string template, string workingDir, string itemPath, string command)
@@ -2391,6 +2398,9 @@ namespace BNDZ
 
         private async Task ProcessIncomingIpcMessageAsync(string messageStr)
         {
+            // Entry point only schedules work via Task.Run / fire-and-forget handlers;
+            // keep async for call-site compatibility and satisfy CS1998.
+            await Task.CompletedTask.ConfigureAwait(false);
             try
             {
                 IpcDebugLog($"[RECV] {messageStr}");
@@ -3387,7 +3397,11 @@ namespace BNDZ
                         var host = JsonSerializer.Deserialize<MeshHostRecord>(hostJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                             ?? throw new InvalidOperationException("Invalid host payload");
                         if (!string.IsNullOrEmpty(host.PasswordPlain))
+                        {
                             host.ProtectedSecret = MeshCredentialVault.Protect(host.PasswordPlain);
+                            if (host.AuthKind == MeshAuthKind.PrivateKey && !string.IsNullOrEmpty(host.KeyPath))
+                                SshSftpMeshProvider.CacheSessionPassphrase(host.KeyPath, host.PasswordPlain);
+                        }
                         host.PasswordPlain = null;
                         var saved = _meshOrchestrator.UpsertHost(host);
                         BroadcastMeshHostsChanged();
@@ -3506,6 +3520,60 @@ namespace BNDZ
                 {
                     var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
                     _meshOrchestrator.Terminal.Close(sessionId);
+                }
+                else if (type == "MESH_TERMINAL_RESIZE")
+                {
+                    var payload = root.GetProperty("payload");
+                    var sessionId = payload.GetProperty("sessionId").GetString() ?? "";
+                    var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
+                    var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
+                    _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_STAT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var panePath = root.GetProperty("payload").TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var attr = await _meshOrchestrator.StatAsync(panePath).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", attr);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", new { error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_WRITE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var panePath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var localFile = payload.TryGetProperty("localFile", out var lfEl) ? lfEl.GetString() : null;
+                    var contentB64 = payload.TryGetProperty("contentBase64", out var b64El) ? b64El.GetString() : null;
+                    DateTimeOffset? expectedMtime = null;
+                    if (payload.TryGetProperty("expectedRemoteMtime", out var mtEl) && mtEl.ValueKind == JsonValueKind.String
+                        && DateTimeOffset.TryParse(mtEl.GetString(), out var parsed))
+                        expectedMtime = parsed;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(localFile) && File.Exists(localFile))
+                                await _meshOrchestrator.WriteBackAsync(panePath, localFile!, expectedMtime).ConfigureAwait(false);
+                            else if (!string.IsNullOrEmpty(contentB64))
+                                await _meshOrchestrator.WriteBytesAsync(panePath, Convert.FromBase64String(contentB64!)).ConfigureAwait(false);
+                            else
+                                throw new InvalidOperationException("MESH_WRITE requires localFile or contentBase64");
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = true, path = panePath });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
                 }
                 else if (type == "MESH_TRANSFER")
                 {
@@ -3788,6 +3856,137 @@ namespace BNDZ
                         catch (Exception ex)
                         {
                             PostMeshIpcResult(idProp, "MESH_DROP_RELAY_RESOLVE_OFFER_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_ENDPOINTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var endpoints = _meshOrchestrator.Ephemeral.ListEndpoints();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints = Array.Empty<IncusEndpointRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_UPSERT_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var payloadJson = root.GetProperty("payload").GetRawText();
+                        var endpoint = JsonSerializer.Deserialize<IncusEndpointRecord>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                            ?? throw new InvalidOperationException("Invalid Incus endpoint payload");
+                        var saved = _meshOrchestrator.Ephemeral.UpsertEndpoint(endpoint);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", saved);
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", new { error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_DELETE_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    try
+                    {
+                        _meshOrchestrator.Ephemeral.DeleteEndpoint(endpointId);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = true });
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_TEST_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await _meshOrchestrator.Ephemeral.TestEndpointAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = true, info, endpoints = _meshOrchestrator.Ephemeral.ListEndpoints() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_EPHEMERAL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var instances = _meshOrchestrator.Ephemeral.ListEphemeral();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances = Array.Empty<IncusEphemeralInstanceRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_LAUNCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var req = JsonSerializer.Deserialize<IncusLaunchRequest>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                                ?? throw new InvalidOperationException("Invalid launch payload");
+                            var instance = await _meshOrchestrator.Ephemeral.LaunchAsync(req).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_REFRESH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.RefreshAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_DESTROY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _meshOrchestrator.Ephemeral.DestroyAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = true, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = false, error = ex.Message });
                         }
                     });
                 }
@@ -9416,6 +9615,31 @@ namespace BNDZ
             bool recreateSourceStructure = false,
             string? idProp = null)
         {
+            var meshSources = sources.Where(BndzMeshOrchestrator.LooksLikeMeshFsPath).Select(BndzMeshOrchestrator.ToMeshPanePath).ToList();
+            var targetIsMesh = BndzMeshOrchestrator.LooksLikeMeshFsPath(target);
+            if (meshSources.Count > 0 || (targetIsMesh && action is "create-dir" or "create-file"))
+            {
+                var meshTarget = targetIsMesh ? BndzMeshOrchestrator.ToMeshPanePath(target) : target;
+                var meshLabel = BuildFileOpLabel(action, meshSources.Count > 0 ? meshSources : new List<string> { meshTarget }, labelOverride);
+                _fileTransferQueue.RegisterJob(operationId, action, meshLabel, "mesh", Math.Max(meshSources.Count, 1), "mesh", priority, meshTarget);
+                try
+                {
+                    var opSources = meshSources.Count > 0 ? meshSources : new List<string> { meshTarget };
+                    await _meshOrchestrator.ExecuteFsOperationAsync(action, opSources, string.IsNullOrWhiteSpace(meshTarget) ? null : meshTarget)
+                        .ConfigureAwait(false);
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    if (!string.IsNullOrEmpty(idProp))
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = true, background = false, engine = "mesh" });
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    if (!string.IsNullOrEmpty(idProp))
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = ex.Message, engine = "mesh" });
+                }
+                return;
+            }
+
             var prefs = FileOperationPreferences.Current;
             if (!recreateSourceStructure
                 && string.Equals(prefs.RecreateSourceFolderStructure, "Always", StringComparison.OrdinalIgnoreCase)

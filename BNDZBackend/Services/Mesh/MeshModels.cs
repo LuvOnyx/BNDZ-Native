@@ -15,6 +15,10 @@ public sealed class MeshHostRecord
     public int Port { get; set; } = 22;
     public string Username { get; set; } = "";
     public string? KeyPath { get; set; }
+    /// <summary>Optional OpenSSH certificate path (CertificateFile).</summary>
+    public string? CertificatePath { get; set; }
+    /// <summary>ProxyJump hostname[:port] from ssh config (applied when JumpHostId is empty).</summary>
+    public string? ProxyJump { get; set; }
     public MeshAuthKind AuthKind { get; set; } = MeshAuthKind.Agent;
     public string? JumpHostId { get; set; }
     public string? HostKeyFingerprint { get; set; }
@@ -57,6 +61,29 @@ public sealed class MeshDirEntry
     public bool IsDirectory { get; set; }
     public long Size { get; set; }
     public DateTime? ModifiedUtc { get; set; }
+    public bool IsSymlink { get; set; }
+    public string? LinkTarget { get; set; }
+    public int? Mode { get; set; }
+    public uint? Uid { get; set; }
+    public uint? Gid { get; set; }
+    public string? Owner { get; set; }
+    public string? Group { get; set; }
+}
+
+public sealed class MeshFileAttributes
+{
+    public string Path { get; set; } = "";
+    public bool Exists { get; set; }
+    public bool IsDirectory { get; set; }
+    public bool IsSymlink { get; set; }
+    public long Size { get; set; }
+    public DateTime? ModifiedUtc { get; set; }
+    public int? Mode { get; set; }
+    public uint? Uid { get; set; }
+    public uint? Gid { get; set; }
+    public string? Owner { get; set; }
+    public string? Group { get; set; }
+    public string? LinkTarget { get; set; }
 }
 
 public sealed class MeshSyncProgress

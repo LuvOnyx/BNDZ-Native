@@ -23,6 +23,7 @@ Do **not** put these in marketing / "why BNDZ" copy. Track here as engineering b
 - [ ] Chromaprint / acoustic fingerprint column
 - [ ] Essentia.js WASM (license review)
 - [ ] Shoot culling mode (Facet/CullSnap parity)
+- [ ] **FiveM / RAGE preview fidelity** — ✅ GLB + normals/UVs + optional sibling `.ytd` (CodeWalker in-process → `GpuModelViewport`). Sidebar selection preview always-on for convertible mesh types. Further: multi-material YTD atlas, embedded drawable textures polish, RPF browse.
 
 ## Trust & ops
 - [ ] Transfer conflict preview sheet

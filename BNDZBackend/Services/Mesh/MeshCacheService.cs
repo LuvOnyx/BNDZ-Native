@@ -7,6 +7,7 @@ namespace BNDZ.Services.Mesh;
 public sealed class MeshCacheService
 {
     private readonly string _blobRoot;
+    private static readonly Encoding Utf8 = System.Text.Encoding.UTF8;
 
     public MeshCacheService()
     {
@@ -36,12 +37,23 @@ public sealed class MeshCacheService
 
     public async Task<string> EnsureCachedAsync(IMeshProvider provider, string hostId, string remotePath, CancellationToken ct = default)
     {
-        var hash = Convert.ToHexString(XxHash64.Hash(Encoding.UTF8.GetBytes($"{hostId}:{remotePath}"))).ToLowerInvariant();
+        var hash = Convert.ToHexString(XxHash64.Hash(Utf8.GetBytes($"{hostId}:{remotePath}"))).ToLowerInvariant();
         var dest = BlobPathForHash(hash);
         if (File.Exists(dest) && new FileInfo(dest).Length > 0) return dest;
         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         await provider.DownloadAsync(remotePath, dest, null, ct).ConfigureAwait(false);
         return dest;
+    }
+
+    public void Invalidate(string hostId, string remotePath)
+    {
+        try
+        {
+            var hash = Convert.ToHexString(XxHash64.Hash(Utf8.GetBytes($"{hostId}:{remotePath}"))).ToLowerInvariant();
+            var dest = BlobPathForHash(hash);
+            if (File.Exists(dest)) File.Delete(dest);
+        }
+        catch { /* best effort */ }
     }
 
     public static async Task<string> ComputeFileHashHexAsync(string path, CancellationToken ct = default)
@@ -54,6 +66,4 @@ public sealed class MeshCacheService
             hasher.Append(buffer.AsSpan(0, read));
         return Convert.ToHexString(hasher.GetCurrentHash()).ToLowerInvariant();
     }
-
-    private static Encoding Encoding => System.Text.Encoding.UTF8;
 }

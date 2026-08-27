@@ -593,6 +593,37 @@ export const IPC = {
     (window as any).chrome.webview.postMessage({ type: 'MESH_TERMINAL_CLOSE', payload: { sessionId } });
   },
 
+  meshTerminalResize(sessionId: string, cols: number, rows: number): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'MESH_TERMINAL_RESIZE',
+      payload: { sessionId, cols, rows },
+    });
+  },
+
+  meshStat(path: string): Promise<any> {
+    if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
+    const id = `${Date.now()}_meshStat`;
+    return _nativeCall<any>('MESH_STAT', 'MESH_STAT_RESULT', id, { path }, 30000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return r;
+    });
+  },
+
+  meshWrite(opts: {
+    path: string;
+    localFile?: string;
+    contentBase64?: string;
+    expectedRemoteMtime?: string;
+  }): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshWrite`;
+    return _nativeCall<any>('MESH_WRITE', 'MESH_WRITE_RESULT', id, opts, 120000).then(r => ({
+      ok: r?.ok !== false && !r?.error,
+      error: r?.error,
+    }));
+  },
+
   meshTransfer(payload: {
     operationId: string;
     direction: 'upload' | 'download' | 'replicate' | 'relay';
@@ -744,6 +775,81 @@ export const IPC = {
     return _nativeCall<any>('MESH_DROP_RELAY_RESOLVE_OFFER', 'MESH_DROP_RELAY_RESOLVE_OFFER_RESULT', id, { relayUrl, roomId }, 15000).then(r => ({
       ok: r?.ok === true,
       meshCode: r?.meshCode,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListEndpoints(): Promise<any[]> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_incusEndpoints`;
+    return _nativeCall<any>('MESH_INCUS_LIST_ENDPOINTS', 'MESH_INCUS_LIST_ENDPOINTS_RESULT', id, {}, 15000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return Array.isArray(r?.endpoints) ? r.endpoints : [];
+    });
+  },
+
+  meshIncusUpsertEndpoint(endpoint: Record<string, unknown>): Promise<any> {
+    if (!this.isNative) return Promise.resolve(endpoint);
+    const id = `${Date.now()}_incusUpsert`;
+    return _nativeCall<any>('MESH_INCUS_UPSERT_ENDPOINT', 'MESH_INCUS_UPSERT_ENDPOINT_RESULT', id, endpoint, 30000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return r;
+    });
+  },
+
+  meshIncusDeleteEndpoint(endpointId: string): Promise<void> {
+    if (!this.isNative) return Promise.resolve();
+    const id = `${Date.now()}_incusDelEp`;
+    return _nativeCall<any>('MESH_INCUS_DELETE_ENDPOINT', 'MESH_INCUS_DELETE_ENDPOINT_RESULT', id, { endpointId }, 60000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+    });
+  },
+
+  meshIncusTestEndpoint(endpointId: string): Promise<{ ok: boolean; info?: any; endpoints?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusTest`;
+    return _nativeCall<any>('MESH_INCUS_TEST_ENDPOINT', 'MESH_INCUS_TEST_ENDPOINT_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      info: r?.info,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListEphemeral(): Promise<any[]> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_incusEph`;
+    return _nativeCall<any>('MESH_INCUS_LIST_EPHEMERAL', 'MESH_INCUS_LIST_EPHEMERAL_RESULT', id, {}, 15000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return Array.isArray(r?.instances) ? r.instances : [];
+    });
+  },
+
+  meshIncusLaunch(req: Record<string, unknown>): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLaunch`;
+    return _nativeCall<any>('MESH_INCUS_LAUNCH', 'MESH_INCUS_LAUNCH_RESULT', id, req, 600000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusRefresh(ephemeralId: string): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusRefresh`;
+    return _nativeCall<any>('MESH_INCUS_REFRESH', 'MESH_INCUS_REFRESH_RESULT', id, { ephemeralId }, 120000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusDestroy(ephemeralId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusDestroy`;
+    return _nativeCall<any>('MESH_INCUS_DESTROY', 'MESH_INCUS_DESTROY_RESULT', id, { ephemeralId }, 300000).then(r => ({
+      ok: r?.ok === true,
       error: r?.error,
     }));
   },
@@ -2550,7 +2656,7 @@ export const IPC = {
     return Promise.resolve({ error: 'Not native' });
   },
 
-  /** Resolve a WebGL-ready preview path for 3D / RAGE assets (.ydr/.ybn → cached OBJ). */
+  /** Resolve a WebGL-ready preview path for 3D / RAGE assets (.ydr/.ybn → cached GLB). */
   getModelPreview(path: string): Promise<{
     path?: string;
     format?: string;

@@ -196,7 +196,7 @@ internal static class WebView2DropTargetService
         IntPtr windowHwnd,
         Action<string[], double, double, uint, bool> onDrop,
         Action<double, double> onHover,
-        Func<bool> isBndzOleDragActive)
+        Func<bool>? isBndzOleDragActive)
     {
         if (windowHwnd == IntPtr.Zero)
         {
@@ -204,10 +204,12 @@ internal static class WebView2DropTargetService
             return false;
         }
 
+        var oleDragActive = isBndzOleDragActive ?? (() => false);
+
         // Never revoke/re-register while outbound DoDragDrop owns the mouse — breaks desktop drop.
         try
         {
-            if (_inboundDropTargetSuspendedForOutbound || isBndzOleDragActive?.Invoke() == true)
+            if (_inboundDropTargetSuspendedForOutbound || oleDragActive())
             {
                 AppendOleDndLog("REGISTER skipped — outbound OLE drag active");
                 return true;
@@ -235,7 +237,7 @@ internal static class WebView2DropTargetService
 
         RevokeAllRegistered();
 
-        var target = new BndzDropTarget(wv2Hwnd, onDrop, onHover, isBndzOleDragActive);
+        var target = new BndzDropTarget(wv2Hwnd, onDrop, onHover, oleDragActive);
         // Revoke every Chromium/InputSite leaf under the host, then register BNDZ on each —
         // OLE delivers to the live cursor HWND, not only the center-probe primary.
         var claimHwnds = CollectAndRevokeChromiumTargetsUnder(windowHwnd, wv2Hwnd);

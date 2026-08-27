@@ -18,19 +18,27 @@ export const IMAGE_EXTENSIONS = new Set([
   'jp2', 'j2k', 'jpf', 'jpx', 'emf', 'wmf', 'qoi', 'icns',
 ]);
 
-/** 3D mesh / scene formats — previewed via WebGL (GLB/GLTF primary). */
+/**
+ * 3D mesh / scene formats — previewed via WebGL (GLB/GLTF primary).
+ * FiveM/RAGE: only drawable/collision mesh containers (host CodeWalker → OBJ).
+ * Do NOT list .ytd/.ycd/.ymap/.ytyp here — those are textures/clips/map meta, not orbit meshes.
+ */
 export const MODEL_EXTENSIONS = new Set([
   'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds', 'blend',
-  // Rockstar RAGE / GTA V · FiveM loose assets (host converts → OBJ for WebGL)
-  'ydr', 'ybn', 'ydd', 'yft', 'ycd', 'ytd', 'ymap', 'ytyp',
+  // Rockstar RAGE / GTA V · FiveM loose drawables (host converts → OBJ for WebGL)
+  'ydr', 'ybn', 'ydd', 'yft',
 ]);
 
-/** Formats that Three.js can load directly from a URL. */
+/** Formats that Three.js can load directly from a URL (no host conversion). */
 export const GPU_NATIVE_MODEL_EXTENSIONS = new Set([
   'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply',
 ]);
 
-/** RAGE assets that need host-side mesh extraction before WebGL. */
+/**
+ * FiveM / RAGE mesh containers that need host-side CodeWalker extraction before WebGL.
+ * Supported: .ydr .yft .ydd .ybn — there is no standard .yrs type.
+ * Assimp / extra Three loaders are NOT used for these — keeps the path lean.
+ */
 export const RAGE_CONVERT_MODEL_EXTENSIONS = new Set([
   'ydr', 'ybn', 'ydd', 'yft',
 ]);

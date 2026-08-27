@@ -68,7 +68,10 @@ function JobRow({
   const canCancel = (job.status === 'queued' || job.status === 'running' || job.status === 'paused') && !cancelling;
   const canPause = job.status === 'running' && !cancelling && job.engine !== 'native';
   const canResume = job.status === 'paused' && !cancelling;
-  const engineLabel = job.engine === 'native' ? 'Windows' : job.engine === 'teracopy' ? 'TeraCopy' : 'BNDZ';
+  const engineLabel = job.engine === 'native' ? 'Windows'
+    : job.engine === 'teracopy' ? 'TeraCopy'
+    : job.engine === 'mesh' || String(job.type || '').startsWith('mesh-') ? 'Mesh'
+    : 'BNDZ';
   const progressLine = formatTransferProgressLine(job, showSpeedEta);
   const destination = formatTransferDestination(job);
 
@@ -159,8 +162,8 @@ function JobRow({
             </button>
           </div>
         )}
-        <div className="bndz-transfer-progress-track mt-1.5">
-          <div
+        <div className={`bndz-transfer-progress-track mt-1.5 ${job.engine === 'mesh' || String(job.type || '').startsWith('mesh-') ? 'bndz-xfer-mesh-gauge' : ''}`}>
+          <span
             className={`bndz-transfer-progress-fill ${progressClass}`}
             style={{ width: `${barWidth}%` }}
           />

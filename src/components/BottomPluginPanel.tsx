@@ -70,6 +70,9 @@ export type BottomPluginLaunchContext = {
   currentPath?: string;
   wizardMode?: string;
   findQuery?: string;
+  tab?: string;
+  sessionId?: string;
+  hostId?: string;
 };
 
 export default function BottomPluginPanel(props: any & {
@@ -251,6 +254,10 @@ export default function BottomPluginPanel(props: any & {
       properties: 'properties',
       'batch-rename': 'batch-rename',
       compare: 'compare',
+      'mesh-drop': 'remote-mesh',
+      'mesh-shell-here': 'remote-mesh',
+      'mesh-download': 'remote-mesh',
+      'mesh-edit-remote': 'remote-mesh',
       'storage-cleanup': 'storage-cleanup',
       'index-folder': 'find',
       waveform: 'metadata',

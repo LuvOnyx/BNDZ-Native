@@ -84,10 +84,13 @@ public sealed class MeshTerminalService : IDisposable
 
     public void Resize(string sessionId, uint cols, uint rows)
     {
-        if (_sessions.TryGetValue(sessionId, out var s) && s.Shell != null)
+        if (!_sessions.TryGetValue(sessionId, out var s) || s.Shell == null) return;
+        try
         {
-            // SSH.NET ShellStream doesn't expose resize on all platforms — best-effort noop
+            var provider = _orchestrator.GetSshProvider(s.HostId);
+            provider.TryResizeShell(s.Shell, cols, rows);
         }
+        catch { /* best effort */ }
     }
 
     public void Close(string sessionId)

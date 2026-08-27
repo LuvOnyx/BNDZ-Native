@@ -1,0 +1,69 @@
+[package]
+name = "filessh"
+version = "0.4.4"
+edition = "2024"
+description = "A fast and convenient TUI file browser for remote servers "
+authors = ["JayanAXHF <sunil.chdry@gmail.com>"]
+license = "Unlicense OR MIT"
+build = "build.rs"
+homepage = "https://github.com/JayanAXHF/filessh"
+repository = "https://github.com/JayanAXHF/filessh"
+readme = "README.md"
+keywords = ["tui", "cli", "sftp", "ssh", "file-browser"]
+categories = ["command-line-utilities", "command-line-interface", "filesystem"]
+
+[dependencies]
+async-lock = "3.4.1"
+chrono = "0.4.42"
+clap = { version = "4.5.51", features = ["cargo", "derive"] }
+clap_complete = "4.5.60"
+color-eyre = "0.6.5"
+config = { version = "0.15.19", features = ["toml"] }
+crossbeam = { version = "0.8.4", features = ["crossbeam-deque"] }
+derive-getters = "0.5.0"
+directories = "6.0.0"
+edit = "0.1.5"
+futures = "0.3.31"
+human-panic = "2.0.4"
+rat-focus = "1.3.0"
+rat-ftable = "1.2.0"
+rat-salsa = { version = "2.2.0", features = ["async"] }
+rat-theme3 = "2.3.0"
+rat-widget = "2.1.0"
+ratatui = { version = "0.29.0", features = ["serde", "unstable-widget-ref"] }
+ratatui-macros = "0.6.0"
+russh = "0.56.0"
+russh-sftp = "2.1.1"
+serde = { version = "1.0.228", features = ["derive"] }
+shell-escape = "0.1.5"
+strip-ansi-escapes = "0.2.1"
+tachyonfx = "0.20.1"
+throbber-widgets-tui = "0.9.0"
+tokio = { version = "1.48.0", features = ["full"] }
+tracing = "0.1.41"
+better-panic = "0.3.0"
+tracing-error = "0.2.1"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+tui-logger = { version = "0.17.4", features = ["tracing", "tracing-subscriber", "tracing-support"] }
+toml = { version = "0.9.8", default-features = false, features = ["display", "std", "serde", "fast_hash"] }
+json = "0.12.4"
+json5 = "0.4.1"
+glob = "0.3.3"
+thiserror = "2.0.17"
+derive_more = { version = "2.1.1", features = ["display"] }
+shellexpand = "3.1.1"
+
+[profile.release]
+codegen-units = 1 # Allows compiler to perform better optimization.
+lto = "fat" # Enables Link-time Optimization.
+opt-level = "z" # Prioritizes small binary size. Use `3` if you prefer speed.
+strip = true # Ensures debug symbols are removed.
+
+[build-dependencies]
+clap_mangen = "0.2.31"
+clap = { version = "4.5.51", features = ["cargo", "derive"] }
+vergen-gix = { version = "1.0.2", features = ["build", "cargo"] }
+anyhow = "1.0.100"
+
+[dev-dependencies]
+serde_test = "1.0.177"
