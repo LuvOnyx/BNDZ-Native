@@ -20,6 +20,7 @@ using System.Text;
 using BNDZ;
 using BNDZ.Services;
 using BNDZ.Services.Mesh;
+using BNDZ.Services.Mesh.Incus;
 using BNDZ.Services.MeshDrop;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
@@ -4667,6 +4668,137 @@ namespace BNDZ.Services
                         catch (Exception ex)
                         {
                             PostMeshIpcResult(idProp, "MESH_DROP_RELAY_RESOLVE_OFFER_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_ENDPOINTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var endpoints = _meshOrchestrator.Ephemeral.ListEndpoints();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints = Array.Empty<IncusEndpointRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_UPSERT_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var payloadJson = root.GetProperty("payload").GetRawText();
+                        var endpoint = JsonSerializer.Deserialize<IncusEndpointRecord>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                            ?? throw new InvalidOperationException("Invalid Incus endpoint payload");
+                        var saved = _meshOrchestrator.Ephemeral.UpsertEndpoint(endpoint);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", saved);
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", new { error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_DELETE_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    try
+                    {
+                        _meshOrchestrator.Ephemeral.DeleteEndpoint(endpointId);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = true });
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_TEST_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await _meshOrchestrator.Ephemeral.TestEndpointAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = true, info, endpoints = _meshOrchestrator.Ephemeral.ListEndpoints() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_EPHEMERAL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var instances = _meshOrchestrator.Ephemeral.ListEphemeral();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances = Array.Empty<IncusEphemeralInstanceRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_LAUNCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var req = JsonSerializer.Deserialize<IncusLaunchRequest>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                                ?? throw new InvalidOperationException("Invalid launch payload");
+                            var instance = await _meshOrchestrator.Ephemeral.LaunchAsync(req).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_REFRESH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.RefreshAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_DESTROY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _meshOrchestrator.Ephemeral.DestroyAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = true, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = false, error = ex.Message });
                         }
                     });
                 }

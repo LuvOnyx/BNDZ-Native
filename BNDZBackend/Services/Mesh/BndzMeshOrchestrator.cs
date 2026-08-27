@@ -1,4 +1,4 @@
-using System.Text.Json;
+using BNDZ.Services.Mesh.Incus;
 
 namespace BNDZ.Services.Mesh;
 
@@ -9,6 +9,7 @@ public sealed class BndzMeshOrchestrator : IDisposable
     private readonly MeshCacheService _cache = new();
     private readonly MeshSyncEngine _sync;
     private readonly MeshTerminalService _terminal;
+    private readonly MeshEphemeralService _ephemeral;
     private readonly Dictionary<string, IMeshProvider> _providers = new();
     private readonly object _providerLock = new();
 
@@ -16,6 +17,7 @@ public sealed class BndzMeshOrchestrator : IDisposable
     {
         _sync = new MeshSyncEngine(_db, this);
         _terminal = new MeshTerminalService(this);
+        _ephemeral = new MeshEphemeralService(_db, this);
         _sync.RestoreWatchers();
     }
 
@@ -23,6 +25,7 @@ public sealed class BndzMeshOrchestrator : IDisposable
     public MeshSyncEngine Sync => _sync;
     public MeshDatabase Database => _db;
     public MeshCacheService Cache => _cache;
+    public MeshEphemeralService Ephemeral => _ephemeral;
 
     public void SetSyncProgressCallback(Action<MeshSyncProgress>? cb) => _sync.SetProgressCallback(cb);
 

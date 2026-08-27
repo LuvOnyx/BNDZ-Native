@@ -7,6 +7,7 @@ import { formatUiPath } from '../../lib/displayPath';
 import { isMeshPath, parseMeshPath } from '../../lib/meshPaths';
 import MeshHostsManager from '../mesh/MeshHostsManager';
 import MeshBucketsSharesPanel from '../mesh/MeshBucketsSharesPanel';
+import MeshEphemeralPanel from '../mesh/MeshEphemeralPanel';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -97,7 +98,7 @@ type Props = {
 };
 
 export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Props) {
-  const [tab, setTab] = useState<'buckets' | 'hosts' | 'mirror' | 'terminal' | 'liveshare'>('hosts');
+  const [tab, setTab] = useState<'buckets' | 'hosts' | 'ephemeral' | 'mirror' | 'terminal' | 'liveshare'>('hosts');
   const [hosts, setHosts] = useState<MeshHost[]>([]);
   const [rules, setRules] = useState<MeshSyncRule[]>([]);
   const [busy, setBusy] = useState(false);
@@ -227,7 +228,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
       title="Remote Mesh"
       icon="cloud_ui"
       iconColor="#38bdf8"
-      subtitle="FileSSH-class SSH/SFTP browse · parallel transfers · Shell Here · mirrors · Mesh Drop"
+      subtitle="FileSSH-class SSH/SFTP · Incus ephemeral VPS · parallel transfers · Shell Here · mirrors · Mesh Drop"
       variant="embedded"
       toolbar={
         <>
@@ -249,6 +250,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
         <div className="bndz-mesh-tabrail flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
           {([
             ['hosts', 'Hosts'],
+            ['ephemeral', 'Ephemeral'],
             ['buckets', 'Buckets & Shares'],
             ['mirror', 'Mirror'],
             ['terminal', 'Terminal'],
@@ -278,6 +280,13 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
               onNavigate={onNavigate}
               onStatus={setStatus}
               showHero
+            />
+          )}
+
+          {tab === 'ephemeral' && (
+            <MeshEphemeralPanel
+              onNavigate={onNavigate}
+              onStatus={setStatus}
             />
           )}
 

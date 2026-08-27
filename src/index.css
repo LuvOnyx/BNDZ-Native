@@ -12057,6 +12057,56 @@ html[data-theme] .nav-tree-row:focus-visible {
   border: 1px solid rgba(125,211,252,0.12) !important;
   box-shadow: 0 12px 32px rgba(0,0,0,0.22);
 }
+
+/* Incus ephemeral craft — paper/glass depth, not generic SaaS cards */
+.bndz-mesh-ephemeral-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px !important;
+  border: 1px solid rgba(45,212,191,0.16) !important;
+  background:
+    linear-gradient(155deg, rgba(10,24,28,0.94), rgba(8,12,18,0.9)),
+    radial-gradient(90% 70% at 0% 0%, rgba(45,212,191,0.12), transparent 55%) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.04);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.bndz-mesh-ephemeral-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(45,212,191,0.32) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(45,212,191,0.08);
+}
+.bndz-mesh-ephemeral-card.is-selected {
+  border-color: rgba(56,189,248,0.4) !important;
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.22), 0 16px 40px rgba(14,165,233,0.12);
+}
+.bndz-mesh-ephemeral-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.bndz-mesh-ephemeral-dot.is-trusted {
+  background: #34d399;
+  box-shadow: 0 0 10px rgba(52,211,153,0.55);
+}
+.bndz-mesh-ephemeral-dot.is-pending {
+  background: #fbbf24;
+  animation: bndz-mesh-pulse 1.4s ease-in-out infinite;
+}
+.bndz-mesh-ephemeral-launch {
+  border-radius: 18px !important;
+  border: 1px solid rgba(56,189,248,0.18) !important;
+  background:
+    linear-gradient(170deg, rgba(12,28,40,0.95), rgba(8,14,22,0.92)),
+    radial-gradient(70% 80% at 100% 100%, rgba(14,165,233,0.14), transparent 50%) !important;
+}
+.bndz-mesh-ephemeral-editor {
+  animation: bndz-mesh-ephemeral-rise 220ms ease-out;
+}
+@keyframes bndz-mesh-ephemeral-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .bndz-xfer-mesh-gauge {
   position: relative;
   height: 6px;

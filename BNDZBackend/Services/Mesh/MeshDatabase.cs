@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace BNDZ.Services.Mesh;
 
 /// <summary>SQLite persistence for mesh hosts, sync rules, and cache metadata.</summary>
-public sealed class MeshDatabase : IDisposable
+public sealed partial class MeshDatabase : IDisposable
 {
     private readonly string _dbPath;
     private readonly object _lock = new();
@@ -83,6 +83,7 @@ public sealed class MeshDatabase : IDisposable
             TryAddColumn(conn, "mesh_hosts", "notes", "TEXT");
             TryAddColumn(conn, "mesh_hosts", "certificate_path", "TEXT");
             TryAddColumn(conn, "mesh_hosts", "proxy_jump", "TEXT");
+            EnsureIncusSchema(conn);
         }
     }
 
