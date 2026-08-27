@@ -65,11 +65,19 @@ public sealed class MeshEphemeralService
             endpoint.Trusted = info.Trusted;
             endpoint.LastSeenUtc = DateTime.UtcNow;
             endpoint.LastError = null;
-            if (!string.IsNullOrWhiteSpace(info.Fingerprint) && string.IsNullOrWhiteSpace(endpoint.ServerFingerprint))
+            if (!string.IsNullOrWhiteSpace(info.Fingerprint))
                 endpoint.ServerFingerprint = info.Fingerprint;
             _db.UpsertIncusEndpoint(endpoint);
             return info;
         }
+    }
+
+    public async Task<IReadOnlyList<IncusImageAlias>> ListImageAliasesAsync(string endpointId, CancellationToken ct = default)
+    {
+        var endpoint = _db.GetIncusEndpoint(endpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
+        await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
+        return await client.ListImageAliasesAsync(ct).ConfigureAwait(false);
     }
 
     public IReadOnlyList<IncusEphemeralInstanceRecord> ListEphemeral() => _db.ListIncusEphemeral();
@@ -85,11 +93,13 @@ public sealed class MeshEphemeralService
             ? $"bndz-{DateTime.UtcNow:yyMMddHHmmss}-{Random.Shared.Next(0x1000, 0xFFFF):x}"
             : SanitizeInstanceName(req.Name!);
         var image = string.IsNullOrWhiteSpace(req.ImageAlias) ? endpoint.DefaultImage : req.ImageAlias!;
+        image = PreferCloudImageAlias(image);
         var imageServer = string.IsNullOrWhiteSpace(req.ImageServer) ? endpoint.DefaultImageServer : req.ImageServer!;
         var type = string.IsNullOrWhiteSpace(req.InstanceType) ? endpoint.DefaultInstanceType : req.InstanceType!;
         var sshUser = string.IsNullOrWhiteSpace(req.SshUser) ? endpoint.DefaultSshUser : req.SshUser!;
         var sshPort = req.SshPort is > 0 ? req.SshPort.Value : endpoint.DefaultSshPort;
         var sshKey = string.IsNullOrWhiteSpace(req.SshKeyPath) ? endpoint.DefaultSshKeyPath : req.SshKeyPath;
+        var cloudInit = BuildSshCloudInit(sshUser, sshKey);
 
         var record = new IncusEphemeralInstanceRecord
         {
@@ -107,7 +117,7 @@ public sealed class MeshEphemeralService
         try
         {
             await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
-            await client.CreateInstanceAsync(name, image, imageServer, type, req.Ephemeral, req.Start, ct)
+            await client.CreateInstanceAsync(name, image, imageServer, type, req.Ephemeral, req.Start, cloudInit, ct)
                 .ConfigureAwait(false);
 
             string? ipv4 = null;
@@ -134,18 +144,21 @@ public sealed class MeshEphemeralService
             record.Ipv4 = ipv4;
             record.Ipv6 = ipv6;
             record.Status = status;
-            record.LastError = string.IsNullOrWhiteSpace(ipv4) && req.Start && req.RegisterMeshHost
-                ? "Instance started but no global IPv4 yet — refresh or connect manually"
-                : null;
+            var meshHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4 : ipv6;
+            record.LastError = string.IsNullOrWhiteSpace(meshHost) && req.Start && req.RegisterMeshHost
+                ? "Instance started but no global IP yet — refresh or connect manually"
+                : cloudInit == null && req.RegisterMeshHost
+                    ? "Launched without cloud-init SSH key — set Default SSH key on the endpoint for Mesh login"
+                    : null;
 
-            if (req.RegisterMeshHost && !string.IsNullOrWhiteSpace(ipv4))
+            if (req.RegisterMeshHost && !string.IsNullOrWhiteSpace(meshHost))
             {
                 var host = new MeshHostRecord
                 {
                     Id = $"incus-{record.Id}",
                     Alias = string.IsNullOrWhiteSpace(req.Alias) ? $"Incus · {name}" : req.Alias!,
                     Provider = MeshProviderKind.Ssh,
-                    Hostname = ipv4!,
+                    Hostname = meshHost!,
                     Port = sshPort,
                     Username = sshUser,
                     KeyPath = sshKey,
@@ -189,23 +202,25 @@ public sealed class MeshEphemeralService
         record.Status = status;
         record.LastError = null;
 
-        if (!string.IsNullOrWhiteSpace(record.MeshHostId) && !string.IsNullOrWhiteSpace(ipv4))
+        if (!string.IsNullOrWhiteSpace(record.MeshHostId) && (!string.IsNullOrWhiteSpace(ipv4) || !string.IsNullOrWhiteSpace(ipv6)))
         {
             var host = _orchestrator.GetHost(record.MeshHostId!);
-            if (host != null && !string.Equals(host.Hostname, ipv4, StringComparison.OrdinalIgnoreCase))
+            var nextHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4! : ipv6!;
+            if (host != null && !string.Equals(host.Hostname, nextHost, StringComparison.OrdinalIgnoreCase))
             {
-                host.Hostname = ipv4!;
+                host.Hostname = nextHost;
                 _orchestrator.UpsertHost(host);
             }
         }
-        else if (string.IsNullOrWhiteSpace(record.MeshHostId) && !string.IsNullOrWhiteSpace(ipv4))
+        else if (string.IsNullOrWhiteSpace(record.MeshHostId) && (!string.IsNullOrWhiteSpace(ipv4) || !string.IsNullOrWhiteSpace(ipv6)))
         {
+            var nextHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4! : ipv6!;
             var host = new MeshHostRecord
             {
                 Id = $"incus-{record.Id}",
                 Alias = string.IsNullOrWhiteSpace(record.Notes) ? $"Incus · {record.InstanceName}" : record.Notes!,
                 Provider = MeshProviderKind.Ssh,
-                Hostname = ipv4!,
+                Hostname = nextHost,
                 Port = endpoint.DefaultSshPort,
                 Username = endpoint.DefaultSshUser,
                 KeyPath = endpoint.DefaultSshKeyPath,
@@ -287,6 +302,73 @@ public sealed class MeshEphemeralService
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "BNDZ", "Mesh", "Incus", endpointId);
+
+    private static string PreferCloudImageAlias(string image)
+    {
+        var trimmed = image.Trim().TrimEnd('/');
+        if (trimmed.EndsWith("/cloud", StringComparison.OrdinalIgnoreCase)) return trimmed;
+        // images.linuxcontainers.org cloud-init variants use /cloud suffix
+        if (trimmed.Contains("ubuntu/", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("debian/", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("fedora/", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("archlinux/", StringComparison.OrdinalIgnoreCase))
+            return trimmed + "/cloud";
+        return trimmed;
+    }
+
+    /// <summary>Build cloud-init user-data that injects the Mesh SSH public key on first boot.</summary>
+    private static string? BuildSshCloudInit(string sshUser, string? sshKeyPath)
+    {
+        var pub = TryReadSshPublicKey(sshKeyPath);
+        if (string.IsNullOrWhiteSpace(pub)) return null;
+        var user = string.IsNullOrWhiteSpace(sshUser) ? "root" : sshUser.Trim();
+        // YAML literal for Incus cloud-init.user-data
+        return
+            "#cloud-config\n" +
+            "users:\n" +
+            $"  - name: {user}\n" +
+            "    ssh_authorized_keys:\n" +
+            $"      - {pub.Trim()}\n" +
+            "    lock_passwd: true\n" +
+            "packages:\n" +
+            "  - openssh-server\n" +
+            "runcmd:\n" +
+            "  - [ sh, -c, \"systemctl enable --now ssh || systemctl enable --now sshd || true\" ]\n";
+    }
+
+    private static string? TryReadSshPublicKey(string? keyPath)
+    {
+        if (string.IsNullOrWhiteSpace(keyPath)) return null;
+        try
+        {
+            var expanded = ExpandUserPath(keyPath!);
+            var pubPath = expanded.EndsWith(".pub", StringComparison.OrdinalIgnoreCase)
+                ? expanded
+                : expanded + ".pub";
+            if (!File.Exists(pubPath)) return null;
+            var line = File.ReadAllLines(pubPath)
+                .Select(l => l.Trim())
+                .FirstOrDefault(l => l.Length > 0 && !l.StartsWith('#')
+                    && (l.StartsWith("ssh-", StringComparison.Ordinal)
+                        || l.StartsWith("ecdsa-", StringComparison.Ordinal)
+                        || l.StartsWith("sk-", StringComparison.Ordinal)));
+            return string.IsNullOrWhiteSpace(line) ? null : line;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ExpandUserPath(string path)
+    {
+        if (path.StartsWith("~/") || path.StartsWith("~\\"))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Path.Combine(home, path[2..].Replace('/', Path.DirectorySeparatorChar));
+        }
+        return path;
+    }
 
     private static string SanitizeInstanceName(string name)
     {

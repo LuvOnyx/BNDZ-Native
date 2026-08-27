@@ -9,7 +9,7 @@ public sealed class IncusEndpointRecord
     public string ApiUrl { get; set; } = "";
     public string? ServerFingerprint { get; set; }
     public string? Project { get; set; } = "default";
-    public string DefaultImage { get; set; } = "ubuntu/24.04";
+    public string DefaultImage { get; set; } = "ubuntu/24.04/cloud";
     public string DefaultImageServer { get; set; } = "https://images.linuxcontainers.org";
     public string DefaultInstanceType { get; set; } = "container";
     public string DefaultSshUser { get; set; } = "root";
@@ -67,6 +67,14 @@ public sealed class IncusServerInfo
     public bool Trusted { get; set; }
     public string? EnvironmentServerName { get; set; }
     public string? Fingerprint { get; set; }
+}
+
+public sealed class IncusImageAlias
+{
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string? Target { get; set; }
+    public string? Type { get; set; }
 }
 
 public sealed class IncusInstanceSummary

@@ -854,6 +854,16 @@ export const IPC = {
     }));
   },
 
+  meshIncusListImages(endpointId: string): Promise<{ ok: boolean; aliases: Array<{ name: string; description?: string; type?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, aliases: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusImages`;
+    return _nativeCall<any>('MESH_INCUS_LIST_IMAGES', 'MESH_INCUS_LIST_IMAGES_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      aliases: Array.isArray(r?.aliases) ? r.aliases : [],
+      error: r?.error,
+    }));
+  },
+
   ghostLinkGetRules(): Promise<{ rules: unknown[] }> {
     if (!this.isNative) return Promise.resolve({ rules: [] });
     const id = `${Date.now()}_ghostRules`;

@@ -47,7 +47,8 @@ public sealed class IncusApiClient : IAsyncDisposable
         CancellationToken ct = default)
     {
         EnsureClientIdentity(clientCertPath, clientKeyPath, out var cert);
-        var handler = CreateHandler(cert, endpoint.ServerFingerprint, endpoint.AllowInsecureTls);
+        string? capturedFp = null;
+        var handler = CreateHandler(cert, endpoint.ServerFingerprint, endpoint.AllowInsecureTls, fp => capturedFp = fp);
         var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) };
         var client = new IncusApiClient(http, endpoint.ApiUrl, endpoint.Project, cert);
 
@@ -66,7 +67,7 @@ public sealed class IncusApiClient : IAsyncDisposable
         }
 
         var info = await client.GetServerAsync(ct).ConfigureAwait(false);
-        info.Fingerprint ??= endpoint.ServerFingerprint;
+        info.Fingerprint ??= capturedFp ?? endpoint.ServerFingerprint;
         return (client, info);
     }
 
@@ -102,6 +103,7 @@ public sealed class IncusApiClient : IAsyncDisposable
         string instanceType,
         bool ephemeral,
         bool start,
+        string? cloudInitUserData = null,
         CancellationToken ct = default)
     {
         var body = new JsonObject
@@ -118,12 +120,46 @@ public sealed class IncusApiClient : IAsyncDisposable
                 ["protocol"] = "simplestreams",
             },
         };
+        if (!string.IsNullOrWhiteSpace(cloudInitUserData))
+        {
+            // Newer images: cloud-init.*; older: user.* — set both so Mesh SSH keys land on first boot.
+            body["config"] = new JsonObject
+            {
+                ["cloud-init.user-data"] = cloudInitUserData,
+                ["user.user-data"] = cloudInitUserData,
+            };
+        }
         var path = WithProject("/1.0/instances");
         var (type, operation, metadata) = await QueryRawAsync(HttpMethod.Post, path, body, ct).ConfigureAwait(false);
         if (string.Equals(type, "async", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(operation))
             await WaitOperationAsync(operation!, ct).ConfigureAwait(false);
         else if (metadata?["err"]?.GetValue<string>() is { Length: > 0 } err)
             throw new IncusApiException(err);
+    }
+
+    /// <summary>List image aliases on the Incus server (local + remotes when available).</summary>
+    public async Task<IReadOnlyList<IncusImageAlias>> ListImageAliasesAsync(CancellationToken ct = default)
+    {
+        var path = WithProject("/1.0/images/aliases?recursion=1");
+        var meta = await QueryAsync(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
+        var list = new List<IncusImageAlias>();
+        if (meta is JsonArray arr)
+        {
+            foreach (var node in arr)
+            {
+                if (node is not JsonObject obj) continue;
+                var name = obj["name"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                list.Add(new IncusImageAlias
+                {
+                    Name = name!,
+                    Description = obj["description"]?.GetValue<string>(),
+                    Target = obj["target"]?.GetValue<string>(),
+                    Type = obj["type"]?.GetValue<string>(),
+                });
+            }
+        }
+        return list.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task UpdateInstanceStateAsync(string name, string action, bool force = false, int timeout = 30, CancellationToken ct = default)
@@ -264,7 +300,11 @@ public sealed class IncusApiClient : IAsyncDisposable
         }
     }
 
-    private static HttpClientHandler CreateHandler(X509Certificate2 clientCert, string? serverFingerprint, bool allowInsecure)
+    private static HttpClientHandler CreateHandler(
+        X509Certificate2 clientCert,
+        string? serverFingerprint,
+        bool allowInsecure,
+        Action<string>? onServerFingerprint = null)
     {
         var expected = NormalizeFingerprint(serverFingerprint);
         var handler = new HttpClientHandler
@@ -276,13 +316,12 @@ public sealed class IncusApiClient : IAsyncDisposable
         handler.ServerCertificateCustomValidationCallback = (_, cert, _, errors) =>
         {
             if (cert == null) return false;
+            var fp = Sha256Fingerprint(cert);
+            onServerFingerprint?.Invoke(fp);
             if (errors == SslPolicyErrors.None) return true;
-            if (!string.IsNullOrEmpty(expected))
-            {
-                var fp = Sha256Fingerprint(cert);
-                if (string.Equals(fp, expected, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
+            if (!string.IsNullOrEmpty(expected)
+                && string.Equals(fp, expected, StringComparison.OrdinalIgnoreCase))
+                return true;
             return allowInsecure;
         };
         return handler;

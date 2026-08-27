@@ -27,9 +27,10 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   const [busy, setBusy] = useState(false);
   const [editor, setEditor] = useState<IncusEndpoint | null | 'new'>(null);
   const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
-  const [launchImage, setLaunchImage] = useState('ubuntu/24.04');
+  const [launchImage, setLaunchImage] = useState('ubuntu/24.04/cloud');
   const [launchType, setLaunchType] = useState<'container' | 'virtual-machine'>('container');
   const [launchAlias, setLaunchAlias] = useState('');
+  const [imageAliases, setImageAliases] = useState<Array<{ name: string; description?: string }>>([]);
 
   const setStatus = (msg: string | null) => onStatus?.(msg);
 
@@ -55,10 +56,25 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   useEffect(() => {
     const ep = endpoints.find(e => e.id === selectedEndpointId);
     if (ep) {
-      setLaunchImage(ep.defaultImage || 'ubuntu/24.04');
+      setLaunchImage(ep.defaultImage || 'ubuntu/24.04/cloud');
       setLaunchType(ep.defaultInstanceType === 'virtual-machine' ? 'virtual-machine' : 'container');
     }
   }, [selectedEndpointId, endpoints]);
+
+  useEffect(() => {
+    if (!selectedEndpointId) {
+      setImageAliases([]);
+      return;
+    }
+    let cancelled = false;
+    void IPC.meshIncusListImages(selectedEndpointId).then(res => {
+      if (cancelled) return;
+      if (res.ok) setImageAliases(res.aliases.map(a => ({ name: a.name, description: a.description })));
+    }).catch(() => {
+      if (!cancelled) setImageAliases([]);
+    });
+    return () => { cancelled = true; };
+  }, [selectedEndpointId]);
 
   const saveEndpoint = async (endpoint: IncusEndpoint) => {
     setBusy(true);
@@ -186,6 +202,21 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     } finally { setBusy(false); }
   };
 
+  const shellHere = async (inst: IncusEphemeralInstance) => {
+    if (!inst.meshHostId) {
+      setStatus('No Mesh host registered yet — Refresh after IP appears');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await IPC.meshTerminalOpen({ hostId: inst.meshHostId, cwd: '/' });
+      if (res?.error) throw new Error(res.error);
+      setStatus(`Shell Here · ${inst.instanceName}`);
+    } catch (e: any) {
+      setStatus(e?.message || 'Shell Here failed — ensure cloud-init injected your SSH pubkey');
+    } finally { setBusy(false); }
+  };
+
   const draft = editor === 'new' ? createEmptyIncusEndpoint() : editor;
 
   return (
@@ -256,7 +287,21 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
               {endpoints.map(ep => <option key={ep.id} value={ep.id}>{ep.alias}</option>)}
             </select>
             <PluginFieldLabel>Image alias</PluginFieldLabel>
-            <input className={PLUGIN_INPUT_CLASS} value={launchImage} onChange={e => setLaunchImage(e.target.value)} placeholder="ubuntu/24.04" />
+            <input
+              className={PLUGIN_INPUT_CLASS}
+              list="bndz-incus-image-aliases"
+              value={launchImage}
+              onChange={e => setLaunchImage(e.target.value)}
+              placeholder="ubuntu/24.04/cloud"
+            />
+            <datalist id="bndz-incus-image-aliases">
+              {imageAliases.slice(0, 80).map(a => (
+                <option key={a.name} value={a.name}>{a.description || a.name}</option>
+              ))}
+            </datalist>
+            {imageAliases.length > 0 && (
+              <div className="text-[10px] text-gray-500">{imageAliases.length} aliases from Incus · prefer /cloud for SSH inject</div>
+            )}
             <PluginFieldLabel>Type</PluginFieldLabel>
             <select className={PLUGIN_INPUT_CLASS} value={launchType} onChange={e => setLaunchType(e.target.value as 'container' | 'virtual-machine')}>
               <option value="container">Container</option>
@@ -298,6 +343,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
                 {inst.lastError && <div className="text-[10px] text-amber-300/90">{inst.lastError}</div>}
                 <div className="flex flex-wrap gap-1.5">
                   <PluginToolbarButton onClick={() => void browseMesh(inst)} disabled={busy || !inst.meshHostId}>Browse</PluginToolbarButton>
+                  <PluginToolbarButton onClick={() => void shellHere(inst)} disabled={busy || !inst.meshHostId}>Shell Here</PluginToolbarButton>
                   <PluginToolbarButton onClick={() => void refreshOne(inst.id)} disabled={busy}>Refresh IP</PluginToolbarButton>
                   <PluginToolbarButton onClick={() => void destroyOne(inst.id)} disabled={busy}>Destroy</PluginToolbarButton>
                 </div>
@@ -347,7 +393,7 @@ function EndpointEditor({
       </label>
       <PluginFieldLabel>Project</PluginFieldLabel>
       <input className={PLUGIN_INPUT_CLASS} value={draft.project || 'default'} onChange={e => set('project', e.target.value)} />
-      <PluginFieldLabel>Default image</PluginFieldLabel>
+      <PluginFieldLabel>Default image (prefer /cloud for SSH)</PluginFieldLabel>
       <input className={PLUGIN_INPUT_CLASS} value={draft.defaultImage} onChange={e => set('defaultImage', e.target.value)} />
       <PluginFieldLabel>Image server</PluginFieldLabel>
       <input className={PLUGIN_INPUT_CLASS} value={draft.defaultImageServer} onChange={e => set('defaultImageServer', e.target.value)} />

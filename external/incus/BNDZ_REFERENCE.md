@@ -11,10 +11,12 @@ BNDZ talks to a remote Incus HTTPS API and folds temporary hosts into **Remote M
 |-------------------|------------------|
 | `client/doc.go` create→wait→start flow | `IncusApiClient` + `MeshEphemeralService.LaunchAsync` |
 | `shared/api/instance.go` `InstancesPost` / `Ephemeral` / `Start` | Launch request body |
-| `shared/api/instance_state.go` `Network` addresses | Discover IPv4 → upsert Mesh SSH host |
+| `cloud-init.user-data` / `user.user-data` | SSH pubkey inject on launch (`BuildSshCloudInit`) |
+| `shared/api/instance_state.go` `Network` addresses | Discover IPv4/IPv6 → upsert Mesh SSH host |
 | `shared/api/operation.go` + `/wait` | `IncusApiClient.WaitOperationAsync` |
 | `shared/api/certificate.go` `trust_token` | Endpoint trust (DPAPI) + auto client cert |
 | `doc/authentication.md` TLS client certs | `%LocalAppData%/BNDZ/Mesh/Incus/<id>/client.{crt,key}` |
+| `/1.0/images/aliases` | Ephemeral launch pad datalist |
 | Incus remotes + instances UX | Remote Mesh **Ephemeral** tab |
 
 ## Product wiring

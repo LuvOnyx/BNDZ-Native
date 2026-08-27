@@ -77,6 +77,9 @@ function entryIcon(entry: ArchiveEntry) {
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
     return <Icons8Icon id="picture_ui" size={15} className="shrink-0" />;
   }
+  if (['ydr', 'yft', 'ydd', 'ybn', 'ytd', 'rpf'].includes(ext)) {
+    return <Icons8Icon id="layers" size={15} className="shrink-0" />;
+  }
   if (['mp3', 'wav', 'flac', 'm4a', 'ogg'].includes(ext)) {
     return <Icons8Icon id="music_ui" size={15} className="shrink-0" />;
   }

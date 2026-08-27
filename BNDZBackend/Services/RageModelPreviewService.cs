@@ -62,7 +62,7 @@ public static class RageModelPreviewService
                 ytdLen = yfi.Length;
             }
 
-            var cacheKey = $"{fi.FullName}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{ytdLen}|{ytdTicks}|glb2";
+            var cacheKey = $"{fi.FullName}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{ytdLen}|{ytdTicks}|glb3-mm";
             if (Cache.TryGetValue(cacheKey, out var cached) && File.Exists(cached))
             {
                 var (v, t) = PeekGltfStats(cached);
@@ -114,10 +114,12 @@ public static class RageModelPreviewService
             _ => new MeshExtract(),
         };
 
-        // Prefer sibling .ytd; else keep any embedded drawable dictionary already captured.
-        if (File.Exists(siblingYtd) && mesh.PngBytes == null)
+        // Always merge sibling .ytd into the named texture pool (above-and-beyond embedded polish).
+        if (File.Exists(siblingYtd))
             TryAttachYtd(mesh, siblingYtd);
 
+        // Build atlas when multiple materials share diffuse slots — packs YTD textures into one sheet.
+        BuildYtdAtlasIfNeeded(mesh);
         return mesh;
     }
 
@@ -181,7 +183,15 @@ public static class RageModelPreviewService
         var ybn = new YbnFile { Name = name };
         ybn.Load(data);
         var mesh = new MeshExtract();
+        var first = mesh.Indices.Count;
         AppendBounds(mesh, ybn.Bounds, Matrix.Identity);
+        if (mesh.Indices.Count - first >= 3)
+            mesh.Primitives.Add(new MeshPrimitive
+            {
+                FirstIndex = first,
+                IndexCount = mesh.Indices.Count - first,
+                MaterialIndex = mesh.EnsureMaterial("bounds", null),
+            });
         return mesh;
     }
 
@@ -198,23 +208,76 @@ public static class RageModelPreviewService
             models = drawable.AllModels;
         if (models == null) return mesh;
 
+        // Harvest embedded dictionary into named texture pool first.
+        if (drawable is Drawable dEmb && dEmb.ShaderGroup?.TextureDictionary != null)
+            IngestTextureDict(mesh, dEmb.ShaderGroup.TextureDictionary);
+
         foreach (var model in models)
         {
             if (model?.Geometries == null) continue;
             foreach (var geom in model.Geometries)
-                AppendGeometry(mesh, geom);
-        }
-
-        if (mesh.PngBytes == null && drawable is Drawable d
-            && d.ShaderGroup?.TextureDictionary != null)
-        {
-            TryAttachTextureDict(mesh, d.ShaderGroup.TextureDictionary);
+            {
+                var matIndex = ResolveMaterialIndex(mesh, geom?.Shader);
+                AppendGeometry(mesh, geom, matIndex);
+            }
         }
 
         return mesh;
     }
 
-    private static void AppendGeometry(MeshExtract mesh, DrawableGeometry? geom)
+    private static int ResolveMaterialIndex(MeshExtract mesh, ShaderFX? shader)
+    {
+        var texName = ResolveDiffuseTextureName(shader);
+        if (string.IsNullOrWhiteSpace(texName))
+            return mesh.EnsureMaterial("rage_default", null);
+
+        // Prefer exact name match already decoded from YTD/embedded.
+        if (mesh.NamedTextures.TryGetValue(texName, out var png))
+            return mesh.EnsureMaterial(texName, png);
+
+        // Case-insensitive fallback
+        foreach (var kv in mesh.NamedTextures)
+        {
+            if (string.Equals(kv.Key, texName, StringComparison.OrdinalIgnoreCase))
+                return mesh.EnsureMaterial(kv.Key, kv.Value);
+        }
+
+        return mesh.EnsureMaterial(texName, null);
+    }
+
+    private static string? ResolveDiffuseTextureName(ShaderFX? shader)
+    {
+        var parameters = shader?.ParametersList?.Parameters;
+        var hashes = shader?.ParametersList?.Hashes;
+        if (parameters == null || parameters.Length == 0) return null;
+
+        string? firstTex = null;
+        var count = Math.Min(parameters.Length, hashes?.Length ?? parameters.Length);
+        for (int i = 0; i < count; i++)
+        {
+            var p = parameters[i];
+            if (p?.DataType != 0 || p.Data is not TextureBase tb) continue;
+            var name = tb.Name;
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            firstTex ??= name;
+            if (hashes != null && i < hashes.Length)
+            {
+                var h = (uint)hashes[i];
+                if (h == (uint)ShaderParamNames.DiffuseSampler
+                    || h == (uint)ShaderParamNames.DiffuseSampler2
+                    || h == (uint)ShaderParamNames.DiffuseSampler3
+                    || h == (uint)ShaderParamNames.DiffuseSamplerPoint)
+                    return name;
+            }
+            if (name.Contains("diff", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("albedo", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("_d", StringComparison.OrdinalIgnoreCase))
+                return name;
+        }
+        return firstTex;
+    }
+
+    private static void AppendGeometry(MeshExtract mesh, DrawableGeometry? geom, int materialIndex)
     {
         if (geom?.VertexData == null || geom.IndexBuffer?.Indices == null) return;
         var vd = geom.VertexData;
@@ -226,7 +289,6 @@ public static class RageModelPreviewService
         var hasNorm = (flags & (1 << 3)) != 0;
         var hasUv = (flags & (1 << 6)) != 0;
 
-        // Half2 UVs are common on PNCH2 — detect via component type when present.
         var uvIsHalf = false;
         if (hasUv)
         {
@@ -238,6 +300,7 @@ public static class RageModelPreviewService
             catch { /* legacy declarations */ }
         }
 
+        var firstIndex = mesh.Indices.Count;
         var baseIndex = mesh.Positions.Count;
         for (int i = 0; i < vd.VertexCount; i++)
         {
@@ -259,9 +322,7 @@ public static class RageModelPreviewService
                 if (uvIsHalf)
                 {
                     var h = vd.GetHalf2(i, 6);
-                    float u = h.X;
-                    float v = h.Y;
-                    mesh.UVs.Add(new Vector2(u, 1f - v)); // flip V for glTF
+                    mesh.UVs.Add(new Vector2(h.X, 1f - h.Y));
                 }
                 else
                 {
@@ -282,6 +343,10 @@ public static class RageModelPreviewService
             mesh.Indices.Add(baseIndex + indices[i + 1]);
             mesh.Indices.Add(baseIndex + indices[i + 2]);
         }
+
+        var indexCount = mesh.Indices.Count - firstIndex;
+        if (indexCount >= 3)
+            mesh.Primitives.Add(new MeshPrimitive { FirstIndex = firstIndex, IndexCount = indexCount, MaterialIndex = materialIndex });
     }
 
     private static void AppendBounds(MeshExtract mesh, Bounds? bounds, Matrix world)
@@ -367,7 +432,7 @@ public static class RageModelPreviewService
             var ytd = new YtdFile { Name = Path.GetFileName(ytdPath) };
             ytd.Load(File.ReadAllBytes(ytdPath));
             if (ytd.TextureDict != null)
-                TryAttachTextureDict(mesh, ytd.TextureDict);
+                IngestTextureDict(mesh, ytd.TextureDict);
         }
         catch
         {
@@ -375,32 +440,40 @@ public static class RageModelPreviewService
         }
     }
 
-    private static void TryAttachTextureDict(MeshExtract mesh, TextureDictionary dict)
+    private static void IngestTextureDict(MeshExtract mesh, TextureDictionary dict)
     {
         try
         {
             var textures = dict.Textures?.data_items;
             if (textures == null || textures.Length == 0) return;
-            // Prefer a diffuse-looking name; else first decodable 2D texture.
-            Texture? pick = textures.FirstOrDefault(t =>
-                t?.Name != null && (
-                    t.Name.Contains("diff", StringComparison.OrdinalIgnoreCase)
-                    || t.Name.Contains("albedo", StringComparison.OrdinalIgnoreCase)
-                    || t.Name.EndsWith("_d", StringComparison.OrdinalIgnoreCase)));
-            pick ??= textures.FirstOrDefault(t => t != null);
-            if (pick == null) return;
+            foreach (var tex in textures)
+            {
+                if (tex == null || string.IsNullOrWhiteSpace(tex.Name)) continue;
+                if (mesh.NamedTextures.ContainsKey(tex.Name)) continue;
+                var png = EncodeTexturePng(tex);
+                if (png != null)
+                    mesh.NamedTextures[tex.Name] = png;
+            }
 
-            var rgba = DDSIO.GetPixels(pick, 0);
-            if (rgba == null || rgba.Length < 4) return;
-            var w = pick.Width;
-            var h = pick.Height;
-            if (w <= 0 || h <= 0 || rgba.Length < w * h * 4) return;
-
-            using var bmp = new SKBitmap(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
-            System.Runtime.InteropServices.Marshal.Copy(rgba, 0, bmp.GetPixels(), w * h * 4);
-            using var img = SKImage.FromBitmap(bmp);
-            using var data = img.Encode(SKEncodedImageFormat.Png, 85);
-            mesh.PngBytes = data.ToArray();
+            // Back-fill any materials that were created before textures arrived.
+            for (int i = 0; i < mesh.Materials.Count; i++)
+            {
+                var mat = mesh.Materials[i];
+                if (mat.PngBytes != null) continue;
+                if (mesh.NamedTextures.TryGetValue(mat.Name, out var bytes))
+                    mesh.Materials[i] = mat with { PngBytes = bytes };
+                else
+                {
+                    foreach (var kv in mesh.NamedTextures)
+                    {
+                        if (string.Equals(kv.Key, mat.Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            mesh.Materials[i] = mat with { PngBytes = kv.Value, Name = kv.Key };
+                            break;
+                        }
+                    }
+                }
+            }
         }
         catch
         {
@@ -408,8 +481,133 @@ public static class RageModelPreviewService
         }
     }
 
+    private static byte[]? EncodeTexturePng(Texture pick)
+    {
+        try
+        {
+            var rgba = DDSIO.GetPixels(pick, 0);
+            if (rgba == null || rgba.Length < 4) return null;
+            var w = pick.Width;
+            var h = pick.Height;
+            if (w <= 0 || h <= 0 || rgba.Length < w * h * 4) return null;
+
+            using var bmp = new SKBitmap(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
+            System.Runtime.InteropServices.Marshal.Copy(rgba, 0, bmp.GetPixels(), w * h * 4);
+            using var img = SKImage.FromBitmap(bmp);
+            using var data = img.Encode(SKEncodedImageFormat.Png, 85);
+            return data.ToArray();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Pack used material textures into a single atlas when 2–8 textured materials exist.
+    /// Remaps UVs so a single glTF material can still show multi-slot YTD content.
+    /// </summary>
+    private static void BuildYtdAtlasIfNeeded(MeshExtract mesh)
+    {
+        var used = mesh.Materials
+            .Select((m, i) => (m, i))
+            .Where(t => t.m.PngBytes is { Length: > 0 })
+            .ToList();
+        if (used.Count < 2 || used.Count > 8) return;
+        if (mesh.Primitives.Count == 0) return;
+
+        try
+        {
+            var decoded = new List<(int matIndex, SKBitmap bmp)>();
+            foreach (var (m, i) in used)
+            {
+                using var data = SKData.CreateCopy(m.PngBytes!);
+                var bmp = SKBitmap.Decode(data);
+                if (bmp != null) decoded.Add((i, bmp));
+            }
+            if (decoded.Count < 2)
+            {
+                foreach (var (_, bmp) in decoded) bmp.Dispose();
+                return;
+            }
+
+            var cols = (int)Math.Ceiling(Math.Sqrt(decoded.Count));
+            var rows = (int)Math.Ceiling(decoded.Count / (double)cols);
+            var cellW = decoded.Max(d => d.bmp.Width);
+            var cellH = decoded.Max(d => d.bmp.Height);
+            // Cap atlas size for sidebar GPU memory
+            cellW = Math.Min(cellW, 512);
+            cellH = Math.Min(cellH, 512);
+            var atlasW = cols * cellW;
+            var atlasH = rows * cellH;
+            using var atlas = new SKBitmap(atlasW, atlasH, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var canvas = new SKCanvas(atlas))
+            {
+                canvas.Clear(SKColors.Transparent);
+                var uvRects = new Dictionary<int, (float u0, float v0, float u1, float v1)>();
+                for (int n = 0; n < decoded.Count; n++)
+                {
+                    var (matIndex, bmp) = decoded[n];
+                    var col = n % cols;
+                    var row = n / cols;
+                    var x = col * cellW;
+                    var y = row * cellH;
+                    var dest = new SKRect(x, y, x + Math.Min(bmp.Width, cellW), y + Math.Min(bmp.Height, cellH));
+                    canvas.DrawBitmap(bmp, dest);
+                    // glTF V is flipped relative to Skia top-left — encode rect in glTF UV space
+                    float u0 = (float)x / atlasW;
+                    float u1 = (float)(x + Math.Min(bmp.Width, cellW)) / atlasW;
+                    float vTop = (float)y / atlasH;
+                    float vBot = (float)(y + Math.Min(bmp.Height, cellH)) / atlasH;
+                    // After our earlier V flip, atlas remap: u' = u0 + u*(u1-u0), v' = (1-vBot) + v*(vBot-vTop) wait —
+                    // UVs already flipped (v_gltf = 1 - v_rage). Map into cell in glTF space:
+                    float v0 = 1f - vBot;
+                    float v1 = 1f - vTop;
+                    uvRects[matIndex] = (u0, v0, u1, v1);
+                }
+
+                // Remap UVs for vertices belonging to textured materials
+                foreach (var prim in mesh.Primitives)
+                {
+                    if (!uvRects.TryGetValue(prim.MaterialIndex, out var rect)) continue;
+                    var (u0, v0, u1, v1) = rect;
+                    var seen = new HashSet<int>();
+                    for (int ii = prim.FirstIndex; ii < prim.FirstIndex + prim.IndexCount && ii < mesh.Indices.Count; ii++)
+                    {
+                        var vi = mesh.Indices[ii];
+                        if (!seen.Add(vi) || vi < 0 || vi >= mesh.UVs.Count) continue;
+                        var uv = mesh.UVs[vi];
+                        mesh.UVs[vi] = new Vector2(
+                            u0 + Math.Clamp(uv.X, 0f, 1f) * (u1 - u0),
+                            v0 + Math.Clamp(uv.Y, 0f, 1f) * (v1 - v0));
+                    }
+                    prim.MaterialIndex = 0; // collapse onto atlas material
+                }
+            }
+
+            using var img = SKImage.FromBitmap(atlas);
+            using var enc = img.Encode(SKEncodedImageFormat.Png, 85);
+            var atlasPng = enc.ToArray();
+            mesh.Materials.Clear();
+            mesh.Materials.Add(new MeshMaterial("ytd_atlas", atlasPng));
+            foreach (var prim in mesh.Primitives)
+                prim.MaterialIndex = 0;
+
+            foreach (var (_, bmp) in decoded) bmp.Dispose();
+        }
+        catch
+        {
+            /* keep multi-material without atlas */
+        }
+    }
+
     private static void WriteGlb(string path, MeshExtract mesh)
     {
+        if (mesh.Primitives.Count == 0 && mesh.Indices.Count >= 3)
+            mesh.Primitives.Add(new MeshPrimitive { FirstIndex = 0, IndexCount = mesh.Indices.Count, MaterialIndex = mesh.EnsureMaterial("rage_default", null) });
+        if (mesh.Materials.Count == 0)
+            mesh.EnsureMaterial("rage_default", null);
+
         var pos = new float[mesh.Positions.Count * 3];
         var norm = new float[mesh.Normals.Count * 3];
         var uv = new float[mesh.UVs.Count * 2];
@@ -459,13 +657,14 @@ public static class RageModelPreviewService
         int normOff = o; o = Align4(o + normBytes.Length);
         int uvOff = o; o = Align4(o + uvBytes.Length);
         int idxOff = o; o = Align4(o + indexBytes.Length);
-        int imgOff = -1;
-        int imgLen = 0;
-        if (mesh.PngBytes is { Length: > 0 } png)
+
+        var imageOffsets = new List<(int off, int len, byte[] png)>();
+        foreach (var mat in mesh.Materials)
         {
-            imgOff = o;
-            imgLen = png.Length;
-            o = Align4(o + imgLen);
+            if (mat.PngBytes is not { Length: > 0 } png) continue;
+            var off = o;
+            imageOffsets.Add((off, png.Length, png));
+            o = Align4(o + png.Length);
         }
 
         var bin = new byte[o];
@@ -473,18 +672,31 @@ public static class RageModelPreviewService
         Buffer.BlockCopy(normBytes, 0, bin, normOff, normBytes.Length);
         Buffer.BlockCopy(uvBytes, 0, bin, uvOff, uvBytes.Length);
         Buffer.BlockCopy(indexBytes, 0, bin, idxOff, indexBytes.Length);
-        if (imgOff >= 0 && mesh.PngBytes != null)
-            Buffer.BlockCopy(mesh.PngBytes, 0, bin, imgOff, imgLen);
+        foreach (var (off, len, png) in imageOffsets)
+            Buffer.BlockCopy(png, 0, bin, off, len);
 
         var bufferViews = new List<object>
         {
             new { buffer = 0, byteOffset = posOff, byteLength = posBytes.Length, target = 34962 },
             new { buffer = 0, byteOffset = normOff, byteLength = normBytes.Length, target = 34962 },
             new { buffer = 0, byteOffset = uvOff, byteLength = uvBytes.Length, target = 34962 },
-            new { buffer = 0, byteOffset = idxOff, byteLength = indexBytes.Length, target = 34963 },
         };
-        if (imgOff >= 0)
-            bufferViews.Add(new { buffer = 0, byteOffset = imgOff, byteLength = imgLen });
+        // One bufferView per primitive index slice
+        var primIndexViewStart = bufferViews.Count;
+        var indexStride = useShort ? 2 : 4;
+        foreach (var prim in mesh.Primitives)
+        {
+            bufferViews.Add(new
+            {
+                buffer = 0,
+                byteOffset = idxOff + prim.FirstIndex * indexStride,
+                byteLength = prim.IndexCount * indexStride,
+                target = 34963,
+            });
+        }
+        var imageViewStart = bufferViews.Count;
+        foreach (var (off, len, _) in imageOffsets)
+            bufferViews.Add(new { buffer = 0, byteOffset = off, byteLength = len });
 
         var accessors = new List<object>
         {
@@ -495,47 +707,86 @@ public static class RageModelPreviewService
             },
             new { bufferView = 1, componentType = 5126, count = mesh.Normals.Count, type = "VEC3" },
             new { bufferView = 2, componentType = 5126, count = mesh.UVs.Count, type = "VEC2" },
-            new
-            {
-                bufferView = 3,
-                componentType = useShort ? 5123 : 5125,
-                count = mesh.Indices.Count,
-                type = "SCALAR",
-            },
         };
-
-        object material;
-        object[]? textures = null;
-        object[]? images = null;
-        if (imgOff >= 0)
+        var primAccessorStart = accessors.Count;
+        for (int i = 0; i < mesh.Primitives.Count; i++)
         {
-            images = new object[] { new { bufferView = 4, mimeType = "image/png" } };
-            textures = new object[] { new { source = 0 } };
-            material = new
+            accessors.Add(new
             {
-                name = "rage_preview",
-                doubleSided = true,
-                pbrMetallicRoughness = new
-                {
-                    baseColorTexture = new { index = 0 },
-                    metallicFactor = 0.05,
-                    roughnessFactor = 0.72,
-                },
-            };
+                bufferView = primIndexViewStart + i,
+                componentType = useShort ? 5123 : 5125,
+                count = mesh.Primitives[i].IndexCount,
+                type = "SCALAR",
+            });
         }
-        else
+
+        // Map material index → texture index (or -1)
+        var matTexIndex = new int[mesh.Materials.Count];
+        Array.Fill(matTexIndex, -1);
+        var images = new List<object>();
+        var textures = new List<object>();
+        var imgCursor = 0;
+        for (int mi = 0; mi < mesh.Materials.Count; mi++)
         {
-            material = new
+            if (mesh.Materials[mi].PngBytes is not { Length: > 0 }) continue;
+            if (imgCursor >= imageOffsets.Count) break;
+            images.Add(new { bufferView = imageViewStart + imgCursor, mimeType = "image/png" });
+            textures.Add(new { source = imgCursor });
+            matTexIndex[mi] = imgCursor;
+            imgCursor++;
+        }
+
+        var materials = new List<object>();
+        for (int mi = 0; mi < mesh.Materials.Count; mi++)
+        {
+            var mat = mesh.Materials[mi];
+            var texIdx = matTexIndex[mi];
+            if (texIdx >= 0)
             {
-                name = "rage_preview",
-                doubleSided = true,
-                pbrMetallicRoughness = new
+                materials.Add(new
                 {
-                    baseColorFactor = new[] { 0.78, 0.80, 0.84, 1.0 },
-                    metallicFactor = 0.12,
-                    roughnessFactor = 0.55,
+                    name = mat.Name,
+                    doubleSided = true,
+                    pbrMetallicRoughness = new
+                    {
+                        baseColorTexture = new { index = texIdx },
+                        metallicFactor = 0.05,
+                        roughnessFactor = 0.72,
+                    },
+                });
+            }
+            else
+            {
+                materials.Add(new
+                {
+                    name = mat.Name,
+                    doubleSided = true,
+                    pbrMetallicRoughness = new
+                    {
+                        baseColorFactor = new[] { 0.78, 0.80, 0.84, 1.0 },
+                        metallicFactor = 0.12,
+                        roughnessFactor = 0.55,
+                    },
+                });
+            }
+        }
+
+        var primitives = new List<object>();
+        for (int i = 0; i < mesh.Primitives.Count; i++)
+        {
+            var prim = mesh.Primitives[i];
+            var matIdx = Math.Clamp(prim.MaterialIndex, 0, materials.Count - 1);
+            primitives.Add(new
+            {
+                attributes = new Dictionary<string, int>
+                {
+                    ["POSITION"] = 0,
+                    ["NORMAL"] = 1,
+                    ["TEXCOORD_0"] = 2,
                 },
-            };
+                indices = primAccessorStart + i,
+                material = matIdx,
+            });
         }
 
         var root = new Dictionary<string, object?>
@@ -544,33 +795,14 @@ public static class RageModelPreviewService
             ["scene"] = 0,
             ["scenes"] = new object[] { new { nodes = new[] { 0 } } },
             ["nodes"] = new object[] { new { mesh = 0, name = "rage_preview" } },
-            ["meshes"] = new object[]
-            {
-                new
-                {
-                    primitives = new object[]
-                    {
-                        new
-                        {
-                            attributes = new Dictionary<string, int>
-                            {
-                                ["POSITION"] = 0,
-                                ["NORMAL"] = 1,
-                                ["TEXCOORD_0"] = 2,
-                            },
-                            indices = 3,
-                            material = 0,
-                        },
-                    },
-                },
-            },
-            ["materials"] = new object[] { material },
+            ["meshes"] = new object[] { new { primitives } },
+            ["materials"] = materials,
             ["buffers"] = new object[] { new { byteLength = bin.Length } },
             ["bufferViews"] = bufferViews,
             ["accessors"] = accessors,
         };
-        if (textures != null) root["textures"] = textures;
-        if (images != null) root["images"] = images;
+        if (textures.Count > 0) root["textures"] = textures;
+        if (images.Count > 0) root["images"] = images;
 
         var json = JsonSerializer.Serialize(root);
         var jsonBytes = Encoding.UTF8.GetBytes(json);
@@ -595,8 +827,6 @@ public static class RageModelPreviewService
 
     private static (int verts, int tris) PeekGltfStats(string path)
     {
-        // Fast path: stats are not stored; estimate from file is skipped — callers use mesh counts on miss.
-        // For cache hits, read accessors count from JSON chunk when cheap.
         try
         {
             using var fs = File.OpenRead(path);
@@ -608,11 +838,17 @@ public static class RageModelPreviewService
             br.ReadUInt32();
             var json = Encoding.UTF8.GetString(br.ReadBytes(jsonLen)).TrimEnd('\0', ' ');
             using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("accessors", out var acc) || acc.GetArrayLength() < 4)
+            if (!doc.RootElement.TryGetProperty("accessors", out var acc) || acc.GetArrayLength() < 1)
                 return (0, 0);
             var verts = acc[0].GetProperty("count").GetInt32();
-            var indices = acc[3].GetProperty("count").GetInt32();
-            return (verts, indices / 3);
+            var tris = 0;
+            // Sum SCALAR index accessors (skip POS/NORM/UV = 0..2)
+            for (int i = 3; i < acc.GetArrayLength(); i++)
+            {
+                if (acc[i].TryGetProperty("type", out var t) && t.GetString() == "SCALAR")
+                    tris += acc[i].GetProperty("count").GetInt32() / 3;
+            }
+            return (verts, tris);
         }
         catch
         {
@@ -626,13 +862,39 @@ public static class RageModelPreviewService
         return new string(chars);
     }
 
+    private sealed class MeshPrimitive
+    {
+        public int FirstIndex { get; set; }
+        public int IndexCount { get; set; }
+        public int MaterialIndex { get; set; }
+    }
+
+    private sealed record MeshMaterial(string Name, byte[]? PngBytes);
+
     private sealed class MeshExtract
     {
         public List<Vector3> Positions { get; } = new();
         public List<Vector3> Normals { get; } = new();
         public List<Vector2> UVs { get; } = new();
         public List<int> Indices { get; } = new();
-        public byte[]? PngBytes { get; set; }
+        public List<MeshPrimitive> Primitives { get; } = new();
+        public List<MeshMaterial> Materials { get; } = new();
+        public Dictionary<string, byte[]> NamedTextures { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public int EnsureMaterial(string name, byte[]? png)
+        {
+            for (int i = 0; i < Materials.Count; i++)
+            {
+                if (string.Equals(Materials[i].Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Materials[i].PngBytes == null && png != null)
+                        Materials[i] = Materials[i] with { PngBytes = png };
+                    return i;
+                }
+            }
+            Materials.Add(new MeshMaterial(name, png));
+            return Materials.Count - 1;
+        }
     }
 #endif
 }
