@@ -52,17 +52,21 @@ public static class RageModelPreviewService
             if (!NeedsHostConversion(ext))
                 return (false, null, null, null, 0, 0, "Not a convertible RAGE model");
 
-            var siblingYtd = Path.ChangeExtension(fi.FullName, ".ytd");
+            var ytdPaths = DiscoverYtdPaths(fi.FullName);
             long ytdTicks = 0;
             long ytdLen = 0;
-            if (File.Exists(siblingYtd))
+            foreach (var yp in ytdPaths)
             {
-                var yfi = new FileInfo(siblingYtd);
-                ytdTicks = yfi.LastWriteTimeUtc.Ticks;
-                ytdLen = yfi.Length;
+                try
+                {
+                    var yfi = new FileInfo(yp);
+                    ytdTicks ^= yfi.LastWriteTimeUtc.Ticks;
+                    ytdLen += yfi.Length;
+                }
+                catch { /* ignore */ }
             }
 
-            var cacheKey = $"{fi.FullName}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{ytdLen}|{ytdTicks}|glb3-mm";
+            var cacheKey = $"{fi.FullName}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{ytdLen}|{ytdTicks}|glb4-nm";
             if (Cache.TryGetValue(cacheKey, out var cached) && File.Exists(cached))
             {
                 var (v, t) = PeekGltfStats(cached);
@@ -78,7 +82,7 @@ public static class RageModelPreviewService
                 }
 
                 var bytes = File.ReadAllBytes(sourcePath);
-                var mesh = ExtractMesh(ext, bytes, fi.Name, siblingYtd);
+                var mesh = ExtractMesh(ext, bytes, fi.Name, ytdPaths);
                 if (mesh.Positions.Count == 0 || mesh.Indices.Count < 3)
                     return (false, null, null, ext, 0, 0, "No renderable geometry in this RAGE asset");
 
@@ -103,7 +107,70 @@ public static class RageModelPreviewService
     }
 
 #if BNDZ_HAS_CODEWALKER
-    private static MeshExtract ExtractMesh(string ext, byte[] data, string name, string siblingYtd)
+    /// <summary>
+    /// Sibling .ytd plus nearby dictionaries (same folder, parent, stream/ peers).
+    /// </summary>
+    private static List<string> DiscoverYtdPaths(string modelPath)
+    {
+        var found = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Add(string? p)
+        {
+            if (string.IsNullOrWhiteSpace(p) || !File.Exists(p)) return;
+            var full = Path.GetFullPath(p);
+            if (seen.Add(full)) found.Add(full);
+        }
+
+        var sibling = Path.ChangeExtension(modelPath, ".ytd");
+        Add(sibling);
+
+        var dir = Path.GetDirectoryName(modelPath);
+        var baseName = Path.GetFileNameWithoutExtension(modelPath) ?? "";
+        if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+        {
+            try
+            {
+                foreach (var ytd in Directory.EnumerateFiles(dir, "*.ytd"))
+                {
+                    var leaf = Path.GetFileNameWithoutExtension(ytd) ?? "";
+                    if (string.Equals(leaf, baseName, StringComparison.OrdinalIgnoreCase)
+                        || leaf.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
+                        || baseName.StartsWith(leaf, StringComparison.OrdinalIgnoreCase)
+                        || leaf.Contains(baseName, StringComparison.OrdinalIgnoreCase))
+                        Add(ytd);
+                }
+            }
+            catch { /* optional */ }
+
+            // Parent folder + stream peer (common FiveM resource layout)
+            var parent = Directory.GetParent(dir)?.FullName;
+            if (!string.IsNullOrEmpty(parent))
+            {
+                Add(Path.Combine(parent, baseName + ".ytd"));
+                var streamPeer = Path.Combine(parent, "stream", baseName + ".ytd");
+                Add(streamPeer);
+                try
+                {
+                    var streamDir = Path.Combine(parent, "stream");
+                    if (Directory.Exists(streamDir))
+                    {
+                        foreach (var ytd in Directory.EnumerateFiles(streamDir, "*.ytd").Take(12))
+                        {
+                            var leaf = Path.GetFileNameWithoutExtension(ytd) ?? "";
+                            if (leaf.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
+                                || baseName.StartsWith(leaf, StringComparison.OrdinalIgnoreCase))
+                                Add(ytd);
+                        }
+                    }
+                }
+                catch { /* optional */ }
+            }
+        }
+
+        return found;
+    }
+
+    private static MeshExtract ExtractMesh(string ext, byte[] data, string name, IReadOnlyList<string> ytdPaths)
     {
         var mesh = ext switch
         {
@@ -114,11 +181,9 @@ public static class RageModelPreviewService
             _ => new MeshExtract(),
         };
 
-        // Always merge sibling .ytd into the named texture pool (above-and-beyond embedded polish).
-        if (File.Exists(siblingYtd))
-            TryAttachYtd(mesh, siblingYtd);
+        foreach (var ytd in ytdPaths)
+            TryAttachYtd(mesh, ytd);
 
-        // Build atlas when multiple materials share diffuse slots — packs YTD textures into one sheet.
         BuildYtdAtlasIfNeeded(mesh);
         return mesh;
     }
@@ -227,30 +292,37 @@ public static class RageModelPreviewService
 
     private static int ResolveMaterialIndex(MeshExtract mesh, ShaderFX? shader)
     {
-        var texName = ResolveDiffuseTextureName(shader);
-        if (string.IsNullOrWhiteSpace(texName))
-            return mesh.EnsureMaterial("rage_default", null);
-
-        // Prefer exact name match already decoded from YTD/embedded.
-        if (mesh.NamedTextures.TryGetValue(texName, out var png))
-            return mesh.EnsureMaterial(texName, png);
-
-        // Case-insensitive fallback
-        foreach (var kv in mesh.NamedTextures)
+        var (diff, bump, spec) = ResolveShaderTextures(shader);
+        var matName = !string.IsNullOrWhiteSpace(diff) ? diff! : "rage_default";
+        byte[]? diffPng = null;
+        byte[]? bumpPng = null;
+        byte[]? specPng = null;
+        if (!string.IsNullOrWhiteSpace(diff) && mesh.NamedTextures.TryGetValue(diff!, out var d))
+            diffPng = d;
+        else if (!string.IsNullOrWhiteSpace(diff))
         {
-            if (string.Equals(kv.Key, texName, StringComparison.OrdinalIgnoreCase))
-                return mesh.EnsureMaterial(kv.Key, kv.Value);
+            foreach (var kv in mesh.NamedTextures)
+            {
+                if (string.Equals(kv.Key, diff, StringComparison.OrdinalIgnoreCase))
+                { diffPng = kv.Value; matName = kv.Key; break; }
+            }
         }
-
-        return mesh.EnsureMaterial(texName, null);
+        if (!string.IsNullOrWhiteSpace(bump) && mesh.NamedTextures.TryGetValue(bump!, out var b))
+            bumpPng = b;
+        if (!string.IsNullOrWhiteSpace(spec) && mesh.NamedTextures.TryGetValue(spec!, out var s))
+            specPng = s;
+        return mesh.EnsureMaterial(matName, diffPng, bumpPng, specPng);
     }
 
-    private static string? ResolveDiffuseTextureName(ShaderFX? shader)
+    private static (string? Diffuse, string? Bump, string? Spec) ResolveShaderTextures(ShaderFX? shader)
     {
         var parameters = shader?.ParametersList?.Parameters;
         var hashes = shader?.ParametersList?.Hashes;
-        if (parameters == null || parameters.Length == 0) return null;
+        if (parameters == null || parameters.Length == 0) return (null, null, null);
 
+        string? diffuse = null;
+        string? bump = null;
+        string? spec = null;
         string? firstTex = null;
         var count = Math.Min(parameters.Length, hashes?.Length ?? parameters.Length);
         for (int i = 0; i < count; i++)
@@ -260,21 +332,34 @@ public static class RageModelPreviewService
             var name = tb.Name;
             if (string.IsNullOrWhiteSpace(name)) continue;
             firstTex ??= name;
-            if (hashes != null && i < hashes.Length)
-            {
-                var h = (uint)hashes[i];
-                if (h == (uint)ShaderParamNames.DiffuseSampler
-                    || h == (uint)ShaderParamNames.DiffuseSampler2
-                    || h == (uint)ShaderParamNames.DiffuseSampler3
-                    || h == (uint)ShaderParamNames.DiffuseSamplerPoint)
-                    return name;
-            }
-            if (name.Contains("diff", StringComparison.OrdinalIgnoreCase)
+            uint h = 0;
+            if (hashes != null && i < hashes.Length) h = (uint)hashes[i];
+
+            if (h == (uint)ShaderParamNames.DiffuseSampler
+                || h == (uint)ShaderParamNames.DiffuseSampler2
+                || h == (uint)ShaderParamNames.DiffuseSampler3
+                || h == (uint)ShaderParamNames.DiffuseSamplerPoint
+                || name.Contains("diff", StringComparison.OrdinalIgnoreCase)
                 || name.Contains("albedo", StringComparison.OrdinalIgnoreCase)
-                || name.EndsWith("_d", StringComparison.OrdinalIgnoreCase))
-                return name;
+                || name.EndsWith("_d", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("_diff", StringComparison.OrdinalIgnoreCase))
+                diffuse ??= name;
+            else if (h == (uint)ShaderParamNames.BumpSampler
+                || h == (uint)ShaderParamNames.BumpSampler2
+                || h == (uint)ShaderParamNames.DetailBumpSampler
+                || h == (uint)ShaderParamNames.DetailNormalSampler
+                || name.Contains("bump", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("normal", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("_n", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("_norm", StringComparison.OrdinalIgnoreCase))
+                bump ??= name;
+            else if (h == (uint)ShaderParamNames.SpecSampler
+                || name.Contains("spec", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("_s", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("_spec", StringComparison.OrdinalIgnoreCase))
+                spec ??= name;
         }
-        return firstTex;
+        return (diffuse ?? firstTex, bump, spec);
     }
 
     private static void AppendGeometry(MeshExtract mesh, DrawableGeometry? geom, int materialIndex)
@@ -659,12 +744,31 @@ public static class RageModelPreviewService
         int idxOff = o; o = Align4(o + indexBytes.Length);
 
         var imageOffsets = new List<(int off, int len, byte[] png)>();
-        foreach (var mat in mesh.Materials)
+        // Track which image slot is diffuse / normal / rough for each material
+        var matDiffImg = new int[mesh.Materials.Count];
+        var matNormImg = new int[mesh.Materials.Count];
+        var matSpecImg = new int[mesh.Materials.Count];
+        Array.Fill(matDiffImg, -1);
+        Array.Fill(matNormImg, -1);
+        Array.Fill(matSpecImg, -1);
+
+        void AddImage(byte[]? png, int matIndex, Action<int> assign)
         {
-            if (mat.PngBytes is not { Length: > 0 } png) continue;
+            if (png is not { Length: > 0 }) return;
             var off = o;
+            var slot = imageOffsets.Count;
             imageOffsets.Add((off, png.Length, png));
             o = Align4(o + png.Length);
+            assign(slot);
+        }
+
+        for (int mi = 0; mi < mesh.Materials.Count; mi++)
+        {
+            var mat = mesh.Materials[mi];
+            var mii = mi;
+            AddImage(mat.PngBytes, mi, slot => matDiffImg[mii] = slot);
+            AddImage(mat.NormalPngBytes, mi, slot => matNormImg[mii] = slot);
+            AddImage(mat.SpecPngBytes, mi, slot => matSpecImg[mii] = slot);
         }
 
         var bin = new byte[o];
@@ -720,55 +824,42 @@ public static class RageModelPreviewService
             });
         }
 
-        // Map material index → texture index (or -1)
-        var matTexIndex = new int[mesh.Materials.Count];
-        Array.Fill(matTexIndex, -1);
         var images = new List<object>();
         var textures = new List<object>();
-        var imgCursor = 0;
-        for (int mi = 0; mi < mesh.Materials.Count; mi++)
+        for (int i = 0; i < imageOffsets.Count; i++)
         {
-            if (mesh.Materials[mi].PngBytes is not { Length: > 0 }) continue;
-            if (imgCursor >= imageOffsets.Count) break;
-            images.Add(new { bufferView = imageViewStart + imgCursor, mimeType = "image/png" });
-            textures.Add(new { source = imgCursor });
-            matTexIndex[mi] = imgCursor;
-            imgCursor++;
+            images.Add(new { bufferView = imageViewStart + i, mimeType = "image/png" });
+            textures.Add(new { source = i });
         }
 
         var materials = new List<object>();
         for (int mi = 0; mi < mesh.Materials.Count; mi++)
         {
             var mat = mesh.Materials[mi];
-            var texIdx = matTexIndex[mi];
-            if (texIdx >= 0)
+            var diffIdx = matDiffImg[mi];
+            var normIdx = matNormImg[mi];
+            var specIdx = matSpecImg[mi];
+            var pbr = new Dictionary<string, object?>
             {
-                materials.Add(new
-                {
-                    name = mat.Name,
-                    doubleSided = true,
-                    pbrMetallicRoughness = new
-                    {
-                        baseColorTexture = new { index = texIdx },
-                        metallicFactor = 0.05,
-                        roughnessFactor = 0.72,
-                    },
-                });
-            }
+                ["metallicFactor"] = specIdx >= 0 ? 0.35 : 0.05,
+                ["roughnessFactor"] = specIdx >= 0 ? 0.45 : 0.72,
+            };
+            if (diffIdx >= 0)
+                pbr["baseColorTexture"] = new { index = diffIdx };
             else
+                pbr["baseColorFactor"] = new[] { 0.78, 0.80, 0.84, 1.0 };
+
+            var matObj = new Dictionary<string, object?>
             {
-                materials.Add(new
-                {
-                    name = mat.Name,
-                    doubleSided = true,
-                    pbrMetallicRoughness = new
-                    {
-                        baseColorFactor = new[] { 0.78, 0.80, 0.84, 1.0 },
-                        metallicFactor = 0.12,
-                        roughnessFactor = 0.55,
-                    },
-                });
-            }
+                ["name"] = mat.Name,
+                ["doubleSided"] = true,
+                ["pbrMetallicRoughness"] = pbr,
+            };
+            if (normIdx >= 0)
+                matObj["normalTexture"] = new { index = normIdx };
+            if (specIdx >= 0)
+                matObj["occlusionTexture"] = new { index = specIdx }; // approximate gloss/spec cue
+            materials.Add(matObj);
         }
 
         var primitives = new List<object>();
@@ -869,7 +960,7 @@ public static class RageModelPreviewService
         public int MaterialIndex { get; set; }
     }
 
-    private sealed record MeshMaterial(string Name, byte[]? PngBytes);
+    private sealed record MeshMaterial(string Name, byte[]? PngBytes, byte[]? NormalPngBytes = null, byte[]? SpecPngBytes = null);
 
     private sealed class MeshExtract
     {
@@ -881,18 +972,23 @@ public static class RageModelPreviewService
         public List<MeshMaterial> Materials { get; } = new();
         public Dictionary<string, byte[]> NamedTextures { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int EnsureMaterial(string name, byte[]? png)
+        public int EnsureMaterial(string name, byte[]? png, byte[]? normalPng = null, byte[]? specPng = null)
         {
             for (int i = 0; i < Materials.Count; i++)
             {
                 if (string.Equals(Materials[i].Name, name, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (Materials[i].PngBytes == null && png != null)
-                        Materials[i] = Materials[i] with { PngBytes = png };
+                    var cur = Materials[i];
+                    Materials[i] = cur with
+                    {
+                        PngBytes = cur.PngBytes ?? png,
+                        NormalPngBytes = cur.NormalPngBytes ?? normalPng,
+                        SpecPngBytes = cur.SpecPngBytes ?? specPng,
+                    };
                     return i;
                 }
             }
-            Materials.Add(new MeshMaterial(name, png));
+            Materials.Add(new MeshMaterial(name, png, normalPng, specPng));
             return Materials.Count - 1;
         }
     }

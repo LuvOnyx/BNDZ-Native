@@ -3657,8 +3657,8 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 
 .bndz-archive-inspector {
   flex-shrink: 0;
-  max-height: 42%;
-  min-height: 140px;
+  max-height: 48%;
+  min-height: 180px;
   display: flex;
   flex-direction: column;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
@@ -3691,6 +3691,34 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.bndz-archive-model-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 80% at 50% 20%, rgba(56, 189, 248, 0.12), transparent 55%),
+    linear-gradient(165deg, #0c121a, #07090e);
+  border: 1px solid rgba(56, 189, 248, 0.14);
+}
+
+.bndz-archive-model-stats {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: rgba(186, 230, 253, 0.85);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
 }
 
 .bndz-archive-preview-frame {

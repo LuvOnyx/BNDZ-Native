@@ -486,6 +486,10 @@ public sealed class ArchiveService
         Directory.CreateDirectory(tempDir);
         ExtractEntry(archivePath, entryPath, tempDir);
 
+        // RAGE mesh inside RPF/ZIP: also stage sibling .ytd next to the extracted file
+        // so RageModelPreviewService can texture the orbit preview.
+        TryExtractRageCompanionTextures(archivePath, entryPath, tempDir);
+
         var fileName = Path.GetFileName(entryPath.TrimEnd('/', '\\'));
         if (string.IsNullOrEmpty(fileName))
             fileName = entryPath.TrimEnd('/').Split('/').LastOrDefault() ?? "item";
@@ -506,6 +510,47 @@ public sealed class ArchiveService
         }
         _tempExtractCache[cacheKey] = result;
         return result;
+    }
+
+    private void TryExtractRageCompanionTextures(string archivePath, string entryPath, string tempDir)
+    {
+        var ext = Path.GetExtension(entryPath).TrimStart('.').ToLowerInvariant();
+        if (ext is not ("ydr" or "yft" or "ydd" or "ybn")) return;
+
+        var siblingYtd = Path.ChangeExtension(entryPath, ".ytd")?.Replace('\\', '/');
+        if (!string.IsNullOrWhiteSpace(siblingYtd))
+        {
+            try { ExtractEntry(archivePath, siblingYtd!, tempDir); }
+            catch { /* optional companion */ }
+        }
+
+        // Also pull other .ytd siblings in the same archive folder (shared dictionaries).
+        try
+        {
+            var folder = entryPath.Contains('/') ? entryPath[..entryPath.LastIndexOf('/')] : "";
+            var listing = ListContents(archivePath, 8000);
+            if (listing.Entries == null) return;
+            var baseName = Path.GetFileNameWithoutExtension(entryPath);
+            foreach (var e in listing.Entries)
+            {
+                if (e.IsDirectory) continue;
+                var p = (e.Path ?? "").Replace('\\', '/').TrimStart('/');
+                if (!p.EndsWith(".ytd", StringComparison.OrdinalIgnoreCase)) continue;
+                var dir = p.Contains('/') ? p[..p.LastIndexOf('/')] : "";
+                if (!string.Equals(dir, folder, StringComparison.OrdinalIgnoreCase)) continue;
+                var leaf = Path.GetFileNameWithoutExtension(p);
+                // Prefer exact / prefix / contains match to the drawable name
+                if (!string.Equals(leaf, baseName, StringComparison.OrdinalIgnoreCase)
+                    && !leaf.StartsWith(baseName!, StringComparison.OrdinalIgnoreCase)
+                    && !baseName!.StartsWith(leaf, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (siblingYtd != null && string.Equals(p, siblingYtd, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try { ExtractEntry(archivePath, p, tempDir); }
+                catch { /* best-effort */ }
+            }
+        }
+        catch { /* listing optional */ }
     }
 
     // ------------------------------------------------------------ add to archive
