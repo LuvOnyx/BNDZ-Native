@@ -9,7 +9,8 @@ using SkiaSharp;
 namespace BNDZ.Services;
 
 /// <summary>
-/// Host-side silhouette thumbnails for common 3D mesh formats via AssimpNetter.
+/// Host-side silhouette thumbnails for common 3D mesh formats via AssimpNetter,
+/// plus FiveM/RAGE drawables via <see cref="RageModelPreviewService"/> → GLB → Assimp.
 /// Interactive Three.js preview stays in the React preview pane.
 /// </summary>
 public static class AssimpMeshThumbService
@@ -19,16 +20,39 @@ public static class AssimpMeshThumbService
         ".obj", ".fbx", ".gltf", ".glb", ".stl", ".dae", ".3ds", ".ply",
     };
 
+    public static bool IsRageGtaAssetExt(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return false;
+        var ext = Path.GetExtension(filePath).TrimStart('.');
+        return RageModelPreviewService.NeedsHostConversion(ext);
+    }
+
     public static bool IsMeshPath(string filePath)
     {
         var ext = Path.GetExtension(filePath);
-        return !string.IsNullOrEmpty(ext) && MeshExts.Contains(ext);
+        return (!string.IsNullOrEmpty(ext) && MeshExts.Contains(ext)) || IsRageGtaAssetExt(filePath);
     }
 
     /// <summary>Returns PNG bytes of a flat orthographic point-cloud silhouette, or null on failure.</summary>
     public static byte[]? TryRenderSilhouette(string filePath, int size = 128)
     {
-        if (!IsMeshPath(filePath) || !File.Exists(filePath)) return null;
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return null;
+
+        // RAGE → cached GLB → Assimp silhouette (list thumbs for .ydr/.yft/.ydd/.ybn).
+        if (IsRageGtaAssetExt(filePath))
+        {
+            var (ok, previewPath, _, _, _, _, _) = RageModelPreviewService.TryGetPreviewObj(filePath);
+            if (!ok || string.IsNullOrWhiteSpace(previewPath) || !File.Exists(previewPath))
+                return null;
+            return TryRenderAssimpSilhouette(previewPath, size);
+        }
+
+        if (!MeshExts.Contains(Path.GetExtension(filePath))) return null;
+        return TryRenderAssimpSilhouette(filePath, size);
+    }
+
+    private static byte[]? TryRenderAssimpSilhouette(string filePath, int size)
+    {
         try
         {
             using var ctx = new AssimpContext();

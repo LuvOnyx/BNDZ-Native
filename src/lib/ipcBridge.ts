@@ -1168,10 +1168,10 @@ export const IPC = {
     return Promise.resolve({ success: false, error: 'Native only' });
   },
 
-  archiveExtractEntryToTemp(archivePath: string, entryPath: string): Promise<{ success: boolean; path?: string; error?: string }> {
+  archiveExtractEntryToTemp(archivePath: string, entryPath: string): Promise<{ success: boolean; path?: string; companions?: string[]; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_archiveExtractTemp`;
-      return _nativeCall<{ success: boolean; path?: string; error?: string }>('ARCHIVE_EXTRACT_ENTRY_TEMP', 'ARCHIVE_EXTRACT_ENTRY_TEMP_RESULT', id, { archivePath, entryPath }, 120000);
+      return _nativeCall<{ success: boolean; path?: string; companions?: string[]; error?: string }>('ARCHIVE_EXTRACT_ENTRY_TEMP', 'ARCHIVE_EXTRACT_ENTRY_TEMP_RESULT', id, { archivePath, entryPath }, 120000);
     }
     return Promise.resolve({ success: false, error: 'Native only' });
   },

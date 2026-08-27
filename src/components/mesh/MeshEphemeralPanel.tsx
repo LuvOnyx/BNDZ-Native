@@ -15,11 +15,20 @@ import {
   incusEndpointToPayload,
 } from '../../lib/incusTypes';
 import { requestNativeConfirm } from '../../lib/nativeDialog';
+import { pushToast } from '../ToastHost';
 
 type Props = {
   onNavigate?: (path: string) => void;
   onStatus?: (msg: string | null) => void;
 };
+
+function toastIncus(message: string, kind: 'success' | 'warning' | 'info' | 'error' = 'info') {
+  pushToast({
+    message,
+    kind,
+    title: kind === 'success' ? 'Ephemeral Mesh' : kind === 'warning' || kind === 'error' ? 'Incus' : 'Remote Mesh',
+  });
+}
 
 export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   const [endpoints, setEndpoints] = useState<IncusEndpoint[]>([]);
@@ -34,6 +43,17 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
 
   const setStatus = (msg: string | null) => onStatus?.(msg);
 
+  const setStatusAndToast = (
+    msg: string | null,
+    kind: 'success' | 'warning' | 'info' | 'error' = 'info',
+  ) => {
+    setStatus(msg);
+    if (msg) toastIncus(msg, kind);
+  };
+
+  const hydratedRef = React.useRef(false);
+  const seenIpRef = React.useRef<Set<string>>(new Set());
+
   const refresh = useCallback(async () => {
     try {
       const [eps, inst] = await Promise.all([
@@ -41,9 +61,22 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
         IPC.meshIncusListEphemeral(),
       ]);
       const endpointsNorm = (eps as Record<string, unknown>[]).map(normalizeIncusEndpoint);
+      const instancesNorm = (inst as Record<string, unknown>[]).map(normalizeIncusEphemeral);
       setEndpoints(endpointsNorm);
-      setInstances((inst as Record<string, unknown>[]).map(normalizeIncusEphemeral));
+      setInstances(instancesNorm);
       if (!selectedEndpointId && endpointsNorm[0]) setSelectedEndpointId(endpointsNorm[0].id);
+
+      for (const i of instancesNorm) {
+        const ip = i.ipv4 || i.ipv6;
+        if (!ip) continue;
+        const key = `${i.id}|${ip}`;
+        if (hydratedRef.current && !seenIpRef.current.has(key)) {
+          toastIncus(`${i.instanceName} online @ ${ip}`, 'success');
+        }
+        seenIpRef.current.add(key);
+      }
+      hydratedRef.current = true;
+
       return endpointsNorm;
     } catch (e: any) {
       setStatus(e?.message || 'Could not load Incus mesh state');
@@ -102,9 +135,9 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       await refresh();
       setEditor(null);
       setSelectedEndpointId(endpoint.id);
-      setStatus(`Saved Incus endpoint ${endpoint.alias}`);
+      setStatusAndToast(`Saved Incus endpoint ${endpoint.alias}`, 'success');
     } catch (e: any) {
-      setStatus(e?.message || 'Could not save endpoint');
+      setStatusAndToast(e?.message || 'Could not save endpoint', 'warning');
     } finally { setBusy(false); }
   };
 
@@ -123,9 +156,9 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       await IPC.meshIncusDeleteEndpoint(endpointId);
       await refresh();
       if (selectedEndpointId === endpointId) setSelectedEndpointId(null);
-      setStatus('Endpoint removed');
+      setStatusAndToast('Endpoint removed', 'success');
     } catch (e: any) {
-      setStatus(e?.message || 'Delete failed');
+      setStatusAndToast(e?.message || 'Delete failed', 'warning');
     } finally { setBusy(false); }
   };
 
@@ -135,20 +168,23 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       const res = await IPC.meshIncusTestEndpoint(endpointId);
       if (!res.ok) throw new Error(res.error || 'Trust probe failed');
       if (res.endpoints) setEndpoints(res.endpoints.map((e: Record<string, unknown>) => normalizeIncusEndpoint(e)));
-      setStatus(res.info?.trusted ? 'Trusted — Incus API reachable' : 'Connected but not trusted yet — paste a trust token and save');
+      setStatusAndToast(
+        res.info?.trusted ? 'Trusted — Incus API reachable' : 'Connected but not trusted yet — paste a trust token and save',
+        res.info?.trusted ? 'success' : 'info',
+      );
     } catch (e: any) {
-      setStatus(e?.message || 'Test failed');
+      setStatusAndToast(e?.message || 'Test failed', 'warning');
       await refresh();
     } finally { setBusy(false); }
   };
 
   const launch = async () => {
     if (!selectedEndpointId) {
-      setStatus('Add an Incus endpoint first');
+      setStatusAndToast('Add an Incus endpoint first', 'warning');
       return;
     }
     setBusy(true);
-    setStatus('Launching ephemeral instance…');
+    setStatusAndToast('Launching ephemeral instance…', 'info');
     try {
       const res = await IPC.meshIncusLaunch({
         endpointId: selectedEndpointId,
@@ -162,11 +198,12 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       if (!res.ok) throw new Error(res.error || 'Launch failed');
       await refresh();
       const inst = res.instance ? normalizeIncusEphemeral(res.instance as Record<string, unknown>) : null;
-      setStatus(inst?.ipv4
+      setStatusAndToast(inst?.ipv4
         ? `Ready — ${inst.instanceName} @ ${inst.ipv4} registered on Mesh`
-        : `Launched ${inst?.instanceName || 'instance'} — waiting for IP (Refresh)`);
+        : `Launched ${inst?.instanceName || 'instance'} — waiting for IP (Refresh)`,
+        inst?.ipv4 ? 'success' : 'info');
     } catch (e: any) {
-      setStatus(e?.message || 'Launch failed');
+      setStatusAndToast(e?.message || 'Launch failed', 'warning');
       await refresh();
     } finally { setBusy(false); }
   };
@@ -176,10 +213,17 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     try {
       const res = await IPC.meshIncusRefresh(id);
       if (!res.ok) throw new Error(res.error || 'Refresh failed');
+      const before = instances.find(i => i.id === id);
       await refresh();
-      setStatus('Instance state refreshed');
+      const after = res.instance ? normalizeIncusEphemeral(res.instance as Record<string, unknown>) : null;
+      const ip = after?.ipv4 || after?.ipv6;
+      if (ip && !(before?.ipv4 || before?.ipv6)) {
+        setStatusAndToast(`${after?.instanceName || 'Instance'} got IP ${ip} — Mesh host ready`, 'success');
+      } else {
+        setStatusAndToast('Instance state refreshed', 'info');
+      }
     } catch (e: any) {
-      setStatus(e?.message || 'Refresh failed');
+      setStatusAndToast(e?.message || 'Refresh failed', 'warning');
     } finally { setBusy(false); }
   };
 
@@ -198,15 +242,15 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       const res = await IPC.meshIncusDestroy(id);
       if (!res.ok) throw new Error(res.error || 'Destroy failed');
       await refresh();
-      setStatus('Ephemeral host destroyed');
+      setStatusAndToast('Ephemeral host destroyed', 'success');
     } catch (e: any) {
-      setStatus(e?.message || 'Destroy failed');
+      setStatusAndToast(e?.message || 'Destroy failed', 'warning');
     } finally { setBusy(false); }
   };
 
   const browseMesh = async (inst: IncusEphemeralInstance) => {
     if (!inst.meshHostId) {
-      setStatus('No Mesh host registered yet — Refresh after IP appears');
+      setStatusAndToast('No Mesh host registered yet — Refresh after IP appears', 'warning');
       return;
     }
     setBusy(true);
@@ -214,24 +258,24 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       const res = await IPC.meshConnect(inst.meshHostId);
       if (res?.error) throw new Error(res.error);
       onNavigate?.(buildMeshPath(inst.meshHostId, ''));
-      setStatus(`Browsing ${inst.instanceName}`);
+      setStatusAndToast(`Browsing ${inst.instanceName}`, 'success');
     } catch (e: any) {
-      setStatus(e?.message || 'Browse failed — check SSH user/key on the endpoint');
+      setStatusAndToast(e?.message || 'Browse failed — check SSH user/key on the endpoint', 'warning');
     } finally { setBusy(false); }
   };
 
   const shellHere = async (inst: IncusEphemeralInstance) => {
     if (!inst.meshHostId) {
-      setStatus('No Mesh host registered yet — Refresh after IP appears');
+      setStatusAndToast('No Mesh host registered yet — Refresh after IP appears', 'warning');
       return;
     }
     setBusy(true);
     try {
       const res = await IPC.meshTerminalOpen({ hostId: inst.meshHostId, cwd: '/' });
       if (res?.error) throw new Error(res.error);
-      setStatus(`Shell Here · ${inst.instanceName}`);
+      setStatusAndToast(`Shell Here · ${inst.instanceName}`, 'success');
     } catch (e: any) {
-      setStatus(e?.message || 'Shell Here failed — ensure cloud-init injected your SSH pubkey');
+      setStatusAndToast(e?.message || 'Shell Here failed — ensure cloud-init injected your SSH pubkey', 'warning');
     } finally { setBusy(false); }
   };
 

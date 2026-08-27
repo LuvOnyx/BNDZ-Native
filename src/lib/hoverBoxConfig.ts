@@ -7,6 +7,7 @@ export type HoverBoxItemType =
   | 'videos'
   | 'audio'
   | 'archives'
+  | 'models'
   | 'executables'
   | 'documents';
 
@@ -19,6 +20,7 @@ export const HOVER_BOX_ITEM_TYPES: Array<{ id: HoverBoxItemType; label: string }
   { id: 'videos', label: 'Videos' },
   { id: 'audio', label: 'Audio' },
   { id: 'archives', label: 'Archives' },
+  { id: 'models', label: '3D / RAGE' },
   { id: 'executables', label: 'Executables' },
   { id: 'documents', label: 'Documents' },
 ];
@@ -36,19 +38,21 @@ export const DEFAULT_HOVER_BOX_CONTEXTS: HoverBoxContext[] = ['list', 'tree'];
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'heic', 'heif']);
 const VIDEO_EXTS = new Set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'wmv']);
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma']);
-const ARCHIVE_EXTS = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz']);
+const ARCHIVE_EXTS = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'rpf', 'iso', 'cab']);
+const MODEL_EXTS = new Set(['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'ydr', 'yft', 'ydd', 'ybn']);
 const DOC_EXTS = new Set(['txt', 'md', 'doc', 'docx', 'pdf', 'rtf', 'odt', 'xls', 'xlsx', 'ppt', 'pptx']);
 
 export function entityHoverBoxTypes(entity: { type?: string; extension?: string }): HoverBoxItemType[] {
   const types: HoverBoxItemType[] = [];
   const isDir = entity.type === 'directory';
-  const ext = String(entity.extension || '').toLowerCase();
+  const ext = String(entity.extension || '').toLowerCase().replace(/^\./, '');
   if (isDir) types.push('folders');
   else types.push('files');
   if (IMAGE_EXTS.has(ext)) types.push('images');
   if (VIDEO_EXTS.has(ext)) types.push('videos');
   if (AUDIO_EXTS.has(ext)) types.push('audio');
   if (ARCHIVE_EXTS.has(ext)) types.push('archives');
+  if (MODEL_EXTS.has(ext)) types.push('models');
   if (ext === 'exe' || ext === 'msi' || ext === 'bat' || ext === 'cmd' || ext === 'lnk') types.push('executables');
   if (DOC_EXTS.has(ext)) types.push('documents');
   return types;
