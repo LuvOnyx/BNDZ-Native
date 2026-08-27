@@ -23,6 +23,7 @@ Do **not** put these in marketing / "why BNDZ" copy. Track here as engineering b
 - [ ] Chromaprint / acoustic fingerprint column
 - [ ] Essentia.js WASM (license review)
 - [ ] Shoot culling mode (Facet/CullSnap parity)
+- [ ] **FiveM / RAGE preview fidelity** — keep CodeWalker in-process → `GpuModelViewport` (no Assimp/sidecar). Upgrade cache from geometry OBJ to **glTF/GLB with normals + UVs**, optional sibling `.ytd` materials/textures; High LOD default. Docked preview + Quick Look only.
 
 ## Trust & ops
 - [ ] Transfer conflict preview sheet
