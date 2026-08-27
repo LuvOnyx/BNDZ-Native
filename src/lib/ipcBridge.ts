@@ -2581,7 +2581,7 @@ export const IPC = {
     return Promise.resolve({ error: 'Not native' });
   },
 
-  /** Resolve a WebGL-ready preview path for 3D / RAGE assets (.ydr/.ybn → cached OBJ). */
+  /** Resolve a WebGL-ready preview path for 3D / RAGE assets (.ydr/.ybn → cached GLB). */
   getModelPreview(path: string): Promise<{
     path?: string;
     format?: string;

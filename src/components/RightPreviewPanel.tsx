@@ -293,7 +293,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const virtualUrl = path && !isDir
       ? (isNative ? toVirtualStreamUrl(path) : `/local-stream/${encodeLocalStreamPath(toWindowsPath(path))}`)
       : '';
-  const previewAllowed = isArchive || isTorrent || isPreviewEnabledForExt(ext, config);
+  const previewAllowed = isArchive || isTorrent || isRageConvertModelExt(ext) || isPreviewEnabledForExt(ext, config);
 
   useEffect(() => {
     if (!entity) return;
@@ -756,12 +756,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
         }
         return (
-          <div className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
+          <div className={`relative w-full h-full min-h-[240px] bndz-preview-media-frame bndz-preview-border-${mediaBorderType} bndz-rage-preview-stage`}>
             <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport…</div>}>
               <GpuModelViewport src={modelPreview.url} title={entity.name} badge={modelPreview.badge} />
             </Suspense>
             <div className="pointer-events-none absolute left-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] text-white/80">
-              3D orbit · drag to rotate
+              {isRageConvertModelExt(ext) ? 'FiveM · orbit' : '3D orbit'} · drag to rotate
             </div>
             {(modelPreview.vertices || modelPreview.triangles) ? (
               <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">

@@ -116,16 +116,17 @@ function ModelScene({ url, kind }: ModelSceneProps) {
 }
 
 function detectKind(src: string): ModelKind {
-  // Prefer the path basename so cached RAGE OBJs (…/hash_name.obj) never fall through to glTF.
+  // Prefer the path basename so cached RAGE GLBs (…/hash_name.glb) never fall through wrongly.
   const path = (src.split('?')[0] || '').toLowerCase();
   const base = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path.includes('\\') ? path.slice(path.lastIndexOf('\\') + 1) : path;
+  if (base.endsWith('.glb') || base.endsWith('.gltf')) return 'gltf';
   if (base.endsWith('.obj')) return 'obj';
   if (base.endsWith('.stl')) return 'stl';
   if (base.endsWith('.fbx')) return 'fbx';
   if (base.endsWith('.dae')) return 'dae';
   if (base.endsWith('.ply')) return 'ply';
-  if (base.endsWith('.glb') || base.endsWith('.gltf')) return 'gltf';
-  // Encoded stream URLs may keep the extension mid-path (…name.obj%00…)
+  // Encoded stream URLs may keep the extension mid-path
+  if (path.includes('.glb') || path.includes('.gltf')) return 'gltf';
   if (path.includes('.obj')) return 'obj';
   if (path.includes('.stl')) return 'stl';
   if (path.includes('.fbx')) return 'fbx';

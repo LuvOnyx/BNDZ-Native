@@ -35,8 +35,9 @@ export const GPU_NATIVE_MODEL_EXTENSIONS = new Set([
 ]);
 
 /**
- * RAGE mesh containers that need host-side CodeWalker extraction before WebGL.
- * Assimp / extra Three loaders are NOT used for these — keeps the FiveM path lean.
+ * FiveM / RAGE mesh containers that need host-side CodeWalker extraction before WebGL.
+ * Supported: .ydr .yft .ydd .ybn — there is no standard .yrs type.
+ * Assimp / extra Three loaders are NOT used for these — keeps the path lean.
  */
 export const RAGE_CONVERT_MODEL_EXTENSIONS = new Set([
   'ydr', 'ybn', 'ydd', 'yft',

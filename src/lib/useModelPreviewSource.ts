@@ -13,7 +13,7 @@ export type ModelPreviewSource = {
 };
 
 /**
- * Resolve a WebGL-ready model URL. RAGE formats (.ydr/.ybn/…) are converted on the host to OBJ.
+ * Resolve a WebGL-ready model URL. RAGE formats (.ydr/.ybn/…) are converted on the host to GLB.
  */
 export function useModelPreviewSource(path: string | null | undefined, ext: string): ModelPreviewSource {
   const [state, setState] = useState<ModelPreviewSource>({ url: '', badge: ext || '3d', loading: false });
@@ -58,7 +58,7 @@ export function useModelPreviewSource(path: string | null | undefined, ext: stri
       }
       setState({
         url: toVirtualStreamUrl(res.path),
-        badge: `${ext}→${res.format || 'obj'}`,
+        badge: `${ext}→${res.format || 'glb'}`,
         loading: false,
         vertices: res.vertices,
         triangles: res.triangles,
