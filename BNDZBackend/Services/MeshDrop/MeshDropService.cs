@@ -159,8 +159,9 @@ public sealed class MeshDropService : IDisposable
     }
 
     /// <summary>Host: finalize connection with answer mesh code.</summary>
-    public async Task ConnectWithAnswerAsync(string sessionId, string answerCode, CancellationToken ct = default)
+    public Task ConnectWithAnswerAsync(string sessionId, string answerCode, CancellationToken ct = default)
     {
+        _ = ct;
         if (!_peers.TryGetValue(sessionId, out var ctx) || ctx.PeerConnection == null)
             throw new InvalidOperationException("Session not found");
 
@@ -184,6 +185,8 @@ public sealed class MeshDropService : IDisposable
             session.PeerLabel = answer.ReceiverName;
             NotifySessionChanged(session);
         }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>Start sending files (host only, after connected).</summary>

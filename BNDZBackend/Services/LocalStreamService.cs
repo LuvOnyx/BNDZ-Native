@@ -112,7 +112,7 @@ namespace BNDZ.Services
                 ".otf" => "font/otf",
                 ".glb" => "model/gltf-binary",
                 ".gltf" => "model/gltf+json",
-                ".obj" => "text/plain; charset=utf-8",
+                ".obj" => "model/obj",
                 ".stl" => "model/stl",
                 ".fbx" => "application/octet-stream",
                 ".dae" => "model/vnd.collada+xml",

@@ -81,6 +81,8 @@ public sealed class MeshDatabase : IDisposable
             TryAddColumn(conn, "mesh_hosts", "show_in_nav_tree", "INTEGER NOT NULL DEFAULT 1");
             TryAddColumn(conn, "mesh_hosts", "remote_root_path", "TEXT NOT NULL DEFAULT '/'");
             TryAddColumn(conn, "mesh_hosts", "notes", "TEXT");
+            TryAddColumn(conn, "mesh_hosts", "certificate_path", "TEXT");
+            TryAddColumn(conn, "mesh_hosts", "proxy_jump", "TEXT");
         }
     }
 
@@ -136,14 +138,15 @@ public sealed class MeshDatabase : IDisposable
             using var conn = Open();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO mesh_hosts (id,alias,provider,hostname,port,username,key_path,auth_kind,jump_host_id,host_key_fp,s3_bucket,s3_region,s3_endpoint,s3_access_key,protected_secret,state,last_seen_utc,last_error,cache_quota_bytes,show_in_nav_tree,remote_root_path,notes)
-                VALUES ($id,$alias,$provider,$hostname,$port,$username,$key_path,$auth_kind,$jump,$fp,$bucket,$region,$endpoint,$access,$secret,$state,$seen,$err,$quota,$nav,$root,$notes)
+                INSERT INTO mesh_hosts (id,alias,provider,hostname,port,username,key_path,auth_kind,jump_host_id,host_key_fp,s3_bucket,s3_region,s3_endpoint,s3_access_key,protected_secret,state,last_seen_utc,last_error,cache_quota_bytes,show_in_nav_tree,remote_root_path,notes,certificate_path,proxy_jump)
+                VALUES ($id,$alias,$provider,$hostname,$port,$username,$key_path,$auth_kind,$jump,$fp,$bucket,$region,$endpoint,$access,$secret,$state,$seen,$err,$quota,$nav,$root,$notes,$cert,$proxy)
                 ON CONFLICT(id) DO UPDATE SET
                   alias=$alias, provider=$provider, hostname=$hostname, port=$port, username=$username,
                   key_path=$key_path, auth_kind=$auth_kind, jump_host_id=$jump, host_key_fp=$fp,
                   s3_bucket=$bucket, s3_region=$region, s3_endpoint=$endpoint, s3_access_key=$access,
                   protected_secret=$secret, state=$state, last_seen_utc=$seen, last_error=$err, cache_quota_bytes=$quota,
-                  show_in_nav_tree=$nav, remote_root_path=$root, notes=$notes
+                  show_in_nav_tree=$nav, remote_root_path=$root, notes=$notes,
+                  certificate_path=$cert, proxy_jump=$proxy
                 """;
             BindHost(cmd, h);
             cmd.ExecuteNonQuery();
@@ -235,6 +238,8 @@ public sealed class MeshDatabase : IDisposable
             Port = I(r, "port", 22),
             Username = S(r, "username") ?? "",
             KeyPath = S(r, "key_path"),
+            CertificatePath = S(r, "certificate_path"),
+            ProxyJump = S(r, "proxy_jump"),
             AuthKind = (MeshAuthKind)I(r, "auth_kind"),
             JumpHostId = S(r, "jump_host_id"),
             HostKeyFingerprint = S(r, "host_key_fp"),
@@ -277,6 +282,8 @@ public sealed class MeshDatabase : IDisposable
         cmd.Parameters.AddWithValue("$nav", h.ShowInNavTree ? 1 : 0);
         cmd.Parameters.AddWithValue("$root", string.IsNullOrWhiteSpace(h.RemoteRootPath) ? "/" : h.RemoteRootPath);
         cmd.Parameters.AddWithValue("$notes", (object?)h.Notes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$cert", (object?)h.CertificatePath ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$proxy", (object?)h.ProxyJump ?? DBNull.Value);
     }
 
     private static MeshSyncRuleRecord ReadRule(SqliteDataReader r) => new()

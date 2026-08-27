@@ -117,7 +117,7 @@ export const DEFAULT_PREVIEW_CATEGORIES: AppConfig["previewCategories"] = [
     {n:"Audio Files", d:"flac, mp3, ogg, wav ...", c:true},
     {n:"Video Files", d:"avi, mp4, mpg, wmv ...", c:true},
     {n:"Archive Files", d:"zip, rar, 7z, tar, gz, torrent ...", c:true},
-    {n:"3D Model Files", d:"glb, obj, stl, ydr, ybn, fbx ...", c:true},
+    {n:"3D Model Files", d:"glb, obj, stl, ydr, ybn, ydd, yft, fbx ...", c:true},
     {n:"Preview as Thumbnail", d:"afphoto, slddrw, webp ...", c:true},
     {n:"User-Defined Preview Handlers", d:"", c:true}
 ];

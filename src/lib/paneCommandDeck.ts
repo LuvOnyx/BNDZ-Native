@@ -17,6 +17,9 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'compare':
       return { kind: 'plugin', pluginId: 'compare' };
     case 'mesh-drop':
+    case 'mesh-shell-here':
+    case 'mesh-download':
+    case 'mesh-edit-remote':
       return { kind: 'plugin', pluginId: 'remote-mesh' };
     case 'waveform':
     case 'media-tab':

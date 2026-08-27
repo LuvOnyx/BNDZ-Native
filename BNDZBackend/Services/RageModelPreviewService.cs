@@ -2,14 +2,17 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+#if BNDZ_HAS_CODEWALKER
 using CodeWalker.GameFiles;
 using SharpDX;
+#endif
 
 namespace BNDZ.Services;
 
 /// <summary>
 /// Converts Rockstar RAGE assets (.ydr / .ybn / .ydd / .yft) into OBJ meshes for the WebGL preview pipeline.
 /// Uses CodeWalker.Core (MIT) for RSC7 resource load — no game install required for loose files.
+/// When CodeWalker is not present under external/, conversion returns a clear unavailable error.
 /// </summary>
 public static class RageModelPreviewService
 {
@@ -33,6 +36,10 @@ public static class RageModelPreviewService
     public static (bool ok, string? previewPath, string? format, string? kind, int vertices, int triangles, string? error)
         TryGetPreviewObj(string sourcePath)
     {
+#if !BNDZ_HAS_CODEWALKER
+        return (false, null, null, null, 0, 0,
+            "RAGE preview requires CodeWalker.Core under external/CodeWalker (run scripts/build-bndz-native.ps1).");
+#else
         try
         {
             if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
@@ -78,8 +85,10 @@ public static class RageModelPreviewService
         {
             return (false, null, null, null, 0, 0, ex.Message);
         }
+#endif
     }
 
+#if BNDZ_HAS_CODEWALKER
     private static MeshExtract ExtractMesh(string ext, byte[] data, string name)
     {
         return ext switch
@@ -128,6 +137,26 @@ public static class RageModelPreviewService
         var frag = yft.Fragment;
         if (frag?.Drawable != null) AppendDrawable(mesh, frag.Drawable);
         if (frag?.DrawableCloth != null) AppendDrawable(mesh, frag.DrawableCloth);
+        // Vehicle/prop fragments often keep part meshes under PhysicsLOD children.
+        if (mesh.Vertices.Count == 0 && frag?.PhysicsLODGroup != null)
+        {
+            foreach (var lod in new[]
+                     {
+                         frag.PhysicsLODGroup.PhysicsLOD1,
+                         frag.PhysicsLODGroup.PhysicsLOD2,
+                         frag.PhysicsLODGroup.PhysicsLOD3,
+                     })
+            {
+                var children = lod?.Children?.data_items;
+                if (children == null) continue;
+                foreach (var child in children)
+                {
+                    if (child?.Drawable1 != null) AppendDrawable(mesh, child.Drawable1);
+                    if (child?.Drawable2 != null) AppendDrawable(mesh, child.Drawable2);
+                }
+                if (mesh.Vertices.Count > 0) break;
+            }
+        }
         return mesh;
     }
 
@@ -150,8 +179,18 @@ public static class RageModelPreviewService
 
     private static void AppendDrawable(MeshExtract mesh, DrawableBase? drawable)
     {
-        if (drawable?.AllModels == null) return;
-        foreach (var model in drawable.AllModels)
+        if (drawable == null) return;
+        // Read() usually builds this; call defensively for any loader path that skips it.
+        if (drawable.AllModels == null)
+            drawable.BuildAllModels();
+
+        // Prefer High LOD only — stacking Med/Low/VLow bloated previews and hid detail.
+        DrawableModel[]? models = drawable.DrawableModels?.High;
+        if (models == null || models.Length == 0)
+            models = drawable.AllModels;
+        if (models == null || models.Length == 0) return;
+
+        foreach (var model in models)
         {
             if (model?.Geometries == null) continue;
             foreach (var geom in model.Geometries)
@@ -265,4 +304,5 @@ public static class RageModelPreviewService
         public List<Vector3> Vertices { get; } = new();
         public List<int> Indices { get; } = new();
     }
+#endif
 }

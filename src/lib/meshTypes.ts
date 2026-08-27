@@ -12,6 +12,8 @@ export type MeshHost = {
   port: number;
   username: string;
   keyPath?: string;
+  certificatePath?: string;
+  proxyJump?: string;
   authKind: MeshAuthKind;
   jumpHostId?: string;
   hostKeyFingerprint?: string;
@@ -26,6 +28,7 @@ export type MeshHost = {
   showInNavTree?: boolean;
   remoteRootPath?: string;
   notes?: string;
+  /** Password or private-key passphrase (DPAPI on save). */
   passwordPlain?: string;
 };
 
@@ -59,7 +62,7 @@ export const MESH_PROVIDER_LABEL: Record<number, string> = {
 };
 
 export const MESH_AUTH_LABEL: Record<number, string> = {
-  0: 'SSH Agent',
+  0: 'SSH Agent / identity files',
   1: 'Private Key',
   2: 'Password',
 };
@@ -73,6 +76,8 @@ export function normalizeMeshHost(raw: Record<string, unknown>): MeshHost {
     port: Number(raw.port ?? raw.Port ?? 22),
     username: String(raw.username ?? raw.Username ?? ''),
     keyPath: (raw.keyPath ?? raw.KeyPath) as string | undefined,
+    certificatePath: (raw.certificatePath ?? raw.CertificatePath) as string | undefined,
+    proxyJump: (raw.proxyJump ?? raw.ProxyJump) as string | undefined,
     authKind: Number(raw.authKind ?? raw.AuthKind ?? 0) as MeshAuthKind,
     jumpHostId: (raw.jumpHostId ?? raw.JumpHostId) as string | undefined,
     hostKeyFingerprint: (raw.hostKeyFingerprint ?? raw.HostKeyFingerprint) as string | undefined,
@@ -115,6 +120,8 @@ export function meshHostToPayload(host: MeshHost): Record<string, unknown> {
     port: host.port,
     username: host.username,
     keyPath: host.keyPath || null,
+    certificatePath: host.certificatePath || null,
+    proxyJump: host.proxyJump || null,
     authKind: host.authKind,
     jumpHostId: host.jumpHostId || null,
     hostKeyFingerprint: host.hostKeyFingerprint || null,

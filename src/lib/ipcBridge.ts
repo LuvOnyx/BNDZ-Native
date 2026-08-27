@@ -593,6 +593,37 @@ export const IPC = {
     (window as any).chrome.webview.postMessage({ type: 'MESH_TERMINAL_CLOSE', payload: { sessionId } });
   },
 
+  meshTerminalResize(sessionId: string, cols: number, rows: number): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'MESH_TERMINAL_RESIZE',
+      payload: { sessionId, cols, rows },
+    });
+  },
+
+  meshStat(path: string): Promise<any> {
+    if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
+    const id = `${Date.now()}_meshStat`;
+    return _nativeCall<any>('MESH_STAT', 'MESH_STAT_RESULT', id, { path }, 30000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return r;
+    });
+  },
+
+  meshWrite(opts: {
+    path: string;
+    localFile?: string;
+    contentBase64?: string;
+    expectedRemoteMtime?: string;
+  }): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshWrite`;
+    return _nativeCall<any>('MESH_WRITE', 'MESH_WRITE_RESULT', id, opts, 120000).then(r => ({
+      ok: r?.ok !== false && !r?.error,
+      error: r?.error,
+    }));
+  },
+
   meshTransfer(payload: {
     operationId: string;
     direction: 'upload' | 'download' | 'replicate' | 'relay';

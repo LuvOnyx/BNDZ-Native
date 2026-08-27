@@ -1,6 +1,8 @@
+using System.Text.Json;
+
 namespace BNDZ.Services.Mesh;
 
-/// <summary>Central mesh coordinator — hosts, browsing, cache, sync, terminal.</summary>
+/// <summary>Central mesh coordinator — hosts, browsing, cache, sync, terminal, remote FS ops.</summary>
 public sealed class BndzMeshOrchestrator : IDisposable
 {
     private readonly MeshDatabase _db = new();
@@ -20,6 +22,7 @@ public sealed class BndzMeshOrchestrator : IDisposable
     public MeshTerminalService Terminal => _terminal;
     public MeshSyncEngine Sync => _sync;
     public MeshDatabase Database => _db;
+    public MeshCacheService Cache => _cache;
 
     public void SetSyncProgressCallback(Action<MeshSyncProgress>? cb) => _sync.SetProgressCallback(cb);
 
@@ -29,6 +32,13 @@ public sealed class BndzMeshOrchestrator : IDisposable
 
     public MeshHostRecord UpsertHost(MeshHostRecord host)
     {
+        if (!string.IsNullOrEmpty(host.PasswordPlain))
+        {
+            host.ProtectedSecret = MeshCredentialVault.Protect(host.PasswordPlain);
+            if (!string.IsNullOrEmpty(host.KeyPath) && host.AuthKind == MeshAuthKind.PrivateKey)
+                SshSftpMeshProvider.CacheSessionPassphrase(host.KeyPath, host.PasswordPlain);
+            host.PasswordPlain = null;
+        }
         _db.UpsertHost(host);
         return host;
     }
@@ -60,8 +70,25 @@ public sealed class BndzMeshOrchestrator : IDisposable
         _db.UpsertHost(host);
         try
         {
-            var provider = CreateProvider(host);
-            await provider.ConnectAsync(host, ct).ConfigureAwait(false);
+            IMeshProvider provider;
+            if (host.Provider == MeshProviderKind.Ssh
+                && !string.IsNullOrWhiteSpace(host.JumpHostId)
+                && !string.Equals(host.JumpHostId, hostId, StringComparison.OrdinalIgnoreCase))
+            {
+                await EnsureConnectedAsync(host.JumpHostId!, ct).ConfigureAwait(false);
+                var jumpProvider = GetSshProvider(host.JumpHostId!);
+                var jumpClient = jumpProvider.GetSshClient()
+                    ?? throw new InvalidOperationException("Jump host SSH client unavailable");
+                var ssh = new SshSftpMeshProvider();
+                await ssh.ConnectViaJumpAsync(host, jumpClient, ct).ConfigureAwait(false);
+                provider = ssh;
+            }
+            else
+            {
+                provider = CreateProvider(host);
+                await provider.ConnectAsync(host, ct).ConfigureAwait(false);
+            }
+
             lock (_providerLock) _providers[hostId] = provider;
             host.State = MeshConnectionState.Online;
             host.LastSeenUtc = DateTime.UtcNow;
@@ -120,7 +147,7 @@ public sealed class BndzMeshOrchestrator : IDisposable
         throw new InvalidOperationException("SSH provider not connected");
     }
 
-    private IMeshProvider GetProvider(string hostId)
+    public IMeshProvider GetConnectedProvider(string hostId)
     {
         lock (_providerLock)
         {
@@ -128,6 +155,8 @@ public sealed class BndzMeshOrchestrator : IDisposable
         }
         throw new InvalidOperationException($"Host {hostId} not connected");
     }
+
+    private IMeshProvider GetProvider(string hostId) => GetConnectedProvider(hostId);
 
     private static IMeshProvider CreateProvider(MeshHostRecord host) =>
         host.Provider == MeshProviderKind.S3 ? new S3MeshProvider() : new SshSftpMeshProvider();
@@ -153,15 +182,23 @@ public sealed class BndzMeshOrchestrator : IDisposable
         await EnsureConnectedAsync(hostId, ct).ConfigureAwait(false);
         var provider = GetProvider(hostId);
         var entries = await provider.ListAsync(remotePath, ct).ConfigureAwait(false);
-        return entries.Select(e => new DirListingSharedBuffer.DirEntryDto
+        return entries.Select(e =>
         {
-            Id = e.Name,
-            Name = e.Name,
-            Path = MeshPath.Build(hostId, JoinRemote(remotePath, e.Name)),
-            Type = e.IsDirectory ? "directory" : "file",
-            Size = e.Size,
-            ModifiedUtc = e.ModifiedUtc ?? DateTimeOffset.UtcNow,
-            Extension = e.IsDirectory ? "" : Path.GetExtension(e.Name).TrimStart('.'),
+            var dto = new DirListingSharedBuffer.DirEntryDto
+            {
+                Id = e.Name,
+                Name = e.Name,
+                Path = MeshPath.Build(hostId, JoinRemote(remotePath, e.Name)),
+                Type = e.IsDirectory ? "directory" : "file",
+                Size = e.Size,
+                ModifiedUtc = e.ModifiedUtc ?? DateTimeOffset.UtcNow,
+                Extension = e.IsDirectory ? "" : Path.GetExtension(e.Name).TrimStart('.'),
+                IsGhostLink = false,
+                LinkType = e.IsSymlink ? "symlink" : null,
+                LinkTarget = e.LinkTarget,
+                AttrBits = e.IsSymlink ? DirListingSharedBuffer.AttrReparse : (byte)0,
+            };
+            return dto;
         }).ToList();
     }
 
@@ -179,6 +216,131 @@ public sealed class BndzMeshOrchestrator : IDisposable
         EnsureConnected(hostId);
         var provider = GetProvider(hostId);
         await provider.UploadAsync(localFile, remotePath, null, ct).ConfigureAwait(false);
+        _cache.Invalidate(hostId, remotePath);
+    }
+
+    public async Task<MeshFileAttributes> StatAsync(string panePath, CancellationToken ct = default)
+    {
+        if (!MeshPath.TryParse(panePath, out var hostId, out var remotePath) || string.IsNullOrEmpty(hostId))
+            throw new InvalidOperationException("Invalid mesh path");
+        await EnsureConnectedAsync(hostId, ct).ConfigureAwait(false);
+        return await GetProvider(hostId).GetAttributesAsync(remotePath, ct).ConfigureAwait(false);
+    }
+
+    public async Task WriteBackAsync(string panePath, string localFile, DateTimeOffset? expectedRemoteMtime, CancellationToken ct = default)
+    {
+        if (!MeshPath.TryParse(panePath, out var hostId, out var remotePath) || string.IsNullOrEmpty(hostId))
+            throw new InvalidOperationException("Invalid mesh path");
+        await EnsureConnectedAsync(hostId, ct).ConfigureAwait(false);
+        var provider = GetProvider(hostId);
+        if (expectedRemoteMtime.HasValue)
+        {
+            var attr = await provider.GetAttributesAsync(remotePath, ct).ConfigureAwait(false);
+            if (attr.Exists && attr.ModifiedUtc.HasValue)
+            {
+                var remote = attr.ModifiedUtc.Value;
+                if (Math.Abs((remote - expectedRemoteMtime.Value.UtcDateTime).TotalSeconds) > 1.5)
+                    throw new InvalidOperationException(
+                        $"Remote file changed since hydrate (remote mtime {remote:o}). Reload before saving.");
+            }
+        }
+        await provider.UploadAsync(localFile, remotePath, null, ct).ConfigureAwait(false);
+        _cache.Invalidate(hostId, remotePath);
+    }
+
+    public async Task WriteBytesAsync(string panePath, byte[] content, CancellationToken ct = default)
+    {
+        if (!MeshPath.TryParse(panePath, out var hostId, out var remotePath) || string.IsNullOrEmpty(hostId))
+            throw new InvalidOperationException("Invalid mesh path");
+        await EnsureConnectedAsync(hostId, ct).ConfigureAwait(false);
+        await GetProvider(hostId).WriteBytesAsync(remotePath, content, ct).ConfigureAwait(false);
+        _cache.Invalidate(hostId, remotePath);
+    }
+
+    /// <summary>
+    /// Execute delete / move(rename) / create-dir / create-file against mesh pane paths.
+    /// Paths must be /mesh/{hostId}/… form (forward slashes).
+    /// </summary>
+    public async Task ExecuteFsOperationAsync(
+        string action,
+        IReadOnlyList<string> sources,
+        string? target,
+        CancellationToken ct = default)
+    {
+        switch (action)
+        {
+            case "delete":
+                foreach (var src in sources)
+                {
+                    if (!MeshPath.TryParse(src, out var hostId, out var remote) || string.IsNullOrEmpty(hostId))
+                        throw new InvalidOperationException($"Not a mesh path: {src}");
+                    await EnsureConnectedAsync(hostId, ct).ConfigureAwait(false);
+                    var provider = GetProvider(hostId);
+                    var attr = await provider.GetAttributesAsync(remote, ct).ConfigureAwait(false);
+                    if (attr.IsDirectory)
+                        await provider.RecursiveDeleteAsync(remote, ct).ConfigureAwait(false);
+                    else
+                        await provider.DeleteAsync(remote, ct).ConfigureAwait(false);
+                    _cache.Invalidate(hostId, remote);
+                }
+                break;
+
+            case "move":
+            case "rename":
+            {
+                if (sources.Count != 1 || string.IsNullOrWhiteSpace(target))
+                    throw new InvalidOperationException("Mesh rename requires one source and a target path");
+                if (!MeshPath.TryParse(sources[0], out var fromHost, out var fromRemote) || string.IsNullOrEmpty(fromHost))
+                    throw new InvalidOperationException("Invalid mesh source");
+                if (!MeshPath.TryParse(target!, out var toHost, out var toRemote) || string.IsNullOrEmpty(toHost))
+                    throw new InvalidOperationException("Invalid mesh target");
+                if (!string.Equals(fromHost, toHost, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Cross-host rename is not supported; use transfer instead");
+                await EnsureConnectedAsync(fromHost, ct).ConfigureAwait(false);
+                await GetProvider(fromHost).RenameAsync(fromRemote, toRemote, ct).ConfigureAwait(false);
+                _cache.Invalidate(fromHost, fromRemote);
+                _cache.Invalidate(fromHost, toRemote);
+                break;
+            }
+
+            case "create-dir":
+            {
+                var path = sources.FirstOrDefault() ?? target;
+                if (string.IsNullOrWhiteSpace(path) || !MeshPath.TryParse(path, out var hostId, out var remote) || string.IsNullOrEmpty(hostId))
+                    throw new InvalidOperationException("Invalid mesh create-dir path");
+                await EnsureConnectedAsync(hostId, ct).ConfigureAwait(false);
+                await GetProvider(hostId).MkdirAsync(remote, ct).ConfigureAwait(false);
+                break;
+            }
+
+            case "create-file":
+            {
+                var path = sources.FirstOrDefault() ?? target;
+                if (string.IsNullOrWhiteSpace(path) || !MeshPath.TryParse(path, out var hostId, out var remote) || string.IsNullOrEmpty(hostId))
+                    throw new InvalidOperationException("Invalid mesh create-file path");
+                await EnsureConnectedAsync(hostId, ct).ConfigureAwait(false);
+                await GetProvider(hostId).CreateFileAsync(remote, ct).ConfigureAwait(false);
+                break;
+            }
+
+            default:
+                throw new InvalidOperationException($"Unsupported mesh FS action: {action}");
+        }
+    }
+
+    public static bool LooksLikeMeshFsPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var n = path.Replace('\\', '/');
+        if (!n.StartsWith('/')) n = "/" + n;
+        return MeshPath.IsMeshPath(n);
+    }
+
+    public static string ToMeshPanePath(string path)
+    {
+        var n = path.Replace('\\', '/');
+        if (!n.StartsWith('/')) n = "/" + n;
+        return MeshPath.Normalize(n);
     }
 
     private static string JoinRemote(string basePath, string name)

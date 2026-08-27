@@ -5,6 +5,9 @@ export type ContextToolId =
   | 'batch-rename'
   | 'compare'
   | 'mesh-drop'
+  | 'mesh-shell-here'
+  | 'mesh-download'
+  | 'mesh-edit-remote'
   | 'waveform'
   | 'media-tab'
   | 'histogram'
@@ -143,6 +146,8 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('library-health', 'Health', 'health', 'library-health'),
         tool('branching-time', 'Branches', 'history_ui', 'branching-time'),
         tool('ghost-link', 'Ghost-Link', 'link', 'ghost-link'),
+        tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
+        tool('mesh-download', 'Download', 'download', 'remote-mesh'),
         tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
         tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
         tool('continuum-compose', 'Continuum', 'view_grid', undefined, 'host'),
@@ -155,6 +160,9 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('batch-rename', 'Rename', 'batch_rename', 'batch-rename'),
         tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
         tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
+        tool('mesh-download', 'Download', 'download', 'remote-mesh'),
+        tool('mesh-edit-remote', 'Edit Remote', 'edit', 'remote-mesh'),
         tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
       ];
   }

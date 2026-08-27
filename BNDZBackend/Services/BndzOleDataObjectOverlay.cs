@@ -144,7 +144,13 @@ internal sealed class BndzOleDataObjectOverlay : ComIDataObject
     public void DUnadvise(int connection) => _inner.DUnadvise(connection);
 
     public int EnumDAdvise(out IEnumSTATDATA enumAdvise)
-        => _inner.EnumDAdvise(out enumAdvise);
+    {
+        // COM may return a null enumerator when there are no advisory connections.
+        IEnumSTATDATA? result;
+        var hr = _inner.EnumDAdvise(out result);
+        enumAdvise = result!;
+        return hr;
+    }
 
     private static bool FormatsMatch(FORMATETC a, FORMATETC b)
         => a.cfFormat == b.cfFormat

@@ -1,0 +1,267 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH filessh 5  "filessh "
+.SH NAME
+\f[CR]filessh\-config\f[R] \- configuration file for the
+\f[CR]filessh\f[R] application.
+.SH SYNOPSIS
+The \f[CR]filessh\f[R] configuration is managed through a TOML file.
+The location of this file depends on the operating system.
+For example, on Linux, it is typically located at
+\f[CR]\(ti/.config/filessh/config.toml\f[R].
+.SH DESCRIPTION
+This man page documents the configuration system for the
+\f[CR]filessh\f[R] crate.
+The configuration is loaded from a \f[CR]config.toml\f[R] file and can
+be overridden by environment variables.
+The system allows for customization of application behavior, such as
+logging levels and visual themes.
+.PP
+The configuration is parsed using the \f[CR]config\f[R] crate, which
+allows for a hierarchical structure.
+Settings can also be provided through environment variables prefixed
+with \f[CR]FILESSH_\f[R].
+For nested keys, use double underscores \f[CR]__\f[R] to separate them
+(e.g., \f[CR]FILESSH_THEME__NAME=\(dqMyTheme\(dq\f[R]).
+.SH CONFIGURATION FILES
+\f[CR]filessh\f[R] attempts to load its configuration from a file named
+\f[CR]config.toml\f[R] in the following locations, in order of
+precedence:
+.IP "1." 3
+\f[B]Environment Variable\f[R]: The path specified by the
+\f[CR]FILESSH_CONFIG\f[R] environment variable.
+.IP "2." 3
+\f[B]Platform\-Specific Directory\f[R]: The standard configuration
+directory for the operating system:
+.RS 4
+.IP \(bu 2
+\f[B]Linux\f[R]: \f[CR]$XDG_CONFIG_HOME/filessh/\f[R] or
+\f[CR]$HOME/.config/filessh/\f[R]
+.IP \(bu 2
+\f[B]macOS\f[R]: \f[CR]$HOME/Library/Application Support/filessh/\f[R]
+.IP \(bu 2
+\f[B]Windows\f[R]:
+\f[CR]%LOCALAPPDATA%\(rsjayanaxhf\(rsfilessh\(rsconfig\(rs\f[R] (e.g.,
+\f[CR]C:\(rsUsers\(rs<user>\(rsAppData\(rsLocal\(rsjayanaxhf\(rsfilessh\(rsconfig\(rs\f[R])
+.RE
+.IP "3." 3
+\f[B]Fallback Directory\f[R]: A \f[CR].config\f[R] directory in the
+current working directory.
+.PP
+If no configuration file is found, the application will proceed with the
+default settings.
+.SH CONFIGURATION OPTIONS
+The following sections describe the available configuration options.
+.SS Top\-Level Settings
+These options are at the root of the configuration file.
+.IP \(bu 2
+\f[CR]debug\f[R] (boolean): If \f[CR]true\f[R], sets the logging level
+to \f[CR]DEBUG\f[R], providing verbose output for troubleshooting.
+Defaults to \f[CR]false\f[R].
+.IP \(bu 2
+\f[CR]silent\f[R] (boolean): If \f[CR]true\f[R], suppresses all logging
+output except for errors.
+Defaults to \f[CR]false\f[R].
+.SS Theming (\f[CR][theme]\f[R])
+The \f[CR]theme\f[R] section allows for customization of the
+application\(cqs appearance.
+You can either choose from a list of predefined default themes or define
+your own custom theme.
+.SS Using a Default Theme
+To use a predefined theme, you can specify its name.
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+theme = \(dqImperialDark\(dq
+.EE
+.PP
+The available default themes are:
+.IP \(bu 2
+\f[CR]ImperialDark\f[R] (Default)
+.IP \(bu 2
+\f[CR]RadiumDark\f[R]
+.IP \(bu 2
+\f[CR]TundraDark\f[R]
+.IP \(bu 2
+\f[CR]OceanDark\f[R]
+.IP \(bu 2
+\f[CR]MonochromeDark\f[R]
+.IP \(bu 2
+\f[CR]BlackWhiteDark\f[R]
+.IP \(bu 2
+\f[CR]Base16Dark\f[R]
+.IP \(bu 2
+\f[CR]Base16RelaxDark\f[R]
+.IP \(bu 2
+\f[CR]MonekaiDark\f[R]
+.IP \(bu 2
+\f[CR]SolarizedDark\f[R]
+.IP \(bu 2
+\f[CR]OxoCarbonDark\f[R]
+.IP \(bu 2
+\f[CR]RustDark\f[R]
+.IP \(bu 2
+\f[CR]VSCodeDark\f[R]
+.IP \(bu 2
+\f[CR]ImperialShell\f[R]
+.IP \(bu 2
+\f[CR]RadiumShell\f[R]
+.IP \(bu 2
+\f[CR]TundraShell\f[R]
+.IP \(bu 2
+\f[CR]OceanShell\f[R]
+.IP \(bu 2
+\f[CR]MonochromeShell\f[R]
+.IP \(bu 2
+\f[CR]BlackWhiteShell\f[R]
+.IP \(bu 2
+\f[CR]Base16Shell\f[R]
+.IP \(bu 2
+\f[CR]Base16RelaxShell\f[R]
+.IP \(bu 2
+\f[CR]MonekaiShell\f[R]
+.IP \(bu 2
+\f[CR]SolarizedShell\f[R]
+.IP \(bu 2
+\f[CR]OxoCarbonShell\f[R]
+.IP \(bu 2
+\f[CR]RustShell\f[R]
+.IP \(bu 2
+\f[CR]VSCodeShell\f[R]
+.SS Defining a Custom Theme
+To define a custom theme, you must provide a \f[CR][theme]\f[R] table
+with the following keys:
+.IP \(bu 2
+\f[CR]name\f[R] (string): The name of your custom theme.
+.IP \(bu 2
+\f[CR]type_\f[R] (string): The type of theme.
+Can be either \f[CR]\(dqDark\(dq\f[R] or \f[CR]\(dqShell\(dq\f[R].
+.IP \(bu 2
+\f[CR]palette\f[R] (table): A table defining the colors used in the
+theme.
+.SS Palette (\f[CR][theme.palette]\f[R])
+The \f[CR]palette\f[R] table requires a \f[CR]name\f[R] and a
+comprehensive set of color definitions.
+Colors should be specified as hex strings (e.g.,
+\f[CR]\(dq#DEDFE3\(dq\f[R]).
+.IP \(bu 2
+\f[CR]name\f[R] (string): The name of the palette.
+.PP
+\f[B]Text Colors:\f[R]
+.IP \(bu 2
+\f[CR]text_light\f[R]: Light text color.
+.IP \(bu 2
+\f[CR]text_bright\f[R]: Bright text color.
+.IP \(bu 2
+\f[CR]text_dark\f[R]: Dark text color.
+.IP \(bu 2
+\f[CR]text_black\f[R]: Black text color.
+.PP
+\f[B]Color Arrays:\f[R]
+.PP
+Each of the following keys expects an array of 8 hex color strings,
+representing different shades of the color.
+.IP \(bu 2
+\f[CR]white\f[R]
+.IP \(bu 2
+\f[CR]black\f[R]
+.IP \(bu 2
+\f[CR]gray\f[R]
+.IP \(bu 2
+\f[CR]red\f[R]
+.IP \(bu 2
+\f[CR]orange\f[R]
+.IP \(bu 2
+\f[CR]yellow\f[R]
+.IP \(bu 2
+\f[CR]limegreen\f[R]
+.IP \(bu 2
+\f[CR]green\f[R]
+.IP \(bu 2
+\f[CR]bluegreen\f[R]
+.IP \(bu 2
+\f[CR]cyan\f[R]
+.IP \(bu 2
+\f[CR]blue\f[R]
+.IP \(bu 2
+\f[CR]deepblue\f[R]
+.IP \(bu 2
+\f[CR]purple\f[R]
+.IP \(bu 2
+\f[CR]magenta\f[R]
+.IP \(bu 2
+\f[CR]redpink\f[R]
+.IP \(bu 2
+\f[CR]primary\f[R]
+.IP \(bu 2
+\f[CR]secondary\f[R]
+.SH DEFAULT CONFIGURATION
+If no \f[CR]config.toml\f[R] is provided, \f[CR]filessh\f[R] uses a
+default configuration.
+The following is an example that mirrors the structure of the default
+settings, which can be found in \f[CR]default_settings.toml\f[R].
+This also serves as a complete example of a custom theme definition.
+.IP
+.EX
+\f[I]# default_settings.toml\f[R]
+
+debug = false
+silent = false
+
+\f[B][theme]\f[R]
+name = \(dqDark\(dq
+type_ = \(dqDark\(dq
+
+\f[B][theme.palette]\f[R]
+name = \(dqImperial\(dq
+text_light = \(dq#DEDFE3\(dq
+text_bright = \(dq#F6F6F3\(dq
+text_dark = \(dq#2A2B37\(dq
+text_black = \(dq#0F1014\(dq
+white = [\(dq#DEDFE3\(dq, \(dq#E6E6E8\(dq, \(dq#EEEFEE\(dq, \(dq#F6F6F3\(dq, \(dq#363738\(dq, \(dq#383839\(dq, \(dq#3A3B3A\(dq, \(dq#3C3C3C\(dq]
+black = [\(dq#0F1014\(dq, \(dq#18191F\(dq, \(dq#21222C\(dq, \(dq#2A2B37\(dq, \(dq#030304\(dq, \(dq#050607\(dq, \(dq#08080A\(dq, \(dq#0A0A0D\(dq]
+gray = [\(dq#3B3D4E\(dq, \(dq#4C4E64\(dq, \(dq#5D617B\(dq, \(dq#6E7291\(dq, \(dq#0E0F13\(dq, \(dq#121318\(dq, \(dq#16171E\(dq, \(dq#1B1C23\(dq]
+red = [\(dq#480F0F\(dq, \(dq#761919\(dq, \(dq#A42323\(dq, \(dq#D22D2D\(dq, \(dq#110303\(dq, \(dq#1D0606\(dq, \(dq#280808\(dq, \(dq#330B0B\(dq]
+orange = [\(dq#482C0F\(dq, \(dq#764818\(dq, \(dq#A66522\(dq, \(dq#D4812B\(dq, \(dq#110A03\(dq, \(dq#1D1105\(dq, \(dq#291808\(dq, \(dq#341F0A\(dq]
+yellow = [\(dq#756600\(dq, \(dq#A38E00\(dq, \(dq#D1B600\(dq, \(dq#FFDE00\(dq, \(dq#1C1900\(dq, \(dq#282300\(dq, \(dq#332C00\(dq, \(dq#3F3600\(dq]
+limegreen = [\(dq#2C4611\(dq, \(dq#48731B\(dq, \(dq#64A127\(dq, \(dq#80CE31\(dq, \(dq#0A1104\(dq, \(dq#111C06\(dq, \(dq#182709\(dq, \(dq#1F320C\(dq]
+green = [\(dq#186218\(dq, \(dq#208520\(dq, \(dq#2AAA2A\(dq, \(dq#32CD32\(dq, \(dq#051805\(dq, \(dq#072007\(dq, \(dq#0A2A0A\(dq, \(dq#0C320C\(dq]
+bluegreen = [\(dq#206A52\(dq, \(dq#29886A\(dq, \(dq#32A682\(dq, \(dq#3BC49A\(dq, \(dq#071A14\(dq, \(dq#0A211A\(dq, \(dq#0C2920\(dq, \(dq#0E3026\(dq]
+cyan = [\(dq#0F2C48\(dq, \(dq#186476\(dq, \(dq#229CA6\(dq, \(dq#2BD4D4\(dq, \(dq#030A11\(dq, \(dq#05181D\(dq, \(dq#082629\(dq, \(dq#0A3434\(dq]
+blue = [\(dq#162B41\(dq, \(dq#1D4772\(dq, \(dq#2465A3\(dq, \(dq#2B81D4\(dq, \(dq#050A10\(dq, \(dq#07111C\(dq, \(dq#081828\(dq, \(dq#0A1F34\(dq]
+deepblue = [\(dq#202083\(dq, \(dq#26269B\(dq, \(dq#2C2CB5\(dq, \(dq#3232CD\(dq, \(dq#070720\(dq, \(dq#090926\(dq, \(dq#0A0A2C\(dq, \(dq#0C0C32\(dq]
+purple = [\(dq#4D008B\(dq, \(dq#6200B1\(dq, \(dq#7700D7\(dq, \(dq#8C00FD\(dq, \(dq#130022\(dq, \(dq#18002B\(dq, \(dq#1D0035\(dq, \(dq#22003E\(dq]
+magenta = [\(dq#401640\(dq, \(dq#692469\(dq, \(dq#943494\(dq, \(dq#BD42BD\(dq, \(dq#0F050F\(dq, \(dq#190819\(dq, \(dq#240C24\(dq, \(dq#2E102E\(dq]
+redpink = [\(dq#47101D\(dq, \(dq#701E31\(dq, \(dq#9A2E47\(dq, \(dq#C33C5B\(dq, \(dq#110303\(dq, \(dq#1B070C\(dq, \(dq#260B11\(dq, \(dq#300E16\(dq]
+primary = [\(dq#300057\(dq, \(dq#4E008E\(dq, \(dq#6E00C6\(dq, \(dq#8C00FD\(dq, \(dq#0B0015\(dq, \(dq#130023\(dq, \(dq#1B0030\(dq, \(dq#22003E\(dq]
+secondary = [\(dq#574B00\(dq, \(dq#8F7C00\(dq, \(dq#C7AD00\(dq, \(dq#FFDE00\(dq, \(dq#151200\(dq, \(dq#231E00\(dq, \(dq#312A00\(dq, \(dq#3F3600\(dq]
+.EE
+.SH EXAMPLES
+.SS Set a Default Theme
+To set the theme to \f[CR]SolarizedDark\f[R], your
+\f[CR]config.toml\f[R] would look like this:
+.IP
+.EX
+theme = \(dqSolarizedDark\(dq
+.EE
+.SS Override Settings with Environment Variables
+You can override any configuration setting using environment variables.
+The variable name should be prefixed with \f[CR]FILESSH_\f[R], be in
+uppercase, and use \f[CR]__\f[R] to separate keys.
+.PP
+To enable debug mode without modifying the configuration file:
+.IP
+.EX
+export FILESSH_DEBUG=true
+filessh
+.EE
+.PP
+To change the theme name in a custom theme configuration:
+.IP
+.EX
+export FILESSH_THEME__NAME=\(dqMy Special Theme\(dq
+filessh
+.EE
+.SH SEE ALSO
+\f[CR]filessh(1)\f[R]

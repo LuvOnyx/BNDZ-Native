@@ -296,7 +296,6 @@ namespace BNDZ.Services
         {
             _fileDragSessionActive = false;
             _fileDragSessionPaths = null;
-            _fileDragEscalateEdgeStreak = 0;
             _fileDragButtonUpSinceMs = 0;
         }
 
@@ -627,6 +626,7 @@ namespace BNDZ.Services
         {
             _pushWebMessage = pushWebMessage;
             _hostWindowHandle = hostWindowHandle;
+            _trayService = null; // WinUI/native shell supplies tray via host callbacks; WPF path sets this in MainWindow.
             if (hostWindowHandle != IntPtr.Zero)
             {
                 try { ModernShareHelper.SetOwnerHwnd(hostWindowHandle); } catch { /* ignore */ }
@@ -1176,8 +1176,7 @@ namespace BNDZ.Services
 
             try
             {
-                if (true) Post();
-                else PostToUi(Post);
+                Post();
             }
             catch { }
         }
@@ -1263,7 +1262,6 @@ namespace BNDZ.Services
                     }
                     _fileDragSessionPaths = filtered;
                     _fileDragSessionActive = true;
-                    _fileDragEscalateEdgeStreak = 0;
                     _fileDragButtonUpSinceMs = 0;
                     OleDndLog($"FILE_DRAG_ACTIVE arm paths={filtered.Length} hwnd=0x{_hostWindowHandle:X} wv=0x{WebView2DropTargetService.RegisteredWebViewHwnd:X}");
                     return;
@@ -1592,13 +1590,20 @@ namespace BNDZ.Services
         private static string NormalizeFsPath(string path)
         {
             if (string.IsNullOrEmpty(path)) return "";
+            // Preserve Remote Mesh virtual paths (/mesh/…) — never mangle to Windows FS shape.
+            var trimmed = path.Trim().Trim('"');
+            var meshProbe = trimmed.Replace('\\', '/');
+            if (!meshProbe.StartsWith('/')) meshProbe = "/" + meshProbe;
+            if (Mesh.MeshPath.IsMeshPath(meshProbe))
+                return Mesh.MeshPath.Normalize(meshProbe);
+
             // Prefer existence-checked sanitize for drag/FS ops; fall back to shape normalize.
             var clean = BndzOutboundDragHelper.SanitizeExistingPath(path, out _);
             if (!string.IsNullOrEmpty(clean)) return clean!;
 
             if (path.StartsWith("::{")) return path;
             if (path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)) return path;
-            var p = path.Trim().Trim('"');
+            var p = trimmed;
             try
             {
                 if (p.StartsWith("file:", StringComparison.OrdinalIgnoreCase)
@@ -1833,7 +1838,6 @@ namespace BNDZ.Services
         private bool _bndzOleDragActive;
         private bool _fileDragSessionActive;
         private string[]? _fileDragSessionPaths;
-        private int _fileDragEscalateEdgeStreak;
         /// <summary>Tick when LBUTTON was first observed up while an armed session stayed inside the host.</summary>
         private long _fileDragButtonUpSinceMs;
         private long _lastProactiveGhostDismissMs;
@@ -2023,7 +2027,8 @@ namespace BNDZ.Services
             RegisterWebView2OleDropTarget();
 
             // Re-register after navigation that might recreate the HWND, and eagerly on idle.
-            MainWebView.CoreWebView2.NavigationCompleted += (_, __) => SyncAllowExternalDrop();
+            if (MainWebView.CoreWebView2 != null)
+                MainWebView.CoreWebView2.NavigationCompleted += (_, __) => SyncAllowExternalDrop();
             _ = BeginInvokeInline(new Action(RegisterWebView2OleDropTarget),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
@@ -2770,8 +2775,7 @@ namespace BNDZ.Services
                 }
             }
 
-            if (true) Kickoff();
-            else _ = BeginInvokeInline(Kickoff);
+            Kickoff();
 
             try
             {
@@ -2800,7 +2804,9 @@ namespace BNDZ.Services
             if (!HasLiveUiTransport())
                 throw new InvalidOperationException("CoreWebView2 not ready");
 
-            var raw = await MainWebView.CoreWebView2
+            var coreForGpu = MainWebView.CoreWebView2
+                ?? throw new InvalidOperationException("CoreWebView2 not ready");
+            var raw = await coreForGpu
                 .CallDevToolsProtocolMethodAsync("SystemInfo.getInfo", "{}")
                 .ConfigureAwait(true);
 
@@ -2983,9 +2989,12 @@ namespace BNDZ.Services
             if (!HasLiveUiTransport())
                 throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
 
+            var coreWv = MainWebView.CoreWebView2
+                ?? throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
+
             // Suppress Edge/WebView2 default context menus — BNDZ uses custom React menus only
-            MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-            MainWebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            coreWv.Settings.AreDefaultContextMenusEnabled = false;
+            coreWv.Settings.AreBrowserAcceleratorKeysEnabled = false;
             // Match chrome so compositor never flashes white behind the UI (native feel).
             try { MainWebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 22, 24, 31); } catch { /* older runtimes */ }
             // Probe Chromium GPU/compositor status once — Perf HUD reports real adapter, not assumed flags.
@@ -2996,7 +3005,7 @@ namespace BNDZ.Services
                 if (Math.Abs(MainWebView.ZoomFactor - 1.0) > 0.001)
                     MainWebView.ZoomFactor = 1.0;
             };
-            MainWebView.CoreWebView2.ContextMenuRequested += (_, e) => e.Handled = true;
+            coreWv.ContextMenuRequested += (_, e) => e.Handled = true;
 
             string uiPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "ui");
             if (!System.IO.Directory.Exists(uiPath)) {
@@ -3004,47 +3013,47 @@ namespace BNDZ.Services
             }
 
             // Map virtual host to the UI folder for all static assets (index.html, JS, CSS, PNG icons)
-            MainWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            coreWv.SetVirtualHostNameToFolderMapping(
                 "bndz.local", uiPath,
                 Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
 
             // Register WebResourceRequested BEFORE navigation so it can intercept asset requests
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "http://bndz.local/assets/3d/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
             var allSources = Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestSourceKinds.All;
             // CAS icons/thumbs via custom scheme (folder mapping on bndz.local cannot serve these).
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 $"{BndzMediaScheme.CustomScheme}:*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
             // Local file streaming via custom scheme (not under bndz.local folder mapping)
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 $"{LocalStreamService.CustomScheme}:*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
             // Legacy filters kept so old cached UI builds still hit the handler if they somehow resolve
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "http://bndz.local/local-stream/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "https://bndz.local/local-stream/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
             // Legacy native-icon under folder map — intercept if Chromium still requests them from stale L1.
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "http://bndz.local/assets/native-icon/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
-            MainWebView.CoreWebView2.WebResourceRequested += CoreWebView2_WebResourceRequested;
+            coreWv.WebResourceRequested += CoreWebView2_WebResourceRequested;
 
-            MainWebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
-            MainWebView.CoreWebView2.ProcessFailed += CoreWebView2_ProcessFailed;
+            coreWv.WebMessageReceived += CoreWebView2_WebMessageReceived;
+            coreWv.ProcessFailed += CoreWebView2_ProcessFailed;
 
             SetupNativeFileDrop();
 
-            MainWebView.CoreWebView2.NavigationStarting += (s, e) =>
+            coreWv.NavigationStarting += (s, e) =>
             {
                 if (!e.Uri.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) return;
                 e.Cancel = true;
@@ -3055,7 +3064,7 @@ namespace BNDZ.Services
                 catch { }
             };
 
-            MainWebView.CoreWebView2.NewWindowRequested += (s, e) =>
+            coreWv.NewWindowRequested += (s, e) =>
             {
                 e.Handled = true;
                 try
@@ -3118,12 +3127,14 @@ namespace BNDZ.Services
                 // the new renderer HWND is live.
                 try
                 {
+                    var core = MainWebView.CoreWebView2;
+                    if (core == null) return;
                     void ReregisterOnNavComplete(object? s, CoreWebView2NavigationCompletedEventArgs _ev)
                     {
-                        MainWebView.CoreWebView2.NavigationCompleted -= ReregisterOnNavComplete;
+                        core.NavigationCompleted -= ReregisterOnNavComplete;
                         RegisterWebView2OleDropTarget();
                     }
-                    MainWebView.CoreWebView2.NavigationCompleted += ReregisterOnNavComplete;
+                    core.NavigationCompleted += ReregisterOnNavComplete;
                     MainWebView.Reload();
                 }
                 catch { }
@@ -4197,7 +4208,11 @@ namespace BNDZ.Services
                         var host = JsonSerializer.Deserialize<MeshHostRecord>(hostJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                             ?? throw new InvalidOperationException("Invalid host payload");
                         if (!string.IsNullOrEmpty(host.PasswordPlain))
+                        {
                             host.ProtectedSecret = MeshCredentialVault.Protect(host.PasswordPlain);
+                            if (host.AuthKind == MeshAuthKind.PrivateKey && !string.IsNullOrEmpty(host.KeyPath))
+                                SshSftpMeshProvider.CacheSessionPassphrase(host.KeyPath, host.PasswordPlain);
+                        }
                         host.PasswordPlain = null;
                         var saved = _meshOrchestrator.UpsertHost(host);
                         BroadcastMeshHostsChanged();
@@ -4316,6 +4331,60 @@ namespace BNDZ.Services
                 {
                     var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
                     _meshOrchestrator.Terminal.Close(sessionId);
+                }
+                else if (type == "MESH_TERMINAL_RESIZE")
+                {
+                    var payload = root.GetProperty("payload");
+                    var sessionId = payload.GetProperty("sessionId").GetString() ?? "";
+                    var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
+                    var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
+                    _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_STAT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var panePath = root.GetProperty("payload").TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var attr = await _meshOrchestrator.StatAsync(panePath).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", attr);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", new { error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_WRITE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var panePath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var localFile = payload.TryGetProperty("localFile", out var lfEl) ? lfEl.GetString() : null;
+                    var contentB64 = payload.TryGetProperty("contentBase64", out var b64El) ? b64El.GetString() : null;
+                    DateTimeOffset? expectedMtime = null;
+                    if (payload.TryGetProperty("expectedRemoteMtime", out var mtEl) && mtEl.ValueKind == JsonValueKind.String
+                        && DateTimeOffset.TryParse(mtEl.GetString(), out var parsed))
+                        expectedMtime = parsed;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(localFile) && File.Exists(localFile))
+                                await _meshOrchestrator.WriteBackAsync(panePath, localFile!, expectedMtime).ConfigureAwait(false);
+                            else if (!string.IsNullOrEmpty(contentB64))
+                                await _meshOrchestrator.WriteBytesAsync(panePath, Convert.FromBase64String(contentB64!)).ConfigureAwait(false);
+                            else
+                                throw new InvalidOperationException("MESH_WRITE requires localFile or contentBase64");
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = true, path = panePath });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
                 }
                 else if (type == "MESH_TRANSFER")
                 {
@@ -10054,20 +10123,23 @@ namespace BNDZ.Services
                     var stream = mapper.GetIconStream(iconName);
                     if (stream != null)
                     {
-                        var env = MainWebView.CoreWebView2.Environment;
+                        var env = MainWebView.CoreWebView2?.Environment;
+                        if (env == null) return;
                         var response = env.CreateWebResourceResponse(stream, 200, "OK", "Content-Type: image/png");
                         e.Response = response;
                     }
                 }
                 else if (BndzMediaScheme.IsMediaRequest(e.Request.Uri))
                 {
-                    var env = MainWebView.CoreWebView2.Environment;
+                    var env = MainWebView.CoreWebView2?.Environment;
+                    if (env == null) return;
                     BndzMediaScheme.Serve(env, e);
                 }
                 else if (LocalStreamService.IsStreamRequest(e.Request.Uri))
                 {
                     string localPath = LocalStreamService.ParseLocalStreamPath(e.Request.Uri);
-                    var env = MainWebView.CoreWebView2.Environment;
+                    var env = MainWebView.CoreWebView2?.Environment;
+                    if (env == null) return;
                     LocalStreamService.ServeLocalFile(env, e, localPath);
                 }
             }
@@ -10453,6 +10525,32 @@ namespace BNDZ.Services
             bool recreateSourceStructure = false,
             string? idProp = null)
         {
+            // Remote Mesh FS ops — FileSSH-class CRUD routed through SFTP/S3 providers.
+            var meshSources = sources.Where(BndzMeshOrchestrator.LooksLikeMeshFsPath).Select(BndzMeshOrchestrator.ToMeshPanePath).ToList();
+            var targetIsMesh = BndzMeshOrchestrator.LooksLikeMeshFsPath(target);
+            if (meshSources.Count > 0 || (targetIsMesh && action is "create-dir" or "create-file"))
+            {
+                var meshTarget = targetIsMesh ? BndzMeshOrchestrator.ToMeshPanePath(target) : target;
+                var meshLabel = BuildFileOpLabel(action, meshSources.Count > 0 ? meshSources : new List<string> { meshTarget }, labelOverride);
+                _fileTransferQueue.RegisterJob(operationId, action, meshLabel, "mesh", Math.Max(meshSources.Count, 1), "mesh", priority, meshTarget);
+                try
+                {
+                    var opSources = meshSources.Count > 0 ? meshSources : new List<string> { meshTarget };
+                    await _meshOrchestrator.ExecuteFsOperationAsync(action, opSources, string.IsNullOrWhiteSpace(meshTarget) ? null : meshTarget)
+                        .ConfigureAwait(false);
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    if (!string.IsNullOrEmpty(idProp))
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = true, background = false, engine = "mesh" });
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    if (!string.IsNullOrEmpty(idProp))
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = ex.Message, engine = "mesh" });
+                }
+                return;
+            }
+
             var prefs = FileOperationPreferences.Current;
             if (!recreateSourceStructure
                 && string.Equals(prefs.RecreateSourceFolderStructure, "Always", StringComparison.OrdinalIgnoreCase)

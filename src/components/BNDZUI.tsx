@@ -260,7 +260,8 @@ import {
 import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath, panePathsEqual, isValidShellTarget } from '../lib/pathUtils';
 import { millerRootForMount, resolveMillerRootOnNavigate } from '../lib/millerColumns';
 import { appendDropStackPaths } from '../lib/dropStackStore';
-import { isMeshPath } from '../lib/meshPaths';
+import { isMeshPath, buildMeshPath, MESH_ROOT, parseMeshPath } from '../lib/meshPaths';
+import { preserveMeshOrFsPath, meshShellHere, meshDownloadSelection } from '../lib/meshFsOps';
 import { canonicalDropPath, resolveDropRoute, resolveEntityDragPath, MESH_DROP_INBOX_DEST } from '../lib/fsPathRouting';
 import { isValidOutboundDragPath } from '../lib/pathUtils';
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
@@ -281,7 +282,6 @@ import { listCatalogs } from '../lib/catalog';
 import { dispatchCustomEvent } from '../lib/customEventActions';
 import { dispatchMouseItemBinding, resolveMouseBindingKey } from '../lib/mouseBindings';
 import { applyNavTreeOrder, mergeNavTreeOrder, type NavTreeBuildNode } from '../lib/navTreeOrder';
-import { buildMeshPath, MESH_ROOT } from '../lib/meshPaths';
 import { normalizeMeshHost, type MeshHost } from '../lib/meshTypes';
 import { runMenubarAction } from '../lib/menubarUtils';
 import {
@@ -2601,10 +2601,15 @@ export default function BNDZUI() {
       targetPath = targetDir ? `${targetDir}/${targetName}` : joinPanePath(panePath, { name: targetName });
     }
 
-    const winSource = entity.fsPath
-      ? String(entity.fsPath)
-      : await resolvePanePathForFs(sourcePath);
-    const winTarget = await resolvePanePathForFs(normalizePanePath(targetPath));
+    const isMesh = isMeshPath(sourcePath) || isMeshPath(panePath);
+    const winSource = isMesh
+      ? preserveMeshOrFsPath(sourcePath)
+      : (entity.fsPath
+        ? String(entity.fsPath)
+        : await resolvePanePathForFs(sourcePath));
+    const winTarget = isMesh
+      ? preserveMeshOrFsPath(normalizePanePath(targetPath))
+      : await resolvePanePathForFs(normalizePanePath(targetPath));
     if (!winSource || /^bndz\\/i.test(winSource) || !winTarget || /^bndz\\/i.test(winTarget)) {
       setToastMessage('Cannot rename in this location.', 'warning');
       return false;
@@ -3757,8 +3762,13 @@ export default function BNDZUI() {
       void (async () => {
       const normPath = normalizePanePath(path);
       const winPaths = (await Promise.all(items.map(async (entity: any) => {
-        if (entity.fsPath) return String(entity.fsPath).replace(/\//g, '\\');
+        if (entity.fsPath && !isMeshPath(entity.path) && !isMeshPath(path)) {
+          return String(entity.fsPath).replace(/\//g, '\\');
+        }
         const raw = entity.path || joinPanePath(path, { name: entity.name });
+        if (isMeshPath(raw) || isMeshPath(path)) {
+          return preserveMeshOrFsPath(String(raw));
+        }
         if (isBndzRamPath(raw) || isBndzRamPath(path)) {
           return (await resolvePanePathForFs(String(raw))) || '';
         }
@@ -7701,6 +7711,45 @@ export default function BNDZUI() {
     };
     window.addEventListener('bndz-mesh-drop-send', onMeshDropSend);
     return () => window.removeEventListener('bndz-mesh-drop-send', onMeshDropSend);
+  }, []);
+
+  useEffect(() => {
+    const onMeshEdit = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const meshPath = String(detail.meshPath || '');
+      const localPath = String(detail.localPath || '');
+      const expectedRemoteMtime = detail.expectedRemoteMtime as string | undefined;
+      if (!meshPath || !localPath) return;
+      (window as any).__bndzMeshEditSession = { meshPath, localPath, expectedRemoteMtime };
+      setToastMessage('Remote edit armed — dispatch bndz-mesh-write-back after saving the hydrated file.', 'success');
+    };
+    const onMeshWriteBack = () => {
+      const session = (window as any).__bndzMeshEditSession as
+        | { meshPath: string; localPath: string; expectedRemoteMtime?: string }
+        | undefined;
+      if (!session?.meshPath || !session.localPath) {
+        setToastMessage('No remote edit session active.', 'warning');
+        return;
+      }
+      void IPC.meshWrite({
+        path: session.meshPath,
+        localFile: session.localPath,
+        expectedRemoteMtime: session.expectedRemoteMtime,
+      }).then(res => {
+        if (res.ok) {
+          setToastMessage('Wrote changes back to remote host.', 'success');
+          (window as any).__bndzMeshEditSession = null;
+        } else {
+          setToastMessage(res.error || 'Remote write-back failed', 'warning');
+        }
+      });
+    };
+    window.addEventListener('bndz-mesh-edit-remote', onMeshEdit);
+    window.addEventListener('bndz-mesh-write-back', onMeshWriteBack);
+    return () => {
+      window.removeEventListener('bndz-mesh-edit-remote', onMeshEdit);
+      window.removeEventListener('bndz-mesh-write-back', onMeshWriteBack);
+    };
   }, []);
 
   useEffect(() => {
@@ -12004,6 +12053,67 @@ export default function BNDZUI() {
         setMeshDropPaths(bottomSelectionTargets.paths);
         setShowMeshDropDialog(true);
         break;
+      case 'mesh-shell-here': {
+        const paths = bottomSelectionTargets.paths;
+        const pane = currentTab.path;
+        const probe = (paths[0] && isMeshPath(paths[0])) ? paths[0] : pane;
+        if (!isMeshPath(probe)) {
+          setToastMessage('Shell Here works inside a Remote Mesh folder.', 'warning');
+          break;
+        }
+        const { hostId, remotePath } = parseMeshPath(probe);
+        if (!hostId) break;
+        const cwd = remotePath || '/';
+        void meshShellHere(hostId, cwd).then(res => {
+          if (res.error) {
+            setToastMessage(res.error, 'warning');
+            return;
+          }
+          openBottomPlugin('remote-mesh', { tab: 'terminal', sessionId: res.sessionId, hostId });
+          setToastMessage(`SSH shell at ${cwd}`, 'success');
+        });
+        break;
+      }
+      case 'mesh-download': {
+        const meshSel = bottomSelectionTargets.paths.filter(isMeshPath);
+        if (!meshSel.length) {
+          setToastMessage('Select remote Mesh items to download.', 'warning');
+          break;
+        }
+        const dest = window.prompt('Download to local folder:', 'C:\\Users\\Public\\Downloads');
+        if (!dest) break;
+        void meshDownloadSelection(meshSel, dest).then(res => {
+          setToastMessage(res.ok ? 'Mesh download started…' : (res.error || 'Download failed'), res.ok ? 'success' : 'warning');
+        });
+        break;
+      }
+      case 'mesh-edit-remote': {
+        const meshFile = bottomSelectionTargets.paths.find(p => isMeshPath(p) && !p.endsWith('/'));
+        if (!meshFile) {
+          setToastMessage('Select a remote file to edit.', 'warning');
+          break;
+        }
+        void (async () => {
+          try {
+            const hydrated = await IPC.meshHydratePaths([meshFile]);
+            const local = hydrated.paths?.[0];
+            if (!local) throw new Error(hydrated.error || 'Hydrate failed');
+            const attr = await IPC.meshStat(meshFile).catch(() => null);
+            window.dispatchEvent(new CustomEvent('bndz-mesh-edit-remote', {
+              detail: {
+                meshPath: meshFile,
+                localPath: local,
+                expectedRemoteMtime: attr?.modifiedUtc || attr?.ModifiedUtc,
+              },
+            }));
+            openPreviewWithTab('preview');
+            setToastMessage('Remote file hydrated — save writes back to the host.', 'success');
+          } catch (e: any) {
+            setToastMessage(e?.message || 'Could not open remote file', 'warning');
+          }
+        })();
+        break;
+      }
       case 'waveform':
         openPreviewWithTab('media');
         openBottomPlugin('metadata');
@@ -12146,7 +12256,18 @@ export default function BNDZUI() {
     config.workIntentId,
     installedPluginIdSet,
     sidebarRamZones,
+    currentTab.path,
   ]);
+
+  useEffect(() => {
+    const onDeckTool = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id as ContextToolId | undefined;
+      if (!id) return;
+      handleCommandDeckTool(id);
+    };
+    window.addEventListener('bndz-command-deck-tool', onDeckTool);
+    return () => window.removeEventListener('bndz-command-deck-tool', onDeckTool);
+  }, [handleCommandDeckTool]);
 
   const uiRadius = config.uiCornerRadius === 'sharp' ? '0px' : config.uiCornerRadius === 'round' ? '12px' : '6px';
 

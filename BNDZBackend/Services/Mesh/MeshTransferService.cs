@@ -35,37 +35,59 @@ public sealed class MeshTransferService
         try
         {
             _mesh.EnsureConnected(hostId);
-            var provider = _mesh.GetSshProvider(hostId);
+            var provider = _mesh.GetConnectedProvider(hostId);
             var destRoot = NormalizeRemoteDir(remoteDestDir);
+            var degree = Math.Clamp(Environment.ProcessorCount / 2, 2, 6);
+            using var gate = new SemaphoreSlim(degree, degree);
+            var tasks = new List<Task>();
+            var lockObj = new object();
 
             foreach (var item in work)
             {
-                ct.ThrowIfCancellationRequested();
-                var rel = item.RelativeName.Replace('\\', '/');
-                var remotePath = destRoot == "/" ? "/" + rel : destRoot + "/" + rel;
-                var remoteDir = remotePath.Contains('/') ? remotePath[..remotePath.LastIndexOf('/')] : "/";
-                if (!string.IsNullOrEmpty(remoteDir)) await provider.MkdirAsync(remoteDir, ct).ConfigureAwait(false);
-
-                var fileProgress = new Progress<long>(bytes =>
+                await gate.WaitAsync(ct).ConfigureAwait(false);
+                tasks.Add(Task.Run(async () =>
                 {
-                    var speed = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
-                    var pct = totalBytes > 0
-                        ? (int)Math.Clamp((transferred + bytes) * 100 / totalBytes, 0, 99)
-                        : (int)Math.Clamp((completed * 100.0) / work.Count, 0, 99);
-                    _queue.UpdateProgress(operationId, pct, item.LocalPath, completed, work.Count,
-                        transferred + bytes, totalBytes, speed);
-                });
+                    try
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var rel = item.RelativeName.Replace('\\', '/');
+                        var remotePath = destRoot == "/" ? "/" + rel : destRoot + "/" + rel;
+                        var remoteDir = remotePath.Contains('/') ? remotePath[..remotePath.LastIndexOf('/')] : "/";
+                        if (!string.IsNullOrEmpty(remoteDir)) await provider.MkdirAsync(remoteDir, ct).ConfigureAwait(false);
 
-                await provider.UploadAsync(item.LocalPath, remotePath, fileProgress, ct).ConfigureAwait(false);
-                transferred += item.Size;
-                completed++;
-                var speedNow = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
-                var pctDone = totalBytes > 0
-                    ? (int)Math.Clamp(transferred * 100 / totalBytes, 0, 99)
-                    : (int)Math.Clamp(completed * 100.0 / work.Count, 0, 99);
-                _queue.UpdateProgress(operationId, pctDone, item.LocalPath, completed, work.Count, transferred, totalBytes, speedNow);
+                        var fileProgress = new Progress<long>(bytes =>
+                        {
+                            lock (lockObj)
+                            {
+                                var speed = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
+                                var pct = totalBytes > 0
+                                    ? (int)Math.Clamp((transferred + bytes) * 100 / totalBytes, 0, 99)
+                                    : (int)Math.Clamp((completed * 100.0) / work.Count, 0, 99);
+                                _queue.UpdateProgress(operationId, pct, item.LocalPath, completed, work.Count,
+                                    transferred + bytes, totalBytes, speed);
+                            }
+                        });
+
+                        await provider.UploadAsync(item.LocalPath, remotePath, fileProgress, ct).ConfigureAwait(false);
+                        lock (lockObj)
+                        {
+                            transferred += item.Size;
+                            completed++;
+                            var speedNow = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
+                            var pctDone = totalBytes > 0
+                                ? (int)Math.Clamp(transferred * 100 / totalBytes, 0, 99)
+                                : (int)Math.Clamp(completed * 100.0 / work.Count, 0, 99);
+                            _queue.UpdateProgress(operationId, pctDone, item.LocalPath, completed, work.Count, transferred, totalBytes, speedNow);
+                        }
+                    }
+                    finally
+                    {
+                        gate.Release();
+                    }
+                }, ct));
             }
 
+            await Task.WhenAll(tasks).ConfigureAwait(false);
             _queue.MarkCompleted(operationId);
         }
         catch (OperationCanceledException)
@@ -87,59 +109,86 @@ public sealed class MeshTransferService
         string localDestDir,
         CancellationToken ct = default)
     {
-        var work = new List<RemoteFileWork>();
+        _mesh.EnsureConnected(hostId);
+        var provider = _mesh.GetConnectedProvider(hostId);
+
+        var walkProgress = new Progress<(int Found, string? Current)>(p =>
+        {
+            _queue.UpdateProgress(operationId, 0, p.Current ?? "Scanning…", 0, Math.Max(p.Found, 1), 0, 0);
+        });
+
+        // Register early so UI shows scanning state
+        _queue.RegisterJob(operationId, "mesh-download", "Scanning remote…", "sftp", 1, "mesh", FileTransferPriority.High, localDestDir);
+
+        var work = new List<MeshParallelWalker.RemoteFileNode>();
         foreach (var pane in meshPanePaths)
         {
             if (!MeshPath.TryParse(pane, out var hid, out var remotePath) || string.IsNullOrEmpty(hid))
                 continue;
             if (!string.Equals(hid, hostId, StringComparison.OrdinalIgnoreCase)) continue;
             var leaf = remotePath.TrimEnd('/').Split('/').LastOrDefault() ?? "download";
-            await CollectRemoteFilesAsync(hid, remotePath, leaf, work, ct).ConfigureAwait(false);
+            var nodes = await MeshParallelWalker.CollectFilesAsync(provider, remotePath, leaf, 0, walkProgress, ct)
+                .ConfigureAwait(false);
+            work.AddRange(nodes);
         }
 
         if (work.Count == 0) throw new InvalidOperationException("No remote files to download");
 
         Directory.CreateDirectory(localDestDir);
         long totalBytes = work.Sum(w => w.Size);
-        _queue.RegisterJob(operationId, "mesh-download", BuildLabel(work.Select(w => w.DisplayName).ToList()), "sftp", work.Count, "mesh", FileTransferPriority.High, localDestDir);
         _queue.UpdateProgress(operationId, 0, work[0].DisplayName, 0, work.Count, 0, totalBytes);
 
         var sw = Stopwatch.StartNew();
         long transferred = 0;
         int completed = 0;
+        var degree = Math.Clamp(Environment.ProcessorCount / 2, 2, 6);
+        using var gate = new SemaphoreSlim(degree, degree);
+        var lockObj = new object();
 
         try
         {
-            _mesh.EnsureConnected(hostId);
-            var provider = _mesh.GetSshProvider(hostId);
-
-            foreach (var item in work)
+            var tasks = work.Select(item => Task.Run(async () =>
             {
-                ct.ThrowIfCancellationRequested();
-                var localFile = Path.Combine(localDestDir, item.RelativeName);
-                var localDir = Path.GetDirectoryName(localFile);
-                if (!string.IsNullOrEmpty(localDir)) Directory.CreateDirectory(localDir);
-
-                var fileProgress = new Progress<long>(bytes =>
+                await gate.WaitAsync(ct).ConfigureAwait(false);
+                try
                 {
-                    var speed = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
-                    var pct = totalBytes > 0
-                        ? (int)Math.Clamp((transferred + bytes) * 100 / totalBytes, 0, 99)
-                        : (int)Math.Clamp((completed * 100.0) / work.Count, 0, 99);
-                    _queue.UpdateProgress(operationId, pct, item.DisplayName, completed, work.Count,
-                        transferred + bytes, totalBytes, speed);
-                });
+                    ct.ThrowIfCancellationRequested();
+                    var localFile = Path.Combine(localDestDir, item.RelativeName);
+                    var localDir = Path.GetDirectoryName(localFile);
+                    if (!string.IsNullOrEmpty(localDir)) Directory.CreateDirectory(localDir);
 
-                await provider.DownloadAsync(item.RemotePath, localFile, fileProgress, ct).ConfigureAwait(false);
-                transferred += item.Size > 0 ? item.Size : new FileInfo(localFile).Length;
-                completed++;
-                var speedNow = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
-                var pctDone = totalBytes > 0
-                    ? (int)Math.Clamp(transferred * 100 / totalBytes, 0, 99)
-                    : (int)Math.Clamp(completed * 100.0 / work.Count, 0, 99);
-                _queue.UpdateProgress(operationId, pctDone, item.DisplayName, completed, work.Count, transferred, totalBytes, speedNow);
-            }
+                    var fileProgress = new Progress<long>(bytes =>
+                    {
+                        lock (lockObj)
+                        {
+                            var speed = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
+                            var pct = totalBytes > 0
+                                ? (int)Math.Clamp((transferred + bytes) * 100 / totalBytes, 0, 99)
+                                : (int)Math.Clamp((completed * 100.0) / work.Count, 0, 99);
+                            _queue.UpdateProgress(operationId, pct, item.DisplayName, completed, work.Count,
+                                transferred + bytes, totalBytes, speed);
+                        }
+                    });
 
+                    await provider.DownloadAsync(item.RemotePath, localFile, fileProgress, ct).ConfigureAwait(false);
+                    lock (lockObj)
+                    {
+                        transferred += item.Size > 0 ? item.Size : new FileInfo(localFile).Length;
+                        completed++;
+                        var speedNow = sw.Elapsed.TotalSeconds > 0.1 ? transferred / sw.Elapsed.TotalSeconds : 0;
+                        var pctDone = totalBytes > 0
+                            ? (int)Math.Clamp(transferred * 100 / totalBytes, 0, 99)
+                            : (int)Math.Clamp(completed * 100.0 / work.Count, 0, 99);
+                        _queue.UpdateProgress(operationId, pctDone, item.DisplayName, completed, work.Count, transferred, totalBytes, speedNow);
+                    }
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }, ct)).ToArray();
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
             _queue.MarkCompleted(operationId);
         }
         catch (OperationCanceledException)
@@ -162,13 +211,16 @@ public sealed class MeshTransferService
         bool move,
         CancellationToken ct = default)
     {
-        var work = new List<RemoteFileWork>();
+        _mesh.EnsureConnected(hostId);
+        var provider = _mesh.GetConnectedProvider(hostId);
+        var work = new List<MeshParallelWalker.RemoteFileNode>();
         foreach (var pane in meshPanePaths)
         {
             if (!MeshPath.TryParse(pane, out var hid, out var remotePath) || string.IsNullOrEmpty(hid)) continue;
             if (!string.Equals(hid, hostId, StringComparison.OrdinalIgnoreCase)) continue;
             var leaf = remotePath.TrimEnd('/').Split('/').LastOrDefault() ?? "item";
-            await CollectRemoteFilesAsync(hid, remotePath, leaf, work, ct).ConfigureAwait(false);
+            var nodes = await MeshParallelWalker.CollectFilesAsync(provider, remotePath, leaf, 0, null, ct).ConfigureAwait(false);
+            work.AddRange(nodes);
         }
         if (work.Count == 0) throw new InvalidOperationException("No remote files to replicate");
 
@@ -184,9 +236,6 @@ public sealed class MeshTransferService
 
         try
         {
-            _mesh.EnsureConnected(hostId);
-            var provider = _mesh.GetSshProvider(hostId);
-
             foreach (var item in work)
             {
                 ct.ThrowIfCancellationRequested();
@@ -253,17 +302,17 @@ public sealed class MeshTransferService
             if (move)
             {
                 _mesh.EnsureConnected(srcHostId);
-                var provider = _mesh.GetSshProvider(srcHostId);
-                var work = new List<RemoteFileWork>();
+                var provider = _mesh.GetConnectedProvider(srcHostId);
                 foreach (var pane in meshPanePaths)
                 {
                     if (!MeshPath.TryParse(pane, out var hid, out var remotePath) || string.IsNullOrEmpty(hid)) continue;
                     if (!string.Equals(hid, srcHostId, StringComparison.OrdinalIgnoreCase)) continue;
-                    var leaf = remotePath.TrimEnd('/').Split('/').LastOrDefault() ?? "item";
-                    await CollectRemoteFilesAsync(hid, remotePath, leaf, work, ct).ConfigureAwait(false);
+                    var attr = await provider.GetAttributesAsync(remotePath, ct).ConfigureAwait(false);
+                    if (attr.IsDirectory)
+                        await provider.RecursiveDeleteAsync(remotePath, ct).ConfigureAwait(false);
+                    else
+                        await provider.DeleteAsync(remotePath, ct).ConfigureAwait(false);
                 }
-                foreach (var item in work)
-                    await provider.DeleteAsync(item.RemotePath, ct).ConfigureAwait(false);
             }
         }
         finally
@@ -273,50 +322,6 @@ public sealed class MeshTransferService
                 if (Directory.Exists(staging)) Directory.Delete(staging, true);
             }
             catch { /* best effort */ }
-        }
-    }
-
-    private async Task CollectRemoteFilesAsync(string hostId, string remotePath, string relPrefix, List<RemoteFileWork> acc, CancellationToken ct)
-    {
-        _mesh.EnsureConnected(hostId);
-        var provider = _mesh.GetSshProvider(hostId);
-        IReadOnlyList<MeshDirEntry> entries;
-        try
-        {
-            entries = await provider.ListAsync(remotePath, ct).ConfigureAwait(false);
-        }
-        catch
-        {
-            var leaf = Path.GetFileName(remotePath.Replace('/', '\\'));
-            var rel = string.IsNullOrEmpty(relPrefix) ? leaf : relPrefix;
-            acc.Add(new RemoteFileWork(remotePath, rel, leaf, 0));
-            return;
-        }
-
-        var dirs = entries.Where(e => e.IsDirectory).ToList();
-        var files = entries.Where(e => !e.IsDirectory).ToList();
-
-        if (dirs.Count == 0 && files.Count == 1 && remotePath != "/")
-        {
-            var f = files[0];
-            var rel = string.IsNullOrEmpty(relPrefix) ? f.Name : relPrefix;
-            acc.Add(new RemoteFileWork(
-                remotePath.TrimEnd('/') + "/" + f.Name,
-                rel,
-                f.Name,
-                f.Size));
-            return;
-        }
-
-        foreach (var e in entries)
-        {
-            if (e.Name is "." or "..") continue;
-            var childRemote = remotePath.TrimEnd('/') + "/" + e.Name;
-            var childRel = string.IsNullOrEmpty(relPrefix) ? e.Name : relPrefix + "/" + e.Name;
-            if (e.IsDirectory)
-                await CollectRemoteFilesAsync(hostId, childRemote, childRel, acc, ct).ConfigureAwait(false);
-            else
-                acc.Add(new RemoteFileWork(childRemote, childRel.Replace('/', Path.DirectorySeparatorChar), e.Name, e.Size));
         }
     }
 
@@ -359,5 +364,4 @@ public sealed class MeshTransferService
         names.Count == 1 ? names[0] : $"{names.Count} items";
 
     private sealed record LocalFileWork(string LocalPath, string RelativeName, long Size);
-    private sealed record RemoteFileWork(string RemotePath, string RelativeName, string DisplayName, long Size);
 }

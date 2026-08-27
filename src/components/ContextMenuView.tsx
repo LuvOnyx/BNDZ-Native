@@ -17,6 +17,7 @@ import {
   type NativeContextMenuItem,
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
+import { isMeshPath } from '../lib/meshPaths';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { isBndzVirtualPath, isFsDropTargetPath, BNDZ_CANVAS, BNDZ_AUTOMATION } from '../lib/bndzVirtualViews';
 import { createItemInPane } from '../lib/ramStagingPaths';
@@ -1327,6 +1328,36 @@ function ContextMenuView({
             iconVerb="emblem-shared"
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
+          )}
+          {targetPaths.some(p => isMeshPath(p)) && (
+            <>
+              <ContextMenuItem
+                label="Shell Here (Remote Mesh)"
+                iconVerb="terminal"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-shell-here' } }));
+                  onClose();
+                }}
+              />
+              <ContextMenuItem
+                label="Download from Mesh…"
+                iconVerb="download"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-download' } }));
+                  onClose();
+                }}
+              />
+              {!menu.isDirectory && (
+                <ContextMenuItem
+                  label="Edit Remote…"
+                  iconVerb="edit"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-edit-remote' } }));
+                    onClose();
+                  }}
+                />
+              )}
+            </>
           )}
           <ContextMenuItem
             label="Add to Shared Libraries"

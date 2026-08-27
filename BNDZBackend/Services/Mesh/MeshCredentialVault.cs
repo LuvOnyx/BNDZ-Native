@@ -58,13 +58,27 @@ public static class MeshCredentialVault
             else if (TryValue(line, "Port", out var port) && int.TryParse(port, out var p)) current.Port = p;
             else if (TryValue(line, "IdentityFile", out var key))
             {
-                current.KeyPath = key.Replace("~", home);
+                current.KeyPath = ExpandHome(key, home);
                 current.AuthKind = MeshAuthKind.PrivateKey;
             }
+            else if (TryValue(line, "CertificateFile", out var cert))
+            {
+                current.CertificatePath = ExpandHome(cert, home);
+            }
+            else if (TryValue(line, "ProxyJump", out var jump))
+            {
+                current.ProxyJump = jump;
+            }
+            else if (TryValue(line, "HostKeyAlias", out _)) { /* ignore */ }
+            else if (TryValue(line, "IdentitiesOnly", out _)) { /* ignore */ }
         }
 
+        // Second pass: also accept lowercase "proxyjump" already handled via IgnoreCase
         return hosts.Where(h => !string.IsNullOrWhiteSpace(h.Hostname)).ToList();
     }
+
+    private static string ExpandHome(string path, string home) =>
+        path.Replace("~", home).Trim('"');
 
     private static bool TryValue(string line, string key, out string value)
     {

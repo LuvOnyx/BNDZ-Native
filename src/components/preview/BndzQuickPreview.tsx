@@ -4,7 +4,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import { CloseGlyph } from '../ChromeGlyphs';
 import { FSEntity } from '../../types';
 import { toWindowsPath, toVirtualStreamUrl } from '../../lib/pathUtils';
-import { isImageExt, isVideoExt, isAudioExt, isModelExt, isShellActivateExt } from '../../lib/mediaTypes';
+import { isImageExt, isVideoExt, isAudioExt, isModelExt, isShellActivateExt, isGpuNativeModelExt, isRageConvertModelExt } from '../../lib/mediaTypes';
 import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt, isFontExt } from '../../lib/textFileTypes';
 import { isArchiveExt } from '../../lib/archiveTypes';
 import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
@@ -302,6 +302,15 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
           </div>
         );
       }
+      const canShow = isGpuNativeModelExt(ext) || isRageConvertModelExt(ext);
+      if (!canShow) {
+        return (
+          <div className="flex flex-col items-center justify-center gap-3 text-[#9ca3af] p-8">
+            <PreviewHeroIcon path={current.path} isDir={false} size={72} extension={ext} />
+            <span className="text-[12px]">{ext.toUpperCase()} is a 3D/RAGE asset — open externally for full tooling</span>
+          </div>
+        );
+      }
       if (modelPreview.loading) {
         return (
           <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
@@ -323,6 +332,11 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
           <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500"><Icons8Icon id="loading" size={24} spin /></div>}>
             <GpuModelViewport src={modelPreview.url} title={current.entity.name} badge={modelPreview.badge} />
           </Suspense>
+          {(modelPreview.vertices || modelPreview.triangles) ? (
+            <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
+              {modelPreview.vertices?.toLocaleString()} verts · {modelPreview.triangles?.toLocaleString()} tris
+            </div>
+          ) : null}
         </div>
       );
     }
