@@ -34,7 +34,7 @@ public sealed class ArchiveService
 
     private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "cab", "jar", "war", "rpf"
+        "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "cab", "jar", "war"
     };
 
     public static bool IsArchivePath(string path)
@@ -54,10 +54,6 @@ public sealed class ArchiveService
         var ext = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
         try
         {
-            if (ext == "rpf")
-                return RageRpfArchiveHost.TryListContents(path, limit)
-                    ?? new ArchiveContentsResult { Format = "rpf", Error = "RPF list failed" };
-
             if (ext == "zip")
                 return ListZipContents(path, limit);
 
@@ -286,13 +282,6 @@ public sealed class ArchiveService
             Directory.CreateDirectory(destinationDir);
 
         var ext = Path.GetExtension(archivePath).TrimStart('.').ToLowerInvariant();
-
-        if (ext == "rpf")
-        {
-            if (!RageRpfArchiveHost.TryExtractEntry(archivePath, entryNorm, destinationDir, out var rpfErr))
-                throw new InvalidOperationException(rpfErr ?? "RPF extract failed");
-            return;
-        }
 
         // ZIP: fast path
         if (ext == "zip") { ExtractZipEntry(archivePath, entryNorm, destinationDir); return; }
