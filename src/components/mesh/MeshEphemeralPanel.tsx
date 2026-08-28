@@ -17,6 +17,7 @@ import {
   incusEndpointToPayload,
 } from '../../lib/incusTypes';
 import { requestNativeConfirm } from '../../lib/nativeDialog';
+import MeshIncusInstanceInspector from './MeshIncusInstanceInspector';
 
 type Props = {
   onNavigate?: (path: string) => void;
@@ -37,6 +38,13 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   const [imageAliases, setImageAliases] = useState<Array<{ name: string; description?: string }>>([]);
   const [serverInstances, setServerInstances] = useState<IncusServerInstance[]>([]);
   const [inventoryBusy, setInventoryBusy] = useState(false);
+  const [profiles, setProfiles] = useState<Array<{ name: string; description?: string }>>([]);
+  const [networks, setNetworks] = useState<Array<{ name: string; type?: string }>>([]);
+  const [launchProfiles, setLaunchProfiles] = useState('default');
+  const [launchNetwork, setLaunchNetwork] = useState('');
+  const [launchCpu, setLaunchCpu] = useState('');
+  const [launchMemory, setLaunchMemory] = useState('');
+  const [inspectId, setInspectId] = useState<string | null>(null);
 
   const setStatus = (msg: string | null) => onStatus?.(msg);
 
@@ -98,6 +106,8 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   useEffect(() => {
     if (!selectedEndpointId) {
       setImageAliases([]);
+      setProfiles([]);
+      setNetworks([]);
       return;
     }
     let cancelled = false;
@@ -107,6 +117,26 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     }).catch(() => {
       if (!cancelled) setImageAliases([]);
     });
+    void IPC.meshIncusListProfiles(selectedEndpointId).then(res => {
+      if (cancelled) return;
+      if (res.ok) {
+        setProfiles(res.profiles.map(p => ({
+          name: String((p as any).name ?? (p as any).Name ?? ''),
+          description: (p as any).description ?? (p as any).Description,
+        })));
+      }
+    }).catch(() => { if (!cancelled) setProfiles([]); });
+    void IPC.meshIncusListNetworks(selectedEndpointId).then(res => {
+      if (cancelled) return;
+      if (res.ok) {
+        const nets = res.networks.map(n => ({
+          name: String((n as any).name ?? (n as any).Name ?? ''),
+          type: (n as any).type ?? (n as any).Type,
+        }));
+        setNetworks(nets);
+        if (!launchNetwork && nets[0]) setLaunchNetwork(nets[0].name);
+      }
+    }).catch(() => { if (!cancelled) setNetworks([]); });
     return () => { cancelled = true; };
   }, [selectedEndpointId]);
 
@@ -190,6 +220,10 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     setBusy(true);
     setStatus('Launching ephemeral instance…');
     try {
+      const profileList = launchProfiles.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+      const config: Record<string, string> = {};
+      if (launchCpu.trim()) config['limits.cpu'] = launchCpu.trim();
+      if (launchMemory.trim()) config['limits.memory'] = launchMemory.trim();
       const res = await IPC.meshIncusLaunch({
         endpointId: selectedEndpointId,
         name: launchName.trim() || undefined,
@@ -199,6 +233,9 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
         start: true,
         registerMeshHost: true,
         alias: launchAlias || undefined,
+        profiles: profileList.length ? profileList : undefined,
+        network: launchNetwork || undefined,
+        config: Object.keys(config).length ? config : undefined,
       });
       if (!res.ok) throw new Error(res.error || 'Launch failed');
       await refresh();
@@ -339,6 +376,22 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
         </div>
       )}
 
+      {inspectId && (() => {
+        const inst = instances.find(i => i.id === inspectId);
+        if (!inst) return null;
+        return (
+          <MeshIncusInstanceInspector
+            ephemeralId={inst.id}
+            instanceName={inst.notes || inst.instanceName}
+            busy={busy}
+            onBusy={setBusy}
+            onStatus={setStatus}
+            onClose={() => setInspectId(null)}
+            onChanged={() => { void refresh(); void loadServerInventory(); }}
+          />
+        );
+      })()}
+
       <div className="grid gap-3 xl:grid-cols-2">
         <div className="space-y-2">
           <div className="text-[11px] font-semibold tracking-wide text-sky-200/80 uppercase">Endpoints</div>
@@ -400,6 +453,32 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
               <option value="container">Container</option>
               <option value="virtual-machine">Virtual machine</option>
             </select>
+            <PluginFieldLabel>Profiles</PluginFieldLabel>
+            <input
+              className={PLUGIN_INPUT_CLASS}
+              list="bndz-incus-profiles"
+              value={launchProfiles}
+              onChange={e => setLaunchProfiles(e.target.value)}
+              placeholder="default"
+            />
+            <datalist id="bndz-incus-profiles">
+              {profiles.map(p => <option key={p.name} value={p.name}>{p.description || p.name}</option>)}
+            </datalist>
+            <PluginFieldLabel>Network (NIC)</PluginFieldLabel>
+            <select className={PLUGIN_INPUT_CLASS} value={launchNetwork} onChange={e => setLaunchNetwork(e.target.value)}>
+              <option value="">Profile default</option>
+              {networks.map(n => <option key={n.name} value={n.name}>{n.name}{n.type ? ` · ${n.type}` : ''}</option>)}
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <PluginFieldLabel>limits.cpu</PluginFieldLabel>
+                <input className={PLUGIN_INPUT_CLASS} value={launchCpu} onChange={e => setLaunchCpu(e.target.value)} placeholder="2" />
+              </div>
+              <div>
+                <PluginFieldLabel>limits.memory</PluginFieldLabel>
+                <input className={PLUGIN_INPUT_CLASS} value={launchMemory} onChange={e => setLaunchMemory(e.target.value)} placeholder="2GiB" />
+              </div>
+            </div>
             <PluginFieldLabel>Mesh alias (optional)</PluginFieldLabel>
             <input className={PLUGIN_INPUT_CLASS} value={launchAlias} onChange={e => setLaunchAlias(e.target.value)} placeholder="Build box" />
             <PluginFieldLabel>Instance name (optional)</PluginFieldLabel>
@@ -474,6 +553,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
                 <div className="flex flex-wrap gap-1.5">
                   <PluginToolbarButton onClick={() => void browseMesh(inst)} disabled={busy || !inst.meshHostId}>Browse</PluginToolbarButton>
                   <PluginToolbarButton onClick={() => void shellHere(inst)} disabled={busy || !inst.meshHostId}>Shell Here</PluginToolbarButton>
+                  <PluginToolbarButton onClick={() => setInspectId(inst.id)} disabled={busy}>Manage</PluginToolbarButton>
                   {inst.status !== 'Running' && (
                     <PluginToolbarButton onClick={() => void instanceAction(inst.id, 'start')} disabled={busy}>Start</PluginToolbarButton>
                   )}

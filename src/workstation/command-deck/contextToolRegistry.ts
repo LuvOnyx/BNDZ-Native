@@ -81,6 +81,35 @@ export function filterToolsForInstalled(
   });
 }
 
+/** Stock context-menu ids → bottom-plugin id (same map as Command Deck). */
+const STOCK_CONTEXT_PLUGIN: Partial<Record<string, string>> = {
+  'mesh-drop': 'remote-mesh',
+  'ghost-link': 'ghost-link',
+  'ram-staging': 'ram-staging',
+  'zk-vault': 'zk-vault',
+  'photo-studio': 'design-board',
+  'batch-rename': 'batch-rename',
+  'smart-rename': 'batch-rename',
+  'hello-gate': 'zk-vault',
+  'change-icon': 'icon-studio',
+};
+
+export function pluginIdForStockContext(stockId: string): string | undefined {
+  return STOCK_CONTEXT_PLUGIN[stockId];
+}
+
+/** True when stock row may show — host actions always; plugin-backed need install. */
+export function isStockContextInstalled(
+  stockId: string,
+  installedIds: ReadonlySet<string> | readonly string[] | undefined | null,
+): boolean {
+  const pluginId = pluginIdForStockContext(stockId);
+  if (!pluginId) return true;
+  if (!installedIds) return false;
+  const set = installedIds instanceof Set ? installedIds : new Set(installedIds);
+  return set.has(pluginId);
+}
+
 export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
   if (sig.kind === 'empty') {
     return [];

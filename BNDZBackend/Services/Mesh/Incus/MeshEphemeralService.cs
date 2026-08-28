@@ -121,6 +121,90 @@ public sealed class MeshEphemeralService
         return await client.ListInstancesAsync(ct).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<IncusProfileSummary>> ListProfilesAsync(string endpointId, CancellationToken ct = default)
+    {
+        var endpoint = _db.GetIncusEndpoint(endpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
+        await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
+        return await client.ListProfilesAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<IncusNetworkSummary>> ListNetworksAsync(string endpointId, CancellationToken ct = default)
+    {
+        var endpoint = _db.GetIncusEndpoint(endpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
+        await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
+        return await client.ListNetworksAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<IncusInstanceDetail> GetInstanceDetailAsync(string ephemeralId, CancellationToken ct = default)
+    {
+        var (record, endpoint, client) = await OpenForEphemeralAsync(ephemeralId, ct).ConfigureAwait(false);
+        await using (client)
+        {
+            var (detail, _) = await client.GetInstanceAsync(record.InstanceName, ct).ConfigureAwait(false);
+            return detail;
+        }
+    }
+
+    public async Task<IncusInstanceDetail> UpdateInstanceDetailAsync(string ephemeralId, IncusInstancePut put, string? etag = null, CancellationToken ct = default)
+    {
+        var (record, endpoint, client) = await OpenForEphemeralAsync(ephemeralId, ct).ConfigureAwait(false);
+        await using (client)
+        {
+            await client.UpdateInstanceAsync(record.InstanceName, put, etag, ct).ConfigureAwait(false);
+            var (detail, _) = await client.GetInstanceAsync(record.InstanceName, ct).ConfigureAwait(false);
+            return detail;
+        }
+    }
+
+    public async Task<IReadOnlyList<IncusSnapshotSummary>> ListSnapshotsAsync(string ephemeralId, CancellationToken ct = default)
+    {
+        var (record, _, client) = await OpenForEphemeralAsync(ephemeralId, ct).ConfigureAwait(false);
+        await using (client)
+            return await client.ListSnapshotsAsync(record.InstanceName, ct).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<IncusSnapshotSummary>> CreateSnapshotAsync(string ephemeralId, string name, bool stateful = false, CancellationToken ct = default)
+    {
+        var (record, _, client) = await OpenForEphemeralAsync(ephemeralId, ct).ConfigureAwait(false);
+        await using (client)
+        {
+            var snapName = SanitizeInstanceName(name);
+            await client.CreateSnapshotAsync(record.InstanceName, snapName, stateful, ct).ConfigureAwait(false);
+            return await client.ListSnapshotsAsync(record.InstanceName, ct).ConfigureAwait(false);
+        }
+    }
+
+    public async Task<IReadOnlyList<IncusSnapshotSummary>> DeleteSnapshotAsync(string ephemeralId, string name, CancellationToken ct = default)
+    {
+        var (record, _, client) = await OpenForEphemeralAsync(ephemeralId, ct).ConfigureAwait(false);
+        await using (client)
+        {
+            await client.DeleteSnapshotAsync(record.InstanceName, name, ct).ConfigureAwait(false);
+            return await client.ListSnapshotsAsync(record.InstanceName, ct).ConfigureAwait(false);
+        }
+    }
+
+    public async Task RestoreSnapshotAsync(string ephemeralId, string name, bool diskOnly = false, CancellationToken ct = default)
+    {
+        var (record, _, client) = await OpenForEphemeralAsync(ephemeralId, ct).ConfigureAwait(false);
+        await using (client)
+            await client.RestoreSnapshotAsync(record.InstanceName, name, diskOnly, ct).ConfigureAwait(false);
+        await RefreshAsync(ephemeralId, ct).ConfigureAwait(false);
+    }
+
+    private async Task<(IncusEphemeralInstanceRecord Record, IncusEndpointRecord Endpoint, IncusApiClient Client)> OpenForEphemeralAsync(
+        string ephemeralId, CancellationToken ct)
+    {
+        var record = _db.GetIncusEphemeral(ephemeralId)
+            ?? throw new InvalidOperationException("Ephemeral instance not found");
+        var endpoint = _db.GetIncusEndpoint(record.EndpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
+        var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
+        return (record, endpoint, client);
+    }
+
     public async Task<IncusEphemeralInstanceRecord> SetInstanceActionAsync(string ephemeralId, string action, CancellationToken ct = default)
     {
         var record = _db.GetIncusEphemeral(ephemeralId)
@@ -252,7 +336,22 @@ public sealed class MeshEphemeralService
         try
         {
             await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
-            await client.CreateInstanceAsync(name, image, imageServer, type, req.Ephemeral, req.Start, cloudInit, ct)
+            Dictionary<string, Dictionary<string, string>>? devices = null;
+            if (!string.IsNullOrWhiteSpace(req.Network))
+            {
+                devices = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["eth0"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["type"] = "nic",
+                        ["network"] = req.Network!,
+                        ["name"] = "eth0",
+                    },
+                };
+            }
+            await client.CreateInstanceAsync(
+                    name, image, imageServer, type, req.Ephemeral, req.Start, cloudInit,
+                    profiles: req.Profiles, devices: devices, config: req.Config, ct: ct)
                 .ConfigureAwait(false);
 
             string? ipv4 = null;

@@ -58,6 +58,12 @@ public sealed class IncusLaunchRequest
     public string? Alias { get; set; }
     /// <summary>Seconds to wait for a global IPv4 after start.</summary>
     public int WaitIpSeconds { get; set; } = 90;
+    /// <summary>Incus profiles applied at create (e.g. default).</summary>
+    public List<string>? Profiles { get; set; }
+    /// <summary>NIC network name — wired as eth0 device when set.</summary>
+    public string? Network { get; set; }
+    /// <summary>Optional limits.cpu / limits.memory style config keys.</summary>
+    public Dictionary<string, string>? Config { get; set; }
 }
 
 public sealed class IncusServerInfo
@@ -84,4 +90,53 @@ public sealed class IncusInstanceSummary
     public string Type { get; set; } = "";
     public bool Ephemeral { get; set; }
     public string? Project { get; set; }
+}
+
+public sealed class IncusProfileSummary
+{
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+}
+
+public sealed class IncusNetworkSummary
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "";
+    public bool Managed { get; set; }
+    public string? Status { get; set; }
+    public string? Description { get; set; }
+}
+
+public sealed class IncusSnapshotSummary
+{
+    public string Name { get; set; } = "";
+    public bool Stateful { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? ExpiresAt { get; set; }
+}
+
+public sealed class IncusInstanceDetail
+{
+    public string Name { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string Type { get; set; } = "";
+    public bool Ephemeral { get; set; }
+    public string? Description { get; set; }
+    public string? Architecture { get; set; }
+    public List<string> Profiles { get; set; } = new();
+    public Dictionary<string, string> Config { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, Dictionary<string, string>> Devices { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public string? ETag { get; set; }
+}
+
+public sealed class IncusInstancePut
+{
+    public List<string>? Profiles { get; set; }
+    public Dictionary<string, string>? Config { get; set; }
+    public Dictionary<string, Dictionary<string, string>>? Devices { get; set; }
+    public string? Description { get; set; }
+    public bool? Ephemeral { get; set; }
+    public string? Architecture { get; set; }
+    public string? Restore { get; set; }
+    public bool DiskOnly { get; set; }
 }

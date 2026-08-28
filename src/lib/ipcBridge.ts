@@ -918,6 +918,107 @@ export const IPC = {
     }));
   },
 
+  meshIncusListProfiles(endpointId: string): Promise<{ ok: boolean; profiles: Array<{ name: string; description?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, profiles: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusProfiles`;
+    return _nativeCall<any>('MESH_INCUS_LIST_PROFILES', 'MESH_INCUS_LIST_PROFILES_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      profiles: Array.isArray(r?.profiles) ? r.profiles : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListNetworks(endpointId: string): Promise<{ ok: boolean; networks: Array<{ name: string; type?: string; managed?: boolean; status?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, networks: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusNets`;
+    return _nativeCall<any>('MESH_INCUS_LIST_NETWORKS', 'MESH_INCUS_LIST_NETWORKS_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      networks: Array.isArray(r?.networks) ? r.networks : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusGetInstance(ephemeralId: string): Promise<{ ok: boolean; instance?: any; etag?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusGet`;
+    return _nativeCall<any>('MESH_INCUS_GET_INSTANCE', 'MESH_INCUS_GET_INSTANCE_RESULT', id, { ephemeralId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      etag: r?.etag,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusUpdateInstance(req: {
+    ephemeralId: string;
+    profiles?: string[];
+    config?: Record<string, string>;
+    devices?: Record<string, Record<string, string>>;
+    description?: string;
+    etag?: string;
+  }): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusUpd`;
+    return _nativeCall<any>('MESH_INCUS_UPDATE_INSTANCE', 'MESH_INCUS_UPDATE_INSTANCE_RESULT', id, req, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListSnapshots(ephemeralId: string): Promise<{ ok: boolean; snapshots: Array<{ name: string; stateful?: boolean; createdAt?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, snapshots: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusSnaps`;
+    return _nativeCall<any>('MESH_INCUS_LIST_SNAPSHOTS', 'MESH_INCUS_LIST_SNAPSHOTS_RESULT', id, { ephemeralId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusCreateSnapshot(ephemeralId: string, name: string, stateful = false): Promise<{ ok: boolean; snapshots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapC`;
+    return _nativeCall<any>('MESH_INCUS_CREATE_SNAPSHOT', 'MESH_INCUS_CREATE_SNAPSHOT_RESULT', id, { ephemeralId, name, stateful }, 300000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusDeleteSnapshot(ephemeralId: string, name: string): Promise<{ ok: boolean; snapshots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapD`;
+    return _nativeCall<any>('MESH_INCUS_DELETE_SNAPSHOT', 'MESH_INCUS_DELETE_SNAPSHOT_RESULT', id, { ephemeralId, name }, 180000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusRestoreSnapshot(ephemeralId: string, name: string, diskOnly = false): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapR`;
+    return _nativeCall<any>('MESH_INCUS_RESTORE_SNAPSHOT', 'MESH_INCUS_RESTORE_SNAPSHOT_RESULT', id, { ephemeralId, name, diskOnly }, 300000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  getAllTagged(): Promise<Array<{ path: string; tags?: string[]; label?: string; comment?: string }>> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_allTagged`;
+    return _nativeCall<any>('GET_ALL_TAGGED', 'ALL_TAGGED_RESULT', id, {}, 30000).then(r =>
+      Array.isArray(r?.entries) ? r.entries : [],
+    ).catch(() => []);
+  },
+
+  renameTagInSidecar(oldKey: string, newKey: string): void {
+    if (!this.isNative || !oldKey || !newKey) return;
+    (window as any).chrome.webview.postMessage({ type: 'RENAME_TAG_IN_SIDECAR', payload: { oldKey, newKey } });
+  },
+
   purgeTagFromSidecar(tagKey: string): void {
     if (!this.isNative || !tagKey) return;
     (window as any).chrome.webview.postMessage({ type: 'PURGE_TAG_FROM_SIDECAR', payload: { tagKey } });

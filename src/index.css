@@ -1262,6 +1262,21 @@ input[type="number"]::-webkit-inner-spin-button {
     height: 100%;
     border-radius: 0;
   }
+  /* Expand without remounting iframe — escape bottom panel chrome via fixed viewport. */
+  .bndz-design-board.bndz-design-board--viewport {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    border-radius: 0;
+    border: none;
+    background:
+      radial-gradient(900px 420px at 12% -8%, rgba(13, 153, 255, 0.14), transparent 55%),
+      #101114;
+    box-shadow: none;
+  }
   .bndz-design-board.is-popout {
     position: relative;
     inset: auto;
@@ -12122,6 +12137,13 @@ html[data-theme] .nav-tree-row:focus-visible {
 }
 .bndz-mesh-ephemeral-editor {
   animation: bndz-mesh-ephemeral-rise 220ms ease-out;
+}
+.bndz-mesh-incus-inspector {
+  animation: bndz-mesh-ephemeral-rise 200ms ease-out;
+}
+.bndz-mesh-incus-inspector .bndz-plugin-card,
+.bndz-mesh-incus-inspector [class*="PluginCard"] {
+  border-radius: 14px;
 }
 @keyframes bndz-mesh-ephemeral-rise {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }

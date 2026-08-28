@@ -104,6 +104,9 @@ public sealed class IncusApiClient : IAsyncDisposable
         bool ephemeral,
         bool start,
         string? cloudInitUserData = null,
+        IReadOnlyList<string>? profiles = null,
+        IReadOnlyDictionary<string, Dictionary<string, string>>? devices = null,
+        IReadOnlyDictionary<string, string>? config = null,
         CancellationToken ct = default)
     {
         var body = new JsonObject
@@ -120,14 +123,39 @@ public sealed class IncusApiClient : IAsyncDisposable
                 ["protocol"] = "simplestreams",
             },
         };
+        if (profiles is { Count: > 0 })
+        {
+            var arr = new JsonArray();
+            foreach (var p in profiles)
+                if (!string.IsNullOrWhiteSpace(p)) arr.Add(p);
+            if (arr.Count > 0) body["profiles"] = arr;
+        }
+        var configObj = new JsonObject();
+        if (config != null)
+        {
+            foreach (var (k, v) in config)
+                if (!string.IsNullOrWhiteSpace(k) && v != null)
+                    configObj[k] = v;
+        }
         if (!string.IsNullOrWhiteSpace(cloudInitUserData))
         {
-            // Newer images: cloud-init.*; older: user.* — set both so Mesh SSH keys land on first boot.
-            body["config"] = new JsonObject
+            configObj["cloud-init.user-data"] = cloudInitUserData;
+            configObj["user.user-data"] = cloudInitUserData;
+        }
+        if (configObj.Count > 0) body["config"] = configObj;
+        if (devices is { Count: > 0 })
+        {
+            var devicesObj = new JsonObject();
+            foreach (var (devName, props) in devices)
             {
-                ["cloud-init.user-data"] = cloudInitUserData,
-                ["user.user-data"] = cloudInitUserData,
-            };
+                if (string.IsNullOrWhiteSpace(devName) || props == null) continue;
+                var propObj = new JsonObject();
+                foreach (var (pk, pv) in props)
+                    if (!string.IsNullOrWhiteSpace(pk) && pv != null)
+                        propObj[pk] = pv;
+                devicesObj[devName] = propObj;
+            }
+            if (devicesObj.Count > 0) body["devices"] = devicesObj;
         }
         var path = WithProject("/1.0/instances");
         var (type, operation, metadata) = await QueryRawAsync(HttpMethod.Post, path, body, ct).ConfigureAwait(false);
@@ -186,6 +214,219 @@ public sealed class IncusApiClient : IAsyncDisposable
             }
         }
         return list.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public async Task<IReadOnlyList<IncusProfileSummary>> ListProfilesAsync(CancellationToken ct = default)
+    {
+        var path = WithProject("/1.0/profiles?recursion=1");
+        var meta = await QueryAsync(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
+        var list = new List<IncusProfileSummary>();
+        if (meta is JsonArray arr)
+        {
+            foreach (var node in arr)
+            {
+                if (node is not JsonObject obj) continue;
+                var name = obj["name"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                list.Add(new IncusProfileSummary
+                {
+                    Name = name!,
+                    Description = obj["description"]?.GetValue<string>(),
+                });
+            }
+        }
+        return list.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public async Task<IReadOnlyList<IncusNetworkSummary>> ListNetworksAsync(CancellationToken ct = default)
+    {
+        var path = WithProject("/1.0/networks?recursion=1");
+        var meta = await QueryAsync(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
+        var list = new List<IncusNetworkSummary>();
+        if (meta is JsonArray arr)
+        {
+            foreach (var node in arr)
+            {
+                if (node is not JsonObject obj) continue;
+                var name = obj["name"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                list.Add(new IncusNetworkSummary
+                {
+                    Name = name!,
+                    Type = obj["type"]?.GetValue<string>() ?? "",
+                    Managed = obj["managed"]?.GetValue<bool>() ?? false,
+                    Status = obj["status"]?.GetValue<string>(),
+                    Description = obj["description"]?.GetValue<string>(),
+                });
+            }
+        }
+        return list.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public async Task<(IncusInstanceDetail Detail, string? ETag)> GetInstanceAsync(string name, CancellationToken ct = default)
+    {
+        var path = WithProject($"/1.0/instances/{Uri.EscapeDataString(name)}");
+        using var req = new HttpRequestMessage(HttpMethod.Get, _baseUrl + path);
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        var root = ParseResponse(text, (int)resp.StatusCode);
+        if (string.Equals(root.type, "error", StringComparison.OrdinalIgnoreCase))
+            throw new IncusApiException(root.error ?? $"HTTP {(int)resp.StatusCode}", root.errorCode > 0 ? root.errorCode : (int)resp.StatusCode);
+        var etag = resp.Headers.ETag?.Tag?.Trim('"');
+        var detail = ParseInstanceDetail(root.metadata as JsonObject, name);
+        detail.ETag = etag;
+        return (detail, etag);
+    }
+
+    public async Task UpdateInstanceAsync(string name, IncusInstancePut put, string? etag = null, CancellationToken ct = default)
+    {
+        var body = new JsonObject();
+        if (put.Profiles != null)
+        {
+            var arr = new JsonArray();
+            foreach (var p in put.Profiles) arr.Add(p);
+            body["profiles"] = arr;
+        }
+        if (put.Config != null)
+        {
+            var cfg = new JsonObject();
+            foreach (var (k, v) in put.Config) cfg[k] = v;
+            body["config"] = cfg;
+        }
+        if (put.Devices != null)
+        {
+            var devices = new JsonObject();
+            foreach (var (devName, props) in put.Devices)
+            {
+                var propObj = new JsonObject();
+                foreach (var (pk, pv) in props) propObj[pk] = pv;
+                devices[devName] = propObj;
+            }
+            body["devices"] = devices;
+        }
+        if (put.Description != null) body["description"] = put.Description;
+        if (put.Ephemeral.HasValue) body["ephemeral"] = put.Ephemeral.Value;
+        if (put.Architecture != null) body["architecture"] = put.Architecture;
+        if (!string.IsNullOrWhiteSpace(put.Restore))
+        {
+            body["restore"] = put.Restore;
+            body["disk_only"] = put.DiskOnly;
+        }
+
+        var path = WithProject($"/1.0/instances/{Uri.EscapeDataString(name)}");
+        using var req = new HttpRequestMessage(HttpMethod.Put, _baseUrl + path);
+        if (!string.IsNullOrWhiteSpace(etag))
+            req.Headers.TryAddWithoutValidation("If-Match", etag.StartsWith('"') ? etag : $"\"{etag}\"");
+        req.Content = new StringContent(body.ToJsonString(JsonOpts), Encoding.UTF8, "application/json");
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        var root = ParseResponse(text, (int)resp.StatusCode);
+        if (string.Equals(root.type, "error", StringComparison.OrdinalIgnoreCase))
+            throw new IncusApiException(root.error ?? $"HTTP {(int)resp.StatusCode}", root.errorCode > 0 ? root.errorCode : (int)resp.StatusCode);
+        if (string.Equals(root.type, "async", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(root.operation))
+            await WaitOperationAsync(root.operation!, ct).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<IncusSnapshotSummary>> ListSnapshotsAsync(string instanceName, CancellationToken ct = default)
+    {
+        var path = WithProject($"/1.0/instances/{Uri.EscapeDataString(instanceName)}/snapshots?recursion=1");
+        var meta = await QueryAsync(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
+        var list = new List<IncusSnapshotSummary>();
+        if (meta is JsonArray arr)
+        {
+            foreach (var node in arr)
+            {
+                if (node is not JsonObject obj) continue;
+                var name = obj["name"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                // Incus returns "instance/snap" — keep leaf name for UI.
+                var leaf = name!.Contains('/') ? name[(name.LastIndexOf('/') + 1)..] : name;
+                list.Add(new IncusSnapshotSummary
+                {
+                    Name = leaf,
+                    Stateful = obj["stateful"]?.GetValue<bool>() ?? false,
+                    CreatedAt = obj["created_at"]?.GetValue<string>(),
+                    ExpiresAt = obj["expires_at"]?.GetValue<string>(),
+                });
+            }
+        }
+        return list.OrderByDescending(s => s.CreatedAt ?? s.Name).ToList();
+    }
+
+    public async Task CreateSnapshotAsync(string instanceName, string snapshotName, bool stateful = false, CancellationToken ct = default)
+    {
+        var body = new JsonObject
+        {
+            ["name"] = snapshotName,
+            ["stateful"] = stateful,
+        };
+        var path = WithProject($"/1.0/instances/{Uri.EscapeDataString(instanceName)}/snapshots");
+        var (type, operation, _) = await QueryRawAsync(HttpMethod.Post, path, body, ct).ConfigureAwait(false);
+        if (string.Equals(type, "async", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(operation))
+            await WaitOperationAsync(operation!, ct).ConfigureAwait(false);
+    }
+
+    public async Task DeleteSnapshotAsync(string instanceName, string snapshotName, CancellationToken ct = default)
+    {
+        var path = WithProject($"/1.0/instances/{Uri.EscapeDataString(instanceName)}/snapshots/{Uri.EscapeDataString(snapshotName)}");
+        var (type, operation, _) = await QueryRawAsync(HttpMethod.Delete, path, null, ct).ConfigureAwait(false);
+        if (string.Equals(type, "async", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(operation))
+            await WaitOperationAsync(operation!, ct).ConfigureAwait(false);
+    }
+
+    public async Task RestoreSnapshotAsync(string instanceName, string snapshotName, bool diskOnly = false, CancellationToken ct = default)
+    {
+        await UpdateInstanceAsync(instanceName, new IncusInstancePut
+        {
+            Restore = snapshotName,
+            DiskOnly = diskOnly,
+        }, etag: null, ct).ConfigureAwait(false);
+    }
+
+    private static IncusInstanceDetail ParseInstanceDetail(JsonObject? obj, string fallbackName)
+    {
+        var detail = new IncusInstanceDetail
+        {
+            Name = obj?["name"]?.GetValue<string>() ?? fallbackName,
+            Status = obj?["status"]?.GetValue<string>() ?? "Unknown",
+            Type = obj?["type"]?.GetValue<string>() ?? "container",
+            Ephemeral = obj?["ephemeral"]?.GetValue<bool>() ?? false,
+            Description = obj?["description"]?.GetValue<string>(),
+            Architecture = obj?["architecture"]?.GetValue<string>(),
+        };
+        if (obj?["profiles"] is JsonArray profiles)
+        {
+            foreach (var p in profiles)
+            {
+                var s = p?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(s)) detail.Profiles.Add(s!);
+            }
+        }
+        if (obj?["config"] is JsonObject cfg)
+        {
+            foreach (var (k, v) in cfg)
+            {
+                var s = v?.GetValue<string>();
+                if (s != null) detail.Config[k] = s;
+            }
+        }
+        if (obj?["devices"] is JsonObject devices)
+        {
+            foreach (var (devName, node) in devices)
+            {
+                if (node is not JsonObject props) continue;
+                var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (pk, pv) in props)
+                {
+                    var s = pv?.GetValue<string>();
+                    if (s != null) map[pk] = s;
+                }
+                detail.Devices[devName] = map;
+            }
+        }
+        return detail;
     }
 
     public async Task UpdateInstanceStateAsync(string name, string action, bool force = false, int timeout = 30, CancellationToken ct = default)

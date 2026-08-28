@@ -193,8 +193,11 @@ internal static class LicenseTokenSecretEmbedded
             Write-Warning "Skipping installer build. Publish folder and ZIP are ready."
         } else {
             if (-not (Test-Path $WebView2Bootstrapper)) {
-                Write-Warning "WebView2 bootstrapper missing. Run without -SkipWebView2Download or place file at:"
-                Write-Warning "  $WebView2Bootstrapper"
+                throw "WebView2 bootstrapper missing at $WebView2Bootstrapper. Re-run without -SkipWebView2Download or place MicrosoftEdgeWebview2Setup.exe in installer\redist\."
+            }
+            $wvSize = (Get-Item $WebView2Bootstrapper).Length
+            if ($wvSize -lt 1MB) {
+                throw "WebView2 bootstrapper at $WebView2Bootstrapper is only $wvSize bytes (corrupt/incomplete). Delete it and re-run so it downloads again."
             }
             Write-Host "==> Building installer with Inno Setup" -ForegroundColor Yellow
             & $Iscc (Join-Path $InstallerDir "BNDZ.iss") "/DPublishDir=$PublishDir" "/DMyAppVersion=$Version" "/DSourcePath=$Root"

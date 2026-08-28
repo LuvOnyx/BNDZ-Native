@@ -89,7 +89,7 @@ export function buildDefaultQuickActions(handlers: {
   onOpenTerminal: () => void;
   onOpenExplorer: () => void;
   onProperties: () => void;
-  onBatchRename: () => void;
+  onBatchRename?: () => void;
   onQuickLook: () => void;
   onMeshDrop?: () => void;
   onRamStaging?: () => void;
@@ -97,21 +97,38 @@ export function buildDefaultQuickActions(handlers: {
   onTag?: () => void;
   onCompare?: () => void;
   canPaste: boolean;
+  /** When set, plugin-backed actions are omitted unless the plugin id is installed. */
+  installedPlugins?: readonly string[] | null;
 }): QuickAction[] {
+  const installed = new Set(handlers.installedPlugins ?? []);
+  const pluginOn = (pluginId: string) => installed.has(pluginId);
   const extra: QuickAction[] = [];
-  if (handlers.onMeshDrop) extra.push({ id: 'meshdrop', label: 'Mesh Drop', icon: 'emblem-shared', onClick: handlers.onMeshDrop, accent: 'sky' });
-  if (handlers.onRamStaging) extra.push({ id: 'ram', label: 'RAM Stage', icon: 'hard_drive_ui', onClick: handlers.onRamStaging, accent: 'amber' });
-  if (handlers.onGhostLink) extra.push({ id: 'ghost', label: 'Ghost-Link', icon: 'emblem-symbolic-link', onClick: handlers.onGhostLink });
+  if (handlers.onMeshDrop && pluginOn('remote-mesh')) {
+    extra.push({ id: 'meshdrop', label: 'Mesh Drop', icon: 'emblem-shared', onClick: handlers.onMeshDrop, accent: 'sky' });
+  }
+  if (handlers.onRamStaging && pluginOn('ram-staging')) {
+    extra.push({ id: 'ram', label: 'RAM Stage', icon: 'hard_drive_ui', onClick: handlers.onRamStaging, accent: 'amber' });
+  }
+  if (handlers.onGhostLink && pluginOn('ghost-link')) {
+    extra.push({ id: 'ghost', label: 'Ghost-Link', icon: 'emblem-symbolic-link', onClick: handlers.onGhostLink });
+  }
   if (handlers.onTag) extra.push({ id: 'tag', label: 'Tag', icon: 'tag_manager', onClick: handlers.onTag, accent: 'emerald' });
-  if (handlers.onCompare) extra.push({ id: 'compare', label: 'Compare', icon: 'compare', onClick: handlers.onCompare });
+  if (handlers.onCompare && pluginOn('compare')) {
+    extra.push({ id: 'compare', label: 'Compare', icon: 'compare', onClick: handlers.onCompare });
+  }
 
-  return [
+  const core: QuickAction[] = [
     { id: 'quicklook', label: 'Quick Look', icon: 'toggle_preview', onClick: handlers.onQuickLook, accent: 'sky' },
     { id: 'copy', label: 'Copy', icon: 'copy', onClick: handlers.onCopy },
     { id: 'cut', label: 'Cut', icon: 'cut', onClick: handlers.onCut },
     { id: 'paste', label: 'Paste', icon: 'paste', onClick: handlers.onPaste, disabled: !handlers.canPaste },
     { id: 'path', label: 'Copy Path', icon: 'copy_path', onClick: handlers.onCopyPath },
-    { id: 'rename', label: 'Batch Rename', icon: 'batch_rename', onClick: handlers.onBatchRename, accent: 'emerald' },
+  ];
+  if (handlers.onBatchRename && pluginOn('batch-rename')) {
+    core.push({ id: 'rename', label: 'Batch Rename', icon: 'batch_rename', onClick: handlers.onBatchRename, accent: 'emerald' });
+  }
+  return [
+    ...core,
     ...extra,
     { id: 'terminal', label: 'Terminal', icon: 'terminal', onClick: handlers.onOpenTerminal },
     { id: 'explorer', label: 'Explorer', icon: 'explorer', onClick: handlers.onOpenExplorer },

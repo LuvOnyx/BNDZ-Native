@@ -27,6 +27,7 @@ import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites, collapseKnownFolderShadowPath } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { isOptionalStockContextEnabled, type OptionalStockContextId } from '../lib/shellMenuPresets';
+import { isStockContextInstalled } from '../workstation/command-deck/contextToolRegistry';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { getContextBehavior } from '../lib/settingsBehavior';
@@ -125,7 +126,11 @@ function ContextMenuView({
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
   const ctxBeh = getContextBehavior(config);
-  const stockOn = (id: OptionalStockContextId) => isOptionalStockContextEnabled(config, id);
+  const installedPlugins = Array.isArray(config.installedPlugins) ? config.installedPlugins : [];
+  const meshPluginInstalled = isStockContextInstalled('mesh-drop', installedPlugins);
+  /** Optional stock row + Command Deck install gate (plugin-backed rows need install). */
+  const stockOn = (id: OptionalStockContextId) =>
+    isOptionalStockContextEnabled(config, id) && isStockContextInstalled(id, installedPlugins);
   const targetPaths = resolveContextTargetPaths(menu);
   const isBackground = isContextMenuBackground(menu);
   const isRecycleLocation = isRecycleBinLocationMenu(menu);
@@ -1329,7 +1334,7 @@ function ContextMenuView({
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
           )}
-          {targetPaths.some(p => isMeshPath(p)) && (
+          {meshPluginInstalled && targetPaths.some(p => isMeshPath(p)) && (
             <>
               <ContextMenuItem
                 label="Shell Here (Remote Mesh)"
@@ -1359,6 +1364,7 @@ function ContextMenuView({
               )}
             </>
           )}
+          {meshPluginInstalled && (
           <ContextMenuItem
             label="Add to Shared Libraries"
             iconVerb="emblem-shared"
@@ -1372,6 +1378,7 @@ function ContextMenuView({
               onClose();
             }}
           />
+          )}
           {stockOn('ghost-link') && (
           <ContextMenuItem
             label="Ghost-Link offload…"

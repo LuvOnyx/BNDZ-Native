@@ -13979,6 +13979,7 @@ export default function BNDZUI() {
           placement="dock"
           count={activeTab.selectedItems.length}
           actions={buildDefaultQuickActions({
+            installedPlugins: Array.isArray(config.installedPlugins) ? config.installedPlugins : [],
             onQuickLook: () => openQuickPreview(),
             onCopy: () => {
               const selectedEntities = activeContents?.filter((x: any) => activeTab.selectedItems.includes(x.id)) || [];
@@ -15054,6 +15055,19 @@ export default function BNDZUI() {
             availableTags={availableTags}
             onTagsUpdated={setAvailableTags}
             pathContentsCache={pathContentsCache}
+            onOpenPath={(path) => {
+              const win = toWindowsPath(path);
+              if (!win) return;
+              const leaf = win.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || '';
+              const looksFile = leaf.includes('.');
+              if (looksFile) {
+                const parent = win.replace(/[/\\][^/\\]+$/, '') || win;
+                setCurrentPath(normalizePanePath(parent));
+              } else {
+                setCurrentPath(normalizePanePath(win));
+              }
+              setIsTagManagerOpen(false);
+            }}
           />
         </Suspense>
       )}
