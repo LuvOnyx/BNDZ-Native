@@ -23,6 +23,7 @@
     "package:installer:rust": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -SelfContained -BuildInstaller -RequireRustSidecars",
     "package:installer:rust:source": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -SelfContained -BuildInstaller -BuildRustSidecars -BuildSpacedriveWeb",
     "package:signed": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -SelfContained -BuildInstaller -Sign",
+    "signing:check": "powershell -ExecutionPolicy Bypass -File scripts/check-signing-prereqs.ps1",
     "package:verify": "powershell -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -RequireInstaller",
     "license:generate": "powershell -ExecutionPolicy Bypass -File scripts/generate-license.ps1",
     "start": "node dist/server.cjs",

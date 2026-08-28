@@ -51,21 +51,42 @@ Create a fresh Windows 10/11 VM **without** Microsoft Edge WebView2 Runtime.
 
 ## 3. Code signing (SmartScreen trust)
 
-Unsigned installers trigger Windows SmartScreen warnings. For production distribution, use an **OV** or **EV** Authenticode certificate.
+Unsigned installers trigger Windows SmartScreen warnings ("Windows protected your PC"). For **public retail** distribution outside the Microsoft Store, you still need **Windows Authenticode** signing on `BNDZ.exe` and `BNDZ-Setup-*.exe`.
 
-### Obtain a certificate
+### Cursor Origin does **not** provide this certificate
 
-| Type | SmartScreen | Typical use |
-|------|-------------|-------------|
-| **EV** | Fastest reputation build-up | Public downloads, best UX |
-| **OV** | Slower warm-up | Internal / beta releases |
-| Self-signed | Always warned | Dev only |
+[Cursor Origin](https://cursor.com/docs/origin) is Git hosting (repos, PRs, CI integrations with Vercel/Depot/Buildkite). Its "signing keys" are **Ed25519 API keys** for Origin app authentication and webhooks — they are **not** Authenticode / SmartScreen certificates and cannot sign your installer.
 
-Recommended vendors: DigiCert, Sectigo, SSL.com (compare EV code signing pricing).
+Use Origin for code + CI if you want; use one of the paths below for Windows trust.
 
-EV certs often require a hardware token (USB HSM). Plan 1–2 weeks for identity verification.
+### Choose a signing path
 
-### Sign the release
+| Path | SmartScreen | Cost | Best for |
+|------|-------------|------|----------|
+| **Azure Trusted Signing** | Good (Microsoft-backed) | ~$10/mo | Indie retail, CI-friendly |
+| **OV/EV Authenticode cert** | EV fastest reputation | $200–500+/yr | Traditional publisher |
+| **Microsoft Store (MSIX)** | Store handles trust | Free re-sign | Store-only distribution |
+| **Unsigned** | SmartScreen blocks most users | Free | Dev/internal only |
+
+### Option A — Azure Trusted Signing (recommended)
+
+1. Create an [Azure Trusted Signing](https://learn.microsoft.com/en-us/azure/trusted-signing/) account + certificate profile in Azure Portal.
+2. Install tools on the **Windows release machine**:
+   ```powershell
+   winget install Microsoft.AzureCLI
+   dotnet tool install -g --prerelease sign
+   az login
+   ```
+3. Set environment variables (see `scripts/signing.config.example.env`):
+   ```powershell
+   $env:BNDZ_AZURE_SIGNING_ENDPOINT = "https://eus.codesigning.azure.net/"
+   $env:BNDZ_AZURE_SIGNING_ACCOUNT = "YourSigningAccount"
+   $env:BNDZ_AZURE_SIGNING_PROFILE = "YourProfile"
+   ```
+4. Verify: `.\scripts\check-signing-prereqs.ps1`
+5. Build and sign: `npm run package:signed`
+
+### Option B — Traditional certificate (PFX or cert store)
 
 Set **one** of:
 
@@ -73,18 +94,21 @@ Set **one** of:
 # Certificate in Windows store (thumbprint from certmgr.msc)
 $env:BNDZ_SIGN_CERT_THUMBPRINT = "YOUR_THUMBPRINT_HERE"
 
-# Or PFX file
+# Or PFX file (OV/EV from DigiCert, Sectigo, SSL.com, etc.)
 $env:BNDZ_SIGN_PFX_PATH = "C:\certs\bndz.pfx"
 $env:BNDZ_SIGN_PFX_PASSWORD = "your-password"
 ```
 
-Build and sign:
+EV certs often require a hardware token (USB HSM). Plan 1–2 weeks for identity verification.
+
+### Sign the release
 
 ```powershell
+.\scripts\check-signing-prereqs.ps1
 npm run package:signed
 ```
 
-This signs `BNDZ.exe` and `BNDZ-Setup-1.0.0.exe` with SHA-256 + timestamp (DigiCert by default).
+This signs `BNDZ.exe` **before** packaging and `BNDZ-Setup-1.0.0.exe` after Inno Setup, with SHA-256 + RFC3161 timestamp.
 
 ### Verify signature
 
@@ -93,7 +117,11 @@ Get-AuthenticodeSignature "dist\BNDZ-Setup-1.0.0.exe"
 Get-AuthenticodeSignature "dist\publish\win-x64\BNDZ.exe"
 ```
 
-Status should be **Valid**. After EV signing, distribute the same build widely so SmartScreen reputation accumulates.
+Status should be **Valid**. After EV or wide distribution, SmartScreen reputation accumulates.
+
+### Origin + CI (optional)
+
+Connect [Depot](https://depot.dev/blog/depot-in-cursor-origin) or Buildkite from your Origin repo's Apps tab for CI. Add a **Windows** pipeline step that runs `npm run package:signed` with signing secrets in CI — Origin itself does not sign binaries.
 
 ## 4. Pre-launch QA (recommended)
 

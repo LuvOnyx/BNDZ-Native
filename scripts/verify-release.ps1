@@ -92,6 +92,8 @@ Write-Host "`nInstaller prerequisites:" -ForegroundColor Yellow
 if (Test-Path $WebView2Bootstrapper) {
     $mb = [math]::Round((Get-Item $WebView2Bootstrapper).Length / 1MB, 1)
     Write-Host "  OK  WebView2 bootstrapper ($mb MB)" -ForegroundColor Green
+} elseif ($RequireInstaller) {
+    $failures += "Missing WebView2 bootstrapper: $WebView2Bootstrapper (run npm run package:installer to download)"
 } else {
     Write-Host "  --  WebView2 bootstrapper not cached (downloaded during package:installer)" -ForegroundColor DarkGray
 }
