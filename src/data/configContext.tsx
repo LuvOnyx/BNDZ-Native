@@ -453,9 +453,10 @@ export const defaultConfig: AppConfig = normalizeConfig({
         {i: 13, c: true, t: "*.htm;*.html;*.php", style: "text-[#3498DB] px-1"},
         {i: 14, c: true, t: "*.txt;*.ini", style: "text-[#3498DB] px-1"},
         {i: 15, c: true, t: "*.png;*.jpg;*.gif;*.bmp", style: "text-[#9B59B6] px-1"},
-        {i: 16, c: true, t: "*.zip;*.rar", style: "text-[#F39C12] px-1"},
+        {i: 16, c: true, t: "*.zip;*.rar;*.rpf", style: "text-[#F39C12] px-1"},
         {i: 17, c: true, t: "*.dll;*.ocx", style: "text-[#E74C3C] px-1"},
-        {i: 18, c: true, t: "*.mp3;*.wav", style: "text-[#3498DB] px-1"}
+        {i: 18, c: true, t: "*.mp3;*.wav", style: "text-[#3498DB] px-1"},
+        {i: 19, c: true, t: "*.ydr;*.yft;*.ydd;*.ybn", style: "text-[#67e8f9] px-1"},
     ],
 });
 

@@ -917,7 +917,7 @@ public sealed class BndzFileIndexService : IDisposable
     public object GetLibraryPulse()
     {
         using var conn = OpenConnection();
-        long images = 0, videos = 0, audio = 0, documents = 0, large = 0;
+        long images = 0, videos = 0, audio = 0, documents = 0, large = 0, models = 0, ragePacks = 0;
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
@@ -926,7 +926,9 @@ public sealed class BndzFileIndexService : IDisposable
                   SUM(CASE WHEN media_kind='video' THEN 1 ELSE 0 END),
                   SUM(CASE WHEN media_kind='audio' THEN 1 ELSE 0 END),
                   SUM(CASE WHEN media_kind='document' OR lower(ext) IN ('pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md') THEN 1 ELSE 0 END),
-                  SUM(CASE WHEN is_dir=0 AND size >= 104857600 THEN 1 ELSE 0 END)
+                  SUM(CASE WHEN is_dir=0 AND size >= 104857600 THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN media_kind='model' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN media_kind='rage-pack' THEN 1 ELSE 0 END)
                 FROM files
                 """;
             using var r = cmd.ExecuteReader();
@@ -937,9 +939,11 @@ public sealed class BndzFileIndexService : IDisposable
                 audio = r.IsDBNull(2) ? 0 : Convert.ToInt64(r.GetValue(2));
                 documents = r.IsDBNull(3) ? 0 : Convert.ToInt64(r.GetValue(3));
                 large = r.IsDBNull(4) ? 0 : Convert.ToInt64(r.GetValue(4));
+                models = r.IsDBNull(5) ? 0 : Convert.ToInt64(r.GetValue(5));
+                ragePacks = r.IsDBNull(6) ? 0 : Convert.ToInt64(r.GetValue(6));
             }
         }
-        return new { images, videos, audio, documents, large };
+        return new { images, videos, audio, documents, large, models, ragePacks };
     }
 
     public List<object> GetMediaFiles(int limit = 200) =>
@@ -960,6 +964,12 @@ public sealed class BndzFileIndexService : IDisposable
 
     public List<object> GetLargeFiles(int limit = 500, long minBytes = 100 * 1024 * 1024) =>
         QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND size >= $min ORDER BY size DESC LIMIT $lim", limit, minBytes);
+
+    public List<object> GetModelFiles(int limit = 200) =>
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind='model' ORDER BY modified DESC LIMIT $lim", Math.Min(limit, 250));
+
+    public List<object> GetRagePackFiles(int limit = 200) =>
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind='rage-pack' ORDER BY modified DESC LIMIT $lim", Math.Min(limit, 250));
 
     private List<object> QueryView(string sql, int limit, long? minBytes = null)
     {
@@ -1368,6 +1378,8 @@ public sealed class BndzFileIndexService : IDisposable
         "mp4" or "mkv" or "avi" or "mov" or "webm" => "video",
         "mp3" or "flac" or "wav" or "aac" or "ogg" => "audio",
         "pdf" or "doc" or "docx" or "txt" or "md" => "document",
+        "ydr" or "yft" or "ydd" or "ybn" or "glb" or "gltf" or "obj" or "stl" or "fbx" or "dae" or "ply" => "model",
+        "rpf" => "rage-pack",
         _ => null,
     };
 

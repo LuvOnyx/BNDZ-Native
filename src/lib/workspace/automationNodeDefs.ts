@@ -111,7 +111,7 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
   filterArchive: {
     label: 'Archives only', color: '#a78bfa', icon: 'zip', category: 'filter',
     desc: 'Pass through archive types only',
-    fields: [{ key: 'extensions', label: 'Archive types', placeholder: 'zip,rar,7z,tar.gz' }],
+    fields: [{ key: 'extensions', label: 'Archive types', placeholder: 'zip,rar,7z,tar.gz,rpf' }],
   },
   filterSize: {
     label: 'Filter by size', color: '#34d399', icon: 'filter_ui', category: 'filter',

@@ -8889,7 +8889,7 @@ namespace BNDZ.Services
                         var svc = BndzFileIndexService.Instance;
                         // Media/audio smart views are thumbnail-heavy — hard-cap so EnrichDirResults +
                         // UI prefetch cannot OOM the hosted WebView2 (blank native shell).
-                        var safeLimit = view is "media" or "audio"
+                        var safeLimit = view is "media" or "audio" or "models" or "rage-packs"
                             ? Math.Clamp(limit, 1, 250)
                             : Math.Clamp(limit, 1, 2000);
                         List<object> rawItems = view switch
@@ -8899,6 +8899,8 @@ namespace BNDZ.Services
                             "audio" => svc.GetAudioFiles(safeLimit),
                             "documents" => svc.GetDocumentFiles(safeLimit),
                             "large" => svc.GetLargeFiles(safeLimit),
+                            "models" => svc.GetModelFiles(safeLimit),
+                            "rage-packs" => svc.GetRagePackFiles(safeLimit),
                             "problems" => LibraryHealthService.Instance.ListProblems(null, safeLimit)
                                 .Select(p => (object)new
                                 {
@@ -11212,8 +11214,11 @@ namespace BNDZ.Services
 
         private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest, string? idProp = null)
         {
-            var label = $"Extract archive · {Path.GetFileName(archivePath)}";
-            _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Normal, dest);
+            var isRpf = string.Equals(Path.GetExtension(archivePath), ".rpf", StringComparison.OrdinalIgnoreCase);
+            var label = isRpf
+                ? $"Extract FiveM pack · {Path.GetFileName(archivePath)}"
+                : $"Extract archive · {Path.GetFileName(archivePath)}";
+            _fileTransferQueue.RegisterJob(operationId, isRpf ? "archive-extract-rpf" : "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Normal, dest);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {

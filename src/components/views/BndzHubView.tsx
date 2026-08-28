@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RAM_ROOT, BNDZ_RECENT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_TEMPORAL_DIFF, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
+import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_MODELS, BNDZ_RAGE_PACKS, BNDZ_RAM_ROOT, BNDZ_RECENT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_TEMPORAL_DIFF, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
 import { getIndexStatusCached } from '../../lib/indexStatusCache';
 import { loadSpatialCanvas } from '../../lib/spatialCanvasStore';
@@ -46,6 +46,18 @@ const VIEWS = [
     icon: 'file_ui',
     accent: '#60a5fa',
     desc: 'PDFs, Office docs, and text from the index',
+  },
+  {
+    path: BNDZ_MODELS,
+    icon: 'view_grid',
+    accent: '#67e8f9',
+    desc: 'GLB, OBJ, and FiveM RAGE drawables (.ydr/.yft/.ydd/.ybn)',
+  },
+  {
+    path: BNDZ_RAGE_PACKS,
+    icon: 'compress',
+    accent: '#f59e0b',
+    desc: 'Rockstar pack files (.rpf) from indexed libraries',
   },
   {
     path: BNDZ_LARGE,

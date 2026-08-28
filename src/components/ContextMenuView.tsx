@@ -32,7 +32,7 @@ import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRunt
 import { getContextBehavior } from '../lib/settingsBehavior';
 import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
-import { isImageExt } from '../lib/mediaTypes';
+import { isImageExt, isModelExt, isRageConvertModelExt } from '../lib/mediaTypes';
 import { dispatchOpenPhotoStudio } from './preview/BndzPhotoStudio';
 import type { SortColumnId } from '../lib/listColumns';
 import type { ListGroupBy } from '../lib/listGrouping';
@@ -824,6 +824,10 @@ function ContextMenuView({
   const fileName = menu.entityName || targetPaths[0]?.split(/[/\\]/).pop() || '';
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const isArchive = targetPaths.length === 1 && isArchiveExt(ext);
+  const isRageMesh = targetPaths.length === 1 && isRageConvertModelExt(ext);
+  const isRagePack = targetPaths.length === 1 && ext === 'rpf';
+  const isModel3d = targetPaths.length === 1 && isModelExt(ext);
+  const isFolder = itemKind === 'folder' || menu.isDirectory;
   const isInRecycleBin = isRecycleBinPath(menu.path);
 
   const extractHere = async () => {
@@ -875,7 +879,7 @@ function ContextMenuView({
       {isArchive && (
         <>
           <ContextMenuItem
-            label="Extract…"
+            label={isRagePack ? 'Extract FiveM pack…' : 'Extract…'}
             iconVerb="extract"
             className="font-semibold"
             onClick={() => void extractToBrowse()}
@@ -885,7 +889,43 @@ function ContextMenuView({
             iconVerb="extract"
             onClick={() => void extractHere()}
           />
+          {isRagePack && (
+            <ContextMenuItem
+              label="Browse pack"
+              iconVerb="open"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'quick-look' } }));
+                onClose();
+              }}
+            />
+          )}
         </>
+      )}
+
+      {(isRageMesh || (isModel3d && !isRageMesh)) && (
+        <>
+          <ContextMenuItem
+            label={isRageMesh ? 'Open 3D orbit (FiveM)' : 'Open 3D orbit'}
+            iconVerb="open"
+            className="font-semibold"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'quick-look' } }));
+              onClose();
+            }}
+          />
+          <div className="bndz-context-menu-sep" />
+        </>
+      )}
+
+      {isFolder && !isBndzVirtualPath(entityPath) && stockOn('mesh-drop') && (
+        <ContextMenuItem
+          label="Launch Ephemeral Mesh host…"
+          iconVerb="cloud_ui"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-ephemeral' } }));
+            onClose();
+          }}
+        />
       )}
 
       {(config.pinnedContextActions || []).length > 0 && (

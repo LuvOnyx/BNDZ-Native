@@ -503,8 +503,9 @@ const MEDIA_THUMB_EXTS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif', 'avif',
   'mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg', 'flv', 'ts', 'm2ts',
   'mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus', 'aiff', 'ape',
-  'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso',
+  'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'rpf',
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'psd',
+  'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'ydr', 'yft', 'ydd', 'ybn',
 ]);
 
 function entityMediaExt(ent: { extension?: string; name?: string }): string {

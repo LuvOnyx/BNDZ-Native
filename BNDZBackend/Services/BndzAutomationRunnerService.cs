@@ -26,7 +26,7 @@ public sealed class BndzAutomationRunnerService
 
     private static readonly HashSet<string> DefaultArchiveExts = new(StringComparer.OrdinalIgnoreCase)
     {
-        "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "tar.gz", "tar.bz2", "tar.xz",
+        "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "tar.gz", "tar.bz2", "tar.xz", "rpf",
     };
 
     public BndzAutomationRunnerService(AutomationRunnerDeps deps)

@@ -11,6 +11,7 @@ import {
 } from '../lib/fileTypeIcons';
 import { applyIconCacheBuster, invalidateIconUrl, getRuntimeListThumbPx, getRuntimeHiResThumbPx, requestNativeIcon } from '../lib/nativeIconService';
 import { entityShellIsDirectory } from '../lib/shellPaths';
+import { isModelExt } from '../lib/mediaTypes';
 import { useNativeIcon } from '../lib/useNativeIcon';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IconPlaceholder } from './IconPlaceholder';
@@ -85,7 +86,8 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
   const isVideo = VIDEO_EXTS.has(ext);
   const folderThumbs = config.showFolderThumbnails === true;
   const useThumbnail = (isDir && folderThumbs) || (!isDir && (
-    IMAGE_EXTS.has(ext) || isVideo || AUDIO_EXTS.has(ext) || ARCHIVE_EXTS.has(ext) || DOC_PREVIEW_EXTS.has(ext)
+    IMAGE_EXTS.has(ext) || isVideo || AUDIO_EXTS.has(ext) || ARCHIVE_EXTS.has(ext)
+    || DOC_PREVIEW_EXTS.has(ext) || isModelExt(ext)
   ));
   const dirFlag = entityShellIsDirectory(entity, path);
   const [iconifyUrl, setIconifyUrl] = useState<string | null>(null);
