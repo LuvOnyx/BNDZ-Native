@@ -672,7 +672,7 @@ export const SETTINGS_VALUE_PATCHES: Record<string, string | number | boolean> =
   listGroupBy: 'none',
   stickyGroupHeaders: true,
   branchViewStrip: false,
-  updateCheckUrl: '',
+  updateCheckUrl: 'https://raw.githubusercontent.com/LuvOnyx/BNDZ-Native/main/docs/version.json.example',
   sortMethod: 'Natural',
   listSortColumn: 'name',
   listSortDirection: 'asc',

@@ -1685,6 +1685,16 @@ export default function BNDZUI() {
       for (const [pane, snaps] of Object.entries(op.snapshotByPane)) {
         if (!snaps?.length) continue;
         const existing = next[pane] ?? [];
+        if (op.kind === 'rename' && snaps.length === 1) {
+          const snap = snaps[0];
+          const snapId = snap?.id;
+          next = setPathCacheEntry(
+            next,
+            pane,
+            existing.map((e: any) => (snapId && e.id === snapId ? { ...snap } : e)),
+          );
+          continue;
+        }
         const seen = new Set(existing.map((e: any) => String(e?.name || '').toLowerCase()));
         const merged = [...existing];
         for (const s of snaps) {
@@ -2640,13 +2650,20 @@ export default function BNDZUI() {
       renameLabel,
     );
     if (!isQueuedIpcResult(res)) {
+      if (!res.ok) {
+        reinjectFsTombstone(renameOpId);
+        clearFsTombstone(renameOpId);
+        pushToast({ kind: 'error', title: 'Rename failed', message: res.error || renameLabel });
+        return false;
+      }
       clearFsTombstone(renameOpId);
       if (settingsRt.rename.resortAfterRename || !!config.resortListImmediatelyAfterRename) {
         void refetchPath(panePath);
       }
+      return true;
     }
     return true;
-  }, [config, settingsRt.rename, refetchPath, registerFsTombstone, clearFsTombstone]);
+  }, [config, settingsRt.rename, refetchPath, registerFsTombstone, clearFsTombstone, reinjectFsTombstone, pushToast]);
 
   const prefetchPathQuiet = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
@@ -4058,8 +4075,10 @@ export default function BNDZUI() {
 
             const isDelete = action === 'delete' || meta?.op === 'delete';
             const isMove = action === 'move' || meta?.op === 'move' || action === 'mesh-move';
+            const pendingOp = pendingFsOpsRef.current.get(job.operationId);
+            const isRename = pendingOp?.kind === 'rename' || job.operationId.startsWith('rename-');
             if (!isDelete) batchIsDeleteOnly = false;
-            if ((isDelete || isMove) && (job.status === 'failed' || job.status === 'cancelled')) {
+            if ((isDelete || isMove || isRename) && (job.status === 'failed' || job.status === 'cancelled')) {
               hasDeleteFailure = true;
               // Instant reinject — don't wait for disk refresh (blank gap after optimistic hide).
               reinjectFsTombstone(job.operationId);
@@ -4077,6 +4096,7 @@ export default function BNDZUI() {
 
             if (job.status === 'failed') {
               const failTitle = action === 'delete' ? 'Delete failed'
+                : isRename ? 'Rename failed'
                 : action.includes('archive') || job.operationId.startsWith('archive-') ? 'Compression failed'
                 : action.includes('extract') || job.operationId.startsWith('extract-') ? 'Extraction failed'
                 : isMove ? 'Move failed'
@@ -5984,6 +6004,11 @@ export default function BNDZUI() {
     }
     const winDest = (await resolvePanePathForFs(dest)).replace(/\\$/, '');
     void IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high').then(res => {
+      if (!isQueuedIpcResult(res) && !res.ok && mode === 'move') {
+        reinjectFsTombstone(opId);
+        clearFsTombstone(opId);
+        pushToast({ kind: 'error', title: 'Move failed', message: res.error || label });
+      }
       if (!isQueuedIpcResult(res)) refreshWorkspace();
     });
   };
@@ -6099,6 +6124,7 @@ export default function BNDZUI() {
 
       if (route.kind !== 'local') {
         const result = await executeMeshTransfer({ operationId: opId, route, sourcePaths: canonSources });
+        xferMetaRef.current.delete(opId);
         if (!result.ok) {
           dismissToast(`xfer-${opId}`);
           pushToast({ kind: 'error', title: `${verb} failed`, message: result.error || label });
@@ -6128,6 +6154,7 @@ export default function BNDZUI() {
           const check = await IPC.budgetGovernorCheck(destCanon, incomingBytes);
           if (check.hardBlock) {
             dismissToast(`xfer-${opId}`);
+            xferMetaRef.current.delete(opId);
             pushToast({
               kind: 'error',
               title: 'Budget governor blocked drop',
@@ -6147,6 +6174,7 @@ export default function BNDZUI() {
           const policy = await IPC.policyPackValidate(toWindowsPath(destCanon), winSources);
           if (policy.ok && policy.allowed === false) {
             dismissToast(`xfer-${opId}`);
+            xferMetaRef.current.delete(opId);
             const msg = policy.violations?.[0]?.message
               || `Policy pack '${policy.packName || 'pack'}' blocked this drop.`;
             pushToast({
@@ -6224,7 +6252,13 @@ export default function BNDZUI() {
           return next;
         });
       }
-      IPC.executeFsOperation(opId, op, resolvedSources, destWin, false, label, 'high');
+      void IPC.executeFsOperation(opId, op, resolvedSources, destWin, false, label, 'high').then(res => {
+        if (!isQueuedIpcResult(res) && !res.ok && op === 'move') {
+          reinjectFsTombstone(opId);
+          clearFsTombstone(opId);
+          pushToast({ kind: 'error', title: 'Move failed', message: res.error || label });
+        }
+      });
       // Tombstones keep source rows hidden — avoid 200ms RAM refresh fighting optimistic UI.
       if (!IPC.isNative && op === 'move' && sourcePath) {
         let newFs = fileSystem;

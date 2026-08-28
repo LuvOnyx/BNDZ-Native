@@ -90,6 +90,8 @@ public static class LicenseService
         "RAM_STAGING_LIST_ZONES",
         "IPC_PING",
         "BNDZ_UI_READY",
+        "CHECK_FOR_UPDATES",
+        "CHECK_LANGUAGE_UPDATES",
     };
 
     private static string AppDataDir => Path.Combine(

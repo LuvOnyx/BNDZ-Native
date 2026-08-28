@@ -47,7 +47,7 @@ function resolveTabFromElement(tabEl: HTMLElement | null): TabHoverTarget | null
   const paneEl = tabEl.closest('[data-pane-id]') as HTMLElement | null;
   const paneId = paneEl?.getAttribute('data-pane-id') || '';
   const tabIndex = parseInt(tabEl.getAttribute('data-tab-index') || '-1', 10);
-  if (!paneId || tabIndex < 0) return { paneId: '', tabIndex: 0, tabId };
+  if (!paneId || tabIndex < 0) return null;
   return { paneId, tabIndex, tabId };
 }
 
