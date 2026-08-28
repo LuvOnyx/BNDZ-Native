@@ -825,6 +825,16 @@ export const IPC = {
     });
   },
 
+  meshIncusReconcile(): Promise<{ ok: boolean; instances?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusReconcile`;
+    return _nativeCall<any>('MESH_INCUS_RECONCILE', 'MESH_INCUS_RECONCILE_RESULT', id, {}, 300000).then(r => ({
+      ok: r?.ok === true,
+      instances: Array.isArray(r?.instances) ? r.instances : undefined,
+      error: r?.error,
+    }));
+  },
+
   meshIncusLaunch(req: Record<string, unknown>): Promise<{ ok: boolean; instance?: any; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_incusLaunch`;

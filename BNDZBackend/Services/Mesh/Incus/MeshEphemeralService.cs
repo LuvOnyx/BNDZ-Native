@@ -1,3 +1,5 @@
+using System.Net.Sockets;
+
 namespace BNDZ.Services.Mesh.Incus;
 
 /// <summary>
@@ -82,6 +84,31 @@ public sealed class MeshEphemeralService
 
     public IReadOnlyList<IncusEphemeralInstanceRecord> ListEphemeral() => _db.ListIncusEphemeral();
 
+    /// <summary>Refresh every tracked ephemeral against live Incus state (startup reconciliation).</summary>
+    public async Task<IReadOnlyList<IncusEphemeralInstanceRecord>> ReconcileAllAsync(CancellationToken ct = default)
+    {
+        var results = new List<IncusEphemeralInstanceRecord>();
+        foreach (var record in _db.ListIncusEphemeral())
+        {
+            if (string.Equals(record.Status, "Error", StringComparison.OrdinalIgnoreCase))
+            {
+                results.Add(record);
+                continue;
+            }
+            try
+            {
+                results.Add(await RefreshAsync(record.Id, ct).ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                record.LastError = ex.Message;
+                _db.UpsertIncusEphemeral(record);
+                results.Add(record);
+            }
+        }
+        return results;
+    }
+
     public async Task<IncusEphemeralInstanceRecord> LaunchAsync(IncusLaunchRequest req, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(req.EndpointId))
@@ -145,11 +172,19 @@ public sealed class MeshEphemeralService
             record.Ipv6 = ipv6;
             record.Status = status;
             var meshHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4 : ipv6;
-            record.LastError = string.IsNullOrWhiteSpace(meshHost) && req.Start && req.RegisterMeshHost
-                ? "Instance started but no global IP yet — refresh or connect manually"
-                : cloudInit == null && req.RegisterMeshHost
-                    ? "Launched without cloud-init SSH key — set Default SSH key on the endpoint for Mesh login"
-                    : null;
+
+            if (req.Start && req.RegisterMeshHost && !string.IsNullOrWhiteSpace(meshHost))
+            {
+                var sshReady = await WaitForSshPortAsync(meshHost!, sshPort, ct, Math.Clamp(req.WaitIpSeconds, 15, 300))
+                    .ConfigureAwait(false);
+                if (!sshReady)
+                    record.LastError = "IP assigned but SSH port not open yet — cloud-init may still be running; Refresh in a moment";
+            }
+
+            if (string.IsNullOrWhiteSpace(meshHost) && req.Start && req.RegisterMeshHost)
+                record.LastError ??= "Instance started but no global IP yet — refresh or connect manually";
+            else if (cloudInit == null && req.RegisterMeshHost)
+                record.LastError ??= "Launched without cloud-init SSH key — set Default SSH key on the endpoint for Mesh login";
 
             if (req.RegisterMeshHost && !string.IsNullOrWhiteSpace(meshHost))
             {
@@ -172,9 +207,7 @@ public sealed class MeshEphemeralService
             }
 
             _db.UpsertIncusEphemeral(record);
-            endpoint.LastSeenUtc = DateTime.UtcNow;
-            endpoint.LastError = null;
-            _db.UpsertIncusEndpoint(endpoint);
+            PersistEndpointConnectState(endpoint, trusted: true);
             return record;
         }
         catch (Exception ex)
@@ -201,6 +234,14 @@ public sealed class MeshEphemeralService
         record.Ipv6 = ipv6;
         record.Status = status;
         record.LastError = null;
+
+        var meshHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4 : ipv6;
+        if (!string.IsNullOrWhiteSpace(meshHost))
+        {
+            var sshReady = await WaitForSshPortAsync(meshHost!, endpoint.DefaultSshPort, ct, 45).ConfigureAwait(false);
+            if (!sshReady)
+                record.LastError = "IP assigned but SSH port not open yet — cloud-init may still be running";
+        }
 
         if (!string.IsNullOrWhiteSpace(record.MeshHostId) && (!string.IsNullOrWhiteSpace(ipv4) || !string.IsNullOrWhiteSpace(ipv6)))
         {
@@ -233,6 +274,7 @@ public sealed class MeshEphemeralService
         }
 
         _db.UpsertIncusEphemeral(record);
+        PersistEndpointConnectState(endpoint, trusted: true);
         return record;
     }
 
@@ -244,25 +286,28 @@ public sealed class MeshEphemeralService
 
         if (endpoint != null)
         {
+            await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
             try
             {
-                await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
-                try
-                {
-                    await client.UpdateInstanceStateAsync(record.InstanceName, "stop", force: true, timeout: 20, ct)
-                        .ConfigureAwait(false);
-                }
-                catch (IncusApiException) { /* already stopped */ }
-                try
-                {
-                    await client.DeleteInstanceAsync(record.InstanceName, force: true, ct).ConfigureAwait(false);
-                }
-                catch (IncusApiException ex) when (ex.StatusCode is 404) { /* gone */ }
+                await client.UpdateInstanceStateAsync(record.InstanceName, "stop", force: true, timeout: 20, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (IncusApiException) { /* already stopped */ }
+
+            try
+            {
+                await client.DeleteInstanceAsync(record.InstanceName, force: true, ct).ConfigureAwait(false);
+            }
+            catch (IncusApiException ex) when (ex.StatusCode is 404)
+            {
+                /* already gone on server */
             }
             catch (Exception ex)
             {
-                record.LastError = ex.Message;
+                record.LastError = $"Incus destroy failed: {ex.Message}";
+                record.Status = "DestroyPending";
                 _db.UpsertIncusEphemeral(record);
+                throw;
             }
         }
 
@@ -283,8 +328,59 @@ public sealed class MeshEphemeralService
 
     private async Task<IncusApiClient> OpenClientOnlyAsync(IncusEndpointRecord endpoint, CancellationToken ct)
     {
-        var (client, _) = await OpenClientAsync(endpoint, ct).ConfigureAwait(false);
+        var (client, info) = await OpenClientAsync(endpoint, ct).ConfigureAwait(false);
+        PersistEndpointConnectState(endpoint, info.Trusted, info.Fingerprint);
         return client;
+    }
+
+    private void PersistEndpointConnectState(IncusEndpointRecord endpoint, bool? trusted = null, string? fingerprint = null)
+    {
+        var dirty = false;
+        if (trusted == true && !endpoint.Trusted)
+        {
+            endpoint.Trusted = true;
+            dirty = true;
+        }
+        if (!string.IsNullOrWhiteSpace(fingerprint)
+            && !string.Equals(endpoint.ServerFingerprint, fingerprint, StringComparison.OrdinalIgnoreCase))
+        {
+            endpoint.ServerFingerprint = fingerprint;
+            dirty = true;
+        }
+        if (!dirty) return;
+        endpoint.LastSeenUtc = DateTime.UtcNow;
+        endpoint.LastError = null;
+        _db.UpsertIncusEndpoint(endpoint);
+    }
+
+    private static async Task<bool> WaitForSshPortAsync(string host, int port, CancellationToken ct, int maxSeconds)
+    {
+        if (port <= 0) port = 22;
+        var deadline = DateTime.UtcNow.AddSeconds(maxSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (await TryConnectTcpAsync(host, port, ct).ConfigureAwait(false))
+                return true;
+            await Task.Delay(2000, ct).ConfigureAwait(false);
+        }
+        return false;
+    }
+
+    private static async Task<bool> TryConnectTcpAsync(string host, int port, CancellationToken ct)
+    {
+        try
+        {
+            using var tcp = new TcpClient();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            linked.CancelAfter(TimeSpan.FromSeconds(4));
+            await tcp.ConnectAsync(host, port, linked.Token).ConfigureAwait(false);
+            return tcp.Connected;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static (string CertPath, string KeyPath) EnsureIdentityPaths(string endpointId)
@@ -321,20 +417,25 @@ public sealed class MeshEphemeralService
     {
         var pub = TryReadSshPublicKey(sshKeyPath);
         if (string.IsNullOrWhiteSpace(pub)) return null;
-        var user = string.IsNullOrWhiteSpace(sshUser) ? "root" : sshUser.Trim();
+        var user = string.IsNullOrWhiteSpace(sshUser) ? "ubuntu" : sshUser.Trim();
+        var quotedPub = YamlQuote(pub.Trim());
         // YAML literal for Incus cloud-init.user-data
         return
             "#cloud-config\n" +
             "users:\n" +
             $"  - name: {user}\n" +
             "    ssh_authorized_keys:\n" +
-            $"      - {pub.Trim()}\n" +
+            $"      - {quotedPub}\n" +
             "    lock_passwd: true\n" +
             "packages:\n" +
             "  - openssh-server\n" +
             "runcmd:\n" +
             "  - [ sh, -c, \"systemctl enable --now ssh || systemctl enable --now sshd || true\" ]\n";
     }
+
+    private static string YamlQuote(string value) =>
+        "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
     private static string? TryReadSshPublicKey(string? keyPath)
     {

@@ -12,7 +12,7 @@ public sealed class IncusEndpointRecord
     public string DefaultImage { get; set; } = "ubuntu/24.04/cloud";
     public string DefaultImageServer { get; set; } = "https://images.linuxcontainers.org";
     public string DefaultInstanceType { get; set; } = "container";
-    public string DefaultSshUser { get; set; } = "root";
+    public string DefaultSshUser { get; set; } = "ubuntu";
     public int DefaultSshPort { get; set; } = 22;
     public string? DefaultSshKeyPath { get; set; }
     public bool AllowInsecureTls { get; set; }

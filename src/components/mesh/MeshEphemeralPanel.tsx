@@ -53,6 +53,16 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  // Reconcile tracked ephemerals against live Incus on first open (app restart / stale DB).
+  useEffect(() => {
+    let cancelled = false;
+    void IPC.meshIncusReconcile().then(res => {
+      if (cancelled || !res.ok) return;
+      if (res.instances) setInstances(res.instances.map((i: Record<string, unknown>) => normalizeIncusEphemeral(i)));
+    }).catch(() => { /* ignore — list still loads from DB */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // Auto-refresh ephemerals waiting for IP (cloud-init / DHCP lag).
   useEffect(() => {
     const pending = instances.some(i =>
@@ -162,9 +172,10 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       if (!res.ok) throw new Error(res.error || 'Launch failed');
       await refresh();
       const inst = res.instance ? normalizeIncusEphemeral(res.instance as Record<string, unknown>) : null;
-      setStatus(inst?.ipv4
-        ? `Ready — ${inst.instanceName} @ ${inst.ipv4} registered on Mesh`
-        : `Launched ${inst?.instanceName || 'instance'} — waiting for IP (Refresh)`);
+      const addr = inst?.ipv4 || inst?.ipv6;
+      setStatus(addr
+        ? `Ready — ${inst?.instanceName} @ ${addr} registered on Mesh`
+        : `Launched ${inst?.instanceName || 'instance'} — waiting for IP`);
     } catch (e: any) {
       setStatus(e?.message || 'Launch failed');
       await refresh();
@@ -419,9 +430,19 @@ function EndpointEditor({
       <input className={PLUGIN_INPUT_CLASS} value={draft.defaultImage} onChange={e => set('defaultImage', e.target.value)} />
       <PluginFieldLabel>Image server</PluginFieldLabel>
       <input className={PLUGIN_INPUT_CLASS} value={draft.defaultImageServer} onChange={e => set('defaultImageServer', e.target.value)} />
+      <PluginFieldLabel>Default instance type</PluginFieldLabel>
+      <select
+        className={PLUGIN_INPUT_CLASS}
+        value={draft.defaultInstanceType}
+        onChange={e => set('defaultInstanceType', e.target.value)}
+      >
+        <option value="container">Container</option>
+        <option value="virtual-machine">Virtual machine</option>
+      </select>
       <PluginFieldLabel>SSH user / port / key for Mesh registration</PluginFieldLabel>
+      <div className="text-[10px] text-gray-500 -mt-1">Use ubuntu for LXC cloud images; root for many VMs</div>
       <div className="grid grid-cols-3 gap-2">
-        <input className={PLUGIN_INPUT_CLASS} value={draft.defaultSshUser} onChange={e => set('defaultSshUser', e.target.value)} placeholder="root" />
+        <input className={PLUGIN_INPUT_CLASS} value={draft.defaultSshUser} onChange={e => set('defaultSshUser', e.target.value)} placeholder="ubuntu" />
         <input className={PLUGIN_INPUT_CLASS} type="number" value={draft.defaultSshPort} onChange={e => set('defaultSshPort', Number(e.target.value) || 22)} />
         <input className={PLUGIN_INPUT_CLASS} value={draft.defaultSshKeyPath || ''} onChange={e => set('defaultSshKeyPath', e.target.value)} placeholder="~/.ssh/id_ed25519" />
       </div>
