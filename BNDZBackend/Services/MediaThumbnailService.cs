@@ -1,7 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using SkiaSharp;
 using TagLib;
@@ -29,7 +27,7 @@ public static class MediaThumbnailService
 
     private static readonly HashSet<string> ArchiveExts = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".cab", ".iso", ".rpf",
+        ".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".cab", ".iso",
     };
 
     private static readonly HashSet<string> ShellPreferExts = new(StringComparer.OrdinalIgnoreCase)
@@ -66,20 +64,12 @@ public static class MediaThumbnailService
         if (!string.IsNullOrEmpty(cached))
             return cached;
 
-        // 0b) Assimp mesh silhouette (obj/fbx/gltf/stl/…) + RAGE drawable → GLB silhouette
+        // 0b) Assimp mesh silhouette (obj/fbx/gltf/stl/…)
         if (AssimpMeshThumbService.IsMeshPath(filePath))
         {
             var meshBytes = AssimpMeshThumbService.TryRenderSilhouette(filePath, size);
             if (meshBytes is { Length: > 0 })
                 return Convert.ToBase64String(meshBytes);
-        }
-
-        // 0c) .rpf — stage first drawable + companions, silhouette via Rage→GLB→Assimp
-        if (ext.Equals(".rpf", StringComparison.OrdinalIgnoreCase))
-        {
-            var rpfBytes = TryRageArchiveSilhouette(filePath, size);
-            if (rpfBytes is { Length: > 0 })
-                return Convert.ToBase64String(rpfBytes);
         }
 
         // 1) MagicScaler stills (JPEG/PNG/WEBP/TIFF) — partial decode + EXIF, ahead of Skia.
@@ -179,32 +169,6 @@ public static class MediaThumbnailService
         catch
         {
             return "";
-        }
-    }
-
-    /// <summary>
-    /// List-grade silhouette for Rockstar .rpf: extract first drawable (+ staged .ytd companions)
-    /// then Rage→GLB→Assimp. Bounded by caller via <see cref="ExtractBase64Bounded"/>.
-    /// </summary>
-    private static byte[]? TryRageArchiveSilhouette(string rpfPath, int size)
-    {
-        try
-        {
-            var archive = new ArchiveService();
-            var listing = archive.ListContents(rpfPath, 800);
-            var mesh = listing.Entries?
-                .Where(e => e is { IsDirectory: false, Path: not null })
-                .Select(e => e.Path!)
-                .FirstOrDefault(p => RageModelPreviewService.NeedsHostConversion(Path.GetExtension(p)));
-            if (string.IsNullOrWhiteSpace(mesh)) return null;
-
-            var extracted = archive.ExtractEntryToTemp(rpfPath, mesh);
-            return AssimpMeshThumbService.TryRenderSilhouette(extracted, size);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[MediaThumb/Rpf] {ex.Message}");
-            return null;
         }
     }
 

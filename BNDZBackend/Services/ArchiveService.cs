@@ -512,31 +512,6 @@ public sealed class ArchiveService
         return result;
     }
 
-    /// <summary>
-    /// Sibling .ytd files already staged next to a RAGE mesh temp extract (for OLE drag-out).
-    /// </summary>
-    public static string[] CollectRageCompanionPaths(string extractedPath)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(extractedPath) || !File.Exists(extractedPath))
-                return Array.Empty<string>();
-            if (!RageModelPreviewService.NeedsHostConversion(Path.GetExtension(extractedPath)))
-                return Array.Empty<string>();
-            var dir = Path.GetDirectoryName(extractedPath);
-            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
-                return Array.Empty<string>();
-            return Directory.GetFiles(dir, "*.ytd")
-                .Where(f => !string.Equals(f, extractedPath, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        }
-        catch
-        {
-            return Array.Empty<string>();
-        }
-    }
-
     private void TryExtractRageCompanionTextures(string archivePath, string entryPath, string tempDir)
     {
         var ext = Path.GetExtension(entryPath).TrimStart('.').ToLowerInvariant();

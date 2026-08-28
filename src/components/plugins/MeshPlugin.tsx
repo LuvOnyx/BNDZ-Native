@@ -119,11 +119,6 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
   useEffect(() => {
     if (!pluginLaunch) return;
     if (pluginLaunch.tab === 'terminal') setTab('terminal');
-    if (pluginLaunch.tab === 'ephemeral') setTab('ephemeral');
-    if (pluginLaunch.tab === 'hosts') setTab('hosts');
-    if (pluginLaunch.tab === 'mirror') setTab('mirror');
-    if (pluginLaunch.tab === 'liveshare') setTab('liveshare');
-    if (pluginLaunch.tab === 'buckets') setTab('buckets');
     if (pluginLaunch.sessionId) setSessionId(pluginLaunch.sessionId);
     if (pluginLaunch.hostId) setSelectedHostId(pluginLaunch.hostId);
   }, [pluginLaunch]);

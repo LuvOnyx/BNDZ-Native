@@ -7762,8 +7762,7 @@ namespace BNDZ.Services
                         try
                         {
                             var extracted = _archiveService.ExtractEntryToTemp(archivePath, entryPath);
-                            var companions = ArchiveService.CollectRageCompanionPaths(extracted);
-                            resultPayload = new { success = true, path = extracted, companions };
+                            resultPayload = new { success = true, path = extracted };
                         }
                         catch (Exception ex)
                         {

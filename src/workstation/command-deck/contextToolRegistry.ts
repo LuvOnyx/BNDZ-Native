@@ -8,8 +8,6 @@ export type ContextToolId =
   | 'mesh-shell-here'
   | 'mesh-download'
   | 'mesh-edit-remote'
-  | 'mesh-ephemeral'
-  | 'archive-extract'
   | 'waveform'
   | 'media-tab'
   | 'histogram'
@@ -104,9 +102,6 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
     if (sig.dominantMedia === 'audio') {
       tools.splice(1, 0, tool('analyze-audio', 'Analyze BPM/Key', 'music_ui', 'metadata'));
     }
-    if (sig.dominantMedia === 'archive') {
-      tools.splice(0, 0, tool('archive-extract', 'Extract', 'zip', undefined, 'host'));
-    }
     return tools;
   }
   switch (sig.media) {
@@ -133,15 +128,6 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       return [
         tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
         tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
-        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
-        tool('properties', 'Properties', 'sys_properties', 'properties'),
-      ];
-    case 'archive':
-      return [
-        tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
-        tool('archive-extract', 'Extract', 'zip', undefined, 'host'),
-        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
-        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
         tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'video':
@@ -162,7 +148,6 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('ghost-link', 'Ghost-Link', 'link', 'ghost-link'),
         tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
         tool('mesh-download', 'Download', 'download', 'remote-mesh'),
-        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
         tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
         tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
         tool('continuum-compose', 'Continuum', 'view_grid', undefined, 'host'),
@@ -178,7 +163,6 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
         tool('mesh-download', 'Download', 'download', 'remote-mesh'),
         tool('mesh-edit-remote', 'Edit Remote', 'edit', 'remote-mesh'),
-        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
         tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
       ];
   }

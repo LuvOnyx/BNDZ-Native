@@ -546,12 +546,10 @@ export function shouldFetchNativeThumbnail(entity: any, config: AppConfig, pathH
   const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif', 'avif'];
   const videoExts = ['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg', 'flv', 'ts', 'm2ts'];
   const audioExts = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus', 'aiff', 'ape'];
-  const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'rpf'];
-  const modelExts = ['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'ydr', 'yft', 'ydd', 'ybn'];
+  const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso'];
   const docExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'psd', 'ai'];
   if (imageExts.includes(ext) || videoExts.includes(ext)) return true;
   if (audioExts.includes(ext) || archiveExts.includes(ext)) return true;
-  if (modelExts.includes(ext)) return true;
   if (docExts.includes(ext)) return rt.thumbnail.showNonImages;
   if (['raw', 'cr2', 'nef', 'arw', 'dng', 'orf', 'rw2'].includes(ext)) return rt.thumbnail.showRaw;
   return rt.thumbnail.showNonImages;

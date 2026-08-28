@@ -6309,8 +6309,6 @@ html[data-darkness-level] #root {
 .bndz-list-filter-chip[data-kind="folders"] { --chip-accent: #fbbf24; }
 .bndz-list-filter-chip[data-kind="images"] { --chip-accent: #c084fc; }
 .bndz-list-filter-chip[data-kind="videos"] { --chip-accent: #fb7185; }
-.bndz-list-filter-chip[data-kind="models"] { --chip-accent: #67e8f9; }
-.bndz-list-filter-chip[data-kind="archives"] { --chip-accent: #f59e0b; }
 .bndz-list-filter-chip[data-kind="documents"] { --chip-accent: #38bdf8; }
 .bndz-list-filter-chip[data-kind="large"] { --chip-accent: #34d399; }
 

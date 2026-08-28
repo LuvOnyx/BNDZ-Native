@@ -5604,19 +5604,13 @@ export default function BNDZUI() {
         onToggle: () => setMeshExpanded(!meshExpanded),
         childrenItems: meshHosts
           .filter(h => h.showInNavTree !== false)
-          .map(h => {
-            const isEphemeral = h.id.startsWith('incus-')
-              || String(h.notes || '').toLowerCase().startsWith('ephemeral:');
-            return {
-              label: isEphemeral ? `${h.alias} · Ephemeral` : h.alias,
-              path: buildMeshPath(h.id, h.remoteRootPath || '/'),
-              icon: isEphemeral ? 'cloud_ui' : (h.provider === 1 ? 'cloud_ui' : 'server_ui'),
-              iconColor: isEphemeral
-                ? (h.state === 2 ? '#67e8f9' : '#22d3ee')
-                : (h.state === 2 ? '#34d399' : '#38bdf8'),
-              useShellIcon: false,
-            };
-          }),
+          .map(h => ({
+            label: h.alias,
+            path: buildMeshPath(h.id, h.remoteRootPath || '/'),
+            icon: h.provider === 1 ? 'cloud_ui' : 'server_ui',
+            iconColor: h.state === 2 ? '#34d399' : '#38bdf8',
+            useShellIcon: false,
+          })),
       } as NavTreeBuildNode] : []),
       {
         treeKey: 'recycle-bin',
@@ -12120,25 +12114,6 @@ export default function BNDZUI() {
         })();
         break;
       }
-      case 'mesh-ephemeral':
-        openBottomPlugin('remote-mesh', { tab: 'ephemeral' });
-        setToastMessage('Remote Mesh · Ephemeral (Incus)', 'info');
-        break;
-      case 'archive-extract': {
-        const archivePath = bottomSelectionTargets.paths[0];
-        if (!archivePath) break;
-        void (async () => {
-          const dest = await IPC.openFolderDialog('Extract archive to…');
-          if (!dest) return;
-          const res = await IPC.extractArchive(toWindowsPath(archivePath), dest);
-          if (isQueuedIpcResult(res)) {
-            setToastMessage('Extract queued — see transfer panel.', 'info');
-            return;
-          }
-          setToastMessage(res.ok ? `Extracted to ${dest}` : (res.error || 'Extract failed'), res.ok ? 'success' : 'warning');
-        })();
-        break;
-      }
       case 'waveform':
         openPreviewWithTab('media');
         openBottomPlugin('metadata');
@@ -12264,15 +12239,6 @@ export default function BNDZUI() {
         });
         break;
       }
-      case 'transcode-rack':
-        openBottomPlugin('transcode-rack');
-        break;
-      case 'semantic-desk':
-        openBottomPlugin('semantic-desk');
-        break;
-      case 'shell-menus':
-        openBottomPlugin('context-menu-manager');
-        break;
       default: {
         const _exhaustive: never = id;
         void _exhaustive;
