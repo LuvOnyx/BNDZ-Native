@@ -7,8 +7,6 @@ export const BNDZ_MEDIA = '/bndz/media';
 export const BNDZ_AUDIO = '/bndz/audio';
 export const BNDZ_DOCUMENTS = '/bndz/documents';
 export const BNDZ_LARGE = '/bndz/large';
-export const BNDZ_MODELS = '/bndz/models';
-export const BNDZ_RAGE_PACKS = '/bndz/rage-packs';
 export const BNDZ_CANVAS = '/bndz/canvas';
 export const BNDZ_AUTOMATION = '/bndz/automation';
 export const BNDZ_TWIN_VOLUME = '/bndz/twin-volume';
@@ -25,7 +23,7 @@ export const BNDZ_PORTAL_CAPTURE = '/bndz/port/capture';
 
 export type BndzPortalView = 'health' | 'magnets' | 'sandboxes' | 'capture';
 
-export type BndzVirtualView = 'recent' | 'media' | 'audio' | 'documents' | 'large' | 'models' | 'rage-packs' | 'problems' | 'inbound';
+export type BndzVirtualView = 'recent' | 'media' | 'audio' | 'documents' | 'large' | 'problems' | 'inbound';
 export type BndzWorkspaceView = 'canvas' | 'automation' | 'twin-volume' | 'temporal-diff';
 
 export function isBndzVirtualPath(path: string): boolean {
@@ -111,8 +109,6 @@ export function parseBndzVirtualView(path: string): BndzVirtualView | null {
   if (n === BNDZ_AUDIO) return 'audio';
   if (n === BNDZ_DOCUMENTS) return 'documents';
   if (n === BNDZ_LARGE) return 'large';
-  if (n === BNDZ_MODELS) return 'models';
-  if (n === BNDZ_RAGE_PACKS) return 'rage-packs';
   if (n === BNDZ_PROBLEMS) return 'problems';
   if (n === BNDZ_INBOUND) return 'inbound';
   return null;
@@ -129,8 +125,6 @@ export function bndzVirtualLabel(view: BndzVirtualView): string {
     case 'audio': return 'Audio library';
     case 'documents': return 'Documents';
     case 'large': return 'Large files';
-    case 'models': return '3D & RAGE meshes';
-    case 'rage-packs': return 'FiveM packs (.rpf)';
     case 'problems': return 'Library problems';
     case 'inbound': return 'Inbound';
     default: {

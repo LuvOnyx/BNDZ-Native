@@ -9,8 +9,7 @@ export const ORGANIZE_BUCKETS: Record<string, OrganizeBucketConfig> = {
   Videos: { re: /\.(mp4|mkv|avi|mov|wmv|webm|m4v)$/i, color: '#a78bfa', icon: 'film_ui' },
   Audio: { re: /\.(mp3|wav|flac|aac|ogg|m4a|wma)$/i, color: '#0078d4', icon: 'music_ui' },
   Documents: { re: /\.(pdf|docx?|xlsx?|pptx?|txt|rtf|odt|csv|md)$/i, color: '#fbbf24', icon: 'file_ui' },
-  Archives: { re: /\.(zip|rar|7z|tar|gz|bz2|rpf)$/i, color: '#fb923c', icon: 'compress' },
-  '3D / FiveM': { re: /\.(glb|gltf|obj|stl|fbx|dae|ply|ydr|yft|ydd|ybn)$/i, color: '#67e8f9', icon: 'view_grid' },
+  Archives: { re: /\.(zip|rar|7z|tar|gz|bz2)$/i, color: '#fb923c', icon: 'compress' },
   Code: { re: /\.(js|ts|jsx|tsx|py|cs|java|cpp|c|h|html|css|json|xml|sql)$/i, color: '#34d399', icon: 'code_ui' },
 };
 

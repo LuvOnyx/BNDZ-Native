@@ -94,10 +94,6 @@ const CURATED_FACT_KEYS: Array<{ key: string; label: string }> = [
   { key: 'Album', label: 'Album' },
   { key: 'Date Taken', label: 'Taken' },
   { key: 'GPS', label: 'GPS' },
-  { key: 'Vertices', label: 'Verts' },
-  { key: 'Triangles', label: 'Tris' },
-  { key: 'Drawable kind', label: 'RAGE' },
-  { key: 'Preview format', label: 'Format' },
 ];
 
 /** Pick up to 6 curated facts from extended metadata. */

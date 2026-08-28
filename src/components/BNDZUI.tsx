@@ -210,7 +210,7 @@ import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics, packGridTracks } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzTwinVolumePath, isBndzTemporalDiffPath, isBndzWorkspacePath, isBndzRamPath, isBndzPortalPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, parseBndzPortalView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, remapRetiredVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_MODELS, BNDZ_RAGE_PACKS } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzTwinVolumePath, isBndzTemporalDiffPath, isBndzWorkspacePath, isBndzRamPath, isBndzPortalPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, parseBndzPortalView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, remapRetiredVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND } from '../lib/bndzVirtualViews';
 import { invalidateRamZoneMountCache, remapRamListingEntries, refreshRamZoneMounts, resolvePanePathForFs, resolveRamStagingFsPath, resolveRamZoneMountPath, entityFsPath } from '../lib/ramStagingPaths';
 import {
   WORK_INTENT_ORDER,
@@ -5437,7 +5437,7 @@ export default function BNDZUI() {
         onClick: () => setCurrentPath(BNDZ_VIEWS_ROOT),
         onToggle: () => setSmartViewsExpanded(v => !v),
         childrenItems: [
-          ...(['recent', 'media', 'audio', 'documents', 'models', 'rage-packs', 'large'] as const).map(view => ({
+          ...(['recent', 'media', 'audio', 'documents', 'large'] as const).map(view => ({
             label: bndzVirtualLabel(view),
             path: bndzVirtualPath(view),
             useShellIcon: false as const,
@@ -5445,15 +5445,11 @@ export default function BNDZUI() {
               : view === 'media' ? 'film_ui'
               : view === 'audio' ? 'music_ui'
               : view === 'documents' ? 'file_ui'
-              : view === 'models' ? 'view_grid'
-              : view === 'rage-packs' ? 'compress'
               : 'hard_drive_ui',
             iconColor: view === 'recent' ? '#fbbf24'
               : view === 'media' ? '#7eb8e8'
               : view === 'audio' ? '#34d399'
               : view === 'documents' ? '#60a5fa'
-              : view === 'models' ? '#67e8f9'
-              : view === 'rage-packs' ? '#f59e0b'
               : '#a78bfa',
           })),
           { label: 'Problems', path: BNDZ_PROBLEMS, icon: 'warning', iconColor: '#f59e0b', useShellIcon: false as const },

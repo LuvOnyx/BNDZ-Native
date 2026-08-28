@@ -7997,7 +7997,7 @@ namespace BNDZ
                     _ = Task.Run(() =>
                     {
                         var svc = BndzFileIndexService.Instance;
-                        var safeLimit = view is "media" or "audio" or "models" or "rage-packs"
+                        var safeLimit = view is "media" or "audio"
                             ? Math.Clamp(limit, 1, 250)
                             : Math.Clamp(limit, 1, 2000);
                         List<object> rawItems = view switch
@@ -8007,8 +8007,6 @@ namespace BNDZ
                             "audio" => svc.GetAudioFiles(safeLimit),
                             "documents" => svc.GetDocumentFiles(safeLimit),
                             "large" => svc.GetLargeFiles(safeLimit),
-                            "models" => svc.GetModelFiles(safeLimit),
-                            "rage-packs" => svc.GetRagePackFiles(safeLimit),
                             "problems" => LibraryHealthService.Instance.ListProblems(null, safeLimit)
                                 .Select(p => (object)new
                                 {
@@ -10137,11 +10135,8 @@ namespace BNDZ
 
         private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest, string? idProp = null)
         {
-            var isRpf = string.Equals(Path.GetExtension(archivePath), ".rpf", StringComparison.OrdinalIgnoreCase);
-            var label = isRpf
-                ? $"Extract FiveM pack · {Path.GetFileName(archivePath)}"
-                : $"Extract archive · {Path.GetFileName(archivePath)}";
-            _fileTransferQueue.RegisterJob(operationId, isRpf ? "archive-extract-rpf" : "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Normal, dest);
+            var label = $"Extract archive · {Path.GetFileName(archivePath)}";
+            _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Normal, dest);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {

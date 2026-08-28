@@ -378,29 +378,6 @@ namespace BNDZ.Services
                 if (!isDir)
                     MediaTagMetadataService.Enrich(meta, filePath);
 
-                if (!isDir && File.Exists(filePath))
-                {
-                    var ext = Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant();
-                    if (RageModelPreviewService.NeedsHostConversion(ext))
-                    {
-                        var (ok, _, format, kind, verts, tris, error) = RageModelPreviewService.TryGetPreviewObj(filePath);
-                        if (ok)
-                        {
-                            meta["Drawable kind"] = kind ?? ext;
-                            meta["Preview format"] = format ?? "glb";
-                            meta["Vertices"] = verts.ToString();
-                            meta["Triangles"] = tris.ToString();
-                            var ytd = Path.ChangeExtension(filePath, ".ytd");
-                            if (File.Exists(ytd))
-                                meta["Companion YTD"] = Path.GetFileName(ytd);
-                        }
-                        else if (!string.IsNullOrWhiteSpace(error))
-                        {
-                            meta["RAGE preview"] = error;
-                        }
-                    }
-                }
-
             }
             catch {}
             return meta;

@@ -76,9 +76,6 @@ export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
   recents: '/bndz/recent',
   'recent files': '/bndz/recent',
   media: '/bndz/media',
-  models: '/bndz/models',
-  'rage packs': '/bndz/rage-packs',
-  'fivem packs': '/bndz/rage-packs',
   'large files': '/bndz/large',
   'smart views': '/bndz',
 };
