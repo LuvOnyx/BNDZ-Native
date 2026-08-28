@@ -130,7 +130,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
 export function resolveToolbarItem(id: string, tags?: Array<{ id?: string; name?: string; label?: string; color?: string }>): ToolbarItemDef | undefined {
   if (id.startsWith('tag__')) {
     const tagId = id.slice(5);
-    const tag = tags?.find(t => (t.id || t.name) === tagId);
+    const tag = tags?.find(t => tagChipId(t) === tagId || (t.id || t.name) === tagId);
     if (tag) {
       return { id, label: `Tag: ${tag.label || tag.name}`, color: tag.color || '#fbbf24', category: 'tags' };
     }

@@ -250,7 +250,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
         <div className="bndz-mesh-tabrail flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
           {([
             ['hosts', 'Hosts'],
-            ['ephemeral', 'Ephemeral'],
+            ['ephemeral', 'Incus VPS'],
             ['buckets', 'Buckets & Shares'],
             ['mirror', 'Mirror'],
             ['terminal', 'Terminal'],

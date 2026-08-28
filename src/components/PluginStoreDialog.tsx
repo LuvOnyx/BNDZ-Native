@@ -99,6 +99,76 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Recursive folder diff',
       'Branch-compare parity for dual pane',
     ],
+    'remote-mesh': [
+      'SSH/SFTP browse, terminal, sync, and LAN drop',
+      'Incus VPS launch, import, start/stop, and Mesh bridge',
+      'Ephemeral and persistent instances with cloud-init SSH',
+    ],
+    'ghost-link': [
+      'Cold-storage offload with transparent reparse points',
+      'Rules-based scan and restore to original paths',
+      'Capacity relief without breaking app paths',
+    ],
+    'ram-staging': [
+      'ImDisk / AIM-backed RAM volumes for staging',
+      'Fast scratch space for batch file work',
+      'Native host integration — no separate installer',
+    ],
+    'project-sandbox': [
+      'ProjFS isolated project sandboxes',
+      'Checkpoint, commit, and discard workflows',
+      'Safe experimentation on live trees',
+    ],
+    'semantic-desk': [
+      'Cluster files by content and filename signals',
+      'Optional ONNX embeddings when a model is present',
+      'Desk-style grouping for large libraries',
+    ],
+    'policy-packs': [
+      'Drop-time validation rules',
+      'Block, warn, or reroute risky transfers',
+      'Enforced in the main file manager drop path',
+    ],
+    'zk-vault': [
+      'Encrypt-at-rest with session unlock',
+      'Folder-level vault mounts',
+      'Native crypto without cloud keys',
+    ],
+    'capture-inbox': [
+      'Clipboard and screenshot capture inbox',
+      'OCR and quick filing into the library',
+      'Producer-friendly intake surface',
+    ],
+    'reality-check': [
+      'DAW/project reference integrity scan',
+      'Missing-file glow in the list',
+      'Session hygiene for media libraries',
+    ],
+    'transcode-rack': [
+      'SkiaSharp JPEG/PNG/WebP batch queue',
+      'Resize and quality presets',
+      'Background transcode with progress',
+    ],
+    'branching-time': [
+      'Content branches and VSS shadows',
+      'Compare and restore timeline paths',
+      'Non-destructive experimentation',
+    ],
+    'inbound-volume': [
+      'Clipboard and watcher intake volume',
+      'Stage downloads before filing',
+      'Pairs with Spatial and Automation seeds',
+    ],
+    'library-health': [
+      'Library scan with repair plans',
+      'Broken alias and path diagnostics',
+      'One-click fix actions where safe',
+    ],
+    'capacity-solver': [
+      'What-if capacity planning',
+      'Approve offload and budget governor hooks',
+      'Pairs with Ghost-Link and RAM staging',
+    ],
   };
   return byId[plugin.id] || [
     plugin.isNative ? 'Native Windows host integration' : 'Hosted UI surface',
@@ -111,7 +181,7 @@ function versionLabel(plugin: PluginManifest): string {
   return plugin.isNative ? '1.0 · Built-in' : '1.0 · Imported';
 }
 
-export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
+export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void; embedded?: boolean }) {
   const { pluginRegistry, togglePluginInstall, addPluginToRegistry } = usePluginRegistry() as any;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -178,6 +248,19 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
           && (json.targetPanel === 'bottom' || json.targetPanel === 'sidebar')
           && typeof json.isNative === 'boolean'
         ) {
+          const builtIn = pluginRegistry.find((p: PluginManifest) => p.id === json.id);
+          if (!builtIn?.component && json.isNative !== false) {
+            showNativeAlert(
+              'This manifest describes a built-in extension that must ship with BNDZ — use Install in the catalog instead of JSON import.',
+              'Extension Hub',
+              'error',
+            );
+            return;
+          }
+          if (!builtIn && json.isNative === true) {
+            showNativeAlert('Imported manifests cannot register native host plugins — set isNative to false or use a built-in id.', 'Extension Hub', 'error');
+            return;
+          }
           const newPlugin: PluginManifest = { ...json, isInstalled: true };
           addPluginToRegistry(newPlugin);
           setSelectedPluginId(newPlugin.id);
@@ -195,16 +278,8 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
 
   const caps = activePlugin ? capabilitiesFor(activePlugin) : [];
 
-  return (
-    <BndzWindowFrame
-      title="Extension Hub"
-      subtitle="Install, manage, and import BNDZ panel extensions"
-      iconId="extension_hub"
-      onClose={onClose}
-      widthClass="w-[min(1080px,calc(100vw-2rem))]"
-      heightClass="h-[min(780px,calc(100vh-2rem))]"
-    >
-      <div className="bndz-hub flex-1 flex flex-col min-h-0 overflow-hidden">
+  const hubBody = (
+      <div className={`bndz-hub flex-1 flex flex-col min-h-0 overflow-hidden ${embedded ? 'h-full' : ''}`}>
         {/* Command strip */}
         <div className="bndz-hub-command shrink-0 px-4 py-3 flex items-center gap-3 border-b border-white/[0.06]">
           <div className="relative flex-1 min-w-0 max-w-[420px]">
@@ -443,6 +518,26 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="h-full min-h-0 flex flex-col overflow-hidden bg-[#0a0c10]">
+        {hubBody}
+      </div>
+    );
+  }
+
+  return (
+    <BndzWindowFrame
+      title="Extension Hub"
+      subtitle="Install, manage, and import BNDZ panel extensions"
+      iconId="extension_hub"
+      onClose={onClose ?? (() => {})}
+      widthClass="w-[min(1080px,calc(100vw-2rem))]"
+      heightClass="h-[min(780px,calc(100vh-2rem))]"
+    >
+      {hubBody}
     </BndzWindowFrame>
   );
 }

@@ -887,6 +887,42 @@ export const IPC = {
     }));
   },
 
+  meshIncusListServerInstances(endpointId: string): Promise<{ ok: boolean; instances: any[]; tracked?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, instances: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusSrvList`;
+    return _nativeCall<any>('MESH_INCUS_LIST_SERVER_INSTANCES', 'MESH_INCUS_LIST_SERVER_INSTANCES_RESULT', id, { endpointId }, 120000).then(r => ({
+      ok: r?.ok === true,
+      instances: Array.isArray(r?.instances) ? r.instances : [],
+      tracked: Array.isArray(r?.tracked) ? r.tracked : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusInstanceAction(ephemeralId: string, action: 'start' | 'stop' | 'restart'): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusAction`;
+    return _nativeCall<any>('MESH_INCUS_INSTANCE_ACTION', 'MESH_INCUS_INSTANCE_ACTION_RESULT', id, { ephemeralId, action }, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusImportInstance(req: { endpointId: string; instanceName: string; alias?: string; registerMeshHost?: boolean }): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusImport`;
+    return _nativeCall<any>('MESH_INCUS_IMPORT_INSTANCE', 'MESH_INCUS_IMPORT_INSTANCE_RESULT', id, req, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  purgeTagFromSidecar(tagKey: string): void {
+    if (!this.isNative || !tagKey) return;
+    (window as any).chrome.webview.postMessage({ type: 'PURGE_TAG_FROM_SIDECAR', payload: { tagKey } });
+  },
+
   ghostLinkGetRules(): Promise<{ rules: unknown[] }> {
     if (!this.isNative) return Promise.resolve({ rules: [] });
     const id = `${Date.now()}_ghostRules`;

@@ -162,6 +162,32 @@ public sealed class IncusApiClient : IAsyncDisposable
         return list.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    /// <summary>List all instances on the Incus server (full VPS inventory).</summary>
+    public async Task<IReadOnlyList<IncusInstanceSummary>> ListInstancesAsync(CancellationToken ct = default)
+    {
+        var path = WithProject("/1.0/instances?recursion=1");
+        var meta = await QueryAsync(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
+        var list = new List<IncusInstanceSummary>();
+        if (meta is JsonArray arr)
+        {
+            foreach (var node in arr)
+            {
+                if (node is not JsonObject obj) continue;
+                var name = obj["name"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                list.Add(new IncusInstanceSummary
+                {
+                    Name = name!,
+                    Status = obj["status"]?.GetValue<string>() ?? "Unknown",
+                    Type = obj["type"]?.GetValue<string>() ?? "container",
+                    Ephemeral = obj["ephemeral"]?.GetValue<bool>() ?? false,
+                    Project = _project,
+                });
+            }
+        }
+        return list.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     public async Task UpdateInstanceStateAsync(string name, string action, bool force = false, int timeout = 30, CancellationToken ct = default)
     {
         var body = new JsonObject

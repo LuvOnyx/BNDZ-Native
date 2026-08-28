@@ -3,6 +3,7 @@ import WindowTitleBar from './WindowTitleBar';
 import StickyWidgetEditor from './StickyWidgetEditor';
 import BndzErrorBoundary from './BndzErrorBoundary';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
+import { useAppConfig } from '../data/configContext';
 import { IPC } from '../lib/ipcBridge';
 import {
   isStickyPluginMode,
@@ -16,15 +17,12 @@ type Props = {
 /** Slim second-process chrome — one plugin (or sticky widget) fills the viewport. */
 export default function PluginPopoutShell({ initial }: Props) {
   const { pluginRegistry } = usePluginRegistry();
+  const { config } = useAppConfig();
   const [boot, setBoot] = useState<PluginWindowBoot>(initial);
-  const [readyTick, setReadyTick] = useState(0);
 
   useEffect(() => {
     IPC.init();
     IPC.notifyUiReady();
-    // Registry hydrates from config async — re-render once so pop-out doesn't flash "unavailable".
-    const t = window.setTimeout(() => setReadyTick((n) => n + 1), 80);
-    const t2 = window.setTimeout(() => setReadyTick((n) => n + 1), 400);
 
     const onMsg = (e: MessageEvent) => {
       try {
@@ -41,17 +39,17 @@ export default function PluginPopoutShell({ initial }: Props) {
     };
     (window as any).chrome?.webview?.addEventListener('message', onMsg);
     return () => {
-      window.clearTimeout(t);
-      window.clearTimeout(t2);
       (window as any).chrome?.webview?.removeEventListener('message', onMsg);
     };
   }, []);
 
   const stickyMode = isStickyPluginMode(boot);
+  const installedIds = (config.installedPlugins as string[] | undefined) || [];
   const plugin = useMemo(
     () => pluginRegistry.find((p: { id: string }) => p.id === boot.pluginId),
-    [pluginRegistry, boot.pluginId, readyTick],
+    [pluginRegistry, boot.pluginId],
   );
+  const pluginReady = stickyMode || (plugin?.component && installedIds.includes(boot.pluginId));
 
   const title = boot.title
     || (stickyMode ? (plugin?.name || 'Sticky') : (plugin?.name || boot.pluginId));
@@ -62,7 +60,7 @@ export default function PluginPopoutShell({ initial }: Props) {
 
   const body = stickyMode ? (
     <StickyWidgetEditor stickyId={boot.stickyId} />
-  ) : plugin?.component ? (
+  ) : plugin?.component && pluginReady ? (
     (() => {
       const Active = plugin.component;
       return (
@@ -84,7 +82,9 @@ export default function PluginPopoutShell({ initial }: Props) {
     <div className="bndz-plugin-popout-missing flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 px-6 text-center">
       <p className="text-sm font-semibold text-gray-200">Loading plugin…</p>
       <p className="text-[12px] max-w-sm">
-        “{boot.pluginId}” — if this stays blank, install the plugin in Extension Hub in the main window, then pop out again.
+        {installedIds.includes(boot.pluginId)
+          ? `Loading “${boot.pluginId}”…`
+          : `“${boot.pluginId}” is not installed — open Extension Hub in the main window, install it, then pop out again.`}
       </p>
     </div>
   );

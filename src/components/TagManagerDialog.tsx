@@ -79,8 +79,12 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
   };
 
   const removeTag = (name: string) => {
-    void persist(tags.filter(t => t.name !== name));
-    if (activeFilter === name) setActiveFilter(null);
+    void (async () => {
+      const { IPC } = await import('../lib/ipcBridge');
+      IPC.purgeTagFromSidecar(name);
+      await persist(tags.filter(t => t.name !== name));
+      if (activeFilter === name) setActiveFilter(null);
+    })();
   };
 
   const saveEdit = (name: string) => {
@@ -95,7 +99,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
   return (
     <BndzWindowFrame
       title="Tag Manager"
-      subtitle={`${tags.length} tags · ${taggedItems.length} tagged items in cache`}
+      subtitle={`${tags.length} tag definitions · ${taggedItems.length} tagged items in browsed folders`}
       iconId="tag_manager"
       onClose={onClose}
       widthClass="w-[min(720px,calc(100vw-2rem))]"
@@ -129,7 +133,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
               ))}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 space-y-2">
+          <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 space-y-2 bndz-tag-manager-palette">
             {tags.map(tag => (
               <div
                 key={tag.name}

@@ -36,6 +36,27 @@ export type IncusEphemeralInstance = {
   notes?: string;
 };
 
+export type IncusServerInstance = {
+  name: string;
+  status: string;
+  type: string;
+  ephemeral: boolean;
+  project?: string;
+  tracked?: boolean;
+};
+
+export function normalizeIncusServerInstance(raw: Record<string, unknown>, tracked?: Set<string>): IncusServerInstance {
+  const name = String(raw.name ?? raw.Name ?? '');
+  return {
+    name,
+    status: String(raw.status ?? raw.Status ?? 'Unknown'),
+    type: String(raw.type ?? raw.Type ?? 'container'),
+    ephemeral: Boolean(raw.ephemeral ?? raw.Ephemeral ?? false),
+    project: (raw.project ?? raw.Project) as string | undefined,
+    tracked: tracked ? tracked.has(name.toLowerCase()) : undefined,
+  };
+}
+
 export function normalizeIncusEndpoint(raw: Record<string, unknown>): IncusEndpoint {
   return {
     id: String(raw.id ?? raw.Id ?? `incus-${Date.now().toString(36)}`),

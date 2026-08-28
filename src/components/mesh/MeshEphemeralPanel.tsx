@@ -11,6 +11,8 @@ import {
   type IncusEphemeralInstance,
   normalizeIncusEndpoint,
   normalizeIncusEphemeral,
+  normalizeIncusServerInstance,
+  type IncusServerInstance,
   createEmptyIncusEndpoint,
   incusEndpointToPayload,
 } from '../../lib/incusTypes';
@@ -30,7 +32,11 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   const [launchImage, setLaunchImage] = useState('ubuntu/24.04/cloud');
   const [launchType, setLaunchType] = useState<'container' | 'virtual-machine'>('container');
   const [launchAlias, setLaunchAlias] = useState('');
+  const [launchName, setLaunchName] = useState('');
+  const [launchPersistent, setLaunchPersistent] = useState(false);
   const [imageAliases, setImageAliases] = useState<Array<{ name: string; description?: string }>>([]);
+  const [serverInstances, setServerInstances] = useState<IncusServerInstance[]>([]);
+  const [inventoryBusy, setInventoryBusy] = useState(false);
 
   const setStatus = (msg: string | null) => onStatus?.(msg);
 
@@ -104,6 +110,30 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     return () => { cancelled = true; };
   }, [selectedEndpointId]);
 
+  const loadServerInventory = useCallback(async () => {
+    if (!selectedEndpointId) {
+      setServerInstances([]);
+      return;
+    }
+    setInventoryBusy(true);
+    try {
+      const res = await IPC.meshIncusListServerInstances(selectedEndpointId);
+      if (!res.ok) throw new Error(res.error || 'Could not list Incus instances');
+      const tracked = new Set((res.tracked || []).map(n => n.toLowerCase()));
+      setServerInstances((res.instances as Record<string, unknown>[]).map(raw =>
+        normalizeIncusServerInstance(raw, tracked)));
+    } catch (e: any) {
+      setStatus(e?.message || 'Server inventory failed');
+      setServerInstances([]);
+    } finally {
+      setInventoryBusy(false);
+    }
+  }, [selectedEndpointId, onStatus]);
+
+  useEffect(() => {
+    void loadServerInventory();
+  }, [loadServerInventory]);
+
   const saveEndpoint = async (endpoint: IncusEndpoint) => {
     setBusy(true);
     setStatus(null);
@@ -162,9 +192,10 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     try {
       const res = await IPC.meshIncusLaunch({
         endpointId: selectedEndpointId,
+        name: launchName.trim() || undefined,
         imageAlias: launchImage,
         instanceType: launchType,
-        ephemeral: true,
+        ephemeral: !launchPersistent,
         start: true,
         registerMeshHost: true,
         alias: launchAlias || undefined,
@@ -191,6 +222,39 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
       setStatus('Instance state refreshed');
     } catch (e: any) {
       setStatus(e?.message || 'Refresh failed');
+    } finally { setBusy(false); }
+  };
+
+  const instanceAction = async (id: string, action: 'start' | 'stop' | 'restart') => {
+    setBusy(true);
+    try {
+      const res = await IPC.meshIncusInstanceAction(id, action);
+      if (!res.ok) throw new Error(res.error || `${action} failed`);
+      await refresh();
+      void loadServerInventory();
+      setStatus(`Instance ${action} completed`);
+    } catch (e: any) {
+      setStatus(e?.message || `${action} failed`);
+      await refresh();
+    } finally { setBusy(false); }
+  };
+
+  const importServerInstance = async (inst: IncusServerInstance) => {
+    if (!selectedEndpointId || inst.tracked) return;
+    setBusy(true);
+    try {
+      const res = await IPC.meshIncusImportInstance({
+        endpointId: selectedEndpointId,
+        instanceName: inst.name,
+        alias: `Incus · ${inst.name}`,
+        registerMeshHost: true,
+      });
+      if (!res.ok) throw new Error(res.error || 'Import failed');
+      await refresh();
+      void loadServerInventory();
+      setStatus(`Imported ${inst.name} — Mesh host registered when IP is ready`);
+    } catch (e: any) {
+      setStatus(e?.message || 'Import failed');
     } finally { setBusy(false); }
   };
 
@@ -252,9 +316,9 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     <div className="flex flex-col gap-3 min-h-0">
       <PluginHeroStrip
         icon={<Icons8Icon id="server_ui" size={40} />}
-        name="Ephemeral Mesh"
-        typeLabel="Incus · VPS-like temps"
-        meta={<span className="text-[10px] text-gray-500">Launch → IP → Mesh SSH · destroy when done</span>}
+        name="Incus VPS Control"
+        typeLabel="Remote Mesh · full instance plane"
+        meta={<span className="text-[10px] text-gray-500">Launch · import · start/stop · browse · shell · destroy — native in Mesh, no external admin UI</span>}
         actions={
           <>
             <PluginHeroActionButton icon="add" variant="primary" onClick={() => setEditor('new')}>
@@ -338,20 +402,53 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
             </select>
             <PluginFieldLabel>Mesh alias (optional)</PluginFieldLabel>
             <input className={PLUGIN_INPUT_CLASS} value={launchAlias} onChange={e => setLaunchAlias(e.target.value)} placeholder="Build box" />
+            <PluginFieldLabel>Instance name (optional)</PluginFieldLabel>
+            <input className={PLUGIN_INPUT_CLASS} value={launchName} onChange={e => setLaunchName(e.target.value)} placeholder="bndz-build-01" />
+            <label className="flex items-center gap-2 text-[11px] text-gray-400">
+              <input type="checkbox" checked={launchPersistent} onChange={e => setLaunchPersistent(e.target.checked)} />
+              Persistent VPS (not auto-deleted on stop)
+            </label>
             <PluginToolbarButton onClick={() => void launch()} disabled={busy || !selectedEndpointId}>
-              <Icons8Icon id="play" size={12} /> Launch ephemeral · register Mesh host
+              <Icons8Icon id="play" size={12} /> Launch · register Mesh host
             </PluginToolbarButton>
+          </PluginCard>
+
+          <div className="text-[11px] font-semibold tracking-wide text-sky-200/80 uppercase flex items-center justify-between gap-2">
+            <span>Server inventory</span>
+            <PluginToolbarButton onClick={() => void loadServerInventory()} disabled={inventoryBusy || !selectedEndpointId}>
+              {inventoryBusy ? 'Scanning…' : 'Scan Incus'}
+            </PluginToolbarButton>
+          </div>
+          <PluginCard className="!p-2 space-y-1 bndz-mesh-ephemeral-inventory max-h-[220px] overflow-y-auto bndz-scrollbar">
+            {!selectedEndpointId ? (
+              <div className="text-[10px] text-gray-500 px-2 py-3">Select an endpoint to list all instances on the Incus server.</div>
+            ) : serverInstances.length === 0 ? (
+              <div className="text-[10px] text-gray-500 px-2 py-3">No instances reported — scan after connecting a trusted endpoint.</div>
+            ) : serverInstances.map(srv => (
+              <div key={srv.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] bndz-mesh-ephemeral-inventory-row">
+                <span className={`bndz-mesh-ephemeral-dot ${srv.status === 'Running' ? 'is-trusted' : 'is-pending'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] text-white truncate font-medium">{srv.name}</div>
+                  <div className="text-[9px] text-gray-500 truncate">{srv.type}{srv.ephemeral ? ' · ephemeral' : ' · persistent'} · {srv.status}</div>
+                </div>
+                {srv.tracked ? (
+                  <span className="text-[9px] text-emerald-300/80 shrink-0">In Mesh</span>
+                ) : (
+                  <PluginToolbarButton onClick={() => void importServerInstance(srv)} disabled={busy}>Import</PluginToolbarButton>
+                )}
+              </div>
+            ))}
           </PluginCard>
         </div>
       </div>
 
       <div className="space-y-2">
-        <div className="text-[11px] font-semibold tracking-wide text-sky-200/80 uppercase">Live ephemerals</div>
+        <div className="text-[11px] font-semibold tracking-wide text-sky-200/80 uppercase">Managed VPS hosts</div>
         {instances.length === 0 ? (
           <PluginEmptyState
             icon="cloud_ui"
-            title="No temporary hosts"
-            description="Launch a container or VM from your Incus endpoint. When an IPv4 appears, BNDZ registers it as a Mesh SSH host for browse / terminal / mirror."
+            title="No managed hosts"
+            description="Launch a new VPS or import an existing Incus instance. When an IP appears, BNDZ registers Mesh SSH for browse, terminal, mirror, and sync."
           />
         ) : (
           <div className="grid gap-2 xl:grid-cols-2">
@@ -377,6 +474,15 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
                 <div className="flex flex-wrap gap-1.5">
                   <PluginToolbarButton onClick={() => void browseMesh(inst)} disabled={busy || !inst.meshHostId}>Browse</PluginToolbarButton>
                   <PluginToolbarButton onClick={() => void shellHere(inst)} disabled={busy || !inst.meshHostId}>Shell Here</PluginToolbarButton>
+                  {inst.status !== 'Running' && (
+                    <PluginToolbarButton onClick={() => void instanceAction(inst.id, 'start')} disabled={busy}>Start</PluginToolbarButton>
+                  )}
+                  {inst.status === 'Running' && (
+                    <>
+                      <PluginToolbarButton onClick={() => void instanceAction(inst.id, 'stop')} disabled={busy}>Stop</PluginToolbarButton>
+                      <PluginToolbarButton onClick={() => void instanceAction(inst.id, 'restart')} disabled={busy}>Restart</PluginToolbarButton>
+                    </>
+                  )}
                   <PluginToolbarButton onClick={() => void refreshOne(inst.id)} disabled={busy}>Refresh IP</PluginToolbarButton>
                   <PluginToolbarButton onClick={() => void destroyOne(inst.id)} disabled={busy}>Destroy</PluginToolbarButton>
                 </div>

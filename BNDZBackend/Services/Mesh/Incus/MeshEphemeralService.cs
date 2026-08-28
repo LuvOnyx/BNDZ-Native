@@ -88,7 +88,7 @@ public sealed class MeshEphemeralService
     public async Task<IReadOnlyList<IncusEphemeralInstanceRecord>> ReconcileAllAsync(CancellationToken ct = default)
     {
         var results = new List<IncusEphemeralInstanceRecord>();
-        foreach (var record in _db.ListIncusEphemeral())
+        foreach (var record in _db.ListIncusEphemeral().ToList())
         {
             if (string.Equals(record.Status, "Error", StringComparison.OrdinalIgnoreCase))
             {
@@ -99,6 +99,10 @@ public sealed class MeshEphemeralService
             {
                 results.Add(await RefreshAsync(record.Id, ct).ConfigureAwait(false));
             }
+            catch (IncusApiException ex) when (ex.StatusCode == 404)
+            {
+                await PruneEphemeralRecordAsync(record).ConfigureAwait(false);
+            }
             catch (Exception ex)
             {
                 record.LastError = ex.Message;
@@ -107,6 +111,110 @@ public sealed class MeshEphemeralService
             }
         }
         return results;
+    }
+
+    public async Task<IReadOnlyList<IncusInstanceSummary>> ListServerInstancesAsync(string endpointId, CancellationToken ct = default)
+    {
+        var endpoint = _db.GetIncusEndpoint(endpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
+        await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
+        return await client.ListInstancesAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<IncusEphemeralInstanceRecord> SetInstanceActionAsync(string ephemeralId, string action, CancellationToken ct = default)
+    {
+        var record = _db.GetIncusEphemeral(ephemeralId)
+            ?? throw new InvalidOperationException("Ephemeral instance not found");
+        var endpoint = _db.GetIncusEndpoint(record.EndpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
+        var normalized = action.Trim().ToLowerInvariant();
+        if (normalized is not ("start" or "stop" or "restart" or "freeze" or "unfreeze"))
+            throw new InvalidOperationException($"Unsupported Incus action: {action}");
+
+        await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
+        try
+        {
+            await client.UpdateInstanceStateAsync(record.InstanceName, normalized, force: true, timeout: 60, ct)
+                .ConfigureAwait(false);
+        }
+        catch (IncusApiException ex) when (ex.StatusCode == 404)
+        {
+            await PruneEphemeralRecordAsync(record).ConfigureAwait(false);
+            throw new InvalidOperationException("Instance no longer exists on Incus server");
+        }
+        return await RefreshAsync(ephemeralId, ct).ConfigureAwait(false);
+    }
+
+    public async Task<IncusEphemeralInstanceRecord> ImportInstanceAsync(
+        string endpointId,
+        string instanceName,
+        string? alias = null,
+        bool registerMeshHost = true,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceName))
+            throw new InvalidOperationException("instanceName is required");
+        var endpoint = _db.GetIncusEndpoint(endpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
+        var name = SanitizeInstanceName(instanceName);
+
+        var existing = _db.ListIncusEphemeral()
+            .FirstOrDefault(i => i.EndpointId == endpointId
+                && string.Equals(i.InstanceName, name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+            return await RefreshAsync(existing.Id, ct).ConfigureAwait(false);
+
+        await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
+        IncusInstanceSummary? summary;
+        try
+        {
+            var all = await client.ListInstancesAsync(ct).ConfigureAwait(false);
+            summary = all.FirstOrDefault(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException($"Instance '{name}' not found on Incus server");
+        }
+        catch (IncusApiException ex) when (ex.StatusCode == 404)
+        {
+            throw new InvalidOperationException($"Instance '{name}' not found on Incus server");
+        }
+
+        var (ipv4, ipv6, status) = await client.GetPrimaryAddressesAsync(name, ct).ConfigureAwait(false);
+        var record = new IncusEphemeralInstanceRecord
+        {
+            EndpointId = endpointId,
+            InstanceName = name,
+            Status = status,
+            Ipv4 = ipv4,
+            Ipv6 = ipv6,
+            ImageAlias = "",
+            InstanceType = summary?.Type ?? "container",
+            Ephemeral = summary?.Ephemeral ?? false,
+            Notes = alias ?? $"Incus · {name}",
+        };
+        _db.UpsertIncusEphemeral(record);
+
+        if (registerMeshHost && (!string.IsNullOrWhiteSpace(ipv4) || !string.IsNullOrWhiteSpace(ipv6)))
+        {
+            var meshHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4 : ipv6;
+            var host = new MeshHostRecord
+            {
+                Id = $"incus-{record.Id}",
+                Alias = string.IsNullOrWhiteSpace(alias) ? $"Incus · {name}" : alias!,
+                Provider = MeshProviderKind.Ssh,
+                Hostname = meshHost!,
+                Port = endpoint.DefaultSshPort,
+                Username = endpoint.DefaultSshUser,
+                KeyPath = endpoint.DefaultSshKeyPath,
+                AuthKind = string.IsNullOrWhiteSpace(endpoint.DefaultSshKeyPath) ? MeshAuthKind.Agent : MeshAuthKind.PrivateKey,
+                ShowInNavTree = true,
+                RemoteRootPath = "/",
+                Notes = $"imported:{endpoint.Alias}:{name}",
+            };
+            _orchestrator.UpsertHost(host);
+            record.MeshHostId = host.Id;
+            _db.UpsertIncusEphemeral(record);
+        }
+
+        return await RefreshAsync(record.Id, ct).ConfigureAwait(false);
     }
 
     public async Task<IncusEphemeralInstanceRecord> LaunchAsync(IncusLaunchRequest req, CancellationToken ct = default)
@@ -229,13 +337,21 @@ public sealed class MeshEphemeralService
             ?? throw new InvalidOperationException("Incus endpoint not found");
 
         await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
-        var (ipv4, ipv6, status) = await client.GetPrimaryAddressesAsync(record.InstanceName, ct).ConfigureAwait(false);
-        record.Ipv4 = ipv4;
-        record.Ipv6 = ipv6;
-        record.Status = status;
-        record.LastError = null;
+        try
+        {
+            var (ipv4, ipv6, status) = await client.GetPrimaryAddressesAsync(record.InstanceName, ct).ConfigureAwait(false);
+            record.Ipv4 = ipv4;
+            record.Ipv6 = ipv6;
+            record.Status = status;
+            record.LastError = null;
+        }
+        catch (IncusApiException ex) when (ex.StatusCode == 404)
+        {
+            await PruneEphemeralRecordAsync(record).ConfigureAwait(false);
+            throw new InvalidOperationException("Instance no longer exists on Incus server");
+        }
 
-        var meshHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4 : ipv6;
+        var meshHost = !string.IsNullOrWhiteSpace(record.Ipv4) ? record.Ipv4 : record.Ipv6;
         if (!string.IsNullOrWhiteSpace(meshHost))
         {
             var sshReady = await WaitForSshPortAsync(meshHost!, endpoint.DefaultSshPort, ct, 45).ConfigureAwait(false);
@@ -243,19 +359,19 @@ public sealed class MeshEphemeralService
                 record.LastError = "IP assigned but SSH port not open yet — cloud-init may still be running";
         }
 
-        if (!string.IsNullOrWhiteSpace(record.MeshHostId) && (!string.IsNullOrWhiteSpace(ipv4) || !string.IsNullOrWhiteSpace(ipv6)))
+        if (!string.IsNullOrWhiteSpace(record.MeshHostId) && (!string.IsNullOrWhiteSpace(record.Ipv4) || !string.IsNullOrWhiteSpace(record.Ipv6)))
         {
             var host = _orchestrator.GetHost(record.MeshHostId!);
-            var nextHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4! : ipv6!;
+            var nextHost = !string.IsNullOrWhiteSpace(record.Ipv4) ? record.Ipv4! : record.Ipv6!;
             if (host != null && !string.Equals(host.Hostname, nextHost, StringComparison.OrdinalIgnoreCase))
             {
                 host.Hostname = nextHost;
                 _orchestrator.UpsertHost(host);
             }
         }
-        else if (string.IsNullOrWhiteSpace(record.MeshHostId) && (!string.IsNullOrWhiteSpace(ipv4) || !string.IsNullOrWhiteSpace(ipv6)))
+        else if (string.IsNullOrWhiteSpace(record.MeshHostId) && (!string.IsNullOrWhiteSpace(record.Ipv4) || !string.IsNullOrWhiteSpace(record.Ipv6)))
         {
-            var nextHost = !string.IsNullOrWhiteSpace(ipv4) ? ipv4! : ipv6!;
+            var nextHost = !string.IsNullOrWhiteSpace(record.Ipv4) ? record.Ipv4! : record.Ipv6!;
             var host = new MeshHostRecord
             {
                 Id = $"incus-{record.Id}",
@@ -318,6 +434,17 @@ public sealed class MeshEphemeralService
         }
 
         _db.DeleteIncusEphemeral(ephemeralId);
+    }
+
+    private async Task PruneEphemeralRecordAsync(IncusEphemeralInstanceRecord record)
+    {
+        if (!string.IsNullOrWhiteSpace(record.MeshHostId))
+        {
+            try { _orchestrator.DeleteHost(record.MeshHostId!); }
+            catch { /* ignore */ }
+        }
+        _db.DeleteIncusEphemeral(record.Id);
+        await Task.CompletedTask;
     }
 
     private async Task<(IncusApiClient Client, IncusServerInfo Info)> OpenClientAsync(IncusEndpointRecord endpoint, CancellationToken ct)
