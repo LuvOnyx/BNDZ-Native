@@ -53,24 +53,6 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // Auto-refresh ephemerals waiting for IP (cloud-init / DHCP lag).
-  useEffect(() => {
-    const pending = instances.some(i =>
-      (!i.ipv4 && !i.ipv6) || (!i.meshHostId && (i.status === 'Running' || i.status === 'Creating')));
-    if (!pending) return;
-    const timer = window.setInterval(() => {
-      void (async () => {
-        for (const inst of instances) {
-          if (inst.ipv4 || inst.ipv6) continue;
-          if (inst.status === 'Error') continue;
-          try { await IPC.meshIncusRefresh(inst.id); } catch { /* ignore */ }
-        }
-        await refresh();
-      })();
-    }, 4000);
-    return () => window.clearInterval(timer);
-  }, [instances, refresh]);
-
   useEffect(() => {
     const ep = endpoints.find(e => e.id === selectedEndpointId);
     if (ep) {
@@ -353,11 +335,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
                       {inst.instanceType} · {inst.imageAlias}{inst.ephemeral ? ' · ephemeral' : ''}
                     </div>
                     <div className="text-[10px] text-sky-300/80 mt-1 bndz-mono">
-                      {inst.ipv4 || inst.ipv6 || 'waiting for IP…'}
-                      {inst.meshHostId ? ` · mesh:${inst.meshHostId}` : ''}
-                      {!inst.ipv4 && !inst.ipv6 && inst.status !== 'Error' ? (
-                        <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse align-middle" />
-                      ) : null}
+                      {inst.ipv4 || 'no IPv4 yet'}{inst.meshHostId ? ` · mesh:${inst.meshHostId}` : ''}
                     </div>
                   </div>
                   <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-300 shrink-0">{inst.status}</span>

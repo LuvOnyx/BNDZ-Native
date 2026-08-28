@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 import { toWindowsPath, toVirtualStreamUrl } from '../lib/pathUtils';
@@ -13,7 +13,6 @@ import {
   type ArchiveSortKey,
   type ArchiveTreeNode,
 } from '../lib/archiveTypes';
-import { isRageConvertModelExt } from '../lib/mediaTypes';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import {
   dispatchPointerFileDragMove,
@@ -33,8 +32,6 @@ import { onHostOleDragEscalated } from '../lib/fileDragUiCleanup';
 import { IPC } from '../lib/ipcBridge';
 import DragGhostPortal from './DragGhostPortal';
 import { prefetchArchiveEntryTemp, resolveArchiveEntryTempPaths } from '../lib/archiveExtractCache';
-
-const GpuModelViewport = lazy(() => import('../workstation/inspection/GpuModelViewport'));
 
 interface ArchivePreviewPanelProps {
   path: string;
@@ -159,7 +156,6 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [anchorPath, setAnchorPath] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [modelPreview, setModelPreview] = useState<{ url: string; badge: string; verts?: number; tris?: number } | null>(null);
   const [sortKey, setSortKey] = useState<ArchiveSortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [showTree, setShowTree] = useState(false);
@@ -212,22 +208,24 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const reload = useCallback(() => {
     setLoading(true);
     setError(null);
-    IPC.getArchiveContents(winPath).then(data => {
-      if (data?.error) {
-        setError(data.error);
-        setEntries([]);
-      } else {
-        setEntries(data?.entries || []);
-        setStats({
-          count: data?.entryCount || data?.entries?.length || 0,
-          totalSize: data?.totalSize || 0,
-          compressed: data?.totalCompressedSize || 0,
-        });
-      }
-      setLoading(false);
-    }).catch(err => {
-      setError(err.message || 'Failed to read archive');
-      setLoading(false);
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      IPC.getArchiveContents(winPath).then(data => {
+        if (data?.error) {
+          setError(data.error);
+          setEntries([]);
+        } else {
+          setEntries(data?.entries || []);
+          setStats({
+            count: data?.entryCount || data?.entries?.length || 0,
+            totalSize: data?.totalSize || 0,
+            compressed: data?.totalCompressedSize || 0,
+          });
+        }
+        setLoading(false);
+      }).catch(err => {
+        setError(err.message || 'Failed to read archive');
+        setLoading(false);
+      });
     });
   }, [winPath]);
 
@@ -259,7 +257,6 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     setSelectedPaths(new Set());
     setAnchorPath(null);
     setPreviewUrl(null);
-    setModelPreview(null);
   };
 
   const toggleSort = (key: ArchiveSortKey) => {
@@ -294,42 +291,13 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
 
   const loadPreview = (entry: ArchiveEntry) => {
     setPreviewUrl(null);
-    setModelPreview(null);
     const ext = entry.name.split('.').pop()?.toLowerCase() || '';
     if (!isNative || entry.isDirectory) return;
-
-    // RAGE mesh inside archive (esp. .rpf) → extract + companion .ytd → GLB orbit stage
-    if (isRageConvertModelExt(ext)) {
-      void (async () => {
-        setBusy(`Converting ${entry.name}…`);
-        try {
-          const result = await IPC.archiveExtractEntryToTemp(winPath, entry.path);
-          if (!result.success || !result.path) {
-            setStatus(result.error || 'Could not extract mesh from archive');
-            return;
-          }
-          const preview = await IPC.getModelPreview(result.path);
-          if (preview?.error || !preview?.path) {
-            setStatus(preview?.error || 'RAGE convert failed');
-            return;
-          }
-          setModelPreview({
-            url: toVirtualStreamUrl(preview.path),
-            badge: `${ext}→${preview.format || 'glb'}`,
-            verts: preview.vertices,
-            tris: preview.triangles,
-          });
-        } finally {
-          setBusy(null);
-        }
-      })();
-      return;
-    }
-
     if (!['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'pdf', 'html', 'htm', 'txt', 'mp3', 'wav', 'flac', 'm4a', 'ogg'].includes(ext)) return;
     void (async () => {
       setBusy(`Loading ${entry.name}…`);
       try {
+        const { IPC } = await import('../lib/ipcBridge');
         const result = await IPC.archiveExtractEntryToTemp(winPath, entry.path);
         if (result.success && result.path) {
           setPreviewUrl(toVirtualStreamUrl(result.path));
@@ -579,6 +547,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     if (!primarySelected) return;
     setBusy(`Extracting ${primarySelected.name}…`);
     try {
+      const { IPC } = await import('../lib/ipcBridge');
       const dest = await IPC.openFolderDialog('Extract selected archive items to…');
       if (!dest) {
         setStatus('Extract cancelled.');
@@ -800,30 +769,14 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             <button
               type="button"
               className="bndz-archive-btn-ghost"
-              onClick={() => { setSelectedPaths(new Set()); setPreviewUrl(null); setModelPreview(null); }}
+              onClick={() => { setSelectedPaths(new Set()); setPreviewUrl(null); }}
               title="Close inspector"
             >
               <Icons8Icon id="close" size={12} />
             </button>
           </div>
           <div className="bndz-archive-inspector-body">
-            {modelPreview ? (
-              <div className="bndz-archive-model-stage">
-                <Suspense fallback={<div className="bndz-archive-inspector-placeholder">Loading orbit…</div>}>
-                  <GpuModelViewport
-                    src={modelPreview.url}
-                    title={primarySelected.name}
-                    badge={modelPreview.badge}
-                  />
-                </Suspense>
-                {(modelPreview.verts || modelPreview.tris) ? (
-                  <div className="bndz-archive-model-stats">
-                    {modelPreview.verts?.toLocaleString()} verts
-                    {modelPreview.tris != null ? ` · ${modelPreview.tris.toLocaleString()} tris` : ''}
-                  </div>
-                ) : null}
-              </div>
-            ) : previewUrl ? (
+            {previewUrl ? (
               primarySelected.name.match(/\.(png|jpe?g|gif|webp|bmp|svg)$/i) ? (
                 <img src={previewUrl} alt={primarySelected.name} className="bndz-archive-preview-media" />
               ) : primarySelected.name.match(/\.(mp3|wav|flac|m4a|ogg)$/i) ? (
@@ -838,11 +791,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             ) : (
               <div className="bndz-archive-inspector-placeholder">
                 <Icons8Icon id="file_ui" size={28} className="opacity-40 mb-2" />
-                <p>
-                  {isRageConvertModelExt(primarySelected.name.split('.').pop() || '')
-                    ? 'Select to orbit-preview this RAGE mesh'
-                    : 'No inline preview for this type'}
-                </p>
+                <p>No inline preview for this type</p>
               </div>
             )}
           </div>
