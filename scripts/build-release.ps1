@@ -67,7 +67,7 @@ function Invoke-CodeSign {
     param([string[]]$Files)
     $signScript = Join-Path $Root "scripts\sign-release.ps1"
     if (-not (Test-Path $signScript)) { return }
-    & $signScript -Files $Files -Strict
+    & $signScript -Files $Files
 }
 
 Push-Location $Root
@@ -169,17 +169,7 @@ internal static class LicenseTokenSecretEmbedded
         throw "Assets\ui not copied to publish output"
     }
 
-    if ($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH -or $env:BNDZ_AZURE_SIGNING_ENDPOINT) {
-        $hasTraditional = $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH
-        $hasAzure = $env:BNDZ_AZURE_SIGNING_ENDPOINT -and $env:BNDZ_AZURE_SIGNING_ACCOUNT -and $env:BNDZ_AZURE_SIGNING_PROFILE
-        if ($Sign -and -not $hasTraditional -and -not $hasAzure) {
-            throw @"
--Sign requires Authenticode credentials. Cursor Origin does NOT provide Windows code signing certs.
-Set BNDZ_AZURE_SIGNING_* (Azure Trusted Signing) or BNDZ_SIGN_PFX_PATH / BNDZ_SIGN_CERT_THUMBPRINT.
-Run: .\scripts\check-signing-prereqs.ps1
-See: docs/LAUNCH.md section 3
-"@
-        }
+    if ($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH) {
         Write-Host "==> Code signing BNDZ.exe" -ForegroundColor Yellow
         Invoke-CodeSign -Files @($ExePath)
     }
@@ -212,7 +202,7 @@ See: docs/LAUNCH.md section 3
             $SetupPath = Join-Path $Dist "BNDZ-Setup-$Version.exe"
             Write-Host "==> Installer: $SetupPath" -ForegroundColor Green
 
-            if ($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH -or $env:BNDZ_AZURE_SIGNING_ENDPOINT) {
+            if ($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH) {
                 Write-Host "==> Code signing installer" -ForegroundColor Yellow
                 Invoke-CodeSign -Files @($SetupPath)
             }
@@ -220,14 +210,14 @@ See: docs/LAUNCH.md section 3
         }
     } else {
         Write-Host "Tip: run with -BuildInstaller after installing Inno Setup 6" -ForegroundColor DarkGray
-        Write-Host "Tip: set signing env vars and use -Sign (see docs/LAUNCH.md §3 and scripts/signing.config.example.env)" -ForegroundColor DarkGray
+        Write-Host "Tip: set BNDZ_SIGN_CERT_THUMBPRINT or BNDZ_SIGN_PFX_PATH and use -Sign" -ForegroundColor DarkGray
     }
 
     $VerifyScript = Join-Path $Root "scripts\verify-release.ps1"
     if (Test-Path $VerifyScript) {
         Write-Host "==> Verifying release artifacts" -ForegroundColor Yellow
         $requireInstaller = if ($BuildInstaller) { [bool]$builtInstaller } else { $false }
-        $requireSigned = [bool]($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH -or $env:BNDZ_AZURE_SIGNING_ENDPOINT)
+        $requireSigned = [bool]($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH)
         & $VerifyScript -Runtime $Runtime -Version $Version -RequireInstaller:$requireInstaller -RequireSigned:$requireSigned
         if ($LASTEXITCODE -ne 0) { throw "Release verification failed" }
     }
