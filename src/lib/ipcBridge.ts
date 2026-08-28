@@ -162,6 +162,7 @@ export const IPC = {
   _meshTerminalOutputListeners: [] as Array<(payload: { sessionId: string; data: string }) => void>,
   _meshHostsChangedListeners: [] as Array<(hosts: any[]) => void>,
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
+  _pendingCloseRequest: null as { source?: string } | null,
   _openPathListeners: [] as Array<(path: string) => void>,
   _pendingOpenPaths: [] as string[],
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean; lastActionUtc?: string }) => void>,
@@ -231,9 +232,16 @@ export const IPC = {
           window.dispatchEvent(new CustomEvent('bndz-quick-look-open', { detail: { paths, items } }));
         } else if (data.type === 'BNDZ_QUICK_LOOK_CLOSE') {
           window.dispatchEvent(new CustomEvent('bndz-quick-look-close'));
+        } else if (data.type === 'HOST_OLE_DROP_READY') {
+          window.dispatchEvent(new CustomEvent('bndz-host-ole-drop-ready', { detail: data.payload }));
         } else if (data.type === 'CLOSE_REQUEST') {
           const source = data.payload?.source;
-          this._closeRequestListeners.forEach(cb => cb({ source }));
+          const payload = { source };
+          if (!this._closeRequestListeners.length) {
+            this._pendingCloseRequest = payload;
+          } else {
+            this._closeRequestListeners.forEach(cb => cb(payload));
+          }
         } else if (data.type === 'BNDZ_OPEN_PATH') {
           const path = data.payload?.path ?? '';
           if (path) this._dispatchOpenPath(path);
@@ -384,6 +392,11 @@ export const IPC = {
   onCloseRequest(callback: (payload?: { source?: string }) => void) {
     this.init();
     this._closeRequestListeners.push(callback);
+    if (this._pendingCloseRequest) {
+      const pending = this._pendingCloseRequest;
+      this._pendingCloseRequest = null;
+      callback(pending);
+    }
     return () => {
       this._closeRequestListeners = this._closeRequestListeners.filter(cb => cb !== callback);
     };

@@ -800,4 +800,26 @@ public sealed partial class MainWindow : Window
         ReleaseCapture();
         SendMessage(_hwnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
     }
+
+    internal void ShowFatalError(string message)
+    {
+        try
+        {
+            ChromeHost.PaneStatusHint.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+            ChromeHost.PaneStatusHint.Text = $"BNDZ shell error — see shell-crash.log\n{message}";
+        }
+        catch { /* ignore */ }
+        try
+        {
+            var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+            {
+                Title = "BNDZ shell error",
+                Content = message + "\n\nDetails were written to %LocalAppData%\\BNDZ\\shell-crash.log",
+                CloseButtonText = "Close",
+                XamlRoot = Content?.XamlRoot,
+            };
+            _ = dialog.ShowAsync();
+        }
+        catch { /* ignore */ }
+    }
 }

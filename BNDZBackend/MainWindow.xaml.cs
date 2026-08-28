@@ -104,6 +104,8 @@ namespace BNDZ
         private readonly ConcurrentDictionary<string, TaskCompletionSource<List<DirListingSharedBuffer.DirEntryDto>>> _backendHostListingTasks = new();
         /// <summary>How many rows were already delivered on first-paint (MORE sends the remainder).</summary>
         private readonly ConcurrentDictionary<string, int> _backendHostListingFirstPaintCounts = new();
+        private readonly Queue<string> _pendingUiPushQueue = new();
+        private const int MaxPendingUiPushQueue = 96;
 
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
@@ -658,8 +660,16 @@ namespace BNDZ
 
             void Post()
             {
-                try { MainWebView?.CoreWebView2?.PostWebMessageAsJson(json); }
-                catch { }
+                try
+                {
+                    if (MainWebView?.CoreWebView2 != null)
+                    {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(json);
+                        return;
+                    }
+                }
+                catch { /* fall through to queue */ }
+                EnqueuePendingUiPush(json);
             }
 
             try
@@ -668,6 +678,25 @@ namespace BNDZ
                 else PostToUi(Post);
             }
             catch { }
+        }
+
+        private void EnqueuePendingUiPush(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return;
+            _pendingUiPushQueue.Enqueue(json);
+            while (_pendingUiPushQueue.Count > MaxPendingUiPushQueue)
+                _pendingUiPushQueue.Dequeue();
+        }
+
+        private void FlushPendingUiPushQueue()
+        {
+            if (MainWebView?.CoreWebView2 is null) return;
+            while (_pendingUiPushQueue.Count > 0)
+            {
+                var pending = _pendingUiPushQueue.Dequeue();
+                try { MainWebView.CoreWebView2.PostWebMessageAsJson(pending); }
+                catch { break; }
+            }
         }
 
         /// <summary>
@@ -2477,6 +2506,7 @@ namespace BNDZ
                     catch { /* best-effort */ }
                     PostToUi(FlushPendingOpenPath);
                     PostToUi(FlushPendingPluginWindow);
+                    PostToUi(FlushPendingUiPushQueue);
                     PushDrivesUpdate();
                     // Offload I/O-bound startup work off the UI/IPC thread to avoid hitching
                     // the WebView message pump at first paint.

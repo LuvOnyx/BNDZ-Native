@@ -45,6 +45,7 @@ public sealed partial class CraftPaneHost : UserControl
 	private string? _pendingListingJson;
 	/// <summary>Pre-ready push fan-out queue — earlier messages must not be overwritten.</summary>
 	private readonly List<string> _pendingPushQueue = new();
+	private string? _pendingCloseRequestJson;
 	/// <summary>Last DIR listing JSON — re-posted on BNDZ_UI_READY because early PostWebMessage drops if React has not subscribed yet.</summary>
 	private string? _lastListingJson;
 	private Action<string>? _pushHandler;
@@ -693,6 +694,7 @@ public sealed partial class CraftPaneHost : UserControl
 			}
 			else
 			{
+				NotifyOleDropReady();
 				// Chromium often re-installs its IDropTarget after first paint — reclaim shortly after.
 				ScheduleOleDropReassert();
 			}
@@ -755,11 +757,25 @@ public sealed partial class CraftPaneHost : UserControl
 						_oleDropRegistered = ok;
 						if (!ok)
 							ScheduleOleDropRetry();
+						else
+							NotifyOleDropReady();
 					});
 				}
 				catch { /* ignore */ }
 			}
 		});
+	}
+
+	private void NotifyOleDropReady()
+	{
+		try
+		{
+			PostHostMessage(new { type = "HOST_OLE_DROP_READY", payload = new { ready = true } });
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] NotifyOleDropReady: {ex.Message}");
+		}
 	}
 
 	private void Core_NavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
@@ -983,6 +999,11 @@ public sealed partial class CraftPaneHost : UserControl
 	{
 		if (PaneWebView.CoreWebView2 is null || !_documentReady)
 			return;
+		if (!string.IsNullOrEmpty(_pendingCloseRequestJson))
+		{
+			PostJsonRaw(_pendingCloseRequestJson);
+			_pendingCloseRequestJson = null;
+		}
 		if (!string.IsNullOrEmpty(_pendingContextJson))
 		{
 			PostJsonRaw(_pendingContextJson);
@@ -1065,6 +1086,16 @@ public sealed partial class CraftPaneHost : UserControl
 		{
 			_lastListingJson = json;
 			_pendingListingJson = json;
+		}
+		if (json.Contains("\"CLOSE_REQUEST\"", StringComparison.Ordinal))
+		{
+			if (!_documentReady || PaneWebView.CoreWebView2 is null)
+			{
+				_pendingCloseRequestJson = json;
+				return;
+			}
+			PostJsonRaw(json);
+			return;
 		}
 		// Queue until React signals BNDZ_UI_READY — NavigationCompleted alone is too early (listeners not attached).
 		if (!_documentReady || PaneWebView.CoreWebView2 is null)

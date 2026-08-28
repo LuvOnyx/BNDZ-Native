@@ -31,6 +31,11 @@ public partial class App : Application
 			}
 			catch { /* best-effort */ }
 			e.Handled = true;
+			try
+			{
+				_mainWindow?.ShowFatalError(e.Exception?.Message ?? "Unknown error");
+			}
+			catch { /* ignore */ }
 		};
 	}
 
