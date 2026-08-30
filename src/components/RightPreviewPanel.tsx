@@ -9,7 +9,7 @@ import { applyWebPathMap } from '../lib/listReportExport';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
-import { Icons8Icon } from './Icons8Icon';
+import { Icons8Icon, PopOutGlyph } from './Icons8Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
@@ -1113,7 +1113,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              ))}
           </div>
           <div className="flex gap-0.5 shrink-0 ml-auto">
-             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" /></button>
+             {onOpenFloatingPreview && (
+               <button
+                 type="button"
+                 onClick={onOpenFloatingPreview}
+                 className="bndz-preview-action-btn"
+                 title="Pop out preview"
+               >
+                 <PopOutGlyph size={16} className="bndz-preview-action-icon text-sky-200" />
+               </button>
+             )}
+             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="folder_open_ui" size={18} className="bndz-preview-action-icon" /></button>
              <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={18} className="bndz-preview-action-icon" /></button>
           </div>
        </div>

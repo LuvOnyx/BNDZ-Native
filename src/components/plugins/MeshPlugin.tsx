@@ -5,9 +5,11 @@ import '@xterm/xterm/css/xterm.css';
 import { IPC } from '../../lib/ipcBridge';
 import { formatUiPath } from '../../lib/displayPath';
 import { isMeshPath, parseMeshPath } from '../../lib/meshPaths';
+import { toWindowsPath } from '../../lib/pathUtils';
 import MeshHostsManager from '../mesh/MeshHostsManager';
 import MeshBucketsSharesPanel from '../mesh/MeshBucketsSharesPanel';
 import MeshEphemeralPanel from '../mesh/MeshEphemeralPanel';
+import MeshDropPanel from '../meshdrop/MeshDropPanel';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -95,10 +97,11 @@ type Props = {
   onNavigate?: (path: string) => void;
   currentPath?: string;
   pluginLaunch?: BottomPluginLaunchContext | null;
+  selectedPaths?: string[];
 };
 
-export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Props) {
-  const [tab, setTab] = useState<'buckets' | 'hosts' | 'ephemeral' | 'mirror' | 'terminal' | 'liveshare'>('hosts');
+export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, selectedPaths }: Props) {
+  const [tab, setTab] = useState<'buckets' | 'hosts' | 'ephemeral' | 'drop' | 'mirror' | 'terminal' | 'liveshare'>('hosts');
   const [hosts, setHosts] = useState<MeshHost[]>([]);
   const [rules, setRules] = useState<MeshSyncRule[]>([]);
   const [busy, setBusy] = useState(false);
@@ -119,6 +122,12 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
   useEffect(() => {
     if (!pluginLaunch) return;
     if (pluginLaunch.tab === 'terminal') setTab('terminal');
+    if (pluginLaunch.tab === 'ephemeral') setTab('ephemeral');
+    if (pluginLaunch.tab === 'hosts') setTab('hosts');
+    if (pluginLaunch.tab === 'drop' || pluginLaunch.tab === 'mesh-drop') setTab('drop');
+    if (pluginLaunch.tab === 'mirror') setTab('mirror');
+    if (pluginLaunch.tab === 'liveshare') setTab('liveshare');
+    if (pluginLaunch.tab === 'buckets') setTab('buckets');
     if (pluginLaunch.sessionId) setSessionId(pluginLaunch.sessionId);
     if (pluginLaunch.hostId) setSelectedHostId(pluginLaunch.hostId);
   }, [pluginLaunch]);
@@ -172,7 +181,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
     try {
       let cwd: string | undefined;
       if (local) {
-        cwd = currentPath && !isMeshPath(currentPath) ? currentPath : undefined;
+        cwd = currentPath && !isMeshPath(currentPath) ? toWindowsPath(currentPath) : undefined;
       } else if (currentPath && isMeshPath(currentPath)) {
         const parsed = parseMeshPath(currentPath);
         if (parsed.hostId && (!hostId || parsed.hostId === hostId)) {
@@ -228,7 +237,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
       title="Remote Mesh"
       icon="cloud_ui"
       iconColor="#38bdf8"
-      subtitle="FileSSH-class SSH/SFTP · Incus ephemeral VPS · parallel transfers · Shell Here · mirrors · Mesh Drop"
+      subtitle="Hosts SSH/SFTP · Mesh Drop P2P · Mesh VPS (local temp) · mirrors · Shell Here"
       variant="embedded"
       toolbar={
         <>
@@ -237,6 +246,9 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
               <Icons8Icon id="terminal" size={12} /> Shell Here
             </PluginToolbarButton>
           )}
+          <PluginToolbarButton onClick={() => setTab('drop')}>
+            <Icons8Icon id="cloud_ui" size={12} /> Mesh Drop
+          </PluginToolbarButton>
           <PluginToolbarButton onClick={() => {
             window.dispatchEvent(new CustomEvent('bndz-open-configuration', { detail: { tab: 'Workspace Tools' } }));
           }}>
@@ -250,7 +262,8 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
         <div className="bndz-mesh-tabrail flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
           {([
             ['hosts', 'Hosts'],
-            ['ephemeral', 'Incus VPS'],
+            ['drop', 'Mesh Drop'],
+            ['ephemeral', 'Mesh VPS'],
             ['buckets', 'Buckets & Shares'],
             ['mirror', 'Mirror'],
             ['terminal', 'Terminal'],
@@ -280,6 +293,13 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch }: Pr
               onNavigate={onNavigate}
               onStatus={setStatus}
               showHero
+            />
+          )}
+
+          {tab === 'drop' && (
+            <MeshDropPanel
+              selectionPaths={(selectedPaths || []).filter(Boolean)}
+              onStatus={setStatus}
             />
           )}
 

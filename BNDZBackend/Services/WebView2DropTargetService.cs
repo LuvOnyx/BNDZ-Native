@@ -477,12 +477,12 @@ internal static class WebView2DropTargetService
             // exits never escalated before WebView2 pointercancel disarmed the gesture.
             var rim = Math.Max(Math.Max(16, edgeBandPx), _outboundTopChromePx);
 
-            // React menubar / WinUI caption — user drags past top chrome to reach Desktop.
+            // WinUI strip above the WebView (extends-into-title-bar gap) — escalate to desktop.
+            // Do NOT treat the in-WebView React menubar band as an escalate zone; dragging over
+            // File→Help must stay in-app until the cursor actually leaves the host window.
             if (web != IntPtr.Zero && GetWindowRect(web, out var webRect))
             {
                 if (screenY >= hostRect.Top && screenY < webRect.Top)
-                    return true;
-                if (screenY >= webRect.Top && screenY < webRect.Top + rim)
                     return true;
             }
             else if (screenY >= hostRect.Top && screenY < hostRect.Top + rim)
@@ -490,8 +490,11 @@ internal static class WebView2DropTargetService
                 return true;
             }
 
-            // Physical window rim (all sides) — same width as top so side exits feel identical.
-            // Not layout-% bands (those covered the whole sidebar and poisoned mid-drag).
+            // Physical window rim — sides + bottom only. Top exit uses outside-host / foreign HWND
+            // so OLE never starts while the cursor is still over the React menubar band.
+            if (IsCursorInsideWebViewMenubarBand(screenX, screenY))
+                return false;
+
             if (screenX < hostRect.Left + rim || screenX >= hostRect.Right - rim
                 || screenY >= hostRect.Bottom - rim)
                 return true;
@@ -526,6 +529,18 @@ internal static class WebView2DropTargetService
         }
 
         return true;
+    }
+
+    /// <summary>React menubar band inside the WebView — never start OLE while still here.</summary>
+    public static bool IsCursorInsideWebViewMenubarBand(int screenX, int screenY)
+    {
+        var web = _registeredHwnd != IntPtr.Zero ? _registeredHwnd : _hostWindowHwnd;
+        if (web == IntPtr.Zero || !GetWindowRect(web, out var webRect))
+            return false;
+        if (!PointInRect(webRect, screenX, screenY))
+            return false;
+        var band = Math.Clamp(_outboundTopChromePx, 36, 120);
+        return screenY >= webRect.Top && screenY < webRect.Top + band;
     }
 
     /// <summary>

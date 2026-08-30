@@ -22,6 +22,8 @@ import { requestMediaResume } from '../../lib/mediaPlaybackBridge';
 import { audioPlaybackSession } from '../../lib/audioPlaybackSession';
 import { useAppConfig } from '../../data/configContext';
 import { probeWebGL } from '../../workstation/webglProbe';
+import { isQueuedIpcResult } from '../../lib/transferIpc';
+import { pushToast } from '../ToastHost';
 
 const DocxPreviewPanel = lazy(() => import('../DocxPreviewPanel'));
 const AudioWaveformEditor = lazy(() => import('./AudioWaveformEditor'));
@@ -160,6 +162,23 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const fontFamilyName = isFont ? `bndz-ql-font-${ext}-${(current?.entity?.name || 'f').replace(/[^a-zA-Z0-9]/g, '')}` : '';
   const modelPreview = useModelPreviewSource(isModel && current?.path ? current.path : null, ext);
 
+  const extractArchive = useCallback(async () => {
+    if (!current?.path) return;
+    const win = toWindowsPath(current.path);
+    const dest = await IPC.openFolderDialog('Extract archive to…');
+    if (!dest) return;
+    const res = await IPC.extractArchive(win, dest);
+    if (isQueuedIpcResult(res)) {
+      pushToast({ message: 'Extract queued — see transfer panel.', kind: 'info', title: 'Archive' });
+      return;
+    }
+    if (!res.ok) {
+      pushToast({ message: res.error || 'Could not extract archive.', kind: 'warning', title: 'Extract failed' });
+      return;
+    }
+    pushToast({ message: `Extracted to ${dest}`, kind: 'success', title: 'Archive' });
+  }, [current?.path]);
+
   useEffect(() => {
     setEditMode(false);
     setImageEditMode('studio');
@@ -292,7 +311,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
         </Suspense>
       );
     }
-    if (isArchive) return <ArchivePreviewPanel path={current.path} format={ext} />;
+    if (isArchive) return <ArchivePreviewPanel path={current.path} format={ext} onExtract={extractArchive} />;
     if (isModel) {
       if (!probeWebGL()) {
         return (

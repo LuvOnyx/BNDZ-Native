@@ -1031,7 +1031,8 @@ function lockLightThemeChromeContrast(root: HTMLElement): void {
   root.style.setProperty('--tree-bg', '#ffffff');
   root.style.setProperty('--list-header-bg', '#eef0f3');
   root.style.setProperty('--list-header-text', 'rgba(0,0,0,0.82)');
-  root.style.setProperty('--list-text-secondary', 'rgba(0,0,0,0.58)');
+  root.style.setProperty('--list-text-secondary', 'rgba(0,0,0,0.72)');
+  root.style.setProperty('--text-secondary', 'rgba(0,0,0,0.72)');
   root.style.setProperty('--header-text', 'rgba(0,0,0,0.72)');
   root.style.setProperty('--panel-preview-text', 'rgba(0,0,0,0.88)');
   root.style.setProperty('--panel-bottom-text', 'rgba(0,0,0,0.88)');

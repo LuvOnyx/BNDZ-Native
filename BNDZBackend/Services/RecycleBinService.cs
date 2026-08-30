@@ -124,10 +124,22 @@ public static class RecycleBinService
     {
         try
         {
-            return SHEmptyRecycleBin(hwnd, null, SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI) == 0;
+            // SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI — BNDZ already confirmed in UI.
+            var hr = SHEmptyRecycleBin(hwnd, null, SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI);
+            // S_OK (0). Already empty returns E_UNEXPECTED (0x8000FFFF / -2147418113) — treat as success
+            // (same as Explorer / Flow.Launcher / Files).
+            if (hr == 0) return true;
+            unchecked
+            {
+                if (hr == (int)0x8000FFFF) return true; // E_UNEXPECTED — bin already empty
+                if (hr == (int)0x80070015) return true; // ERROR_NOT_READY — nothing to empty
+            }
+            System.Diagnostics.Debug.WriteLine($"RecycleBinService.Empty hr=0x{hr:X8}");
+            return false;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"RecycleBinService.Empty: {ex.Message}");
             return false;
         }
     }

@@ -9,7 +9,7 @@ public partial class App : Application
 	/// Must be retained — WinUI GC collects the Window if only a local in OnLaunched holds it,
 	/// which leaves a dead HWND and a blank native shell (WebView2 never paints).
 	/// </summary>
-	private Window? _mainWindow;
+	private MainWindow? _mainWindow;
 
 	public App()
 	{

@@ -14,7 +14,7 @@ export function packGridTracks(
   minTileWidth: number,
   gap: number,
 ): { cols: number; tileWidth: number } {
-  const minW = Math.max(1, Math.floor(minTileWidth));
+  const minW = Math.max(72, Math.floor(minTileWidth));
   const g = Math.max(0, gap);
   const w = Math.max(0, Math.floor(availableWidth));
   if (w <= 0) return { cols: 1, tileWidth: minW };

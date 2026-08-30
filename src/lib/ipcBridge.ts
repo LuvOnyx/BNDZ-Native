@@ -445,6 +445,14 @@ export const IPC = {
     });
   },
 
+  /** Open a path in the main FM list (works from plugin pop-outs). */
+  hostNavigate(path: string): void {
+    if (!this.isNative) return;
+    const p = (path || '').trim();
+    if (!p) return;
+    (window as any).chrome.webview.postMessage({ type: 'HOST_NAVIGATE', payload: { path: p } });
+  },
+
   requestClose(source: 'x' | 'menu' | 'tray' | 'exit-without-saving' | 'restart-without-saving' | 'restart' = 'x'): void {
     if (this.isNative) {
       if (source === 'x') {
@@ -529,7 +537,7 @@ export const IPC = {
   meshListHosts(): Promise<any[]> {
     if (!this.isNative) return Promise.resolve([]);
     const id = `${Date.now()}_meshHosts`;
-    return _nativeCall<any>('MESH_LIST_HOSTS', 'MESH_LIST_HOSTS_RESULT', id, {}, 15000).then(r => {
+    return _nativeCall<any>('MESH_LIST_HOSTS', 'MESH_LIST_HOSTS_RESULT', id, {}, 45000).then(r => {
       if (Array.isArray(r)) return r;
       if (r && Array.isArray(r.hosts)) return r.hosts;
       if (r?.error) return Promise.reject(new Error(String(r.error)));
@@ -824,6 +832,54 @@ export const IPC = {
     return _nativeCall<any>('MESH_INCUS_TEST_ENDPOINT', 'MESH_INCUS_TEST_ENDPOINT_RESULT', id, { endpointId }, 60000).then(r => ({
       ok: r?.ok === true,
       info: r?.info,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      error: r?.error,
+    }));
+  },
+
+  /** SSH into the Linux host, install BNDZ client cert, return Trusted — no manual trust token. */
+  meshIncusBootstrapTrust(req: {
+    endpointId?: string;
+    alias?: string;
+    apiUrl?: string;
+    apiPort?: number;
+    allowInsecureTls?: boolean;
+    meshHostId?: string;
+    sshHostname?: string;
+    sshPort?: number;
+    sshUsername?: string;
+    sshKeyPath?: string;
+    sshPassword?: string;
+    persistControlHost?: boolean;
+  }): Promise<{ ok: boolean; endpoint?: any; info?: any; endpoints?: any[]; hosts?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusBootstrap`;
+    return _nativeCall<any>('MESH_INCUS_BOOTSTRAP_TRUST', 'MESH_INCUS_BOOTSTRAP_TRUST_RESULT', id, req, 120000).then(r => ({
+      ok: r?.ok === true,
+      endpoint: r?.endpoint,
+      info: r?.info,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      hosts: Array.isArray(r?.hosts) ? r.hosts : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusLocalStatus(): Promise<{ ok: boolean; status?: { ready?: boolean; runtime?: string; phase?: string; detail?: string; needsElevation?: boolean; error?: string }; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLocalStatus`;
+    return _nativeCall<any>('MESH_INCUS_LOCAL_STATUS', 'MESH_INCUS_LOCAL_STATUS_RESULT', id, {}, 20000).then(r => ({
+      ok: r?.ok === true,
+      status: r?.status,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusLocalEnsure(): Promise<{ ok: boolean; status?: any; endpoints?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLocalEnsure`;
+    return _nativeCall<any>('MESH_INCUS_LOCAL_ENSURE', 'MESH_INCUS_LOCAL_ENSURE_RESULT', id, {}, 600000).then(r => ({
+      ok: r?.ok === true,
+      status: r?.status,
       endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
       error: r?.error,
     }));

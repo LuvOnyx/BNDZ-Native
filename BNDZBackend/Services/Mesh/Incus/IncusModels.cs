@@ -4,7 +4,7 @@ namespace BNDZ.Services.Mesh.Incus;
 public sealed class IncusEndpointRecord
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
-    public string Alias { get; set; } = "Incus";
+    public string Alias { get; set; } = "VPS host";
     /// <summary>Base API URL, e.g. https://incus.example:8443</summary>
     public string ApiUrl { get; set; } = "";
     public string? ServerFingerprint { get; set; }
@@ -139,4 +139,27 @@ public sealed class IncusInstancePut
     public string? Architecture { get; set; }
     public string? Restore { get; set; }
     public bool DiskOnly { get; set; }
+}
+
+/// <summary>
+/// One-shot connect: SSH into the Linux host, install BNDZ client cert into the VPS API trust store, probe until Trusted.
+/// No manual trust-token paste.
+/// </summary>
+public sealed class IncusBootstrapRequest
+{
+    public string? EndpointId { get; set; }
+    public string? Alias { get; set; }
+    /// <summary>Optional full API URL. When empty, derived as https://{sshHost}:{ApiPort}.</summary>
+    public string? ApiUrl { get; set; }
+    public int ApiPort { get; set; } = 8443;
+    public bool AllowInsecureTls { get; set; } = true;
+    /// <summary>Reuse an existing Mesh SSH host (preferred when already connected).</summary>
+    public string? MeshHostId { get; set; }
+    public string? SshHostname { get; set; }
+    public int SshPort { get; set; } = 22;
+    public string? SshUsername { get; set; }
+    public string? SshKeyPath { get; set; }
+    public string? SshPassword { get; set; }
+    /// <summary>When true, upsert a Mesh SSH host for the hypervisor itself.</summary>
+    public bool PersistControlHost { get; set; } = true;
 }

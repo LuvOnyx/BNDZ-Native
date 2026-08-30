@@ -109,6 +109,13 @@ internal static class BndzLocalStreamService
 			".woff2" => "font/woff2",
 			".ttf" => "font/ttf",
 			".otf" => "font/otf",
+			".glb" => "model/gltf-binary",
+			".gltf" => "model/gltf+json",
+			".obj" => "model/obj",
+			".stl" => "model/stl",
+			".fbx" => "application/octet-stream",
+			".dae" => "model/vnd.collada+xml",
+			".ply" => "application/octet-stream",
 			_ => "application/octet-stream"
 		};
 	}

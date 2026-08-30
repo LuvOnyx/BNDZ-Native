@@ -58,6 +58,8 @@ public static class DirListingSharedBuffer
         public string? LinkType { get; set; }
         public string? LinkTarget { get; set; }
         public bool IsGhostLink { get; set; }
+        /// <summary>OneDrive/cloud placeholder state: available | online-only | pinned | offline.</summary>
+        public string? CloudStatus { get; set; }
     }
 
     private const string LinkMetaPrefix = "BNDZLINK:";
@@ -105,7 +107,23 @@ public static class DirListingSharedBuffer
             ModifiedUtc = info.LastWriteTimeUtc,
             CreatedUtc = info.CreationTimeUtc,
             AttrBits = AttrBitsFrom(info.Attributes),
+            CloudStatus = ResolveCloudStatus(info.Attributes),
         };
+    }
+
+    /// <summary>Map Win32 cloud placeholder bits used by OneDrive / Files On-Demand.</summary>
+    public static string? ResolveCloudStatus(FileAttributes attributes)
+    {
+        const FileAttributes Pinned = (FileAttributes)0x00080000;
+        const FileAttributes Unpinned = (FileAttributes)0x00100000;
+        const FileAttributes RecallOnDataAccess = (FileAttributes)0x00400000;
+        if ((attributes & FileAttributes.Offline) != 0 || (attributes & RecallOnDataAccess) != 0)
+            return "online-only";
+        if ((attributes & Pinned) != 0)
+            return "pinned";
+        if ((attributes & Unpinned) != 0)
+            return "online-only";
+        return null;
     }
 
     public static DirEntryDto FromShellChild(ShellChildItem item)

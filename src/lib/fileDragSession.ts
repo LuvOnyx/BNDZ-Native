@@ -241,6 +241,8 @@ const INTERNAL_DRAG_CHROME_SELECTORS = [
   '[data-nav-path]',
   '[data-list-body]',
   '[data-bndz-workspace-surface]',
+  '[data-mesh-drop-inbox]',
+  '[data-drop-stack-zone]',
   '.fs-list-header',
   '.bndz-chrome-tabstrip',
   '.bndz-chrome-toolbar',
@@ -266,6 +268,8 @@ const OLE_EDGE_CHROME_SELECTORS = [
   '[data-breadcrumb-path]',
   '[data-nav-path]',
   '[data-list-body]',
+  '[data-mesh-drop-inbox]',
+  '[data-drop-stack-zone]',
   '.fs-list-header',
   '.bndz-chrome-tabstrip',
   '.bndz-chrome-toolbar',
@@ -341,6 +345,29 @@ export function isPointerNearWebViewViewportEdge(clientX: number, clientY: numbe
   return clientX <= edgePx || clientY <= edgePx || clientX >= w - edgePx || clientY >= h - edgePx;
 }
 
+/**
+ * Side/bottom viewport rim only — never the top band (React menubar lives there).
+ * Top exit must use screen-space leave (isPointerOutsideScreenWindow) so OLE does not
+ * start DoDragDrop while the cursor is still over the menubar / WinUI caption.
+ */
+export function isPointerNearWebViewSideOrBottomEdge(clientX: number, clientY: number, edgePx = 10): boolean {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+  if (w <= 0 || h <= 0) return false;
+  return clientX <= edgePx || clientX >= w - edgePx || clientY >= h - edgePx;
+}
+
+export function isPointerOverMenubar(clientX: number, clientY: number): boolean {
+  if (typeof document === 'undefined') return false;
+  for (const el of elementsAtPoint(clientX, clientY)) {
+    if (el.closest('.bndz-chrome-menubar, [data-bndz-menubar-logo], [data-menu-trigger]')) return true;
+  }
+  const bar = document.querySelector('.bndz-chrome-menubar');
+  if (!bar) return false;
+  const r = bar.getBoundingClientRect();
+  return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+}
+
 /** Screen-space leave check — works when clientX/Y are clamped by WebView2. */
 export function isPointerOutsideScreenWindow(screenX: number, screenY: number, marginPx = 4): boolean {
   if (typeof window === 'undefined') return false;
@@ -381,7 +408,8 @@ export function shouldEscalateFileDragToOle(
     return true;
   }
   if (overInternalChrome || outsideChromeStreak < 2) return false;
-  return isPointerNearWebViewViewportEdge(clientX, clientY);
+  if (isPointerOverMenubar(clientX, clientY)) return false;
+  return isPointerNearWebViewSideOrBottomEdge(clientX, clientY);
 }
 
 /** True when archive drag should escalate to native OLE (desktop / Explorer), not in-app list. */
@@ -400,7 +428,8 @@ export function shouldArchiveEscalateToOle(
   if (!isOutsideArchivePreviewAtPoint(clientX, clientY)) return false;
   if (isInternalFileDragChromeAtPoint(clientX, clientY)) return false;
   if (outsideChromeStreak < 2) return false;
-  return isPointerNearWebViewViewportEdge(clientX, clientY);
+  if (isPointerOverMenubar(clientX, clientY)) return false;
+  return isPointerNearWebViewSideOrBottomEdge(clientX, clientY);
 }
 
 /** True when pointer is over an in-app drop target for archive extract-and-copy. */

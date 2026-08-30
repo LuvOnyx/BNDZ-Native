@@ -112,6 +112,13 @@ public sealed partial class CraftPaneHost : UserControl
 		_ = EnsureInitializedAsync(showHint: false);
 	}
 
+	/// <summary>Surface a fatal shell error on the pane status strip (used from MainWindow / App).</summary>
+	public void ShowPaneStatus(string message)
+	{
+		PaneStatusHint.Visibility = Visibility.Visible;
+		PaneStatusHint.Text = message;
+	}
+
 	private async void PaneWebView_Loaded(object sender, RoutedEventArgs e)
 	{
 		await EnsureInitializedAsync(showHint: !_documentReady);
@@ -539,6 +546,14 @@ public sealed partial class CraftPaneHost : UserControl
 		SyncOleGhostMask(false);
 	}
 
+	/// <summary>Window close / crash path — stop escalate poll so we do not leave OLE armed after HWND death.</summary>
+	public void StopOutboundDragCleanup()
+	{
+		StopFileDragEscalatePoll();
+		try { BndzEmbeddedBackendHost.RevokeHostOleDropTarget(); } catch { /* ignore */ }
+		_oleDropRegistered = false;
+	}
+
 	/// <summary>
 	/// Agent/CI smoke: %LocalAppData%\BNDZ\ole-smoke.json {"paths":["C:\\..."]} arms FILE_DRAG_ACTIVE.
 	/// </summary>
@@ -651,6 +666,10 @@ public sealed partial class CraftPaneHost : UserControl
 	internal void TryRegisterOleDropTarget()
 	{
 		if (!_initialized || PaneWebView.CoreWebView2 is null)
+			return;
+		// Plugin pop-outs must not steal host HWND / OLE STA from the main FM window —
+		// that froze the whole app when a tear-off was open.
+		if (!string.IsNullOrWhiteSpace(PluginWindowId))
 			return;
 		// Never revoke/re-register mid outbound DoDragDrop — that produced REGISTER lines
 		// during an active drag and helped yield effect=NONE at the desktop.
@@ -842,8 +861,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 	private void Core_ProcessFailed(CoreWebView2 sender, CoreWebView2ProcessFailedEventArgs args)
 	{
-		BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
-		_oleDropRegistered = false;
+		StopOutboundDragCleanup();
 		_documentReady = false;
 		PaneStatusHint.Visibility = Visibility.Visible;
 		PaneStatusHint.Text = "UI process crashed — reloading…";
@@ -1105,9 +1123,16 @@ public sealed partial class CraftPaneHost : UserControl
 			else if (!json.Contains("\"BNDZ_DIR_LISTING\"", StringComparison.Ordinal))
 			{
 				_pendingPushQueue.Add(json);
-				// Cap so a stuck WebView cannot grow unbounded.
-				while (_pendingPushQueue.Count > 32)
-					_pendingPushQueue.RemoveAt(0);
+				// Prefer keeping transfer + FS watch pushes when capping — dropping them
+				// made copy/paste silent and left the list stale until manual refresh.
+				while (_pendingPushQueue.Count > 64)
+				{
+					var dropIdx = _pendingPushQueue.FindIndex(j =>
+						!j.Contains("\"FILE_TRANSFER_QUEUE_CHANGED\"", StringComparison.Ordinal)
+						&& !j.Contains("\"FS_EVENT_BATCH\"", StringComparison.Ordinal));
+					if (dropIdx < 0) dropIdx = 0;
+					_pendingPushQueue.RemoveAt(dropIdx);
+				}
 			}
 			return;
 		}

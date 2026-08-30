@@ -36,7 +36,7 @@ export function InlineRenameInput({
     <input
       ref={inputRef}
       type="text"
-      className="bg-[#111] text-white border border-[#007acc] px-1 outline-none w-full"
+      className="bndz-inline-rename-input px-1 outline-none w-full"
       value={value}
       onChange={e => onChange(e.target.value)}
       onBlur={() => {

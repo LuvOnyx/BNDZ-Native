@@ -99,6 +99,7 @@ export function resolveDropRoute(
   if (!destMesh && srcMesh) {
     const hostId = meshHostIdFromSources(sourcePaths);
     if (!hostId) return { kind: 'local', op };
+    // Dest must be a real local folder — never a virtual smart view.
     return { kind: 'mesh-download', hostId, localDestDir: destCanon };
   }
 

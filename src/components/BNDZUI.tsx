@@ -12,6 +12,7 @@ import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
 import FileTransferQueuePanel from './FileTransferQueuePanel';
+import TransferActivityToast from './TransferActivityToast';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
 import { SizeBar, type SizeBarStyle } from './SizeBar';
 import IndexProgressChip from './IndexProgressChip';
@@ -23,6 +24,7 @@ import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
   canStartDragFromList, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT,
+  DRAG_DELAY_NATIVE, DRAG_DELAY_NATIVE_SELECTED, resetDragInteractionState,
   isWithinDoubleClickGuard,
   setMarqueeDragOccurred, consumeMarqueeDragOccurred,
 } from '../lib/dragController';
@@ -81,12 +83,16 @@ import {
   resolveFileDropDestination,
   isInternalFileDragChromeAtPoint,
   isOleEdgeChromeAtPoint,
-  isPointerNearWebViewViewportEdge,
+  isPointerNearWebViewSideOrBottomEdge,
+  isPointerOverMenubar,
   isPointerOutsideScreenWindow,
   hitTestArchiveRootAtPoint,
+  hitTestClosestAtPoint,
+  shouldEscalateFileDragToOle,
   DEFAULT_TAB_HOVER_DELAY_MS,
   resolveNativeFileDropTarget,
 } from '../lib/fileDragSession';
+import { endInternalFileDragUi, isOleDragHandoffActive } from '../lib/fileDragUiCleanup';
 import {
   POINTER_FILE_DRAG_MOVE,
   POINTER_FILE_DRAG_ACTIVE,
@@ -177,7 +183,7 @@ import BranchViewStrip from './BranchViewStrip';
 import { flattenGroupedList, isGroupHeaderRow, LIST_GROUP_BY_OPTIONS, resolveStickyGroupHeader, type ListGroupBy, type ListRowItem } from '../lib/listGrouping';
 import { resolveThumbnailCaptionLines } from '../lib/thumbnailCaptions';
 import { isSemanticDeskActive } from '../lib/semanticDeskRuntime';
-import { cloudBadgeForPath, cloudSidebarStatusLabel, type CloudProvider } from '../lib/cloudStatus';
+import { cloudBadgeForPath, cloudSidebarStatusLabel, resolveEntityCloudStatus, type CloudProvider } from '../lib/cloudStatus';
 import { VirtualizedNavTree } from './VirtualizedNavTree';
 import TutorialOverlay from './TutorialOverlay';
 import DestinationPickerModal from './DestinationPickerModal';
@@ -210,7 +216,7 @@ import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics, packGridTracks } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzTwinVolumePath, isBndzTemporalDiffPath, isBndzWorkspacePath, isBndzRamPath, isBndzPortalPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, parseBndzPortalView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, remapRetiredVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzTwinVolumePath, isBndzTemporalDiffPath, isBndzWorkspacePath, isBndzImmersiveWorkspacePath, isBndzRamPath, isBndzPortalPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, parseBndzPortalView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, remapRetiredVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND } from '../lib/bndzVirtualViews';
 import { invalidateRamZoneMountCache, remapRamListingEntries, refreshRamZoneMounts, resolvePanePathForFs, resolveRamStagingFsPath, resolveRamZoneMountPath, entityFsPath } from '../lib/ramStagingPaths';
 import {
   WORK_INTENT_ORDER,
@@ -359,6 +365,7 @@ import {
   WORKSPACE_LAYOUT_VERSION,
   MAX_PREVIEW_SIZE,
   PREVIEW_COLLAPSE_SIZE,
+  MIN_PREVIEW_SIZE,
   MIN_SIDEBAR_SIZE,
   MAX_SIDEBAR_SIZE,
   MAX_BOTTOM_DOCKED,
@@ -372,7 +379,7 @@ import { TagGlyph } from './TagGlyph';
 import FolderColorIcon from './FolderColorIcon';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 
-const BNDZ_APP_ICON = '/BNDZ-Glass-folder.webp';
+const BNDZ_APP_ICON = '/Bndz-main.png';
 
 const ToolbarButton = ({ iconId, launcherIcon, tagColor, onClick, onContextMenu, className = '', title, disabled }: {
   iconId?: string;
@@ -877,6 +884,7 @@ export default function BNDZUI() {
   const previewPanelInnerRef = useRef<HTMLDivElement>(null);
   const dualPaneSecondRef = useRef<HTMLDivElement>(null);
   const innerGroupRef = useGroupRef();
+  const outerGroupRef = useGroupRef();
   const immersiveShellRef = useRef<HTMLDivElement>(null);
   const lastDockedBottomPctRef = useRef(DEFAULT_INNER_LAYOUT.bottom!);
   const immersiveLatchRef = useRef(false);
@@ -1122,6 +1130,35 @@ export default function BNDZUI() {
     const next = !isPreviewPanelOpen;
     setIsPreviewPanelOpen(next);
     updateConfig({ previewPanelOpen: next });
+    // Imperatively restore a usable width — collapse leaves size 0 and expand alone
+    // can reopen paper-thin if defaultLayout was not remounted.
+    if (next) {
+      const saved = previewDockedInWorkspace
+        ? Number(config.workspaceLayoutMainRow?.preview ?? DEFAULT_OUTER_LAYOUT.preview)
+        : Number(config.workspaceLayoutOuter?.preview ?? DEFAULT_OUTER_LAYOUT.preview);
+      const pct = Math.max(
+        Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_OUTER_LAYOUT.preview!,
+        PREVIEW_COLLAPSE_SIZE,
+        MIN_PREVIEW_SIZE,
+        DEFAULT_OUTER_LAYOUT.preview!,
+      );
+      requestAnimationFrame(() => {
+        try {
+          previewPanelRef.current?.expand();
+          previewPanelRef.current?.resize(panelPct(pct));
+        } catch { /* ignore */ }
+        if (!previewDockedInWorkspace && outerGroupRef.current) {
+          try {
+            const layout = computeVisibleOuterLayout(
+              { ...(config.workspaceLayoutOuter || DEFAULT_OUTER_LAYOUT), preview: pct },
+              uiRuntime.treePanel,
+              true,
+            );
+            outerGroupRef.current.setLayout(layout);
+          } catch { /* ignore */ }
+        }
+      });
+    }
   };
 
   const toggleBottomPanel = () => {
@@ -1168,11 +1205,27 @@ export default function BNDZUI() {
     const sidebarVal = uiRuntime.treePanel
       ? (layout.sidebar ?? outerLayoutLive.sidebar)
       : (config.workspaceLayoutOuter?.sidebar ?? outerLayoutLive.sidebar);
-    const previewVal = previewDockedInWorkspace
-      ? 0
-      : (effectivePreviewOpen
-        ? (layout.preview ?? outerLayoutLive.preview)
-        : 0);
+    // When preview is closed, keep the last open width — never persist 0 (paper-thin reopen).
+    // While open, never persist below the collapse floor (collapse drag must not poison reopen).
+    let previewVal: number;
+    if (previewDockedInWorkspace) {
+      previewVal = 0;
+    } else if (effectivePreviewOpen) {
+      const raw = layout.preview ?? outerLayoutLive.preview ?? DEFAULT_OUTER_LAYOUT.preview!;
+      if (raw < PREVIEW_COLLAPSE_SIZE) {
+        previewVal = config.workspaceLayoutOuter?.preview
+          ?? outerLayoutLive.preview
+          ?? DEFAULT_OUTER_LAYOUT.preview!;
+      } else {
+        previewVal = raw;
+      }
+    } else {
+      previewVal = config.workspaceLayoutOuter?.preview
+        ?? outerLayoutLive.preview
+        ?? DEFAULT_OUTER_LAYOUT.preview!;
+    }
+    previewVal = Math.max(Number(previewVal) || DEFAULT_OUTER_LAYOUT.preview!, PREVIEW_COLLAPSE_SIZE);
+    if (previewDockedInWorkspace) previewVal = 0;
     const nextOuter = normalizeOuterLayout({
       sidebar: sidebarVal,
       workspace: layout.workspace ?? outerLayoutLive.workspace,
@@ -1373,9 +1426,44 @@ export default function BNDZUI() {
   useEffect(() => {
     const panel = previewPanelRef.current;
     if (!panel) return;
-    if (effectivePreviewOpen) panel.expand();
-    else panel.collapse();
-  }, [effectivePreviewOpen, previewPanelRef]);
+    if (effectivePreviewOpen) {
+      panel.expand();
+      const saved = previewDockedInWorkspace
+        ? Number(config.workspaceLayoutMainRow?.preview ?? DEFAULT_OUTER_LAYOUT.preview)
+        : Number(config.workspaceLayoutOuter?.preview ?? DEFAULT_OUTER_LAYOUT.preview);
+      const pct = Math.max(
+        Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_OUTER_LAYOUT.preview!,
+        PREVIEW_COLLAPSE_SIZE,
+        MIN_PREVIEW_SIZE,
+        DEFAULT_OUTER_LAYOUT.preview!,
+      );
+      const apply = () => {
+        try { panel.resize(panelPct(pct)); } catch { /* ignore */ }
+        if (!previewDockedInWorkspace && outerGroupRef.current) {
+          try {
+            outerGroupRef.current.setLayout(computeVisibleOuterLayout(
+              { ...(config.workspaceLayoutOuter || DEFAULT_OUTER_LAYOUT), preview: pct },
+              uiRuntime.treePanel,
+              true,
+            ));
+          } catch { /* ignore */ }
+        }
+      };
+      requestAnimationFrame(apply);
+      window.setTimeout(apply, 40);
+    } else {
+      panel.collapse();
+    }
+  }, [
+    effectivePreviewOpen,
+    previewPanelRef,
+    previewDockedInWorkspace,
+    config.workspaceLayoutOuter?.preview,
+    config.workspaceLayoutMainRow?.preview,
+    outerGroupRef,
+    uiRuntime.treePanel,
+    config.workspaceLayoutOuter,
+  ]);
 
   const [isToolbarConfigOpen, setIsToolbarConfigOpen] = useState(false);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
@@ -1720,13 +1808,14 @@ export default function BNDZUI() {
     fluidDragGenRef.current += 1;
     setListDragGhost(null);
     if (opts?.immediate) {
+      // Hide ghosts only — never arm html.bndz-ole-drag-handoff here.
+      // That class sets pointer-events:none on list/sidebar and was left stuck after
+      // internal/spatial end-file-drag, making subsequent list/desktop drops feel broken.
       try {
-        document.documentElement.classList.add('bndz-ole-drag-handoff');
         document.querySelectorAll('.bndz-fluid-drag-stack, .bndz-drag-ghost-root').forEach(el => {
           (el as HTMLElement).style.setProperty('display', 'none', 'important');
         });
       } catch { /* ignore */ }
-      // OLE handoff — WebView cannot paint outside HWND; kill ghost now (no snap delay).
       disarmFluidDrag();
       setMotionDragPhase('idle');
       clearSnapZones();
@@ -1751,10 +1840,13 @@ export default function BNDZUI() {
         clearListDragGhost({ immediate: true });
         setPointerFileDragActive(false);
         endFileDragSession();
+        clearDragSession();
         return;
       }
       clearListDragGhost({ immediate: true });
       endFileDragSession();
+      resetDragInteractionState();
+      setPointerFileDragActive(false);
     };
     window.addEventListener('bndz-end-file-drag', onEndFileDrag);
     return () => window.removeEventListener('bndz-end-file-drag', onEndFileDrag);
@@ -2223,7 +2315,12 @@ export default function BNDZUI() {
           next.delete(path);
           return next;
         });
-        prefetchListingVisuals(normalized, path, listingPrefetchFromConfig(configRef.current));
+        const runPrefetch = () => prefetchListingVisuals(normalized, path, listingPrefetchFromConfig(configRef.current));
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(() => runPrefetch(), { timeout: 1800 });
+        } else {
+          window.setTimeout(runPrefetch, 0);
+        }
       }).catch((err) => {
         dirFetchInFlightRef.current.delete(path);
         setLoadingPaths(prev => {
@@ -2489,7 +2586,12 @@ export default function BNDZUI() {
         return next;
       });
       setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
-      prefetchListingVisuals(normalized, path, listingPrefetchFromConfig(configRef.current));
+      const runPrefetch = () => prefetchListingVisuals(normalized, path, listingPrefetchFromConfig(configRef.current));
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => runPrefetch(), { timeout: 1800 });
+      } else {
+        window.setTimeout(runPrefetch, 0);
+      }
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not load folder contents.';
       const gateMatch = /^HELLO_GATE_BLOCKED(?::(.*))?$/.exec(message);
@@ -4063,6 +4165,14 @@ export default function BNDZUI() {
 
       for (const job of state.jobs) {
         if (!refreshCategories.has(job.category || 'fs')) continue;
+        // Refresh destination while copy/move is still running so pasted items appear live.
+        if ((job.status === 'queued' || job.status === 'running') && job.destinationPath) {
+          const destPane = watcherDirToPanePath(String(job.destinationPath));
+          if (destPane && panesRef.current.some(p => p.tabs.some(t => normalizePanePath(t.path) === destPane))) {
+            shouldRefresh = true;
+            batchIsDeleteOnly = false;
+          }
+        }
         if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
           if (!completed.has(job.operationId)) {
             completed.add(job.operationId);
@@ -4253,14 +4363,13 @@ export default function BNDZUI() {
     publishLiveShare(selPaths, cursorPath);
   }, [liveShareEnabled, currentPath, activeTab.selectedItems, focusedItemId, publishLiveShare, pathContentsCache]);
 
-  const workspaceToolActive = useMemo(
-    () => panes.some(pane => {
-      const tab = pane.tabs[pane.activeTabIndex];
-      const path = normalizePanePath(tab?.path || '');
-      return isBndzWorkspacePath(path);
-    }),
-    [panes],
-  );
+  const workspaceToolActive = useMemo(() => {
+    const pane = panes.find(p => p.id === activePaneId) ?? panes[0];
+    if (!pane) return false;
+    const tab = pane.tabs[pane.activeTabIndex];
+    const path = normalizePanePath(tab?.path || '');
+    return isBndzImmersiveWorkspacePath(path);
+  }, [panes, activePaneId]);
   const layoutBottomOpen = effectiveBottomOpen && !workspaceToolActive;
   layoutBottomOpenRef.current = layoutBottomOpen;
 
@@ -4280,6 +4389,24 @@ export default function BNDZUI() {
     setMarquee(null);
     setMarqueeActive(false);
   }, [workspaceToolActive]);
+
+  // Warm native shell context menu verbs for the active folder (repeat opens feel instant).
+  useEffect(() => {
+    if (!(config.useNativeOSContextMenu || config.nativeContextMenu)) return;
+    const path = normalizePanePath(currentPath);
+    if (!path || isBndzVirtualPath(path) || isRecycleBinPath(path) || !isValidShellTarget(path)) return;
+    const win = toWindowsPath(path);
+    if (!win) return;
+    let cancelled = false;
+    void import('../lib/ipcBridge').then(({ IPC }) => {
+      if (!IPC.isNative || cancelled) return;
+      void import('../lib/nativeContextMenuCache').then(({ prefetchNativeContextMenu }) => {
+        if (cancelled) return;
+        prefetchNativeContextMenu(win, p => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>);
+      });
+    });
+    return () => { cancelled = true; };
+  }, [currentPath, config.useNativeOSContextMenu, config.nativeContextMenu]);
 
   useEffect(() => {
     const unbindChrome = bindGlobalChromeCursorReset();
@@ -4671,10 +4798,8 @@ export default function BNDZUI() {
     if (config.showCachedFolderSizesOnly) return;
     if (config.autoSyncFolderSizes === false && !config.alwaysShowFolderSizes) return;
     if (!currentDirCount) return;
-    // filesHost: never contend with cold list/icon pipe storm right after navigate.
-    const isFilesHost = typeof document !== 'undefined'
-      && document.documentElement.dataset.bndzShell === 'files-host';
-    const deferMs = isFilesHost ? 8000 : 1200;
+    // Never contend with cold list/icon pipe right after navigate (native + files-host).
+    const deferMs = 8000;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const timer = window.setTimeout(() => {
@@ -4740,13 +4865,18 @@ export default function BNDZUI() {
       unsubscribe = IPC.onFsEvents((events) => {
         const rt = buildSettingsRuntime(config);
         const transfersBusy = transferActiveCountRef.current > 0;
-        // Mid-transfer list churn is opt-in via "Refresh during file operations".
-        if (transfersBusy && !(rt.operations.refreshDuringOps || !!config.refreshDuringFileOperations)) return;
+        const allowDuringOps = rt.operations.refreshDuringOps || !!config.refreshDuringFileOperations;
         const shouldRefresh = rt.operations.autoRefresh !== false
           && (rt.operations.fsNotifications !== false || config.respondToFileSystemNotifications !== false);
         if (shouldRefresh) {
           const byDir = new Map<string, typeof events>();
           for (const ev of events) {
+            // Mid-transfer: still apply Created/Deleted/Renamed so paste/rename appear live.
+            // Skip Changed-only churn unless the user opted into refresh-during-ops.
+            if (transfersBusy && !allowDuringOps) {
+              const t = String(ev.type || '');
+              if (t !== 'Created' && t !== 'Deleted' && t !== 'Renamed') continue;
+            }
             const panePath = watcherDirToPanePath(ev.dir || '');
             if (panePath) {
               // Auto-refresh scope: network / removable / virtual are opt-in.
@@ -4786,7 +4916,11 @@ export default function BNDZUI() {
               const t = String(e.type || '');
               return t === 'Created' || t === 'Deleted' || t === 'Renamed';
             });
-            if (meaningful && (needsSoftRefresh || !cached)) {
+            // Always soft-refresh the open listing on Created/Deleted/Renamed —
+            // patch alone often lacks host metadata and left paste/rename invisible.
+            if (meaningful) {
+              scheduleSoftRefresh(panePath);
+            } else if (needsSoftRefresh || !cached) {
               scheduleSoftRefresh(panePath);
             }
           });
@@ -5624,13 +5758,19 @@ export default function BNDZUI() {
         onToggle: () => setMeshExpanded(!meshExpanded),
         childrenItems: meshHosts
           .filter(h => h.showInNavTree !== false)
-          .map(h => ({
-            label: h.alias,
-            path: buildMeshPath(h.id, h.remoteRootPath || '/'),
-            icon: h.provider === 1 ? 'cloud_ui' : 'server_ui',
-            iconColor: h.state === 2 ? '#34d399' : '#38bdf8',
-            useShellIcon: false,
-          })),
+          .map(h => {
+            const isEphemeral = h.id.startsWith('incus-')
+              || String(h.notes || '').toLowerCase().startsWith('ephemeral:');
+            return {
+              label: isEphemeral ? `${h.alias} · Ephemeral` : h.alias,
+              path: buildMeshPath(h.id, h.remoteRootPath || '/'),
+              icon: isEphemeral ? 'cloud_ui' : (h.provider === 1 ? 'cloud_ui' : 'server_ui'),
+              iconColor: isEphemeral
+                ? (h.state === 2 ? '#67e8f9' : '#22d3ee')
+                : (h.state === 2 ? '#34d399' : '#38bdf8'),
+              useShellIcon: false,
+            };
+          }),
       } as NavTreeBuildNode] : []),
       {
         treeKey: 'recycle-bin',
@@ -6131,6 +6271,20 @@ export default function BNDZUI() {
         } else if (isMeshDropSend) {
           pushToast({ kind: 'info', title: 'Mesh Drop', message: 'Pairing dialog opened — share the Mesh Code with your peer.' });
         }
+        return;
+      }
+
+      // Mesh paths must never fall through to Windows FS ops (toWindowsPath mangles /mesh/…).
+      if (isMeshPath(destCanon) || canonSources.some(isMeshPath)) {
+        dismissToast(`xfer-${opId}`);
+        xferMetaRef.current.delete(opId);
+        pushToast({
+          kind: 'warning',
+          title: 'Mesh transfer',
+          message: isMeshPath(destCanon)
+            ? 'Open a connected mesh host folder before dropping files.'
+            : 'Mesh download needs a local folder destination.',
+        });
         return;
       }
 
@@ -8146,6 +8300,22 @@ export default function BNDZUI() {
   useEffect(() => {
     const layers = [
       registerEscapeLayer({
+        id: 'file-drag-chrome',
+        priority: 970,
+        isActive: () => isOleDragHandoffActive()
+          || !!getFileDragSession()
+          || pointerFileDragActiveRef.current
+          || !!listGestureRef.current,
+        dismiss: () => {
+          listGestureRef.current = null;
+          clearListDragGhost({ immediate: true });
+          clearFileDragChrome();
+          resetDragInteractionState();
+          endInternalFileDragUi('escape');
+          IPC.notifyFileDragActive(false);
+        },
+      }),
+      registerEscapeLayer({
         id: 'folder-size-sync',
         priority: 960,
         isActive: () => !!folderSizeSync?.active,
@@ -8288,7 +8458,7 @@ export default function BNDZUI() {
     isCommandPaletteOpen, isTagManagerOpen, isSmartToolsOpen, isToolbarConfigOpen,
     showAboutDialog, showRegisterDialog, showHelpTopics, isSaveTabsetOpen, showTutorial, openMenuId,
     inlineRename, filterText, activePaneId, panes, goBack, folderSizeSync, cancelFolderSizeSync,
-    bottomImmersive, exitBottomImmersive,
+    bottomImmersive, exitBottomImmersive, clearListDragGhost, clearFileDragChrome,
   ]);
 
   const setSelectedItems = (items: string[] | ((prev: string[]) => string[]), paneId: string = activePaneId) => {
@@ -9249,6 +9419,7 @@ export default function BNDZUI() {
     const isGlobal = isFindingTabActive || (isActive && config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> '));
     
     const normPanePath = normalizePanePath(panePath);
+    const isImmersiveWorkspace = isBndzImmersiveWorkspacePath(normPanePath);
     const isThisPc = normPanePath === '/' || normPanePath === '/this-pc';
     const isLibraries = normPanePath.toLowerCase() === '/shell:libraries';
     const isGoogleHub = isGoogleDriveHubPath(normPanePath);
@@ -9674,6 +9845,7 @@ export default function BNDZUI() {
       const { isDir, displayName, renameInput, filterResult, filterColor, entityTags, panePath, healthBadge } = opts;
       const textStyle = filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {};
       const mutedColClass = (settingsRt.list.lighterDetailColumns || !!config.lighterTextInDetailsColumns) ? 'bndz-detail-col-muted' : '';
+      const metaColClass = `bndz-list-select-cell bndz-list-col-muted px-2 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`;
       // Settings → Use empty cell defaults
       const emptyDefault = (value: React.ReactNode): React.ReactNode => {
         if (value !== null && value !== undefined && value !== '') return value;
@@ -9717,7 +9889,7 @@ export default function BNDZUI() {
           );
         case 'type':
           return (
-            <div key={colId} className={`bndz-list-select-cell px-2 bndz-list-col-muted whitespace-nowrap overflow-hidden text-ellipsis text-gray-400 ${mutedColClass}`}>
+            <div key={colId} className={metaColClass}>
               {entity.typeDescription || (isDir ? 'File Folder' : `${(entity as any).extension || ''} File`)}
             </div>
           );
@@ -9745,7 +9917,7 @@ export default function BNDZUI() {
           return (
             <div
               key={colId}
-              className={`bndz-list-select-cell bndz-list-size-cell px-2 text-right text-gray-300 flex justify-end items-center gap-1.5 min-w-0 whitespace-nowrap overflow-hidden ${mutedColClass}`}
+              className={`bndz-list-size-cell text-right flex justify-end items-center gap-1.5 min-w-0 ${metaColClass}`}
               title={sizeLabel}
             >
               <span className="bndz-list-size-label tabular-nums shrink-0">{sizeLabel}</span>
@@ -9766,19 +9938,27 @@ export default function BNDZUI() {
         }
         case 'modified':
           return (
-            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`}>
+            <div key={colId} className={metaColClass}>
               {emptyDefault(formatFsDateTime(entity.modified))}
             </div>
           );
         case 'created':
           return (
-            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`}>
+            <div key={colId} className={metaColClass}>
               {emptyDefault(formatFsDateTime((entity as any).created))}
             </div>
           );
+        case 'cloudStatus': {
+          const cloud = resolveEntityCloudStatus(entity as any, panePath, cloudProviders);
+          return (
+            <div key={colId} className={`${metaColClass} flex items-center justify-center`} title={cloud?.title || ''}>
+              {cloud ? <EmblemIcon id={cloud.emblem} size={16} title={cloud.title} /> : <span className="opacity-20">—</span>}
+            </div>
+          );
+        }
         case 'attributes':
           return (
-            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-500 font-mono text-[10px] tracking-wider whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`} title={(entity.attributes || []).join(', ')}>
+            <div key={colId} className={`${metaColClass} font-mono text-[10px] tracking-wider`} title={(entity.attributes || []).join(', ')}>
               {emptyDefault(formatAttributesLabel(entity.attributes))}
             </div>
           );
@@ -9826,7 +10006,7 @@ export default function BNDZUI() {
           );
         case 'comment':
           return (
-            <div key={colId} className="px-2 text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis text-[11px] italic" title={(entity as any).comment || ''}>
+            <div key={colId} className={`${metaColClass} text-[11px] italic`} title={(entity as any).comment || ''}>
               {(entity as any).comment || ''}
             </div>
           );
@@ -9844,7 +10024,7 @@ export default function BNDZUI() {
             }
           }
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px]" title={shown}>
+            <div key={colId} className={`${metaColClass} font-mono text-[10px]`} title={shown}>
               {shown}
             </div>
           );
@@ -9852,7 +10032,7 @@ export default function BNDZUI() {
         case 'originalLocation': {
           const loc = formatUiPath(String((entity as any).originalLocation || '')) || String((entity as any).originalLocation || '');
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px]" title={loc}>
+            <div key={colId} className={`${metaColClass} font-mono text-[10px]`} title={loc}>
               {loc || <span className="text-gray-600">—</span>}
             </div>
           );
@@ -9860,7 +10040,7 @@ export default function BNDZUI() {
         case 'originalPath': {
           const op = formatUiPath(String((entity as any).originalPath || '')) || String((entity as any).originalPath || '');
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px]" title={op}>
+            <div key={colId} className={`${metaColClass} font-mono text-[10px]`} title={op}>
               {op || <span className="text-gray-600">—</span>}
             </div>
           );
@@ -9868,7 +10048,7 @@ export default function BNDZUI() {
         case 'ghostState': {
           const ghost = !!(entity as any).isGhostLink;
           return (
-            <div key={colId} className={`bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`} title={ghost ? ((entity as any).linkTarget || 'Ghost link') : ''}>
+            <div key={colId} className={metaColClass} title={ghost ? ((entity as any).linkTarget || 'Ghost link') : ''}>
               {ghost ? (
                 <span className="inline-flex items-center gap-1 text-violet-300/90 text-[11px] font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-400/90" />
@@ -9884,7 +10064,7 @@ export default function BNDZUI() {
           const targetRaw = String((entity as any).linkTarget || '');
           const target = formatUiPath(targetRaw) || targetRaw;
           return (
-            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px] ${mutedColClass}`} title={target}>
+            <div key={colId} className={`${metaColClass} font-mono text-[10px]`} title={target}>
               {target || <span className="text-gray-600">—</span>}
             </div>
           );
@@ -9894,7 +10074,7 @@ export default function BNDZUI() {
           const zoneId = parseBndzRamZoneId(fullPath);
           const label = zoneId || String((entity as any).ramZoneId || (entity as any).ramZone || '');
           return (
-            <div key={colId} className={`bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`} title={label || undefined}>
+            <div key={colId} className={metaColClass} title={label || undefined}>
               {label ? (
                 <span className="inline-flex items-center gap-1 text-sky-300/90 text-[11px] font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-400/90" />
@@ -10062,6 +10242,7 @@ export default function BNDZUI() {
         />
         
         {/* Breadcrumb Row — Files NavigationToolbar-height address strip under filesHost */}
+        {!isImmersiveWorkspace && (
         <div className={`bndz-files-address-strip flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1.5 shrink-0 ${isDualPane && !isActive ? 'opacity-90' : ''}`}
              style={{
                background: 'var(--breadcrumb-bg, #24262c)',
@@ -10282,8 +10463,9 @@ export default function BNDZUI() {
               </div>
             </div>
         </div>
+        )}
 
-        {(computedViewMode === 'details') && (settingsRt.list.showSortHeaders || config.showSortHeadersInAllViews !== false) && (
+        {!isImmersiveWorkspace && (computedViewMode === 'details') && (settingsRt.list.showSortHeaders || config.showSortHeadersInAllViews !== false) && (
         <div
            className={`fs-list-header bndz-list-header-bar flex text-[11px] shrink-0 select-none ${!(settingsRt.list.verticalGridLines || config.verticalGridLinesInDetailsView) ? 'bndz-list-header-bar--no-grid' : ''}`}
            onContextMenu={e => { e.preventDefault(); setColumnPicker({ x: e.clientX, y: e.clientY }); }}
@@ -10320,7 +10502,7 @@ export default function BNDZUI() {
            />
         </div>
         )}
-        {(computedViewMode !== 'details') && (settingsRt.list.showSortHeaders || config.showSortHeadersInAllViews !== false) && (
+        {!isImmersiveWorkspace && (computedViewMode !== 'details') && (settingsRt.list.showSortHeaders || config.showSortHeadersInAllViews !== false) && (
           <div className="bndz-list-header-bar-spacer shrink-0" aria-hidden />
         )}
 
@@ -10375,7 +10557,7 @@ export default function BNDZUI() {
           />
         )}
 
-        {!isGlobal && !isFindingTabActive && (
+        {!isImmersiveWorkspace && !isGlobal && !isFindingTabActive && (
           <ListFilterChips
             value={listKindFilter}
             onChange={setListKindFilter}
@@ -10593,7 +10775,11 @@ export default function BNDZUI() {
               const hitTarget = e.target as HTMLElement;
               const inListIconWell = !!hitTarget.closest('.bndz-list-icon-well');
               const hitOnThumb = !inListIconWell && !!hitTarget.closest('.bndz-clipboard-icon-slot, img, canvas');
-              const thumbDragOk = mouseRt.dragByThumbnail || !!config.allowDraggingItemsByTheThumbnail || inListIconWell;
+              const thumbDragOk = mouseRt.dragByThumbnail
+                || !!config.allowDraggingItemsByTheThumbnail
+                || inListIconWell
+                // Native shell: Explorer-parity — icon column is a valid drag handle.
+                || IPC.isNative;
               // Settings → Allow dragging from a background window (inactive / unfocused host).
               const bgDragOk = mouseRt.allowDraggingFromBackground
                 || !!config.allowDraggingFromABackgroundWindow
@@ -10663,7 +10849,7 @@ export default function BNDZUI() {
 
               if (mayArmDragFinal) {
                 const dragDelay = IPC.isNative
-                  ? (wasSelected ? 80 : 100)
+                  ? (wasSelected ? DRAG_DELAY_NATIVE_SELECTED : DRAG_DELAY_NATIVE)
                   : (wasSelected ? DRAG_DELAY_SELECTED : DRAG_DELAY_DEFAULT);
                 beginDragSession(
                   capturePointerId,
@@ -10817,6 +11003,7 @@ export default function BNDZUI() {
                     '.bndz-chrome-preview', '.bndz-chrome-statusbar', '[data-breadcrumb-path]',
                     '[data-nav-path]', '.bndz-archive-root', '.sidebar-pin-row',
                     '[data-new-tab-zone]', '[data-bndz-workspace-surface]',
+                    '[data-mesh-drop-inbox]', '[data-drop-stack-zone]',
                   ];
                   chromeCacheRects = [];
                   for (const sel of CHROME_SNAP_SELECTORS) {
@@ -10918,8 +11105,9 @@ export default function BNDZUI() {
                     }
                   }
 
-                  // O(1) chrome-zone check via cached DOMRects (replaces elementsFromPoint + closest() thrash).
-                  // Host FILE_DRAG_ACTIVE poll is authoritative; FE escalate is backup (screen + edge).
+                  // Host FILE_DRAG_ACTIVE poll is authoritative; FE escalate is backup.
+                  // Never force OLE merely for being near a viewport edge while still over
+                  // list/sidebar/tabs/bottom/preview — that stole internal drops (mesh, tree, panel).
                   const cx = ev.clientX, cy = ev.clientY;
                   const overInternalChrome = chromeCacheRects.some(
                     r => cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom,
@@ -10929,18 +11117,14 @@ export default function BNDZUI() {
                   } else {
                     outsideChromeStreak++;
                   }
-                  // Host poll escalates when cursor leaves the window — keep FE ghost visible inside BNDZ.
-                  // Near any viewport edge (incl. while still over sidebar/preview): force OLE now so
-                  // left/right/bottom match the top-menubar path (WebView2 cancels before rim poll).
                   if (!oleDragStarted && !hostOleEscalated && getFileDragSession()) {
-                    const leftWindow = isPointerOutsideScreenWindow(ev.screenX, ev.screenY);
-                    const nearEdge = isPointerNearWebViewViewportEdge(cx, cy, 40);
-                    if (leftWindow) {
-                      outsideChromeStreak = Math.max(outsideChromeStreak, 2);
-                      IPC.requestOleEscalateNow('fe-outside-window');
-                      hostOleEscalated = true;
-                    } else if (nearEdge) {
-                      IPC.requestOleEscalateNow('fe-viewport-edge');
+                    if (shouldEscalateFileDragToOle(
+                      cx, cy, overInternalChrome, outsideChromeStreak, ev.screenX, ev.screenY,
+                    )) {
+                      const via = isPointerOutsideScreenWindow(ev.screenX, ev.screenY)
+                        ? 'fe-outside-window'
+                        : 'fe-viewport-edge';
+                      IPC.requestOleEscalateNow(via);
                       hostOleEscalated = true;
                     }
                   }
@@ -10986,6 +11170,7 @@ export default function BNDZUI() {
                     internalDragRef.current = false;
                     clearListDragGhost();
                     endFileDragSession();
+                    clearDragSession();
                     listGestureRef.current = null;
                     return;
                   }
@@ -11005,6 +11190,7 @@ export default function BNDZUI() {
                     clearFileDragChrome();
                     clearListDragGhost();
                     endFileDragSession();
+                    clearDragSession();
                     listGestureRef.current = null;
                     return;
                   }
@@ -11083,6 +11269,7 @@ export default function BNDZUI() {
                     clearFileDragChrome();
                     clearListDragGhost();
                     endFileDragSession();
+                    clearDragSession();
                     listGestureRef.current = null;
                     return;
                   }
@@ -11097,10 +11284,11 @@ export default function BNDZUI() {
                     clearFileDragChrome();
                     clearListDragGhost();
                     endFileDragSession();
+                    clearDragSession();
                     listGestureRef.current = null;
                     return;
                   }
-                  const meshDropInbox = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-mesh-drop-inbox]');
+                  const meshDropInbox = hitTestClosestAtPoint(ev.clientX, ev.clientY, '[data-mesh-drop-inbox]');
                   if (meshDropInbox && dragPaths.length) {
                     executeInternalDrop('copy', dragPaths, MESH_DROP_INBOX_DEST, panePath);
                     setDragTargetHighlight(null);
@@ -11109,16 +11297,11 @@ export default function BNDZUI() {
                     clearFileDragChrome();
                     clearListDragGhost();
                     endFileDragSession();
+                    clearDragSession();
                     listGestureRef.current = null;
                     return;
                   }
-                  const dropStackHit = document.elementsFromPoint(ev.clientX, ev.clientY)
-                    .map(el => {
-                      const node = el as HTMLElement;
-                      return node.closest?.('[data-drop-stack-zone]')
-                        || node.closest?.('[data-plugin-tab-id="dropstack"]');
-                    })
-                    .find(Boolean);
+                  const dropStackHit = hitTestClosestAtPoint(ev.clientX, ev.clientY, '[data-drop-stack-zone], [data-plugin-tab-id="dropstack"]');
                   if (dropStackHit && dragPaths.length) {
                     appendDropStackPaths(dragPaths);
                     openBottomPlugin('dropstack');
@@ -11128,6 +11311,7 @@ export default function BNDZUI() {
                     clearFileDragChrome();
                     clearListDragGhost();
                     endFileDragSession();
+                    clearDragSession();
                     listGestureRef.current = null;
                     return;
                   }
@@ -11159,6 +11343,7 @@ export default function BNDZUI() {
                     clearFileDragChrome();
                     clearListDragGhost();
                     endFileDragSession();
+                    clearDragSession();
                     listGestureRef.current = null;
                     return;
                   }
@@ -11170,6 +11355,7 @@ export default function BNDZUI() {
                         : null)
                       || (dropEnt?.name ? joinPanePath(resolvedTabPath, dropEnt as { name: string; path?: string; id?: string }) : resolvedTabPath);
                     const destCanon = canonicalDropPath(destPath);
+                    const crossMeshLocal = isMeshPath(destCanon) !== dragPaths.some(isMeshPath);
                     const op = resolveDropOperation({
                       payloadCopy: gesture.copyDrag,
                       dropModifierCopy: dropModifierRef.current.copy,
@@ -11181,7 +11367,7 @@ export default function BNDZUI() {
                       sameDriveDefault: config.dragDropSameVolumeAction,
                       crossDriveDefault: config.dragDropCrossVolumeAction,
                     });
-                    const hasForeignTarget = !!(
+                    const hasForeignTarget = crossMeshLocal || !!(
                       navTreeTarget
                       || breadcrumbTarget
                       || hover
@@ -11218,6 +11404,7 @@ export default function BNDZUI() {
                   clearFileDragChrome();
                   clearListDragGhost();
                   endFileDragSession();
+                  clearDragSession();
                 } else if (gesture?.mode === 'pending' && !hasMetDragThreshold() && !oleDragStarted) {
                   clearDragSession();
                   const now = performance.now();
@@ -11292,28 +11479,52 @@ export default function BNDZUI() {
                 clearListDragGhost();
                 // Clears active session only — pending OLE stash survives for EXTERNAL_FILES_DROPPED.
                 endFileDragSession();
-                if (!oleDragStarted) {
+                clearDragSession();
+                if (!oleDragStarted && !hostOleEscalated) {
                   IPC.notifyFileDragActive(false);
                 }
               };
 
               const onCancel = (ev: PointerEvent) => {
                 // WebView2 fires pointercancel at the rim — keep ghost + FILE_DRAG_ACTIVE armed;
-                // host poll escalates OLE on any outer rim / outside-host.
+                // host poll escalates OLE when the cursor leaves the OS window / foreign HWND.
                 if (ev.pointerId !== capturePointerId) return;
-                if (listGestureRef.current?.mode === 'drag' && !oleDragStarted && !hostOleEscalated) {
-                  const nearEdge = isPointerNearWebViewViewportEdge(ev.clientX, ev.clientY, 48)
-                    || isPointerOutsideScreenWindow(ev.screenX, ev.screenY);
-                  if (nearEdge && getFileDragSession()) {
-                    hostOleEscalated = true;
-                    IPC.requestOleEscalateNow('pointercancel-edge');
+                const gest = listGestureRef.current;
+                const leftWindow = isPointerOutsideScreenWindow(ev.screenX, ev.screenY);
+                const nearSideOrBottom = isPointerNearWebViewSideOrBottomEdge(ev.clientX, ev.clientY, 48);
+                const nearEdge = leftWindow || (nearSideOrBottom && !isPointerOverMenubar(ev.clientX, ev.clientY));
+                // Safe escalate: only when movement already proved drag intent (threshold),
+                // never on a plain click cancel — that hung DoDragDrop / orphaned WebViews.
+                if (gest && !oleDragStarted && !hostOleEscalated && hasMetDragThreshold()
+                  && (gest.mode === 'drag' || nearEdge)) {
+                  if (gest.mode === 'pending') {
+                    const paths = buildDragPaths(entityId, gest.dragSelection).filter(p => !isMeshPath(p));
+                    if (paths.length) {
+                      beginFileDragSession({
+                        paths,
+                        op: gest.copyDrag ? 'copy' : 'move',
+                        sourcePaneId: pane.id,
+                        sourceTabPath: panePath,
+                      });
+                      IPC.notifyFileDragActive(true, paths);
+                      IPC.postOleDndDebug({
+                        kind: 'list-drag-mode',
+                        via: 'pointercancel-pending',
+                        localCount: paths.length,
+                        sample: paths.slice(0, 2),
+                      });
+                    }
                   }
-                  window.removeEventListener('pointermove', onMove);
-                  window.removeEventListener('pointerup', onUp);
-                  window.removeEventListener('pointercancel', onCancel);
-                  unbindKeyModifiers();
-                  setPointerFileDragActive(false);
-                  return;
+                  if (getFileDragSession()) {
+                    hostOleEscalated = true;
+                    IPC.requestOleEscalateNow(gest.mode === 'drag' ? 'pointercancel-edge' : 'pointercancel-threshold');
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                    window.removeEventListener('pointercancel', onCancel);
+                    unbindKeyModifiers();
+                    setPointerFileDragActive(false);
+                    return;
+                  }
                 }
                 onUp(ev);
               };
@@ -11328,6 +11539,7 @@ export default function BNDZUI() {
                 tabFileDragHoverRef.current = null;
                 stashOleDragSession(getFileDragSession());
                 endFileDragSession();
+                clearDragSession();
                 onHostOleDragEscalated();
                 clearListDragGhost({ immediate: true });
                 unbindKeyModifiers();
@@ -12086,6 +12298,7 @@ export default function BNDZUI() {
       case 'mesh-drop':
         setMeshDropPaths(bottomSelectionTargets.paths);
         setShowMeshDropDialog(true);
+        openBottomPlugin('remote-mesh', { tab: 'drop' });
         break;
       case 'mesh-shell-here': {
         const paths = bottomSelectionTargets.paths;
@@ -12114,11 +12327,12 @@ export default function BNDZUI() {
           setToastMessage('Select remote Mesh items to download.', 'warning');
           break;
         }
-        const dest = window.prompt('Download to local folder:', 'C:\\Users\\Public\\Downloads');
-        if (!dest) break;
-        void meshDownloadSelection(meshSel, dest).then(res => {
+        void (async () => {
+          const dest = await IPC.openFolderDialog('Download Mesh files to…');
+          if (!dest) return;
+          const res = await meshDownloadSelection(meshSel, dest);
           setToastMessage(res.ok ? 'Mesh download started…' : (res.error || 'Download failed'), res.ok ? 'success' : 'warning');
-        });
+        })();
         break;
       }
       case 'mesh-edit-remote': {
@@ -12145,6 +12359,25 @@ export default function BNDZUI() {
           } catch (e: any) {
             setToastMessage(e?.message || 'Could not open remote file', 'warning');
           }
+        })();
+        break;
+      }
+      case 'mesh-ephemeral':
+        openBottomPlugin('remote-mesh', { tab: 'ephemeral' });
+        setToastMessage('Remote Mesh · Ephemeral (Incus)', 'info');
+        break;
+      case 'archive-extract': {
+        const archivePath = bottomSelectionTargets.paths[0];
+        if (!archivePath) break;
+        void (async () => {
+          const dest = await IPC.openFolderDialog('Extract archive to…');
+          if (!dest) return;
+          const res = await IPC.extractArchive(toWindowsPath(archivePath), dest);
+          if (isQueuedIpcResult(res)) {
+            setToastMessage('Extract queued — see transfer panel.', 'info');
+            return;
+          }
+          setToastMessage(res.ok ? `Extracted to ${dest}` : (res.error || 'Extract failed'), res.ok ? 'success' : 'warning');
         })();
         break;
       }
@@ -12239,6 +12472,15 @@ export default function BNDZUI() {
         });
         break;
       }
+      case 'transcode-rack':
+        openBottomPlugin('transcode-rack');
+        break;
+      case 'semantic-desk':
+        openBottomPlugin('semantic-desk');
+        break;
+      case 'shell-menus':
+        openBottomPlugin('context-menu-manager');
+        break;
       case 'continuum-compose':
         openWorkspaceToolTab(BNDZ_CANVAS);
         window.setTimeout(() => {
@@ -14033,9 +14275,10 @@ export default function BNDZUI() {
       {/* Main Split Architecture */}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
          <ResizablePanelGroup
-             key={`workspace-outer-v${config.workspaceLayoutVersion ?? WORKSPACE_LAYOUT_VERSION}-${previewDockedInWorkspace ? 'd' : 'c'}`}
+             key={`workspace-outer-v${config.workspaceLayoutVersion ?? WORKSPACE_LAYOUT_VERSION}-${previewDockedInWorkspace ? 'd' : 'c'}-${effectivePreviewOpen ? 'p' : 'n'}`}
              id="workspace-outer"
              direction="horizontal"
+             groupRef={outerGroupRef}
              defaultLayout={outerLayoutLive}
              onLayoutChanged={saveOuterLayout}
          >
@@ -14154,7 +14397,7 @@ export default function BNDZUI() {
                                       autoFocus
                                       type="text"
                                       defaultValue={s.name}
-                                      className="text-[11px] font-medium bg-[#1a1a1a] border border-[#0078d4]/45 rounded-[var(--bndz-radius-sm)] px-1 py-0 flex-1 min-w-0 text-white outline-none"
+                                      className="text-[11px] font-medium bndz-inline-rename-input rounded-[var(--bndz-radius-sm)] px-1 py-0 flex-1 min-w-0 outline-none"
                                       onClick={e => e.stopPropagation()}
                                       onKeyDown={e => {
                                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -14526,7 +14769,7 @@ export default function BNDZUI() {
                   <ResizableHandle
                      direction="vertical"
                      disabled={!layoutBottomOpen || bottomImmersive}
-                     className={`bndz-resize-handle h-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-20 ${
+                     className={`bndz-resize-handle h-1.5 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-[80] touch-none ${
                        bottomImmersive ? 'opacity-0 pointer-events-none' : ''
                      }`}
                      title="Drag to resize · Double-click to reset default height"
@@ -14663,11 +14906,12 @@ export default function BNDZUI() {
 
       {/* Transfer queue (native background jobs) — sole live progress surface */}
       <FileTransferQueuePanel enabled={fileOpsRt.showTransferPanel || config.showTransferQueuePanel !== false} />
+      <TransferActivityToast />
 
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (
       <div
-        className="bndz-chrome-statusbar px-3 py-1.5 pl-4 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
+        className="bndz-chrome-statusbar bndz-status-bar-tree-tab bndz-sidebar-section-header px-3 py-1.5 pl-4 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
         title="Right-click for folder menu"
         onContextMenu={(e) => {
           if ((e.target as HTMLElement).closest('button, a, input')) return;

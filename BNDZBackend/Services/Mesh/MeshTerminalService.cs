@@ -41,11 +41,12 @@ public sealed class MeshTerminalService : IDisposable
         var id = Guid.NewGuid().ToString("N")[..12];
         try
         {
+            var workDir = ResolveLocalWorkingDirectory(cwd);
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "powershell.exe",
                 Arguments = "-NoLogo -NoExit",
-                WorkingDirectory = string.IsNullOrEmpty(cwd) ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) : cwd,
+                WorkingDirectory = workDir,
                 UseShellExecute = false,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
@@ -65,7 +66,7 @@ public sealed class MeshTerminalService : IDisposable
             proc.EnableRaisingEvents = true;
             _sessions[id] = session;
             OnOutput?.Invoke(id, Convert.ToBase64String(Encoding.UTF8.GetBytes("\r\nBNDZ local shell — PowerShell\r\n\r\n")));
-            return new MeshTerminalSessionInfo { Id = id, HostId = "", RemoteCwd = cwd, IsLocal = true };
+            return new MeshTerminalSessionInfo { Id = id, HostId = "", RemoteCwd = workDir, IsLocal = true };
         }
         catch (Exception ex)
         {
@@ -103,6 +104,24 @@ public sealed class MeshTerminalService : IDisposable
     public void Dispose()
     {
         foreach (var id in _sessions.Keys.ToList()) Close(id);
+    }
+
+    private static string ResolveLocalWorkingDirectory(string? cwd)
+    {
+        if (string.IsNullOrWhiteSpace(cwd))
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        var p = cwd.Trim().Replace('/', '\\');
+        // BNDZ pane paths: /C:/Users/... → C:\Users\...
+        if (p.Length >= 3 && p[0] == '\\' && char.IsLetter(p[1]) && p[2] == ':')
+            p = p[1..];
+        if (p.Length == 2 && char.IsLetter(p[0]) && p[1] == ':')
+            p += "\\";
+        if (Directory.Exists(p))
+            return p;
+
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return string.IsNullOrEmpty(profile) ? Environment.CurrentDirectory : profile;
     }
 
     private sealed class TerminalSession

@@ -101,7 +101,7 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     ],
     'remote-mesh': [
       'SSH/SFTP browse, terminal, sync, and LAN drop',
-      'Incus VPS launch, import, start/stop, and Mesh bridge',
+      'Mesh VPS launch, import, start/stop, and Mesh bridge',
       'Ephemeral and persistent instances with cloud-init SSH',
     ],
     'ghost-link': [

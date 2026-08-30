@@ -2638,11 +2638,30 @@ html.theme-light .bndz-panel-section-title {
 
 html.theme-light .fs-item-wrapper,
 html.theme-light .fs-list-item,
-html.theme-light .bndz-list-col-muted {
+html.theme-light .bndz-list-col-muted,
+html.theme-light .bndz-detail-col-muted,
+html.theme-light .bndz-list-size-cell,
+html.theme-light .bndz-list-size-label {
   color: rgba(0, 0, 0, 0.86) !important;
 }
 
-html.theme-light .bndz-chrome-statusbar {
+/* Meta columns (Type / Size / Modified / etc.) — black ink on pale rows */
+html.theme-light .fs-list-item .bndz-list-select-cell.text-gray-300,
+html.theme-light .fs-list-item .bndz-list-select-cell.text-gray-400,
+html.theme-light .fs-list-item .bndz-list-select-cell.text-gray-500,
+html.theme-light .fs-list-item .bndz-list-select-cell.text-slate-300,
+html.theme-light .fs-list-item .bndz-list-select-cell.text-slate-400,
+html.theme-light .fs-list-item .bndz-list-select-cell.text-slate-500,
+html.theme-light .bndz-chrome-workspace .fs-list-item .text-gray-300,
+html.theme-light .bndz-chrome-workspace .fs-list-item .text-gray-400,
+html.theme-light .bndz-chrome-workspace .fs-list-item .text-gray-500,
+html.theme-light .bndz-file-list-scroll .text-gray-300,
+html.theme-light .bndz-file-list-scroll .text-gray-400,
+html.theme-light .bndz-file-list-scroll .text-gray-500 {
+  color: rgba(0, 0, 0, 0.78) !important;
+}
+
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
   background: var(--statusbar-bg, #eef0f4) !important;
   color: var(--status-text, rgba(0, 0, 0, 0.88)) !important;
 }
@@ -5396,8 +5415,11 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+  width: 100%;
+  min-width: 0;
   line-height: 1.25;
   font-size: var(--bndz-font-list-size, 12px);
   font-family: var(--bndz-font-list-family, var(--bndz-font-family));
@@ -6619,7 +6641,11 @@ html[data-marquee-active] .bndz-list-col-gutter {
 .bndz-list-size-label {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--text-secondary, #d1d5db) 92%, white);
+  color: var(--list-text-secondary, var(--text-secondary, rgba(186, 202, 220, 0.78)));
+}
+
+.bndz-detail-col-muted {
+  color: var(--list-text-secondary, var(--text-secondary, rgba(186, 202, 220, 0.72)));
 }
 
 .fs-list-item,
@@ -6720,10 +6746,6 @@ html[data-marquee-active] .bndz-list-col-gutter {
 
 .bndz-hoverbox-panel .bndz-floating-tooltip-value {
   font-size: 11px;
-}
-
-.bndz-detail-col-muted {
-  color: rgba(212, 212, 212, 0.72);
 }
 
 .bndz-clipboard-mark {
@@ -7741,22 +7763,25 @@ html[data-theme] .bndz-destination-picker-footer {
   background: var(--menu-bg, #2b2b2b);
   color: var(--menu-text, #f3f4f6);
   border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.12));
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.45),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset;
-  padding: 4px;
+    0 12px 32px rgba(0, 0, 0, 0.50),
+    0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  padding: 6px;
   contain: layout style;
   will-change: opacity, transform;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
 }
 
 .bndz-context-menu-item {
   color: var(--menu-text, #f3f4f6);
   margin: 0;
-  padding: 6px 10px;
-  min-height: 28px;
-  border-radius: var(--bndz-radius-sm, 5px);
-  transition: background-color 60ms ease-out;
+  padding: 5px 10px 5px 8px;
+  min-height: 30px;
+  gap: 10px;
+  border-radius: 6px;
+  transition: background-color 50ms ease-out;
   will-change: auto;
   display: flex;
   align-items: center;
@@ -7765,12 +7790,43 @@ html[data-theme] .bndz-destination-picker-footer {
 
 .bndz-context-menu-item:hover,
 .bndz-context-menu-item-active {
-  background: var(--menu-hover, rgba(56, 189, 248, 0.20));
+  background: var(--menu-hover, rgba(56, 189, 248, 0.18));
   color: #e0f2fe;
 }
 
 .bndz-context-menu-icon {
   color: var(--menu-muted, rgba(255, 255, 255, 0.72));
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bndz-context-menu-sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 0;
+}
+
+/* While dragging a panel splitter, freeze list scroll/hit-testing underneath. */
+html.bndz-panel-resizing,
+html.bndz-panel-resizing body {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+html.bndz-panel-resizing .bndz-file-list-scroll,
+html.bndz-panel-resizing .bndz-list-body,
+html.bndz-panel-resizing [data-bndz-list-scroll] {
+  overflow: hidden !important;
+  pointer-events: none !important;
+  touch-action: none !important;
+}
+html.bndz-panel-resizing .bndz-resize-handle {
+  pointer-events: auto !important;
+  z-index: 200 !important;
 }
 
 .bndz-context-chevron--open {
@@ -11815,7 +11871,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   zoom: calc(1 / var(--bndz-interface-scale, 1));
   cursor: default;
 }
-/* Spatial Canvas / Automation: bottom plugin dock collapsed ? main workspace fills height. */
+/* Home / Spatial Canvas / Automation: bottom plugin dock collapsed — main workspace fills height. */
 #workspace-inner.bndz-workspace-inner--tools [data-panel-id="main"],
 #workspace-inner.bndz-workspace-inner--tools [data-panel-id="main"] > * {
   min-height: 100%;
@@ -12140,6 +12196,12 @@ html[data-theme] .nav-tree-row:focus-visible {
 }
 .bndz-mesh-incus-inspector {
   animation: bndz-mesh-ephemeral-rise 200ms ease-out;
+}
+.bndz-mesh-incus-admin {
+  animation: bndz-mesh-ephemeral-rise 220ms ease-out;
+}
+.bndz-mesh-incus-admin iframe {
+  color-scheme: dark;
 }
 .bndz-mesh-incus-inspector .bndz-plugin-card,
 .bndz-mesh-incus-inspector [class*="PluginCard"] {
@@ -14908,12 +14970,23 @@ html.bndz-ole-drag-handoff [data-fluid-badge] {
   pointer-events: none !important;
   transform: none !important;
 }
-/* Block list/sidebar clicks while shell DoDragDrop owns the gesture. */
+/* Block list/sidebar clicks while shell DoDragDrop owns the gesture.
+   Do NOT include bottom panel / preview — internal drops there must keep working
+   if handoff CSS is briefly active, and Escape clears the class. */
 html.bndz-ole-drag-handoff [data-list-body],
 html.bndz-ole-drag-handoff [data-nav-path],
 html.bndz-ole-drag-handoff .bndz-chrome-sidebar,
 html.bndz-ole-drag-handoff .bndz-chrome-tabstrip {
   pointer-events: none !important;
+}
+/* Menubar stays clickable — OLE handoff must not brick Scripting→Help after a drag. */
+html.bndz-ole-drag-handoff .bndz-chrome-menubar,
+html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger],
+html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-bndz-menubar-logo] {
+  pointer-events: auto !important;
+}
+html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
+  cursor: pointer !important;
 }
 .bndz-fluid-drag-lead {
   position: relative;
@@ -15605,12 +15678,151 @@ html.bndz-ole-drag-handoff .bndz-chrome-tabstrip {
 /* ?? Plugin pop-out + desktop sticky widget ?? */
 .bndz-plugin-popout-shell {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56, 189, 248, 0.08), transparent 55%),
-    linear-gradient(180deg, #101018 0%, #0a0a0e 100%);
+    radial-gradient(ellipse 90% 55% at 12% -8%, rgba(56, 189, 248, 0.12), transparent 52%),
+    radial-gradient(ellipse 70% 45% at 92% 108%, rgba(196, 163, 90, 0.07), transparent 48%),
+    linear-gradient(180deg, #12141c 0%, #0a0b10 58%, #07080c 100%);
+}
+
+.bndz-plugin-popout-chrome {
+  display: flex;
+  align-items: stretch;
+  min-height: 40px;
+  background:
+    linear-gradient(180deg, rgba(22, 28, 40, 0.98) 0%, rgba(14, 16, 24, 0.94) 100%);
+  border-bottom: 1px solid rgba(125, 211, 252, 0.18);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
+}
+.bndz-plugin-popout-chrome-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 10px;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(56, 189, 248, 0.03));
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.bndz-plugin-popout-chrome-sigil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.16);
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.18);
+}
+.bndz-plugin-popout-chrome-word {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(186, 230, 253, 0.92);
+}
+.bndz-plugin-popout-chrome-title {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+.bndz-plugin-popout-chrome-title .h-8,
+.bndz-plugin-popout-chrome .h-8 {
+  flex: 1;
+  min-width: 0;
+  height: 40px !important;
+  background: transparent !important;
+  border-bottom: none !important;
+}
+.bndz-plugin-popout-body {
+  position: relative;
+}
+.bndz-plugin-popout-body::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 28px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.05), transparent);
+  z-index: 1;
+}
+.bndz-plugin-popout-missing-orb {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(125, 211, 252, 0.45), transparent 55%),
+    linear-gradient(145deg, rgba(56, 189, 248, 0.2), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  animation: bndz-popout-orb 2.4s ease-in-out infinite;
+}
+@keyframes bndz-popout-orb {
+  0%, 100% { transform: translateY(0); filter: brightness(1); }
+  50% { transform: translateY(-4px); filter: brightness(1.08); }
+}
+
+.bndz-mesh-one-push {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bndz-mesh-one-push-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #041018;
+  background: linear-gradient(135deg, #67e8f9 0%, #38bdf8 45%, #818cf8 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.25),
+    0 10px 28px rgba(56, 189, 248, 0.28);
+}
+.bndz-mesh-one-push-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.bndz-mesh-one-push-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.bndz-mesh-one-push-advanced {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
 }
 
 .bndz-plugin-popout-surface {
-  background: var(--bndz-surface-chrome, #121218);
+  background: transparent;
+  position: relative;
+  z-index: 0;
+}
+
+.bndz-meshdrop-studio-card {
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.14);
+  background:
+    radial-gradient(ellipse 80% 60% at 0% 0%, rgba(34, 211, 238, 0.08), transparent 55%),
+    rgba(10, 14, 22, 0.72);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.bndz-meshdrop-dialog {
+  border-radius: 20px !important;
+  border: 1px solid rgba(34, 211, 238, 0.22) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 28px 64px rgba(0, 0, 0, 0.55) !important;
+  background:
+    radial-gradient(ellipse 90% 50% at 10% -10%, rgba(34, 211, 238, 0.14), transparent 55%),
+    linear-gradient(165deg, #121820 0%, #0a0e14 100%) !important;
 }
 
 .bndz-sticky-widget {
@@ -16262,6 +16474,7 @@ html[data-bndz-shell="native-host"] .bndz-chrome-menubar [role="menuitem"] {
   app-region: no-drag !important;
   -webkit-app-region: no-drag !important;
   pointer-events: auto !important;
+  cursor: pointer !important;
   position: relative;
   z-index: 2;
   min-height: 30px !important;
@@ -16986,18 +17199,39 @@ html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-acti
 }
 
 /*
- * Light footer statusbar: pale paper + BLACK ink.
- * Never white-on-pale (previous FINAL lock made left metrics invisible).
+ * Footer statusbar (tree-tab chrome): keep metal + neon rail on light themes too.
+ * Pale paper overrides apply only to non–tree-tab statusbars.
  */
-html.theme-light .bndz-chrome-statusbar,
-html.theme-light .bndz-chrome-statusbar *,
+html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab.bndz-sidebar-section-header,
+html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab {
+  background: linear-gradient(
+    90deg,
+    var(--status-neon-soft, rgba(0, 120, 212, 0.16)) 0%,
+    var(--status-neon-mid, rgba(0, 120, 212, 0.04)) 38%,
+    color-mix(in srgb, var(--statusbar-bg, #1a1d24) 88%, #0c0f14) 100%
+  ) !important;
+  background-image: linear-gradient(
+    90deg,
+    var(--status-neon-soft, rgba(0, 120, 212, 0.16)) 0%,
+    var(--status-neon-mid, rgba(0, 120, 212, 0.04)) 38%,
+    transparent 78%
+  ),
+  linear-gradient(180deg, #2a2d36 0%, #1a1d24 100%) !important;
+  color: var(--status-text, #c8cdd6) !important;
+  border-top: 1px solid color-mix(in srgb, var(--status-neon, var(--accent, #0078d4)) 28%, transparent) !important;
+}
+
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab,
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab * {
+  color: var(--status-text, #c8cdd6) !important;
+}
+
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab),
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) * {
   color: rgba(0, 0, 0, 0.88) !important;
 }
 
-html.theme-light .bndz-chrome-statusbar,
-html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab {
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
   background: #eef0f4 !important;
   background-image: none !important;
   border-top: 1px solid rgba(0, 0, 0, 0.10) !important;
@@ -17010,6 +17244,16 @@ html.theme-light .bndz-chrome-statusbar .text-\[\#cce4f7\],
 html.theme-light .bndz-chrome-statusbar .text-\[\#c8c8c8\],
 html.theme-light .bndz-chrome-statusbar .text-\[\#888\],
 html.theme-light .bndz-chrome-statusbar .bndz-glass-chip {
+  color: inherit !important;
+}
+
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-sky-300\/90,
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-amber-400\/90,
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-amber-400\/70,
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-\[\#cce4f7\],
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-\[\#c8c8c8\],
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-\[\#888\],
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .bndz-glass-chip {
   color: rgba(0, 0, 0, 0.72) !important;
 }
 
@@ -17118,7 +17362,10 @@ html.theme-light .bndz-chrome-sidebar .bndz-drive-card-title,
 html.theme-light .bndz-chrome-workspace .fs-list-item,
 html.theme-light .bndz-chrome-workspace .bndz-list-col-header:not(.bndz-list-col-header--active),
 html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active),
-html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active) .bndz-list-col-header-label {
+html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active) .bndz-list-col-header-label,
+html.theme-light .bndz-list-size-label,
+html.theme-light .bndz-list-col-muted,
+html.theme-light .bndz-detail-col-muted {
   color: rgba(0, 0, 0, 0.86) !important;
 }
 
@@ -17220,4 +17467,126 @@ html.theme-light .bndz-dual-diff-strip__hdr {
 }
 html.theme-light .bndz-dual-diff-strip__row:hover {
   background: color-mix(in srgb, var(--accent, #c026d3) 10%, #fff);
+}
+
+/* Inline rename — readable on dark and light themes */
+.bndz-inline-rename-input {
+  background: #111 !important;
+  color: #fff !important;
+  border: 1px solid var(--accent, #007acc) !important;
+  border-radius: 4px;
+  caret-color: #fff;
+}
+html.theme-light .bndz-inline-rename-input {
+  background: #fff !important;
+  color: rgba(0, 0, 0, 0.92) !important;
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 70%, #333) !important;
+  caret-color: rgba(0, 0, 0, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* Floating transfer activity toast */
+.bndz-xfer-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 72px;
+  z-index: 12050;
+  width: min(320px, calc(100vw - 32px));
+  border-radius: 14px;
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--accent, #0078d4) 18%, #121820) 0%, #0e1218 55%, #0a0d12 100%);
+  border: 1px solid color-mix(in srgb, var(--accent, #38bdf8) 35%, transparent);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  color: #e8eef6;
+  overflow: hidden;
+  animation: bndz-xfer-toast-in 220ms ease-out;
+}
+html.theme-light .bndz-xfer-toast {
+  background: linear-gradient(165deg, #f8fbff 0%, #eef3f9 100%);
+  color: rgba(0, 0, 0, 0.88);
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(0, 0, 0, 0.12));
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+}
+@keyframes bndz-xfer-toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.bndz-xfer-toast-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+.bndz-xfer-toast-orb {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent, #38bdf8) 18%, transparent);
+}
+.bndz-xfer-toast-spin {
+  animation: bndz-xfer-spin 1.1s linear infinite;
+}
+@keyframes bndz-xfer-spin {
+  to { transform: rotate(360deg); }
+}
+.bndz-xfer-toast-pct {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.bndz-xfer-toast-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bndz-xfer-toast-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+html.theme-light .bndz-xfer-toast-track {
+  background: rgba(0, 0, 0, 0.08);
+}
+.bndz-xfer-toast-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--bndz-transfer-accent-dim, #094771), var(--bndz-transfer-accent, #0078d4), #3aa0f3);
+  transition: width 180ms ease;
+}
+.bndz-xfer-toast-line {
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1.35;
+}
+.bndz-xfer-toast-more {
+  font-size: 10px;
+  opacity: 0.65;
+}
+.bndz-xfer-toast-cancel {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #f87171 40%, transparent);
+  background: color-mix(in srgb, #f87171 12%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+.bndz-xfer-toast-cancel:hover {
+  background: color-mix(in srgb, #f87171 22%, transparent);
 }

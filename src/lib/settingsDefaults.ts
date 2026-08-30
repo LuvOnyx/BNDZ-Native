@@ -54,7 +54,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   adjustToOsLightDarkModeAtStartup: false,
   alignToBottom: false,
   allowDraggingFromABackgroundWindow: false,
-  allowDraggingItemsByTheThumbnail: false,
+  allowDraggingItemsByTheThumbnail: true,
   allowMoveOnRename: false,
   allowMultipleInstances: false,
   allowOnlySingleStepUndoRedo: 'Allow multi-step undo/redo',

@@ -165,6 +165,12 @@ export function installOleDragEscalateGhostHook(): void {
     }
     clearOleHandoffDom();
     notifyOleDragHandoffListeners();
+    // Other listeners (BNDZUI) may have historically re-armed handoff CSS while clearing
+    // ghosts — clear again on the next microtask so list/sidebar hit-testing recovers.
+    queueMicrotask(() => {
+      clearOleHandoffDom();
+      notifyOleDragHandoffListeners();
+    });
   });
   window.addEventListener('bndz-ole-drag-ended', () => {
     stopScreenDragGhostMonitor();
@@ -180,6 +186,11 @@ export function installOleDragEscalateGhostHook(): void {
     requestAnimationFrame(() => {
       clearOleHandoffDom();
       notifyOleDragHandoffListeners();
+      // Second frame — belt against late React commits re-showing ghosts.
+      requestAnimationFrame(() => {
+        clearOleHandoffDom();
+        notifyOleDragHandoffListeners();
+      });
     });
   });
 }

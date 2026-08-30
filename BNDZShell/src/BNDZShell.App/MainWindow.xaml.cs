@@ -82,6 +82,14 @@ public sealed partial class MainWindow : Window
         {
             RemoveWindowSubclass();
             DisposeTray();
+            try
+            {
+                BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
+                ChromeHost.StopOutboundDragCleanup();
+                if (!_launch.IsPlugin)
+                    BndzEmbeddedBackendHost.Shutdown();
+            }
+            catch { /* ignore */ }
             if (_launch.IsPlugin) return;
             try { BndzEmbeddedBackendHost.SetHostCloseAction(() => { }); } catch { /* ignore */ }
         };
@@ -98,6 +106,30 @@ public sealed partial class MainWindow : Window
         BndzEmbeddedBackendHost.SetHostCloseAction(RequestHostClose);
         BndzEmbeddedBackendHost.SetHostTrayActions(HideToTray, RestoreFromTray);
         BndzEmbeddedBackendHost.SetOpenPluginWindowAction(PluginWindowRegistry.Open);
+        BndzEmbeddedBackendHost.SetHostActivateMainAction(ActivateMainFromHost);
+    }
+
+    private void ActivateMainFromHost()
+    {
+        try
+        {
+            void DoActivate()
+            {
+                try
+                {
+                    AppWindow?.Show();
+                    Activate();
+                }
+                catch { /* ignore */ }
+            }
+            if (DispatcherQueue is not null && !DispatcherQueue.HasThreadAccess)
+            {
+                DispatcherQueue.TryEnqueue(DoActivate);
+                return;
+            }
+            DoActivate();
+        }
+        catch { /* ignore */ }
     }
 
     private void RequestHostClose()
@@ -265,8 +297,9 @@ public sealed partial class MainWindow : Window
         => ApplyMenubarInputRegions();
 
     /// <summary>
-    /// WinUI caption covers the top band by default. Mark File/Edit (left ~520px of ~36px)
-    /// as Passthrough so WebView2 receives clicks; keep Caption on the trailing drag strip.
+    /// WinUI caption covers the top band by default. Passthrough almost the full menubar width
+    /// so every menu trigger (Scripting → Help) reaches WebView2; reserve only the trailing
+    /// drag strip + WinUI min/max/close overlay on the right.
     /// </summary>
     private void ApplyMenubarInputRegions()
     {
@@ -277,14 +310,18 @@ public sealed partial class MainWindow : Window
             var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
             if (scale < 0.5) scale = 1.0;
             var menuH = (int)Math.Round(36 * scale);
-            var menuW = (int)Math.Round(520 * scale);
             var winW = _appWindow.Size.Width;
             if (winW <= 0 || menuH <= 0) return;
+
+            // Match React menubar padding-right + minimum flex drag strip (see index.css native-host).
+            var captionReserve = (int)Math.Round(138 * scale);
+            var dragStripMin = (int)Math.Round(72 * scale);
+            var capW = Math.Clamp(captionReserve + dragStripMin, (int)Math.Round(96 * scale), winW);
+            var passW = Math.Max(0, winW - capW);
 
             source.ClearRegionRects(NonClientRegionKind.Passthrough);
             source.ClearRegionRects(NonClientRegionKind.Caption);
 
-            var passW = Math.Min(menuW, winW);
             if (passW > 0)
             {
                 source.SetRegionRects(
@@ -292,13 +329,11 @@ public sealed partial class MainWindow : Window
                     [new RectInt32(0, 0, passW, menuH)]);
             }
 
-            var capX = passW;
-            var capW = winW - capX;
             if (capW > 0)
             {
                 source.SetRegionRects(
                     NonClientRegionKind.Caption,
-                    [new RectInt32(capX, 0, capW, menuH)]);
+                    [new RectInt32(passW, 0, capW, menuH)]);
             }
         }
         catch (Exception ex)
@@ -805,8 +840,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            ChromeHost.PaneStatusHint.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
-            ChromeHost.PaneStatusHint.Text = $"BNDZ shell error — see shell-crash.log\n{message}";
+            ChromeHost.ShowPaneStatus($"BNDZ shell error — see shell-crash.log\n{message}");
         }
         catch { /* ignore */ }
         try

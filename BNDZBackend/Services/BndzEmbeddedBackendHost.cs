@@ -382,6 +382,15 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    public static void SetHostActivateMainAction(Action activateMain)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostActivateMainAction(activateMain); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostActivateMainAction: {ex.Message}"); }
+#endif
+    }
+
     public static void NotifyDeviceChange()
     {
 #if BNDZ_HEADLESS_CORE

@@ -830,6 +830,7 @@ function ContextMenuView({
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const isArchive = targetPaths.length === 1 && isArchiveExt(ext);
   const isInRecycleBin = isRecycleBinPath(menu.path);
+  const isFolder = itemKind === 'folder' || menu.isDirectory;
 
   const extractHere = async () => {
     const panePaths = resolveContextTargetPanePaths(menu);
@@ -1327,6 +1328,16 @@ function ContextMenuView({
 
       {!isBackground && targetPaths.length > 0 && IPC.isNative && (
         <>
+          {isFolder && !isBndzVirtualPath(entityPath) && stockOn('mesh-drop') && (
+            <ContextMenuItem
+              label="Launch Ephemeral Mesh host…"
+              iconVerb="cloud_ui"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-ephemeral' } }));
+                onClose();
+              }}
+            />
+          )}
           {stockOn('mesh-drop') && (
           <ContextMenuItem
             label="Mesh Drop…"

@@ -1,4 +1,6 @@
 using System.Net.Sockets;
+using System.Text;
+using Renci.SshNet;
 
 namespace BNDZ.Services.Mesh.Incus;
 
@@ -10,24 +12,28 @@ public sealed class MeshEphemeralService
 {
     private readonly MeshDatabase _db;
     private readonly BndzMeshOrchestrator _orchestrator;
+    private readonly MeshLocalVpsFactory _localFactory;
 
     public MeshEphemeralService(MeshDatabase db, BndzMeshOrchestrator orchestrator)
     {
         _db = db;
         _orchestrator = orchestrator;
+        _localFactory = new MeshLocalVpsFactory(db, orchestrator);
     }
 
-    public IReadOnlyList<IncusEndpointRecord> ListEndpoints() =>
-        _db.ListIncusEndpoints().Select(SanitizeEndpoint).ToList();
+    public MeshLocalVpsFactory LocalFactory => _localFactory;
+
+    public IReadOnlyList<IncusEndpointRecord> ListEndpoints()
+    {
+        _localFactory.EnsureVisible();
+        return _db.ListIncusEndpoints().Select(SanitizeEndpoint).ToList();
+    }
 
     public IncusEndpointRecord UpsertEndpoint(IncusEndpointRecord endpoint)
     {
         if (string.IsNullOrWhiteSpace(endpoint.ApiUrl))
-            throw new InvalidOperationException("Incus API URL is required (https://host:8443)");
-        endpoint.ApiUrl = endpoint.ApiUrl.Trim().TrimEnd('/');
-        if (!endpoint.ApiUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-            && !endpoint.ApiUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            endpoint.ApiUrl = "https://" + endpoint.ApiUrl;
+            throw new InvalidOperationException("VPS host API URL is required (https://host:8443)");
+        endpoint.ApiUrl = NormalizeAndValidateApiUrl(endpoint.ApiUrl);
 
         if (!string.IsNullOrEmpty(endpoint.TrustTokenPlain))
         {
@@ -40,13 +46,41 @@ public sealed class MeshEphemeralService
         return SanitizeEndpoint(endpoint);
     }
 
+    /// <summary>Reject empty hosts like https:// or https://:8443 which become DNS lookup for "https".</summary>
+    internal static string NormalizeAndValidateApiUrl(string raw)
+    {
+        var url = (raw ?? "").Trim().TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(url))
+            throw new InvalidOperationException("VPS host API URL is required (https://192.168.1.10:8443)");
+        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            && !url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            url = "https://" + url;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+            throw new InvalidOperationException($"Invalid VPS host URL: {raw}");
+
+        if (string.IsNullOrWhiteSpace(uri.Host)
+            || uri.Host.Equals("https", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("http", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "VPS host URL is missing a hostname. Example: https://192.168.1.10:8443");
+
+        // API base is origin only (Incus listens on host:8443).
+        return uri.GetLeftPart(UriPartial.Authority);
+    }
+
     public void DeleteEndpoint(string endpointId)
     {
         var linked = _db.ListIncusEphemeral().Where(i => i.EndpointId == endpointId).ToList();
         foreach (var inst in linked)
         {
             try { DestroyAsync(inst.Id, CancellationToken.None).GetAwaiter().GetResult(); }
-            catch { /* best-effort cleanup */ }
+            catch
+            {
+                try { PruneEphemeralRecordAsync(inst).GetAwaiter().GetResult(); }
+                catch { /* best-effort */ }
+            }
         }
         _db.DeleteIncusEndpoint(endpointId);
         try
@@ -60,7 +94,13 @@ public sealed class MeshEphemeralService
     public async Task<IncusServerInfo> TestEndpointAsync(string endpointId, CancellationToken ct = default)
     {
         var endpoint = _db.GetIncusEndpoint(endpointId)
-            ?? throw new InvalidOperationException("Incus endpoint not found");
+            ?? throw new InvalidOperationException("VPS host not found");
+        try { endpoint.ApiUrl = NormalizeAndValidateApiUrl(endpoint.ApiUrl); }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"VPS host URL is invalid ({endpoint.ApiUrl}). Edit and set https://IP-or-hostname:8443. ({ex.Message})");
+        }
         var (api, info) = await OpenClientAsync(endpoint, ct).ConfigureAwait(false);
         await using (api)
         {
@@ -73,6 +113,276 @@ public sealed class MeshEphemeralService
             return info;
         }
     }
+
+    /// <summary>
+    /// Connect over SSH, push BNDZ client cert into the remote trust store, then verify Trusted on the HTTPS API.
+    /// </summary>
+    public async Task<(IncusEndpointRecord Endpoint, IncusServerInfo Info)> BootstrapTrustAsync(
+        IncusBootstrapRequest req,
+        CancellationToken ct = default)
+    {
+        if (req == null) throw new ArgumentNullException(nameof(req));
+
+        MeshHostRecord sshHost;
+        var ephemeralSsh = false;
+        if (!string.IsNullOrWhiteSpace(req.MeshHostId))
+        {
+            sshHost = _db.GetHost(req.MeshHostId!)
+                ?? throw new InvalidOperationException("Mesh SSH host not found");
+            if (sshHost.Provider != MeshProviderKind.Ssh)
+                throw new InvalidOperationException("Bootstrap requires an SSH Mesh host");
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(req.SshHostname))
+                throw new InvalidOperationException("SSH hostname is required (the Linux box running the VPS API)");
+            if (string.IsNullOrWhiteSpace(req.SshUsername))
+                throw new InvalidOperationException("SSH username is required");
+
+            sshHost = new MeshHostRecord
+            {
+                Id = $"vps-ctrl-{Guid.NewGuid():N}"[..16],
+                Alias = string.IsNullOrWhiteSpace(req.Alias) ? $"VPS · {req.SshHostname}" : req.Alias!,
+                Provider = MeshProviderKind.Ssh,
+                Hostname = req.SshHostname!.Trim(),
+                Port = req.SshPort > 0 ? req.SshPort : 22,
+                Username = req.SshUsername!.Trim(),
+                KeyPath = string.IsNullOrWhiteSpace(req.SshKeyPath) ? null : ExpandUserPath(req.SshKeyPath!),
+                AuthKind = !string.IsNullOrEmpty(req.SshPassword) && string.IsNullOrWhiteSpace(req.SshKeyPath)
+                    ? MeshAuthKind.Password
+                    : (!string.IsNullOrWhiteSpace(req.SshKeyPath) ? MeshAuthKind.PrivateKey : MeshAuthKind.Agent),
+                PasswordPlain = req.SshPassword,
+                ShowInNavTree = req.PersistControlHost,
+                Notes = "mesh-vps-control",
+            };
+            ephemeralSsh = !req.PersistControlHost;
+            if (req.PersistControlHost)
+                _orchestrator.UpsertHost(sshHost);
+        }
+
+        var apiHost = sshHost.Hostname;
+        var apiUrl = !string.IsNullOrWhiteSpace(req.ApiUrl)
+            ? req.ApiUrl!
+            : $"https://{apiHost}:{(req.ApiPort > 0 ? req.ApiPort : 8443)}";
+        apiUrl = NormalizeAndValidateApiUrl(apiUrl);
+
+        var endpoint = !string.IsNullOrWhiteSpace(req.EndpointId)
+            ? (_db.GetIncusEndpoint(req.EndpointId!) ?? new IncusEndpointRecord { Id = req.EndpointId! })
+            : new IncusEndpointRecord { Id = Guid.NewGuid().ToString("N")[..12] };
+
+        endpoint.Alias = string.IsNullOrWhiteSpace(req.Alias)
+            ? (string.IsNullOrWhiteSpace(endpoint.Alias) || endpoint.Alias == "VPS host" || endpoint.Alias == "Incus"
+                ? $"VPS · {apiHost}"
+                : endpoint.Alias)
+            : req.Alias!;
+        endpoint.ApiUrl = apiUrl;
+        endpoint.AllowInsecureTls = req.AllowInsecureTls;
+        endpoint.DefaultSshUser = string.IsNullOrWhiteSpace(endpoint.DefaultSshUser) ? "ubuntu" : endpoint.DefaultSshUser;
+        if (string.IsNullOrWhiteSpace(endpoint.DefaultSshKeyPath) && !string.IsNullOrWhiteSpace(sshHost.KeyPath))
+            endpoint.DefaultSshKeyPath = sshHost.KeyPath;
+        endpoint.LastError = null;
+        UpsertEndpoint(endpoint);
+
+        var (certPath, _) = EnsureIdentityPaths(endpoint.Id);
+        var certPem = await File.ReadAllTextAsync(certPath, ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(certPem) || !certPem.Contains("BEGIN CERTIFICATE", StringComparison.Ordinal))
+            throw new InvalidOperationException("Failed to prepare BNDZ client certificate for trust bootstrap");
+
+        SshSftpMeshProvider? ownedProvider = null;
+        SshSftpMeshProvider ssh;
+        try
+        {
+            if (!ephemeralSsh && !string.IsNullOrWhiteSpace(req.MeshHostId))
+            {
+                await _orchestrator.EnsureConnectedAsync(sshHost.Id, ct).ConfigureAwait(false);
+                ssh = _orchestrator.GetSshProvider(sshHost.Id);
+            }
+            else if (req.PersistControlHost && string.IsNullOrWhiteSpace(req.MeshHostId))
+            {
+                await _orchestrator.EnsureConnectedAsync(sshHost.Id, ct).ConfigureAwait(false);
+                ssh = _orchestrator.GetSshProvider(sshHost.Id);
+            }
+            else
+            {
+                ownedProvider = new SshSftpMeshProvider();
+                await ownedProvider.ConnectAsync(sshHost, ct).ConfigureAwait(false);
+                ssh = ownedProvider;
+            }
+
+            var remoteCrt = $"/tmp/bndz-mesh-{endpoint.Id}.crt";
+            var pemBytes = Encoding.UTF8.GetBytes(certPem.Replace("\r\n", "\n", StringComparison.Ordinal));
+            await ssh.WriteBytesAsync(remoteCrt, pemBytes, ct).ConfigureAwait(false);
+
+            var sshClient = ssh.GetSshClient()
+                ?? throw new InvalidOperationException("SSH session unavailable after connect");
+
+            var addResult = RunRemote(sshClient,
+                BuildTrustAddCertificateScript(remoteCrt),
+                TimeSpan.FromSeconds(45));
+
+            if (!addResult.Success)
+            {
+                // Fallback: mint a one-shot trust token on the host, then POST our cert via HTTPS API.
+                var tokenResult = RunRemote(sshClient,
+                    BuildTrustTokenScript(),
+                    TimeSpan.FromSeconds(45));
+                var token = ExtractTrustToken(tokenResult.Stdout + "\n" + tokenResult.Stderr);
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    throw new InvalidOperationException(
+                        "Could not auto-trust via SSH. Need a user that can run `incus`/`lxc` (or passwordless sudo) on the host. "
+                        + "SSH worked, but trust install failed:\n"
+                        + Truncate(addResult.Stdout + "\n" + addResult.Stderr + "\n" + tokenResult.Stdout + "\n" + tokenResult.Stderr, 800));
+                }
+
+                endpoint.TrustTokenPlain = token;
+                UpsertEndpoint(endpoint);
+            }
+
+            // Best-effort cleanup of the uploaded cert
+            try { RunRemote(sshClient, $"rm -f {ShellQuote(remoteCrt)}", TimeSpan.FromSeconds(10)); }
+            catch { /* ignore */ }
+        }
+        finally
+        {
+            if (ownedProvider != null)
+            {
+                try { ownedProvider.Disconnect(); } catch { /* ignore */ }
+                await ownedProvider.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+
+        IncusServerInfo info;
+        try
+        {
+            info = await TestEndpointAsync(endpoint.Id, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            endpoint.LastError = ex.Message;
+            _db.UpsertIncusEndpoint(endpoint);
+            throw new InvalidOperationException(
+                $"SSH trust step finished but HTTPS API probe failed ({endpoint.ApiUrl}): {ex.Message}. "
+                + "Check the API is listening on that host:port and Allow insecure TLS if using a lab cert.",
+                ex);
+        }
+
+        if (!info.Trusted)
+        {
+            endpoint.Trusted = false;
+            endpoint.LastError = "Client cert was installed but API still reports untrusted — check remote group membership / firewall.";
+            _db.UpsertIncusEndpoint(endpoint);
+            throw new InvalidOperationException(endpoint.LastError);
+        }
+
+        return (SanitizeEndpoint(_db.GetIncusEndpoint(endpoint.Id)!), info);
+    }
+
+    private static (bool Success, string Stdout, string Stderr, int Exit) RunRemote(
+        SshClient client,
+        string script,
+        TimeSpan timeout)
+    {
+        using var cmd = client.CreateCommand(script);
+        cmd.CommandTimeout = timeout;
+        var stdout = cmd.Execute() ?? "";
+        var stderr = cmd.Error ?? "";
+        var exit = cmd.ExitStatus ?? -1;
+        var ok = exit == 0 || stdout.Contains("BNDZ_TRUST_OK", StringComparison.Ordinal);
+        return (ok, stdout, stderr, exit);
+    }
+
+    private static string BuildTrustAddCertificateScript(string remoteCrtPath)
+    {
+        var crt = ShellQuote(remoteCrtPath);
+        // Try Incus then LXD CLI, with and without passwordless sudo. Local unix socket auth does the trust.
+        return $$"""
+            set +e
+            CRT={crt}
+            NAME='bndz-mesh'
+            try_add() {
+              BIN="$1"
+              if command -v "$BIN" >/dev/null 2>&1; then
+                "$BIN" config trust add-certificate "$CRT" --name "$NAME" >/tmp/bndz-trust-out.txt 2>/tmp/bndz-trust-err.txt && echo BNDZ_TRUST_OK && return 0
+                "$BIN" config trust add-certificate "$CRT" "$NAME" >/tmp/bndz-trust-out.txt 2>/tmp/bndz-trust-err.txt && echo BNDZ_TRUST_OK && return 0
+              fi
+              return 1
+            }
+            try_add incus && exit 0
+            try_add lxc && exit 0
+            if command -v sudo >/dev/null 2>&1; then
+              sudo -n true >/dev/null 2>&1 || true
+              if command -v incus >/dev/null 2>&1; then
+                sudo -n incus config trust add-certificate "$CRT" --name "$NAME" >/tmp/bndz-trust-out.txt 2>/tmp/bndz-trust-err.txt && echo BNDZ_TRUST_OK && exit 0
+              fi
+              if command -v lxc >/dev/null 2>&1; then
+                sudo -n lxc config trust add-certificate "$CRT" --name "$NAME" >/tmp/bndz-trust-out.txt 2>/tmp/bndz-trust-err.txt && echo BNDZ_TRUST_OK && exit 0
+              fi
+            fi
+            echo BNDZ_TRUST_FAIL
+            cat /tmp/bndz-trust-err.txt 2>/dev/null
+            exit 1
+            """;
+    }
+
+    private static string BuildTrustTokenScript() =>
+        """
+        set +e
+        NAME='bndz-mesh'
+        emit_token() {
+          BIN="$1"
+          if command -v "$BIN" >/dev/null 2>&1; then
+            OUT=$("$BIN" config trust add "$NAME" 2>/tmp/bndz-token-err.txt)
+            echo "$OUT"
+            echo "$OUT" | tr -d '\r' | awk 'NF{line=$0} END{if(line!="") print "BNDZ_TRUST_TOKEN=" line}'
+            return 0
+          fi
+          return 1
+        }
+        emit_token incus && exit 0
+        emit_token lxc && exit 0
+        if command -v sudo >/dev/null 2>&1; then
+          if command -v incus >/dev/null 2>&1; then
+            OUT=$(sudo -n incus config trust add "$NAME" 2>/tmp/bndz-token-err.txt)
+            echo "$OUT"
+            echo "$OUT" | tr -d '\r' | awk 'NF{line=$0} END{if(line!="") print "BNDZ_TRUST_TOKEN=" line}'
+            exit 0
+          fi
+        fi
+        cat /tmp/bndz-token-err.txt 2>/dev/null
+        exit 1
+        """;
+
+    private static string? ExtractTrustToken(string blob)
+    {
+        if (string.IsNullOrWhiteSpace(blob)) return null;
+        foreach (var line in blob.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var t = line.Trim();
+            if (t.StartsWith("BNDZ_TRUST_TOKEN=", StringComparison.Ordinal))
+            {
+                var v = t["BNDZ_TRUST_TOKEN=".Length..].Trim();
+                if (v.Length >= 16) return v;
+            }
+        }
+        // Last non-empty line that looks like a token (base64url / long opaque)
+        string? last = null;
+        foreach (var line in blob.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var t = line.Trim();
+            if (t.Length < 24) continue;
+            if (t.Contains(' ', StringComparison.Ordinal)) continue;
+            if (t.StartsWith("Error", StringComparison.OrdinalIgnoreCase)) continue;
+            last = t;
+        }
+        return last;
+    }
+
+    private static string ShellQuote(string value) =>
+        "'" + (value ?? "").Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
+
+    private static string Truncate(string s, int max) =>
+        string.IsNullOrEmpty(s) ? "" : (s.Length <= max ? s : s[..max] + "…");
 
     public async Task<IReadOnlyList<IncusImageAlias>> ListImageAliasesAsync(string endpointId, CancellationToken ct = default)
     {
@@ -303,10 +613,47 @@ public sealed class MeshEphemeralService
 
     public async Task<IncusEphemeralInstanceRecord> LaunchAsync(IncusLaunchRequest req, CancellationToken ct = default)
     {
+        // Default path: BNDZ is the host — create a local temporary VPS on this PC.
+        var endpointId = req.EndpointId?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(endpointId)
+            || string.Equals(endpointId, MeshLocalVpsFactory.LocalEndpointId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(endpointId, "local", StringComparison.OrdinalIgnoreCase))
+        {
+            var cpus = 2;
+            var memory = "2GiB";
+            if (req.Config != null)
+            {
+                if (req.Config.TryGetValue("limits.cpu", out var cpuRaw) && int.TryParse(cpuRaw, out var c) && c > 0)
+                    cpus = c;
+                if (req.Config.TryGetValue("limits.memory", out var memRaw) && !string.IsNullOrWhiteSpace(memRaw))
+                    memory = memRaw;
+            }
+            return await _localFactory.CreateAsync(
+                    req.Alias,
+                    string.IsNullOrWhiteSpace(req.ImageAlias) ? "lscr.io/linuxserver/openssh-server:latest" : req.ImageAlias!,
+                    cpus,
+                    memory,
+                    req.Ephemeral,
+                    ct)
+                .ConfigureAwait(false);
+        }
+
         if (string.IsNullOrWhiteSpace(req.EndpointId))
             throw new InvalidOperationException("endpointId is required");
         var endpoint = _db.GetIncusEndpoint(req.EndpointId)
-            ?? throw new InvalidOperationException("Incus endpoint not found");
+            ?? throw new InvalidOperationException("VPS host not found — add and trust a host first");
+
+        // Fail fast with a clear message instead of DNS lookup for "https".
+        try { NormalizeAndValidateApiUrl(endpoint.ApiUrl); }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"VPS host URL is invalid ({endpoint.ApiUrl}). Edit the host and set a real address like https://192.168.1.10:8443. ({ex.Message})");
+        }
+
+        if (!endpoint.Trusted)
+            throw new InvalidOperationException(
+                "VPS host is not trusted yet. Use Connect & trust (SSH) — BNDZ installs its cert on the host automatically.");
 
         var name = string.IsNullOrWhiteSpace(req.Name)
             ? $"bndz-{DateTime.UtcNow:yyMMddHHmmss}-{Random.Shared.Next(0x1000, 0xFFFF):x}"
@@ -391,14 +738,14 @@ public sealed class MeshEphemeralService
             if (string.IsNullOrWhiteSpace(meshHost) && req.Start && req.RegisterMeshHost)
                 record.LastError ??= "Instance started but no global IP yet — refresh or connect manually";
             else if (cloudInit == null && req.RegisterMeshHost)
-                record.LastError ??= "Launched without cloud-init SSH key — set Default SSH key on the endpoint for Mesh login";
+                record.LastError ??= "Launched without cloud-init SSH key — set Default SSH key on the VPS host for Mesh login";
 
             if (req.RegisterMeshHost && !string.IsNullOrWhiteSpace(meshHost))
             {
                 var host = new MeshHostRecord
                 {
                     Id = $"incus-{record.Id}",
-                    Alias = string.IsNullOrWhiteSpace(req.Alias) ? $"Incus · {name}" : req.Alias!,
+                    Alias = string.IsNullOrWhiteSpace(req.Alias) ? $"VPS · {name}" : req.Alias!,
                     Provider = MeshProviderKind.Ssh,
                     Hostname = meshHost!,
                     Port = sshPort,
@@ -496,43 +843,65 @@ public sealed class MeshEphemeralService
     public async Task DestroyAsync(string ephemeralId, CancellationToken ct = default)
     {
         var record = _db.GetIncusEphemeral(ephemeralId)
-            ?? throw new InvalidOperationException("Ephemeral instance not found");
+            ?? throw new InvalidOperationException("VPS instance not found");
+
+        // Local factory instances (or 127.0.0.1 / localvps-* mesh) — never hang on remote DNS.
+        var looksLocal =
+            string.Equals(record.EndpointId, MeshLocalVpsFactory.LocalEndpointId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(record.Ipv4, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(record.MeshHostId)
+                && record.MeshHostId!.StartsWith("localvps-", StringComparison.OrdinalIgnoreCase));
+
+        if (looksLocal)
+        {
+            if (string.Equals(record.EndpointId, MeshLocalVpsFactory.LocalEndpointId, StringComparison.OrdinalIgnoreCase))
+            {
+                try { await _localFactory.DestroyLocalAsync(ephemeralId, ct).ConfigureAwait(false); }
+                catch { await PruneEphemeralRecordAsync(record).ConfigureAwait(false); }
+            }
+            else
+            {
+                // Mis-tagged local box (wrong endpoint id) — prune Mesh/DB without remote Incus hang.
+                await PruneEphemeralRecordAsync(record).ConfigureAwait(false);
+            }
+            return;
+        }
+
         var endpoint = _db.GetIncusEndpoint(record.EndpointId);
 
         if (endpoint != null)
         {
-            await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
             try
             {
-                await client.UpdateInstanceStateAsync(record.InstanceName, "stop", force: true, timeout: 20, ct)
-                    .ConfigureAwait(false);
-            }
-            catch (IncusApiException) { /* already stopped */ }
+                using var shortCt = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                shortCt.CancelAfter(TimeSpan.FromSeconds(8));
+                await using var client = await OpenClientOnlyAsync(endpoint, shortCt.Token).ConfigureAwait(false);
+                try
+                {
+                    await client.UpdateInstanceStateAsync(record.InstanceName, "stop", force: true, timeout: 12, shortCt.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (IncusApiException) { /* already stopped */ }
+                catch (OperationCanceledException) { /* timed out */ }
 
-            try
-            {
-                await client.DeleteInstanceAsync(record.InstanceName, force: true, ct).ConfigureAwait(false);
-            }
-            catch (IncusApiException ex) when (ex.StatusCode is 404)
-            {
-                /* already gone on server */
+                try
+                {
+                    await client.DeleteInstanceAsync(record.InstanceName, force: true, shortCt.Token).ConfigureAwait(false);
+                }
+                catch (IncusApiException ex) when (ex.StatusCode is 404)
+                {
+                    /* already gone on server */
+                }
+                catch (OperationCanceledException) { /* timed out — prune local below */ }
             }
             catch (Exception ex)
             {
-                record.LastError = $"Incus destroy failed: {ex.Message}";
-                record.Status = "DestroyPending";
-                _db.UpsertIncusEphemeral(record);
-                throw;
+                // Remote unreachable / bad URL — still remove local Mesh tracking so Destroy always works.
+                System.Diagnostics.Debug.WriteLine($"[MeshVPS] Destroy remote failed, pruning local: {ex.Message}");
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(record.MeshHostId))
-        {
-            try { _orchestrator.DeleteHost(record.MeshHostId!); }
-            catch { /* ignore */ }
-        }
-
-        _db.DeleteIncusEphemeral(ephemeralId);
+        await PruneEphemeralRecordAsync(record).ConfigureAwait(false);
     }
 
     private async Task PruneEphemeralRecordAsync(IncusEphemeralInstanceRecord record)

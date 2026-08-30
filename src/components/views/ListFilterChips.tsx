@@ -1,8 +1,9 @@
 import React from 'react';
 import { entityHasTag } from '../../lib/tagUtils';
-import { isImageExt, isVideoExt } from '../../lib/mediaTypes';
+import { isArchiveExt } from '../../lib/archiveTypes';
+import { isImageExt, isModelExt, isVideoExt } from '../../lib/mediaTypes';
 
-export type ListKindFilter = 'all' | 'folders' | 'images' | 'videos' | 'documents' | 'large';
+export type ListKindFilter = 'all' | 'folders' | 'images' | 'videos' | 'documents' | 'models' | 'archives' | 'large';
 
 const LARGE_BYTES = 50 * 1024 * 1024;
 const DOC_EXT = /\.(docx?|pdf|txt|rtf|odt|xlsx?|pptx?|csv|md)$/i;
@@ -12,6 +13,8 @@ const CHIPS: Array<{ id: ListKindFilter; label: string }> = [
   { id: 'folders', label: 'Folders' },
   { id: 'images', label: 'Images' },
   { id: 'videos', label: 'Videos' },
+  { id: 'models', label: '3D' },
+  { id: 'archives', label: 'Archives' },
   { id: 'documents', label: 'Docs' },
   { id: 'large', label: 'Large' },
 ];
@@ -58,9 +61,11 @@ export default function ListFilterChips({ value, onChange, onFolderContextMenu }
 export function matchesListKindFilter(item: { type?: string; name?: string; size?: number; extension?: string }, filter: ListKindFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'folders') return item.type === 'directory';
-  const ext = (item.extension || item.name?.match(/\.([^.]+)$/)?.[1] || '').toLowerCase();
+  const ext = (item.extension || item.name?.match(/\.([^.]+)$/)?.[1] || '').toLowerCase().replace(/^\./, '');
   if (filter === 'images') return item.type !== 'directory' && isImageExt(ext);
   if (filter === 'videos') return item.type !== 'directory' && isVideoExt(ext);
+  if (filter === 'models') return item.type !== 'directory' && isModelExt(ext);
+  if (filter === 'archives') return item.type !== 'directory' && isArchiveExt(ext);
   if (filter === 'documents') return item.type !== 'directory' && DOC_EXT.test(item.name || '');
   if (filter === 'large') return (item.size || 0) >= LARGE_BYTES;
   return true;

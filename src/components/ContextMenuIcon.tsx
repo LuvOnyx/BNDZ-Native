@@ -56,6 +56,17 @@ const VERB_MAP: Record<string, string> = {
   rar: 'zip',
   undo: 'undo',
   redo: 'redo',
+  check: 'check',
+  find: 'search',
+  search: 'search',
+  parent: 'chevron_up',
+  up: 'chevron_up',
+  back: 'nav_back',
+  forward: 'nav_forward',
+  shell: 'explorer',
+  new: 'new_folder',
+  pin: 'star',
+  unpin: 'star',
 };
 
 const TINT_MAP: Record<string, string> = {
