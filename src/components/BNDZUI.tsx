@@ -3069,9 +3069,32 @@ export default function BNDZUI() {
   const nativeOleDragRef = useRef(false);
   useEffect(() => {
     const onOleEnded = (ev: Event) => {
-      const detail = (ev as CustomEvent<{ ok?: boolean; error?: string }>).detail;
+      const detail = (ev as CustomEvent<{
+        ok?: boolean;
+        error?: string;
+        effect?: string;
+        paths?: string[];
+      }>).detail;
       if (detail?.ok === false && detail.error) {
         setToastMessage(`Drag failed: ${detail.error}`);
+      }
+      if (detail?.ok && detail.effect === 'MOVE' && Array.isArray(detail.paths) && detail.paths.length > 0) {
+        const winPaths = detail.paths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+        if (winPaths.length > 0) {
+          const label = winPaths.length === 1
+            ? (winPaths[0].split(/[/\\]/).pop() || 'item')
+            : `${winPaths.length} items`;
+          try {
+            window.dispatchEvent(new CustomEvent('bndz-optimistic-fs-op', {
+              detail: {
+                opId: `ole-move-${Date.now()}`,
+                kind: 'move',
+                winPaths,
+                label,
+              },
+            }));
+          } catch { /* ignore */ }
+        }
       }
       nativeOleDragRef.current = false;
       clearListDragGhost({ immediate: true });

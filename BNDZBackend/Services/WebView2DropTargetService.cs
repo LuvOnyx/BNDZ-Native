@@ -80,6 +80,12 @@ internal static class WebView2DropTargetService
     [DllImport("user32.dll")]
     private static extern IntPtr GetParent(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string? lpszClass, string? lpszWindow);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumWindows(
@@ -1029,15 +1035,46 @@ internal static class WebView2DropTargetService
     }
 
     /// <summary>
+    /// True when WindowFromPoint (or an ancestor) belongs to our outbound-drag host.
+    /// Desktop SysListView32 spans the whole screen behind us — geometric containment alone
+    /// must never override this, or QCD DROPs onto our chrome → effect=NONE.
+    /// </summary>
+    private static bool IsPointUnderOurHost(int screenX, int screenY)
+    {
+        try
+        {
+            var host = _hostWindowHwnd != IntPtr.Zero ? _hostWindowHwnd : _registeredHwnd;
+            if (host == IntPtr.Zero) return false;
+            if (!GetWindowRect(host, out var hostRect) || !PointInRect(hostRect, screenX, screenY))
+                return false;
+            var hit = WindowFromPoint(new NativePoint { x = screenX, y = screenY });
+            if (hit == IntPtr.Zero) return false;
+            if (hit == host || IsChild(host, hit)) return true;
+            for (var cur = hit; cur != IntPtr.Zero; cur = GetParent(cur))
+            {
+                if (cur == host) return true;
+            }
+            return false;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
     /// Cursor over the shell Desktop (Progman/WorkerW + SysListView32) — authorize DROP at
-    /// commit time even when GiveFeedback is stale from a prior taskbar hover.
+    /// commit time only when the topmost HWND is actually desktop, not BNDZ chrome on top.
     /// </summary>
     private static bool IsDesktopDropTargetAtPoint(int screenX, int screenY)
     {
         try
         {
+            // Never treat points owned by our host as desktop — wallpaper HWND is full-screen
+            // behind the window; geometric listview checks would otherwise always win.
+            if (IsPointUnderOurHost(screenX, screenY))
+                return false;
+
             var hit = WindowFromPoint(new NativePoint { x = screenX, y = screenY });
             if (hit == IntPtr.Zero) return false;
+            var leafCls = GetHwndClassName(hit);
             var sawExplorerCabinet = false;
             for (var cur = hit; cur != IntPtr.Zero; cur = GetParent(cur))
             {
@@ -1050,7 +1087,7 @@ internal static class WebView2DropTargetService
                 if (cls is "Progman" or "WorkerW" or "SHELLDLL_DefView") return true;
             }
             if (sawExplorerCabinet) return false;
-            if (GetHwndClassName(hit) == "SysListView32")
+            if (leafCls == "SysListView32")
             {
                 for (var cur = GetParent(hit); cur != IntPtr.Zero; cur = GetParent(cur))
                 {
@@ -1058,7 +1095,53 @@ internal static class WebView2DropTargetService
                     if (cls is "Progman" or "WorkerW" or "SHELLDLL_DefView") return true;
                 }
             }
+
+            // Foreign Win11 desktop islands (widgets) above wallpaper — only when outside our host.
+            if (leafCls.Contains("DesktopChildSiteBridge", StringComparison.Ordinal)
+                || leafCls is "InputNonClientPointerSource")
+            {
+                var host = _hostWindowHwnd != IntPtr.Zero ? _hostWindowHwnd : _registeredHwnd;
+                if (host != IntPtr.Zero && GetWindowRect(host, out var hostRect) && PointInRect(hostRect, screenX, screenY))
+                    return false;
+                return IsCursorOverShellDesktopListView(screenX, screenY);
+            }
+
             return false;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>True when screen point falls on the shell desktop SysListView32 wallpaper area.</summary>
+    private static bool IsCursorOverShellDesktopListView(int screenX, int screenY)
+    {
+        try
+        {
+            static bool ListViewContainsPoint(IntPtr listView, int x, int y)
+            {
+                if (listView == IntPtr.Zero) return false;
+                return GetWindowRect(listView, out var r) && PointInRect(r, x, y);
+            }
+
+            var progman = FindWindow("Progman", null);
+            if (progman != IntPtr.Zero)
+            {
+                var defView = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
+                var listView = FindWindowEx(defView, IntPtr.Zero, "SysListView32", null);
+                if (ListViewContainsPoint(listView, screenX, screenY)) return true;
+            }
+
+            var found = false;
+            EnumWindows((hwnd, _) =>
+            {
+                if (GetHwndClassName(hwnd) != "WorkerW") return true;
+                var defView = FindWindowEx(hwnd, IntPtr.Zero, "SHELLDLL_DefView", null);
+                if (defView == IntPtr.Zero) return true;
+                var listView = FindWindowEx(defView, IntPtr.Zero, "SysListView32", null);
+                if (!ListViewContainsPoint(listView, screenX, screenY)) return true;
+                found = true;
+                return false;
+            }, IntPtr.Zero);
+            return found;
         }
         catch { return false; }
     }
@@ -1108,6 +1191,7 @@ internal static class WebView2DropTargetService
     {
         private const uint MK_LBUTTON = 0x0001;
         private const uint MK_RBUTTON = 0x0002;
+        private const int FreshTrustedFeedbackMs = 1200;
         private readonly Action<string>? _log;
         private bool _sawButtonDown;
         private long _buttonUpInsideSinceMs;
@@ -1118,14 +1202,61 @@ internal static class WebView2DropTargetService
         /// <summary>True after GiveFeedback saw desktop/Explorer while shell offered an effect.</summary>
         private bool _sawFolderAccept;
         private long _folderPointerDownSinceMs;
+        /// <summary>Last trusted GiveFeedback while over Desktop/Explorer.</summary>
+        private long _lastTrustedForeignFolderFeedbackMs;
+        /// <summary>Last trusted latch was shell Desktop (not Explorer cabinet).</summary>
+        private bool _lastTrustedWasDesktop;
         private bool _lastFeedbackTrusted;
         private bool _loggedFeedbackOnce;
         private int _buttonUpStreak;
+        /// <summary>Set when button-up landed on our chrome after a fresh desktop latch — OLE cannot DROP there.</summary>
+        private bool _requestDesktopShellRecover;
 
         internal BndzNativeDropSource(Action<string>? log = null) => _log = log;
 
+        /// <summary>
+        /// WinUI often owns WindowFromPoint at release after a real Desktop hover.
+        /// OLE then cannot deliver; caller should SH move/copy onto DesktopDirectory.
+        /// </summary>
+        internal bool TryGetDesktopShellRecoverEffect(out uint effect)
+        {
+            effect = 0;
+            if (!_requestDesktopShellRecover) return false;
+            if (_latchedAcceptEffect is not (1 or 2 or 4)) return false;
+            if (!_lastTrustedWasDesktop) return false;
+            effect = _latchedAcceptEffect;
+            return true;
+        }
+
         private uint RawFeedbackBits()
             => _lastFeedbackEffect == uint.MaxValue ? 0u : (_lastFeedbackEffect & 0x7u);
+
+        private long FreshFeedbackAgeMs()
+            => _lastTrustedForeignFolderFeedbackMs == 0
+                ? long.MaxValue
+                : Environment.TickCount64 - _lastTrustedForeignFolderFeedbackMs;
+
+        private bool HasFreshTrustedFolderFeedback()
+            => _lastTrustedForeignFolderFeedbackMs != 0
+                && FreshFeedbackAgeMs() <= FreshTrustedFeedbackMs;
+
+        private static bool IsBadLatchedCommitHit(string hit)
+        {
+            if (string.IsNullOrEmpty(hit)) return false;
+            return hit.Contains("InputNonClientPointerSource", StringComparison.Ordinal)
+                || hit.Contains("DesktopChildSiteBridge", StringComparison.Ordinal)
+                || hit.Contains("WinUIDesktopWin32WindowClass", StringComparison.Ordinal)
+                || hit.Contains("underHost=True", StringComparison.Ordinal);
+        }
+
+        private void MarkTrustedFolderFeedback(uint resolved, bool overDesktop)
+        {
+            if (resolved is not (1 or 2 or 4)) return;
+            _latchedAcceptEffect = resolved;
+            _sawFolderAccept = true;
+            _lastTrustedForeignFolderFeedbackMs = Environment.TickCount64;
+            _lastTrustedWasDesktop = overDesktop;
+        }
 
         /// <summary>Resolve commit effect using cursor position + latched feedback (Explorer model).</summary>
         private uint ResolveAcceptEffectAtCursor(int x, int y, bool allowFolderDefault)
@@ -1210,12 +1341,16 @@ internal static class WebView2DropTargetService
             var insideHostRect = haveCursor && host != IntPtr.Zero
                 && GetWindowRect(host, out var hostRectQcd)
                 && PointInRect(hostRectQcd, pt.x, pt.y);
+            var underOurHost = haveCursor && IsPointUnderOurHost(pt.x, pt.y);
             var overSelf = hit.Contains("ourDropTarget=True", StringComparison.Ordinal)
+                || underOurHost
                 || (insideHostRect && hit.Contains("underHost=True", StringComparison.Ordinal));
             var overDeniedChrome = haveCursor && IsDeniedOleDropCommitTarget(pt.x, pt.y);
-            var overForeignFolder = haveCursor
-                && (IsDesktopDropTargetAtPoint(pt.x, pt.y)
-                    || IsExplorerFolderDropTargetAtPoint(pt.x, pt.y));
+            // Require topmost HWND outside our host — never DROP onto ourselves (effect=NONE).
+            var outsideHostForDrop = haveCursor && IsCursorOutsideHostForOleDrop(pt.x, pt.y);
+            var overDesktop = haveCursor && !underOurHost && IsDesktopDropTargetAtPoint(pt.x, pt.y);
+            var overForeignFolder = haveCursor && outsideHostForDrop
+                && (overDesktop || IsExplorerFolderDropTargetAtPoint(pt.x, pt.y));
             var rawFb = RawFeedbackBits();
 
             if (!_sawButtonDown)
@@ -1227,20 +1362,63 @@ internal static class WebView2DropTargetService
                 return DRAGDROP_S_CANCEL;
             }
 
-            if (overForeignFolder && _latchedAcceptEffect is 1 or 2 or 4)
+            var fbAgeMs = FreshFeedbackAgeMs();
+            var freshFb = HasFreshTrustedFolderFeedback();
+
+            // Hard rule: never commit OLE DROP while the topmost HWND is our chrome
+            // (hr=DROP effect=NONE). Logs show release often hits InputNonClientPointerSource
+            // / DesktopChildSiteBridge right after a real SysListView32 latch — cancel OLE and
+            // let RunNativeDragDrop shell-commit onto DesktopDirectory.
+            if (underOurHost || !outsideHostForDrop || IsBadLatchedCommitHit(hit))
             {
-                LogDecision($"drop folder cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} latched={_latchedAcceptEffect} oleDown={oleDown} asyncDown={asyncDown} {hit}");
+                if (freshFb && _lastTrustedWasDesktop && _latchedAcceptEffect is 1 or 2 or 4)
+                {
+                    _requestDesktopShellRecover = true;
+                    LogDecision($"cancel-for-desktop-shell-recover cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} fbAgeMs={fbAgeMs} {hit}");
+                    return DRAGDROP_S_CANCEL;
+                }
+                if (_buttonUpInsideSinceMs == 0)
+                    _buttonUpInsideSinceMs = Environment.TickCount64;
+                else if (Environment.TickCount64 - _buttonUpInsideSinceMs >= 2500)
+                {
+                    LogDecision($"cancel button-up under-host cursor=({pt.x},{pt.y}) lastFb={rawFb} fbAgeMs={fbAgeMs} {hit}");
+                    return DRAGDROP_S_CANCEL;
+                }
+                if (Environment.TickCount64 - _buttonUpInsideSinceMs < 40)
+                    LogDecision($"defer-drop under-host cursor=({pt.x},{pt.y}) lastFb={rawFb} fbAgeMs={fbAgeMs} {hit}");
+                return S_OK;
+            }
+
+            if (overForeignFolder && _latchedAcceptEffect is 1 or 2 or 4 && freshFb)
+            {
+                LogDecision($"drop folder cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} latched={_latchedAcceptEffect} oleDown={oleDown} asyncDown={asyncDown} fbAgeMs={fbAgeMs} {hit}");
                 return DRAGDROP_S_DROP;
             }
 
-            // Explorer latched COPY|MOVE on Desktop — commit even if the cursor drifted back over BNDZ chrome.
-            if (_latchedAcceptEffect is 1 or 2 or 4 && _sawFolderAccept)
+            // Desktop release recovery — only when topmost hit is truly desktop wallpaper.
+            if (overDesktop && _folderPointerDownSinceMs != 0)
             {
-                LogDecision($"drop latched-commit cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} {hit}");
+                var effect = _latchedAcceptEffect is 1 or 2 or 4
+                    ? _latchedAcceptEffect
+                    : ResolveDefaultForeignDropEffect();
+                if (effect is 1 or 2 or 4)
+                {
+                    _latchedAcceptEffect = effect;
+                    LogDecision($"drop desktop-recover cursor=({pt.x},{pt.y}) effect={effect} fbAgeMs={fbAgeMs} {hit}");
+                    return DRAGDROP_S_DROP;
+                }
+            }
+
+            // Latched commit only when cursor is truly over foreign folder with fresh feedback —
+            // never over BNDZ chrome (effect=NONE failures).
+            if (_latchedAcceptEffect is 1 or 2 or 4 && _sawFolderAccept && freshFb
+                && overForeignFolder && !IsBadLatchedCommitHit(hit))
+            {
+                LogDecision($"drop latched-commit cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} fbAgeMs={fbAgeMs} {hit}");
                 return DRAGDROP_S_DROP;
             }
 
-            if (insideHostRect && !overSelf)
+            if (insideHostRect && !overDesktop)
             {
                 if (haveCursor && (!IsCursorDeepInsideHost(pt.x, pt.y) || IsCursorInOutboundChromeBand(pt.x, pt.y)))
                     return S_OK;
@@ -1259,11 +1437,11 @@ internal static class WebView2DropTargetService
             var waitedOutside = Environment.TickCount64 - _buttonUpOutsideNoneSinceMs;
             if (waitedOutside >= 5000)
             {
-                LogDecision($"cancel button-up no-latch cursor=({pt.x},{pt.y}) lastFb={rawFb} {hit}");
+                LogDecision($"cancel button-up no-latch cursor=({pt.x},{pt.y}) lastFb={rawFb} fbAgeMs={fbAgeMs} {hit}");
                 return DRAGDROP_S_CANCEL;
             }
             if (waitedOutside < 40)
-                LogDecision($"defer-drop wait latch cursor=({pt.x},{pt.y}) lastFb={rawFb} {hit}");
+                LogDecision($"defer-drop wait latch cursor=({pt.x},{pt.y}) lastFb={rawFb} fbAgeMs={fbAgeMs} {hit}");
             return S_OK;
         }
 
@@ -1313,8 +1491,14 @@ internal static class WebView2DropTargetService
                 catch { /* ignore */ }
             }
 
+            var overDesktop = haveCursor && IsDesktopDropTargetAtPoint(pt.x, pt.y);
             if (!overDenied && resolved != 0 && overForeignFolder)
+            {
                 _latchedAcceptEffect = resolved;
+                // Desktop SysListView32 must always latch — mis-hits (DesktopChildSiteBridge) skip trusted.
+                if (overDesktop || trusted)
+                    MarkTrustedFolderFeedback(resolved, overDesktop);
+            }
             if (overForeignFolder)
                 _sawFolderAccept = true;
             if (overForeignFolder && bits == 7)
@@ -1396,20 +1580,36 @@ internal static class WebView2DropTargetService
     /// <summary>Forensic log from payload builders outside this type (path sanitize rejects).</summary>
     internal static void AppendOleDndLogPublic(string message) => AppendOleDndLog(message);
 
+    /// <summary>Result of modal ole32 DoDragDrop for outbound file drags.</summary>
+    internal readonly struct NativeDragDropResult
+    {
+        internal NativeDragDropResult(int resultHr, uint effectBits)
+        {
+            ResultHr = resultHr;
+            EffectBits = effectBits;
+        }
+
+        internal int ResultHr { get; }
+        internal uint EffectBits { get; }
+        internal bool Dropped => ResultHr == DRAGDROP_S_DROP;
+    }
+
     /// <summary>
     /// Perform native OLE drag from the BNDZShell headless path.
     /// ole32 <c>DoDragDrop</c> only — SHDoDragDrop with a custom IDropSource already
     /// produced hr=DROP effect=NONE after premature QueryContinueDrag DROP.
     /// </summary>
-    public static void RunNativeDragDrop(IntPtr hwnd, object dataObject, string? pathSummary = null, string[]? sourcePaths = null)
+    public static NativeDragDropResult RunNativeDragDrop(IntPtr hwnd, object dataObject, string? pathSummary = null, string[]? sourcePaths = null)
     {
         _ = hwnd; // retained for call-site compatibility / future drag-image HWND
-        if (dataObject == null) return;
+        if (dataObject == null) return new NativeDragDropResult(DRAGDROP_S_CANCEL, 0);
 
         int oleHr = OleInitialize(IntPtr.Zero);
         if (oleHr < 0)
             Debug.WriteLine($"[OleDrag] OleInitialize hr=0x{oleHr:X8}");
 
+        var resultHr = DRAGDROP_S_CANCEL;
+        var resultEffect = 0u;
         try
         {
             ComIDataObject comData;
@@ -1465,7 +1665,22 @@ internal static class WebView2DropTargetService
                 var selfDrops = Volatile.Read(ref _outboundSelfDropCount);
                 AppendOleDndLog($"DoDragDrop end hr={hrName} effect={effectName}({effectBits}) selfDrop={selfDrops} CF_HDROP={hasHdrop} ShellIDList={hasShellIdList}{summary}");
 
-                if (hr == DRAGDROP_S_DROP && sourcePaths is { Length: > 0 }
+                resultHr = hr;
+                resultEffect = effectBits;
+
+                // WinUI chrome often owns the release HWND after a real Desktop hover → OLE
+                // returns CANCEL or DROP+NONE. Commit onto DesktopDirectory ourselves.
+                if (sourcePaths is { Length: > 0 }
+                    && (hr == DRAGDROP_S_CANCEL || (hr == DRAGDROP_S_DROP && effectBits == 0))
+                    && src.TryGetDesktopShellRecoverEffect(out var recoverEffect)
+                    && TryShellCommitToDesktop(sourcePaths, recoverEffect))
+                {
+                    resultHr = DRAGDROP_S_DROP;
+                    resultEffect = recoverEffect;
+                    AppendOleDndLog($"desktop-shell-recover ok effect={recoverEffect}{summary}");
+                    LogPostDropVerify(sourcePaths, recoverEffect);
+                }
+                else if (hr == DRAGDROP_S_DROP && sourcePaths is { Length: > 0 }
                     && effectBits is 1 or 2 or 4)
                     LogPostDropVerify(sourcePaths, effectBits);
                 else if (hr == DRAGDROP_S_CANCEL && sourcePaths is { Length: > 0 })
@@ -1482,6 +1697,91 @@ internal static class WebView2DropTargetService
             AppendOleDndLog($"DoDragDrop error {ex.Message}");
             Debug.WriteLine($"[OleDrag] RunNativeDragDrop: {ex.Message}");
         }
+
+        return new NativeDragDropResult(resultHr, resultEffect);
+    }
+
+    /// <summary>
+    /// When WinUI steals the release HWND after a trusted Desktop hover, move/copy onto
+    /// the user Desktop folder so the drop still lands (OLE would have returned effect=NONE).
+    /// </summary>
+    private static bool TryShellCommitToDesktop(string[] sourcePaths, uint effectBits)
+    {
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrWhiteSpace(desktop) || !Directory.Exists(desktop))
+            {
+                AppendOleDndLog("desktop-shell-recover fail — DesktopDirectory missing");
+                return false;
+            }
+
+            var move = effectBits == 2;
+            var ok = 0;
+            foreach (var src in sourcePaths)
+            {
+                if (string.IsNullOrWhiteSpace(src)) continue;
+                var path = src.Trim();
+                if (!File.Exists(path) && !Directory.Exists(path))
+                {
+                    AppendOleDndLog($"desktop-shell-recover skip missing src={path}");
+                    continue;
+                }
+
+                var leaf = Path.GetFileName(path.TrimEnd('\\', '/'));
+                if (string.IsNullOrEmpty(leaf)) continue;
+                var dest = AllocateUniqueDesktopPath(desktop, leaf);
+                try
+                {
+                    if (Directory.Exists(path))
+                    {
+                        if (move) Directory.Move(path, dest);
+                        else CopyDirectoryRecursive(path, dest);
+                    }
+                    else
+                    {
+                        if (move) File.Move(path, dest);
+                        else File.Copy(path, dest, overwrite: false);
+                    }
+                    ok++;
+                    AppendOleDndLog($"desktop-shell-recover {(move ? "MOVE" : "COPY")} {path} -> {dest}");
+                }
+                catch (Exception itemEx)
+                {
+                    AppendOleDndLog($"desktop-shell-recover item-fail {path}: {itemEx.Message}");
+                }
+            }
+
+            return ok > 0;
+        }
+        catch (Exception ex)
+        {
+            AppendOleDndLog($"desktop-shell-recover error {ex.Message}");
+            return false;
+        }
+    }
+
+    private static string AllocateUniqueDesktopPath(string desktop, string leaf)
+    {
+        var dest = Path.Combine(desktop, leaf);
+        if (!File.Exists(dest) && !Directory.Exists(dest)) return dest;
+        var name = Path.GetFileNameWithoutExtension(leaf);
+        var ext = Path.GetExtension(leaf);
+        for (var i = 2; i < 1000; i++)
+        {
+            dest = Path.Combine(desktop, $"{name} ({i}){ext}");
+            if (!File.Exists(dest) && !Directory.Exists(dest)) return dest;
+        }
+        return Path.Combine(desktop, $"{name}-{Environment.TickCount64}{ext}");
+    }
+
+    private static void CopyDirectoryRecursive(string sourceDir, string destDir)
+    {
+        Directory.CreateDirectory(destDir);
+        foreach (var file in Directory.GetFiles(sourceDir))
+            File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite: false);
+        foreach (var dir in Directory.GetDirectories(sourceDir))
+            CopyDirectoryRecursive(dir, Path.Combine(destDir, Path.GetFileName(dir)));
     }
 
     private static void LogPostDropVerify(string[] sourcePaths, uint effectBits)

@@ -467,49 +467,40 @@ namespace BNDZ.Services
                 catch (Exception ex)
                 {
                     _bndzOleDragActive = false;
+                    _oleDragArmedAtMs = 0;
                     OleDndLog($"deferred ExecuteNativeFileDrag {ex.Message}");
-                    try
-                    {
-                        DeliverIpcJson(JsonSerializer.Serialize(new
-                        {
-                            type = "OLE_DRAG_ENDED",
-                            payload = new { ok = false, error = ex.Message },
-                        }));
-                    }
-                    catch { /* ignore */ }
+                    PostOleDragEndedToUi(false, ex.Message, capturedPaths, default);
                 }
             });
             // Keep poll alive through handoff/DoDragDrop so dismiss scripts continue.
             return false;
         }
 
-        /// <summary>DoDragDrop on a dedicated OLE STA thread (WinUI must not block on modal OLE).</summary>
+        /// <summary>DoDragDrop on WinUI STA — Explorer requires the host message pump.</summary>
         private void ExecuteNativeFileDrag(string[] pathArray)
         {
             if (pathArray == null || pathArray.Length == 0) return;
             var pathSummary = BndzOutboundDragHelper.FormatPathSummary(pathArray);
 
-            void FinishOleDrag(bool ok, string? error = null)
+            void FinishOleDrag(
+                bool ok,
+                string? error = null,
+                string[]? paths = null,
+                WebView2DropTargetService.NativeDragDropResult dragResult = default)
             {
                 _bndzOleDragActive = false;
-                try
-                {
-                    object payload = ok
-                        ? new { ok = true }
-                        : new { ok = false, error = error ?? "unknown" };
-                    DeliverIpcJson(JsonSerializer.Serialize(new
-                    {
-                        type = "OLE_DRAG_ENDED",
-                        payload,
-                    }));
-                }
+                _oleDragArmedAtMs = 0;
+                // Re-register inbound drop target only after the outbound flag clears —
+                // otherwise Register sees ole-active and skips (REGISTER skipped log).
+                try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
                 catch { /* ignore */ }
-                PostFileTransferQueueChanged();
+                PostOleDragEndedToUi(ok, error, paths, dragResult);
             }
 
             try
             {
                 _bndzOleDragActive = true;
+                _oleDragArmedAtMs = Environment.TickCount64;
                 if (_hostWindowHandle != IntPtr.Zero)
                 {
                     var capturedHwnd = WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
@@ -521,6 +512,7 @@ namespace BNDZ.Services
                         IDisposable? lifetime = null;
                         var ok = true;
                         string? errMsg = null;
+                        var dragResult = default(WebView2DropTargetService.NativeDragDropResult);
                         try
                         {
                             var payload = BndzOutboundDragHelper.CreateDataObjectWithKind(capturedPaths);
@@ -533,12 +525,17 @@ namespace BNDZ.Services
                             WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
                             try
                             {
-                                WebView2DropTargetService.RunNativeDragDrop(capturedHwnd, dataObject, cleanSummary, payload.Paths);
+                                dragResult = WebView2DropTargetService.RunNativeDragDrop(capturedHwnd, dataObject, cleanSummary, payload.Paths);
                             }
                             finally
                             {
-                                WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag();
+                                // Do not Resume here — FinishOleDrag clears ole-active first, then resumes.
                             }
+                            ok = dragResult.Dropped && dragResult.EffectBits is 1 or 2 or 4;
+                            if (!ok && dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                                errMsg = "drop-effect-none";
+                            else if (!ok && !dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                                errMsg = "cancelled";
                         }
                         catch (Exception ex)
                         {
@@ -550,7 +547,7 @@ namespace BNDZ.Services
                         finally
                         {
                             try { lifetime?.Dispose(); } catch { /* ignore */ }
-                            FinishOleDrag(ok, errMsg);
+                            FinishOleDrag(ok, errMsg, capturedPaths, dragResult);
                         }
                     });
                 }
@@ -571,7 +568,7 @@ namespace BNDZ.Services
                         try { dragPayload = AttachShellDragImage(dataObject, pathArray); }
                         catch (Exception dragImgEx) { Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}"); }
                         System.Windows.DragDrop.DoDragDrop(this, dragPayload, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
-                        FinishOleDrag(true);
+                        FinishOleDrag(true, null, pathArray);
                     }
                 }
             }
@@ -579,8 +576,90 @@ namespace BNDZ.Services
             {
                 OleDndLog($"ExecuteNativeFileDrag outer {ex.Message} paths={pathSummary}");
                 Debug.WriteLine($"[START_DRAG] {ex.Message}");
-                FinishOleDrag(false, ex.Message);
+                FinishOleDrag(false, ex.Message, pathArray);
             }
+        }
+
+        private static string DropEffectLabel(uint effectBits) => effectBits switch
+        {
+            1u => "COPY",
+            2u => "MOVE",
+            4u => "LINK",
+            _ => effectBits == 0 ? "NONE" : $"0x{effectBits:X}",
+        };
+
+        private void PostOleDragEndedToUi(
+            bool ok,
+            string? error,
+            string[]? paths,
+            WebView2DropTargetService.NativeDragDropResult dragResult)
+        {
+            var effectBits = dragResult.EffectBits;
+            var effectLabel = DropEffectLabel(effectBits);
+            string[]? sourceDirs = null;
+            if (paths is { Length: > 0 })
+            {
+                sourceDirs = paths
+                    .Select(p => System.IO.Path.GetDirectoryName(p))
+                    .Where(d => !string.IsNullOrWhiteSpace(d))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Cast<string>()
+                    .ToArray();
+            }
+
+            void DeliverEnded()
+            {
+                // Always unblock FE first. Never stall OLE_DRAG_ENDED behind file-index locks —
+                // FlushFsEvents → ApplyFsEvent can Wait() on IndexLocation for minutes.
+                try
+                {
+                    object payload = ok
+                        ? new { ok = true, effect = effectLabel, paths, sourceDirs }
+                        : new { ok = false, error = error ?? "unknown", effect = effectLabel, paths, sourceDirs };
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "OLE_DRAG_ENDED",
+                        payload,
+                    }));
+                }
+                catch { /* ignore */ }
+                try { PostFileTransferQueueChanged(); }
+                catch { /* ignore */ }
+                OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={effectLabel}");
+
+                if (ok && paths is { Length: > 0 } && effectBits is 1 or 2 or 4)
+                {
+                    var syncPaths = paths;
+                    var syncEffect = effectBits;
+                    _ = Task.Run(() =>
+                    {
+                        try { NotifyOutboundOleListingSync(syncPaths, syncEffect); }
+                        catch (Exception ex) { OleDndLog($"outbound-ole listing-sync error {ex.Message}"); }
+                    });
+                }
+            }
+
+            if (_hostStaInvokeNextTick != null)
+                _hostStaInvokeNextTick(DeliverEnded);
+            else if (_hostStaInvoke != null)
+                _hostStaInvoke(DeliverEnded);
+            else
+                DeliverEnded();
+        }
+
+        private void NotifyOutboundOleListingSync(string[] paths, uint effectBits)
+        {
+            if (effectBits != 2 || paths is not { Length: > 0 }) return;
+            foreach (var path in paths)
+            {
+                if (string.IsNullOrWhiteSpace(path)) continue;
+                var dir = System.IO.Path.GetDirectoryName(path);
+                var name = System.IO.Path.GetFileName(path);
+                if (string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(name)) continue;
+                QueueFsEvent("Deleted", dir, name);
+            }
+            FlushFsEvents();
+            OleDndLog($"outbound-ole fs-delete count={paths.Length} {BndzOutboundDragHelper.FormatPathSummary(paths)}");
         }
 
         /// <summary>
@@ -621,16 +700,9 @@ namespace BNDZ.Services
                 catch (Exception ex)
                 {
                     _bndzOleDragActive = false;
+                    _oleDragArmedAtMs = 0;
                     OleDndLog($"START_DRAG dispatch failed {ex.Message}");
-                    try
-                    {
-                        DeliverIpcJson(JsonSerializer.Serialize(new
-                        {
-                            type = "OLE_DRAG_ENDED",
-                            payload = new { ok = false, error = ex.Message },
-                        }));
-                    }
-                    catch { /* ignore */ }
+                    PostOleDragEndedToUi(false, ex.Message, captured, default);
                 }
             });
         }
@@ -1383,7 +1455,7 @@ namespace BNDZ.Services
 
                 if (type == "FILE_DRAG_ACTIVE")
                 {
-                    if (_bndzOleDragActive)
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag())
                     {
                         OleDndLog("FILE_DRAG_ACTIVE ignored — native DoDragDrop in progress");
                         return;
@@ -1454,7 +1526,7 @@ namespace BNDZ.Services
 
                 if (type == "START_DRAG")
                 {
-                    if (_bndzOleDragActive) return;
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag()) return;
                     var payload = root.TryGetProperty("payload", out var p) ? p : default;
                     if (payload.ValueKind != JsonValueKind.Object) return;
                     var paths = new List<string>();
@@ -1991,11 +2063,24 @@ namespace BNDZ.Services
         }
         /// <summary>True while BNDZ-initiated DoDragDrop is running (OLE re-entry into our window).</summary>
         private bool _bndzOleDragActive;
+        private long _oleDragArmedAtMs;
         private bool _fileDragSessionActive;
         private string[]? _fileDragSessionPaths;
         /// <summary>Tick when LBUTTON was first observed up while an armed session stayed inside the host.</summary>
         private long _fileDragButtonUpSinceMs;
         private long _lastProactiveGhostDismissMs;
+
+        private bool TryClearStaleOleDrag()
+        {
+            if (!_bndzOleDragActive) return false;
+            if (Environment.TickCount64 - _oleDragArmedAtMs < 8000) return false;
+            OleDndLog("force-clear stale ole drag");
+            _bndzOleDragActive = false;
+            _oleDragArmedAtMs = 0;
+            try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
+            catch { /* ignore */ }
+            return true;
+        }
 
         /// <summary>
         /// Attach an Explorer-class drag ghost. WebView2 HWNDs do not handle DI_GETDRAGIMAGE,
@@ -3552,7 +3637,7 @@ namespace BNDZ.Services
                 }
                 else if (type == "FILE_DRAG_ACTIVE")
                 {
-                    if (_bndzOleDragActive)
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag())
                     {
                         OleDndLog("FILE_DRAG_ACTIVE ignored (async) — native DoDragDrop in progress");
                         return;
@@ -3619,7 +3704,7 @@ namespace BNDZ.Services
                 }
                 else if (type == "START_DRAG")
                 {
-                    if (_bndzOleDragActive) return;
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag()) return;
                     var payload = root.GetProperty("payload");
                     var paths = new List<string>();
                     if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
