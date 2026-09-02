@@ -13,7 +13,7 @@ public class MeshDropPathSafetyTests
         try
         {
             Assert.True(MeshDropPathSafety.TryResolveContainedFile(dest, "photos/cat.png", out var full));
-            Assert.True(full.StartsWith(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase));
+            Assert.StartsWith(Path.GetFullPath(dest), full, StringComparison.OrdinalIgnoreCase);
             Assert.Equal("cat.png", Path.GetFileName(full));
         }
         finally
