@@ -21,4 +21,8 @@
     <ProjectReference Include="..\BNDZ.NativeShell.Core\BNDZ.NativeShell.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\BNDZBackend\Services\MeshDrop\MeshDropPath.cs" Link="MeshDropPath.cs" />
+  </ItemGroup>
+
 </Project>

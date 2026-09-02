@@ -428,16 +428,24 @@ public sealed class MeshDropService : IDisposable
 
     private void HandleChunk(PeerContext ctx, byte[] payload)
     {
+        if (_sessions.TryGetValue(ctx.SessionId, out var existing)
+            && (existing.State == MeshDropSessionState.Failed || existing.State == MeshDropSessionState.Cancelled))
+            return;
+
         if (payload.Length < 8) return;
         var pathLen = BitConverter.ToInt32(payload, 0);
-        if (pathLen <= 0 || payload.Length < 4 + pathLen + 4) return;
+        if (pathLen <= 0 || pathLen > MeshDropPath.MaxRelativePathChars || payload.Length < 4 + pathLen + 4) return;
         var relPath = Encoding.UTF8.GetString(payload, 4, pathLen);
         var chunkIndex = BitConverter.ToInt32(payload, 4 + pathLen);
         var data = payload.AsSpan(4 + pathLen + 4).ToArray();
 
         var destDir = ctx.DestDir ?? Path.Combine(Path.GetTempPath(), "BNDZ", "MeshDrop", ctx.SessionId);
-        Directory.CreateDirectory(destDir);
-        var destFile = Path.Combine(destDir, relPath.Replace('/', Path.DirectorySeparatorChar));
+        if (!MeshDropPath.TryResolveContainedPath(destDir, relPath, out var destFile))
+        {
+            FailReceive(ctx.SessionId, "Mesh Drop blocked a path that escaped the destination folder.");
+            return;
+        }
+
         var destFileDir = Path.GetDirectoryName(destFile);
         if (!string.IsNullOrEmpty(destFileDir)) Directory.CreateDirectory(destFileDir);
 
@@ -456,6 +464,14 @@ public sealed class MeshDropService : IDisposable
             session.State = MeshDropSessionState.Transferring;
             NotifySessionChanged(session);
         }
+    }
+
+    private void FailReceive(string sessionId, string error)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session)) return;
+        session.State = MeshDropSessionState.Failed;
+        session.Error = error;
+        NotifySessionChanged(session);
     }
 
     private async Task SendFrameAsync(PeerContext ctx, byte[] frame, CancellationToken ct)
