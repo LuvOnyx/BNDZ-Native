@@ -323,16 +323,22 @@ public sealed class ArchiveService
 
         if (File.Exists(source))
         {
-            File.Copy(source, Path.Combine(destDir, outLeaf), overwrite: true);
+            if (!PathContainment.TryResolveContainedFile(destDir, outLeaf, out var destFile))
+                return;
+            var destParent = Path.GetDirectoryName(destFile);
+            if (!string.IsNullOrEmpty(destParent)) Directory.CreateDirectory(destParent);
+            File.Copy(source, destFile, overwrite: true);
         }
         else if (Directory.Exists(source))
         {
-            var destSub = Path.Combine(destDir, outLeaf);
+            if (!PathContainment.TryResolveContainedFile(destDir, outLeaf, out var destSub))
+                return;
             Directory.CreateDirectory(destSub);
             foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
             {
-                var rel      = Path.GetRelativePath(source, file);
-                var destFile = Path.Combine(destSub, rel);
+                var rel = Path.GetRelativePath(source, file);
+                if (!PathContainment.TryResolveContainedFile(destSub, rel, out var destFile))
+                    continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
                 File.Copy(file, destFile, overwrite: true);
             }
@@ -342,8 +348,9 @@ public sealed class ArchiveService
             // SevenZipSharp may have flattened paths — copy everything in stage as-is
             foreach (var file in Directory.EnumerateFiles(stageDir, "*", SearchOption.AllDirectories))
             {
-                var rel  = Path.GetRelativePath(stageDir, file);
-                var dest = Path.Combine(destDir, rel);
+                var rel = Path.GetRelativePath(stageDir, file);
+                if (!PathContainment.TryResolveContainedFile(destDir, rel, out var dest))
+                    continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
                 File.Copy(file, dest, overwrite: true);
             }
@@ -374,19 +381,23 @@ public sealed class ArchiveService
         foreach (var entry in matches)
         {
             var full = (entry.FullName ?? "").Replace('\\', '/');
-            string destPath;
+            string relative;
             if (!isTree)
             {
-                destPath = Path.Combine(destinationDir, leafName);
+                relative = leafName;
             }
             else
             {
                 var rel = full.StartsWith(entryNorm, StringComparison.OrdinalIgnoreCase)
                     ? full[entryNorm.Length..].TrimStart('/')
                     : Path.GetFileName(full.TrimEnd('/'));
-                destPath = string.IsNullOrEmpty(rel)
-                    ? Path.Combine(destinationDir, leafName)
-                    : Path.Combine(destinationDir, leafName, rel.Replace('/', Path.DirectorySeparatorChar));
+                relative = string.IsNullOrEmpty(rel) ? leafName : leafName + "/" + rel;
+            }
+
+            if (!PathContainment.TryResolveContainedFile(destinationDir, relative, out var destPath))
+            {
+                Debug.WriteLine($"[Archive] skipped zip-slip entry: {full}");
+                continue;
             }
 
             if (full.EndsWith('/') || string.IsNullOrEmpty(entry.Name))
@@ -432,26 +443,31 @@ public sealed class ArchiveService
                 var relDir  = keyTrim.StartsWith(entryNorm, StringComparison.OrdinalIgnoreCase)
                     ? keyTrim[entryNorm.Length..].TrimStart('/')
                     : Path.GetFileName(keyTrim);
-                var dirPath = string.IsNullOrEmpty(relDir)
-                    ? Path.Combine(destinationDir, outLeaf)
-                    : Path.Combine(destinationDir, outLeaf, relDir.Replace('/', Path.DirectorySeparatorChar));
+                var dirRel = string.IsNullOrEmpty(relDir) ? outLeaf : outLeaf + "/" + relDir;
+                if (!PathContainment.TryResolveContainedFile(destinationDir, dirRel, out var dirPath))
+                    continue;
                 Directory.CreateDirectory(dirPath);
                 continue;
             }
 
-            string destOut;
+            string destRel;
             if (!isFolder)
             {
-                destOut = Path.Combine(destinationDir, outLeaf);
+                destRel = outLeaf;
             }
             else
             {
                 var rel = keyTrim.StartsWith(entryNorm, StringComparison.OrdinalIgnoreCase)
                     ? keyTrim[entryNorm.Length..].TrimStart('/')
                     : Path.GetFileName(keyTrim);
-                destOut = Path.Combine(destinationDir, outLeaf, rel.Replace('/', Path.DirectorySeparatorChar));
+                destRel = string.IsNullOrEmpty(rel) ? outLeaf : outLeaf + "/" + rel;
             }
 
+            if (!PathContainment.TryResolveContainedFile(destinationDir, destRel, out var destOut))
+            {
+                Debug.WriteLine($"[Archive] skipped zip-slip entry: {key}");
+                continue;
+            }
             var parentOut = Path.GetDirectoryName(destOut);
             if (!string.IsNullOrEmpty(parentOut)) Directory.CreateDirectory(parentOut);
             using var stream = arcEntry.OpenEntryStream();
@@ -617,7 +633,11 @@ public sealed class ArchiveService
         {
             ct.ThrowIfCancellationRequested();
             onProgress?.Invoke(ProgressAfterIndex(i, entries.Count), entry.FullName);
-            var destPath   = Path.Combine(destinationDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+            if (!PathContainment.TryResolveContainedFile(destinationDir, entry.FullName, out var destPath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[Archive] skipped zip-slip entry: {entry.FullName}");
+                continue;
+            }
             var destParent = Path.GetDirectoryName(destPath);
             if (!string.IsNullOrEmpty(destParent)) Directory.CreateDirectory(destParent);
             if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'))
@@ -640,7 +660,19 @@ public sealed class ArchiveService
         {
             ct.ThrowIfCancellationRequested();
             onProgress?.Invoke(ProgressAfterIndex(n, arcEntries.Count), entry.Key ?? "");
-            entry.WriteToDirectory(destinationDir, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
+            var key = entry.Key ?? "";
+            if (!PathContainment.TryResolveContainedFile(destinationDir, key, out var destPath))
+            {
+                Debug.WriteLine($"[Archive] skipped zip-slip entry: {key}");
+                n++;
+                onProgress?.Invoke(ProgressAfterIndex(n, arcEntries.Count), key);
+                continue;
+            }
+            var parent = Path.GetDirectoryName(destPath);
+            if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+            using (var stream = entry.OpenEntryStream())
+            using (var fs = File.Create(destPath))
+                stream.CopyTo(fs);
             n++;
             onProgress?.Invoke(ProgressAfterIndex(n, arcEntries.Count), entry.Key ?? "");
         }

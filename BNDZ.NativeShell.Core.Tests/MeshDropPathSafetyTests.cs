@@ -32,6 +32,8 @@ public class MeshDropPathSafetyTests
             Assert.False(MeshDropPathSafety.TryResolveContainedFile(dest, "../outside.txt", out _));
             Assert.False(MeshDropPathSafety.TryResolveContainedFile(dest, "..\\..\\outside.txt", out _));
             Assert.False(MeshDropPathSafety.TryResolveContainedFile(dest, "ok/../../outside.txt", out _));
+            Assert.False(MeshDropPathSafety.TryResolveContainedFile(dest, "payload/../../../escape.txt", out _));
+            Assert.True(MeshDropPathSafety.TryResolveContainedFile(dest, "payload/readme.txt", out _));
         }
         finally
         {

@@ -128,14 +128,28 @@ public static class SevenZipArchiveHost
             Directory.CreateDirectory(destFolder);
             using var extractor = new SevenZipExtractor(archivePath);
             var norm = entryPath.Replace('\\', '/');
-            var idx = extractor.ArchiveFileData
+            var match = extractor.ArchiveFileData
                 .Select((f, i) => (f, i))
                 .FirstOrDefault(x => string.Equals(
                     x.f.FileName.Replace('\\', '/'), norm,
-                    StringComparison.OrdinalIgnoreCase))
-                .i;
+                    StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrEmpty(match.f.FileName))
+                return false;
 
-            extractor.ExtractFiles(destFolder, new[] { idx });
+            if (match.f.IsDirectory)
+            {
+                if (!PathContainment.TryResolveContainedFile(destFolder, match.f.FileName, out var dir))
+                    return false;
+                Directory.CreateDirectory(dir);
+                return true;
+            }
+
+            if (!PathContainment.TryResolveContainedFile(destFolder, match.f.FileName, out var destPath))
+                return false;
+            var parent = Path.GetDirectoryName(destPath);
+            if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+            using (var fs = File.Create(destPath))
+                extractor.ExtractFile(match.i, fs);
             return true;
         }
         catch (Exception ex)
@@ -156,8 +170,28 @@ public static class SevenZipArchiveHost
         {
             Directory.CreateDirectory(destFolder);
             using var extractor = new SevenZipExtractor(archivePath);
-            extractor.Extracting += (_, e) => onProgress?.Invoke(e.PercentDone, archivePath);
-            extractor.ExtractArchive(destFolder);
+            var files = extractor.ArchiveFileData.ToList();
+            for (var i = 0; i < files.Count; i++)
+            {
+                var info = files[i];
+                var name = info.FileName ?? "";
+                if (!PathContainment.TryResolveContainedFile(destFolder, name, out var destPath))
+                {
+                    Debug.WriteLine($"[SevenZip] skipped zip-slip entry: {name}");
+                    continue;
+                }
+                if (info.IsDirectory)
+                {
+                    Directory.CreateDirectory(destPath);
+                    onProgress?.Invoke((int)((i + 1) * 100.0 / Math.Max(files.Count, 1)), name);
+                    continue;
+                }
+                var parent = Path.GetDirectoryName(destPath);
+                if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                using (var fs = File.Create(destPath))
+                    extractor.ExtractFile(i, fs);
+                onProgress?.Invoke((int)((i + 1) * 100.0 / Math.Max(files.Count, 1)), name);
+            }
             onProgress?.Invoke(100, destFolder);
             return true;
         }
