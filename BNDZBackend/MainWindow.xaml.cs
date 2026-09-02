@@ -10041,7 +10041,21 @@ namespace BNDZ
                         .ConfigureAwait(false);
                     _fileTransferQueue.MarkCompleted(operationId);
                     if (!string.IsNullOrEmpty(idProp))
-                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = true, background = false, engine = "mesh" });
+                    {
+                        var createdPanePath = action is "create-dir" or "create-file" ? meshTarget : null;
+                        var createdName = string.IsNullOrEmpty(createdPanePath)
+                            ? null
+                            : System.IO.Path.GetFileName(createdPanePath.TrimEnd('/', '\\'));
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new
+                        {
+                            ok = true,
+                            background = false,
+                            engine = "mesh",
+                            created = createdPanePath != null,
+                            finalPath = createdPanePath,
+                            finalName = createdName,
+                        });
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -10052,6 +10066,7 @@ namespace BNDZ
                 return;
             }
 
+            var isInstantCreateOp = action is "create-dir" or "create-file";
             var prefs = FileOperationPreferences.Current;
             if (!recreateSourceStructure
                 && string.Equals(prefs.RecreateSourceFolderStructure, "Always", StringComparison.OrdinalIgnoreCase)
@@ -10091,8 +10106,11 @@ namespace BNDZ
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
+                string? fsOpCreatedPath = null;
                 void OnProgress(string opId, int percentage, string currentFile, long bytesTransferred, long totalBytes, double speedBytesPerSecond, int itemsCompleted, int totalItems)
                 {
+                    if (action is "create-dir" or "create-file" && !string.IsNullOrEmpty(currentFile))
+                        fsOpCreatedPath = currentFile;
                     _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems, bytesTransferred, totalBytes, speedBytesPerSecond);
                     var evt = new
                     {
@@ -10275,8 +10293,11 @@ namespace BNDZ
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
                     _fileTransferQueue.MarkCompleted(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                    {
+                        var createdName = string.IsNullOrEmpty(fsOpCreatedPath) ? null : Path.GetFileName(fsOpCreatedPath);
+                        await PostFsOperationResultAsync(idProp, true, null, finalPath: fsOpCreatedPath, finalName: createdName, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
+                    }
 
                     foreach (var src in sources)
                     {
@@ -10299,8 +10320,8 @@ namespace BNDZ
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkCancelled(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, "Cancelled", callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
@@ -10323,21 +10344,28 @@ namespace BNDZ
                         try { DeliverIpcJson(JsonSerializer.Serialize(failEvt)); }
                         catch { }
                     });
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, ex.Message, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
             }
 
             // Deletes go to the fast-lane so they are never blocked by an in-progress copy/move.
             var isDeleteOp = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase);
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, priority, idProp, "FS_OPERATION_RESULT", deleteLane: isDeleteOp).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                operationId,
+                ExecuteCoreAsync,
+                priority,
+                idProp,
+                "FS_OPERATION_RESULT",
+                deleteLane: isDeleteOp,
+                forceWaitForIpcResult: isInstantCreateOp).ConfigureAwait(false);
         }
 
-        private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
+        private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false, string? finalPath = null, string? finalName = null, bool callerWaitsForResult = false)
         {
-            if (!background && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
-            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new { ok, error, background, queued = background });
+            if (!callerWaitsForResult && !background && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
+            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new { ok, error, background, queued = background, finalPath, finalName, created = ok && !string.IsNullOrEmpty(finalPath) });
         }
 
         private async Task HandleFolderSyncRunAsync(string? idProp, string jobId)
@@ -10588,11 +10616,10 @@ namespace BNDZ
             {
                 ct.ThrowIfCancellationRequested();
                 var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var ok = RecycleBinService.Empty(hwnd);
+                var (ok, error) = await RecycleBinService.EmptyAsync(hwnd).ConfigureAwait(false);
                 if (ok) _fileTransferQueue.MarkCompleted(operationId);
-                else _fileTransferQueue.MarkFailed(operationId, "Could not empty Recycle Bin");
-                // Always post real result (background-processing ACK path used to swallow this).
-                await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok }).ConfigureAwait(false);
+                else _fileTransferQueue.MarkFailed(operationId, error ?? "Could not empty Recycle Bin");
+                await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok, error }).ConfigureAwait(false);
             }
 
             await ScheduleTransferWorkAsync(

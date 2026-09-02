@@ -53,8 +53,6 @@ public sealed partial class CraftPaneHost : UserControl
 	public IntPtr HostWindowHandle { get; set; }
 
 	private bool _oleDropRegistered;
-	private Microsoft.UI.Dispatching.DispatcherQueueTimer? _fileDragEscalateTimer;
-	private bool _fileDragEscalateArmed;
 	private bool _oleGhostMaskVisible;
 
 	private static CoreWebView2Environment? s_sharedPaneEnv;
@@ -452,7 +450,7 @@ public sealed partial class CraftPaneHost : UserControl
 			// Fire-and-forget — must NOT block-wait on UI thread (deadlocks script completion).
 			_ = core.ExecuteScriptAsync(GhostDismissScript);
 		});
-		// Ghost dismiss runs in parallel — DoDragDrop must start while LMB is still down.
+		// Ghost dismiss runs in parallel — defer DoDragDrop one tick so WebView2 can release capture.
 		BndzEmbeddedBackendHost.SetRunOleAfterFeHandoff(oleAction =>
 		{
 			if (oleAction is null) return;
@@ -470,11 +468,11 @@ public sealed partial class CraftPaneHost : UserControl
 						    Path.Combine(
 							    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 							    "BNDZ", "ole-dnd.log"),
-						    $"{DateTime.Now:HH:mm:ss.fff} FE ghost dismiss ready why=immediate-next-tick{Environment.NewLine}");
+						    $"{DateTime.Now:HH:mm:ss.fff} FE ghost dismiss ready why=next-tick{Environment.NewLine}");
 				    }
 				    catch { /* ignore */ }
 				    try { oleAction(); }
-				    catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE immediate: {ex.Message}"); }
+				    catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE handoff: {ex.Message}"); }
 			    }))
 			{
 				try { oleAction(); }
@@ -508,48 +506,10 @@ public sealed partial class CraftPaneHost : UserControl
 
 	private static bool _oleWireStartupLogged;
 
-	private void StartFileDragEscalatePoll()
-	{
-		_fileDragEscalateArmed = true;
-		if (_fileDragEscalateTimer is null)
-		{
-			_fileDragEscalateTimer = DispatcherQueue.CreateTimer();
-			_fileDragEscalateTimer.Interval = TimeSpan.FromMilliseconds(16);
-			_fileDragEscalateTimer.Tick += (_, _) =>
-			{
-				if (!_fileDragEscalateArmed)
-				{
-					StopFileDragEscalatePoll();
-					return;
-				}
-				try
-				{
-					var stopPoll = BndzEmbeddedBackendHost.TryEscalateOutboundOleDrag();
-					SyncOleGhostMask(BndzEmbeddedBackendHost.ShouldShowOleTopGhostMask());
-					if (stopPoll)
-						StopFileDragEscalatePoll();
-				}
-				catch (Exception ex)
-				{
-					Debug.WriteLine($"[CraftPaneHost] escalate poll: {ex.Message}");
-				}
-			};
-		}
-		if (!_fileDragEscalateTimer.IsRunning)
-			_fileDragEscalateTimer.Start();
-	}
-
-	private void StopFileDragEscalatePoll()
-	{
-		_fileDragEscalateArmed = false;
-		try { _fileDragEscalateTimer?.Stop(); } catch { /* ignore */ }
-		SyncOleGhostMask(false);
-	}
-
-	/// <summary>Window close / crash path — stop escalate poll so we do not leave OLE armed after HWND death.</summary>
+	/// <summary>Window close / crash path — revoke OLE drop target on HWND death.</summary>
 	public void StopOutboundDragCleanup()
 	{
-		StopFileDragEscalatePoll();
+		SyncOleGhostMask(false);
 		try { BndzEmbeddedBackendHost.RevokeHostOleDropTarget(); } catch { /* ignore */ }
 		_oleDropRegistered = false;
 	}
@@ -642,7 +602,6 @@ public sealed partial class CraftPaneHost : UserControl
 			});
 			BndzEmbeddedBackendHost.HandleStartDragSync(msg);
 			SmokeLog($"OLE smoke host-direct arm paths={paths.Count} sample={paths[0]}");
-			StartFileDragEscalatePoll();
 			StopOleSmokePoll();
 		}
 		catch (Exception ex)
@@ -1192,7 +1151,6 @@ public sealed partial class CraftPaneHost : UserControl
 			{
 				try { BndzEmbeddedBackendHost.HandleStartDragSync(raw); }
 				catch (Exception dragEx) { Debug.WriteLine($"[CraftPaneHost] START_DRAG sync: {dragEx.Message}"); }
-				StopFileDragEscalatePoll();
 				return;
 			}
 			if (type is "OLE_DND_DEBUG")
@@ -1246,35 +1204,13 @@ public sealed partial class CraftPaneHost : UserControl
 			}
 			if (type is "FILE_DRAG_ACTIVE")
 			{
-				try
-				{
-					BndzEmbeddedBackendHost.HandleStartDragSync(raw);
-					var active = false;
-					if (root.TryGetProperty("payload", out var dragPayload)
-						&& dragPayload.ValueKind == JsonValueKind.Object
-						&& dragPayload.TryGetProperty("active", out var actEl))
-					{
-						active = actEl.ValueKind == JsonValueKind.True;
-					}
-					if (active) StartFileDragEscalatePoll();
-					else if (!BndzEmbeddedBackendHost.IsOutboundOleDragActive)
-						StopFileDragEscalatePoll();
-					else
-						StartFileDragEscalatePoll(); // keep dismiss alive through DoDragDrop handoff
-				}
+				try { BndzEmbeddedBackendHost.HandleStartDragSync(raw); }
 				catch (Exception dragEx) { Debug.WriteLine($"[CraftPaneHost] FILE_DRAG_ACTIVE: {dragEx.Message}"); }
 				return;
 			}
 			if (type is "OLE_ESCALATE_NOW")
 			{
-				try
-				{
-					StartFileDragEscalatePoll();
-					BndzEmbeddedBackendHost.HandleStartDragSync(raw);
-					// Force path may start DoDragDrop inline — keep poll for ghost dismiss.
-					StartFileDragEscalatePoll();
-				}
-				catch (Exception escEx) { Debug.WriteLine($"[CraftPaneHost] OLE_ESCALATE_NOW: {escEx.Message}"); }
+				// Deprecated — outbound handoff is boundary START_DRAG only (no timer poll).
 				return;
 			}
 			// React painted — hide any residual host spinner and flush queued selection.

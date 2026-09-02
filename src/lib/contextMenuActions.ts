@@ -100,16 +100,6 @@ export function resolveSingleTargetPath(menu: ContextMenuState): string {
 export const BUILT_IN_CONTEXT_VERBS = new Set([
   'open', 'edit', 'openas', 'openwith', 'cut', 'copy', 'paste', 'delete', 'trash',
   'rename', 'properties', 'settings', 'share', 'grantaccess', 'sendto',
-  'copyaspath', 'copypath', 'copy path', 'pintohome', 'pintostart',
-  'pintotaskbar', 'addtolibrary', 'print', 'runas', 'runasuser',
-]);
-
-/** Labels already owned by BNDZ built-ins — shell items matching these are duplicates. */
-export const BUILT_IN_CONTEXT_LABELS = new Set([
-  'open', 'open with', 'open with...', 'cut', 'copy', 'paste', 'delete',
-  'rename', 'properties', 'share', 'share with apps…', 'share with apps...',
-  'give access to…', 'give access to...', 'copy as path', 'copy path',
-  'edit', 'print', 'create shortcut', 'send to',
 ]);
 
 export type NativeContextMenuItem = {
@@ -133,33 +123,22 @@ function isShellCascade(item: NativeContextMenuItem): boolean {
   return Array.isArray(item.children) && item.children.length > 0;
 }
 
-function isBuiltInDuplicate(item: NativeContextMenuItem): boolean {
-  const v = nativeItemKey(item);
-  if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return true;
-  const label = (item.label || '').trim().toLowerCase();
-  if (label && BUILT_IN_CONTEXT_LABELS.has(label)) return true;
-  return false;
-}
-
 function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem | null {
   if (item.separator) return item;
   if (isShellCascade(item)) {
-    // Skip shell "Open with" / "Send to" cascades that duplicate BNDZ rows.
-    const label = (item.label || '').trim().toLowerCase();
-    if (label.startsWith('open with') || label === 'send to' || label.startsWith('send to')) {
-      return null;
-    }
     const kids = filterSupplementalNativeItems(item.children);
     if (!kids.length) return null;
     return { ...item, children: kids };
   }
-  // Live IContextMenu extensions — keep real third-party verbs, drop BNDZ duplicates.
+  // Live IContextMenu extensions — always keep (even without classic verbs).
   if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId >= 0)) {
-    if (isBuiltInDuplicate(item)) return null;
+    const v = nativeItemKey(item);
+    // Skip exact duplicates of BNDZ built-ins (leaf verbs only; cascades stay).
+    if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return null;
     return item;
   }
   const v = nativeItemKey(item);
-  if (!v || isBuiltInDuplicate(item)) return null;
+  if (!v || BUILT_IN_CONTEXT_VERBS.has(v)) return null;
   return item;
 }
 

@@ -25,6 +25,7 @@ import MeshIncusAdminPanel from './MeshIncusAdminPanel';
 type Props = {
   onNavigate?: (path: string) => void;
   onStatus?: (msg: string | null) => void;
+  onOpenTerminal?: (sessionId: string, hostId: string) => void;
 };
 
 function toastMeshVps(message: string, kind: 'success' | 'warning' | 'info' | 'error' = 'info') {
@@ -35,7 +36,7 @@ function toastMeshVps(message: string, kind: 'success' | 'warning' | 'info' | 'e
   });
 }
 
-export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
+export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTerminal }: Props) {
   const [endpoints, setEndpoints] = useState<IncusEndpoint[]>([]);
   const [instances, setInstances] = useState<IncusEphemeralInstance[]>([]);
   const [busy, setBusy] = useState(false);
@@ -78,8 +79,16 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   const hydratedRef = React.useRef(false);
   const seenIpRef = React.useRef<Set<string>>(new Set());
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { reconcile?: boolean }) => {
     try {
+      if (opts?.reconcile) {
+        try {
+          const res = await IPC.meshIncusReconcile();
+          if (res.ok && res.instances) {
+            setInstances(res.instances.map((i: Record<string, unknown>) => normalizeIncusEphemeral(i)));
+          }
+        } catch { /* optional — list still loads from DB */ }
+      }
       const [eps, inst, hosts, local] = await Promise.all([
         IPC.meshIncusListEndpoints(),
         IPC.meshIncusListEphemeral(),
@@ -129,16 +138,6 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   }, [onStatus]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-
-  // Reconcile tracked ephemerals against live Incus on first open (app restart / stale DB).
-  useEffect(() => {
-    let cancelled = false;
-    void IPC.meshIncusReconcile().then(res => {
-      if (cancelled || !res.ok) return;
-      if (res.instances) setInstances(res.instances.map((i: Record<string, unknown>) => normalizeIncusEphemeral(i)));
-    }).catch(() => { /* ignore — list still loads from DB */ });
-    return () => { cancelled = true; };
-  }, []);
 
   // Auto-refresh ephemerals waiting for IP (cloud-init / DHCP lag).
   useEffect(() => {
@@ -242,7 +241,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
   }, [selectedEndpointId]);
 
   const loadServerInventory = useCallback(async () => {
-    if (!selectedEndpointId) {
+    if (!selectedEndpointId || selectedEndpointId === 'bndz-local' || selectedEndpointId === 'local') {
       setServerInstances([]);
       return;
     }
@@ -521,9 +520,13 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
     try {
       const res = await IPC.meshTerminalOpen({ hostId: inst.meshHostId, cwd: '/' });
       if (res?.error) throw new Error(res.error);
-      setStatus(`Shell Here · ${inst.instanceName}`);
+      const sessionId = res?.id ?? res?.Id ?? res?.sessionId ?? res?.SessionId;
+      if (sessionId && onOpenTerminal) {
+        onOpenTerminal(String(sessionId), inst.meshHostId);
+      }
+      setStatusAndToast(`Shell · ${inst.instanceName}`, 'success');
     } catch (e: any) {
-      setStatus(e?.message || 'Shell Here failed — ensure cloud-init injected your SSH pubkey');
+      setStatusAndToast(e?.message || 'Shell Here failed — ensure cloud-init injected your SSH pubkey', 'warning');
     } finally { setBusy(false); }
   };
 
@@ -541,7 +544,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
             <PluginHeroActionButton icon="play" variant="primary" onClick={() => void launch()} disabled={!canCreateVps}>
               {busy ? 'Creating…' : 'Create VPS'}
             </PluginHeroActionButton>
-            <PluginHeroActionButton icon="refresh" onClick={() => void refresh()} disabled={busy}>
+            <PluginHeroActionButton icon="refresh" onClick={() => void refresh({ reconcile: true })} disabled={busy}>
               Refresh
             </PluginHeroActionButton>
           </>
@@ -600,8 +603,8 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-200 border border-sky-400/25">This PC</span>
             </div>
             <div className="text-[11px] text-gray-400 leading-relaxed">
-              {factoryStatus?.detail
-                || 'Creates temporary Linux VPS containers on this machine via Podman. No purchased remote server.'}
+              {factoryStatus?.detail?.replace(/\bPodman\b/gi, 'local runtime')
+                || 'Creates temporary Linux VPS on this PC (no remote Incus host required).'}
             </div>
             {factoryStatus?.phase && (
               <div className="text-[10px] text-gray-500 bndz-mono">
@@ -863,7 +866,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus }: Props) {
                 <div className="flex flex-wrap gap-1.5">
                   <PluginToolbarButton onClick={() => void browseMesh(inst)} disabled={busy || !inst.meshHostId}>Browse</PluginToolbarButton>
                   <PluginToolbarButton onClick={() => void shellHere(inst)} disabled={busy || !inst.meshHostId}>Shell Here</PluginToolbarButton>
-                  <PluginToolbarButton onClick={() => setInspectId(inst.id)} disabled={busy}>Manage</PluginToolbarButton>
+                  <PluginToolbarButton onClick={() => setInspectId(inst.id)} disabled={busy || inst.endpointId === 'bndz-local'} title={inst.endpointId === 'bndz-local' ? 'Incus inspector is for remote hosts — use Start/Stop/Destroy for local VPS' : undefined}>Manage</PluginToolbarButton>
                   {inst.status !== 'Running' && (
                     <PluginToolbarButton onClick={() => void instanceAction(inst.id, 'start')} disabled={busy}>Start</PluginToolbarButton>
                   )}

@@ -27,7 +27,6 @@ import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites, collapseKnownFolderShadowPath } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { isOptionalStockContextEnabled, type OptionalStockContextId } from '../lib/shellMenuPresets';
-import { isStockContextInstalled } from '../workstation/command-deck/contextToolRegistry';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { getContextBehavior } from '../lib/settingsBehavior';
@@ -126,11 +125,7 @@ function ContextMenuView({
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
   const ctxBeh = getContextBehavior(config);
-  const installedPlugins = Array.isArray(config.installedPlugins) ? config.installedPlugins : [];
-  const meshPluginInstalled = isStockContextInstalled('mesh-drop', installedPlugins);
-  /** Optional stock row + Command Deck install gate (plugin-backed rows need install). */
-  const stockOn = (id: OptionalStockContextId) =>
-    isOptionalStockContextEnabled(config, id) && isStockContextInstalled(id, installedPlugins);
+  const stockOn = (id: OptionalStockContextId) => isOptionalStockContextEnabled(config, id);
   const targetPaths = resolveContextTargetPaths(menu);
   const isBackground = isContextMenuBackground(menu);
   const isRecycleLocation = isRecycleBinLocationMenu(menu);
@@ -830,7 +825,6 @@ function ContextMenuView({
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const isArchive = targetPaths.length === 1 && isArchiveExt(ext);
   const isInRecycleBin = isRecycleBinPath(menu.path);
-  const isFolder = itemKind === 'folder' || menu.isDirectory;
 
   const extractHere = async () => {
     const panePaths = resolveContextTargetPanePaths(menu);
@@ -1328,16 +1322,6 @@ function ContextMenuView({
 
       {!isBackground && targetPaths.length > 0 && IPC.isNative && (
         <>
-          {isFolder && !isBndzVirtualPath(entityPath) && stockOn('mesh-drop') && (
-            <ContextMenuItem
-              label="Launch Ephemeral Mesh host…"
-              iconVerb="cloud_ui"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-ephemeral' } }));
-                onClose();
-              }}
-            />
-          )}
           {stockOn('mesh-drop') && (
           <ContextMenuItem
             label="Mesh Drop…"
@@ -1345,7 +1329,7 @@ function ContextMenuView({
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
           )}
-          {meshPluginInstalled && targetPaths.some(p => isMeshPath(p)) && (
+          {targetPaths.some(p => isMeshPath(p)) && (
             <>
               <ContextMenuItem
                 label="Shell Here (Remote Mesh)"
@@ -1375,7 +1359,6 @@ function ContextMenuView({
               )}
             </>
           )}
-          {meshPluginInstalled && (
           <ContextMenuItem
             label="Add to Shared Libraries"
             iconVerb="emblem-shared"
@@ -1389,7 +1372,6 @@ function ContextMenuView({
               onClose();
             }}
           />
-          )}
           {stockOn('ghost-link') && (
           <ContextMenuItem
             label="Ghost-Link offload…"

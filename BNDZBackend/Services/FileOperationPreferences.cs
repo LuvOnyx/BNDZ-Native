@@ -58,6 +58,10 @@ public sealed class FileOperationPreferences
     public static string ResolveOperationEngine(string action, IReadOnlyList<string> sources, string target)
     {
         var p = Current;
+        // Instant create ops need BNDZ path (unique names, progress path, no IFileOperation modal).
+        if (action is "create-dir" or "create-file")
+            return "bndz";
+
         if (p.CopyHandler == "teracopy" && action is "copy" or "move")
             return "teracopy";
 

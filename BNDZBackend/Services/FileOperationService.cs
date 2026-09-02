@@ -67,10 +67,10 @@ public class FileOperationService
                     var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
                     if (string.IsNullOrEmpty(dir))
                         throw new InvalidOperationException("No folder path was provided.");
-                    var existed = Directory.Exists(dir);
-                    Directory.CreateDirectory(dir);
-                    if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(dir));
-                    onProgress?.Invoke(operationId, 100, dir, 0, 0, 0, 1, 1);
+                    var uniqueDir = GetUniquePath(dir);
+                    Directory.CreateDirectory(uniqueDir);
+                    if (recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(uniqueDir));
+                    onProgress?.Invoke(operationId, 100, uniqueDir, 0, 0, 0, 1, 1);
                     break;
                 }
 
@@ -79,13 +79,13 @@ public class FileOperationService
                     var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
                     if (string.IsNullOrEmpty(filePath))
                         throw new InvalidOperationException("No file path was provided.");
-                    var dir = Path.GetDirectoryName(filePath);
+                    var uniqueFile = GetUniquePath(filePath);
+                    var dir = Path.GetDirectoryName(uniqueFile);
                     if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                         Directory.CreateDirectory(dir);
-                    var existed = File.Exists(filePath);
-                    if (!existed) File.WriteAllBytes(filePath, Array.Empty<byte>());
-                    if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(filePath));
-                    onProgress?.Invoke(operationId, 100, filePath, 0, 0, 0, 1, 1);
+                    File.WriteAllBytes(uniqueFile, Array.Empty<byte>());
+                    if (recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(uniqueFile));
+                    onProgress?.Invoke(operationId, 100, uniqueFile, 0, 0, 0, 1, 1);
                     break;
                 }
 
@@ -585,7 +585,7 @@ public class FileOperationService
         var dir = Path.GetDirectoryName(path) ?? "";
         var name = Path.GetFileNameWithoutExtension(path);
         var ext = Path.GetExtension(path);
-        int n = 1;
+        int n = 2;
         string candidate;
         do
         {

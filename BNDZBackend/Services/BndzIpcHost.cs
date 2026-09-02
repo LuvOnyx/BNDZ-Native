@@ -332,6 +332,12 @@ namespace BNDZ.Services
 
         public bool IsOutboundOleDragActive => _bndzOleDragActive;
 
+        public void LayoutEmbeddedMeshTerminal(string sessionId, IntPtr parentHwnd, int x, int y, int width, int height, bool visible)
+        {
+            try { _meshOrchestrator.Terminal.AttachOrLayoutEmbedded(sessionId, parentHwnd, x, y, width, height, visible); }
+            catch (Exception ex) { Debug.WriteLine($"[BndzIpcHost] LayoutEmbeddedMeshTerminal: {ex.Message}"); }
+        }
+
         /// <summary>Deprecated — opaque top mask broke the React menubar; ghost hide is CSS-only now.</summary>
         public bool ShouldShowOleTopGhostMask() => false;
 
@@ -575,6 +581,58 @@ namespace BNDZ.Services
                 Debug.WriteLine($"[START_DRAG] {ex.Message}");
                 FinishOleDrag(false, ex.Message);
             }
+        }
+
+        /// <summary>
+        /// START_DRAG from FE boundary handoff — defer one dispatcher tick so WebView2 can
+        /// process pointer release, then ReleaseCapture + modal DoDragDrop.
+        /// </summary>
+        private void QueueStartDragOnNextTick(string[] paths)
+        {
+            if (paths == null || paths.Length == 0) return;
+            const int VK_LBUTTON = 0x01;
+            var btnDown = (GetAsyncKeyStateShort(VK_LBUTTON) & 0x8000) != 0;
+            var pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
+            OleDndLog($"START_DRAG queued paths={paths.Length} btnDown={btnDown} {pathSummary}");
+
+            var captured = paths;
+            ScheduleOleDragOnNextTick(() =>
+            {
+                try { ReleaseCapture(); }
+                catch (Exception capEx) { OleDndLog($"START_DRAG ReleaseCapture error {capEx.Message}"); }
+
+                OleDndLog("START_DRAG dispatch DoDragDrop");
+                _bndzOleDragActive = true;
+                WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+                try { _oleEscalateFeDismiss?.Invoke(); }
+                catch (Exception dismissEx) { OleDndLog($"START_DRAG ghost dismiss error {dismissEx.Message}"); }
+
+                try
+                {
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "OLE_DRAG_ESCALATED",
+                        payload = new { paths = captured, source = "start-drag-boundary", why = "boundary" },
+                    }));
+                }
+                catch { /* best-effort FE handoff */ }
+
+                try { ExecuteNativeFileDrag(captured); }
+                catch (Exception ex)
+                {
+                    _bndzOleDragActive = false;
+                    OleDndLog($"START_DRAG dispatch failed {ex.Message}");
+                    try
+                    {
+                        DeliverIpcJson(JsonSerializer.Serialize(new
+                        {
+                            type = "OLE_DRAG_ENDED",
+                            payload = new { ok = false, error = ex.Message },
+                        }));
+                    }
+                    catch { /* ignore */ }
+                }
+            });
         }
 
         [DllImport("user32.dll")]
@@ -1390,10 +1448,7 @@ namespace BNDZ.Services
                     {
                         why = whyEl.GetString() ?? "fe";
                     }
-                    OleDndLog($"OLE_ESCALATE_NOW recv why={why} armed={_fileDragSessionActive}");
-                    // Force escalate — WebView2 pointercancel at left/right/bottom often fires
-                    // before the host rim poll can see the cursor leave.
-                    TryEscalateOutboundOleDrag(force: true);
+                    OleDndLog($"OLE_ESCALATE_NOW ignored (boundary START_DRAG only) why={why}");
                     return;
                 }
 
@@ -1421,11 +1476,10 @@ namespace BNDZ.Services
                     var filteredStart = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedStart);
                     if (filteredStart.Length == 0)
                     {
-                        OleDndLog($"START_DRAG sync reject all (rejected {rejectedStart})");
+                        OleDndLog($"START_DRAG reject all (rejected {rejectedStart})");
                         return;
                     }
-                    OleDndLog($"START_DRAG sync paths={filteredStart.Length}");
-                    ExecuteNativeFileDrag(filteredStart);
+                    QueueStartDragOnNextTick(filteredStart);
                 }
             }
             catch (Exception ex)
@@ -3561,11 +3615,11 @@ namespace BNDZ.Services
                     {
                         whyAsync = whyElAsync.GetString() ?? "fe";
                     }
-                    OleDndLog($"OLE_ESCALATE_NOW recv async why={whyAsync} armed={_fileDragSessionActive}");
-                    PostToUi(() => TryEscalateOutboundOleDrag(force: true));
+                    OleDndLog($"OLE_ESCALATE_NOW ignored async (boundary START_DRAG only) why={whyAsync}");
                 }
                 else if (type == "START_DRAG")
                 {
+                    if (_bndzOleDragActive) return;
                     var payload = root.GetProperty("payload");
                     var paths = new List<string>();
                     if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
@@ -3589,8 +3643,7 @@ namespace BNDZ.Services
                         OleDndLog($"START_DRAG async reject all (rejected {rejectedStartAsync})");
                         return;
                     }
-                    OleDndLog($"START_DRAG async paths={filteredStartAsync.Length}");
-                    ExecuteNativeFileDrag(filteredStartAsync);
+                    PostToUi(() => QueueStartDragOnNextTick(filteredStartAsync));
                 }
                 else if (type == "CLEAR_THUMBNAIL_CACHE")
                 {

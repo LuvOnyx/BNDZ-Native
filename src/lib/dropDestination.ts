@@ -91,6 +91,8 @@ export function shouldCommitInternalFileDrop(opts: {
   pointerTravelPx: number;
   /** Max travel treated as "put back" when there is no foreign target. */
   putBackSlopPx?: number;
+  /** Tree/breadcrumb/folder target from hover memory — commit even when pointer-up coords lie. */
+  explicitDropTarget?: boolean;
 }): boolean {
   const {
     sourcePaths,
@@ -99,6 +101,7 @@ export function shouldCommitInternalFileDrop(opts: {
     hasForeignTarget,
     pointerTravelPx,
     putBackSlopPx = 14,
+    explicitDropTarget = false,
   } = opts;
 
   if (!sourcePaths.length || !destDir) return false;
@@ -111,6 +114,9 @@ export function shouldCommitInternalFileDrop(opts: {
 
   const same = isSameDropLocation(sourcePaths, destDir);
   if (op === 'move' && same) return false;
+
+  // Explicit tree/breadcrumb/folder target from last good hover — never cancel as put-back.
+  if (explicitDropTarget && hasForeignTarget) return op === 'copy' || !same;
 
   // Picked up and released in place — do not treat background as a drop.
   if (!hasForeignTarget && pointerTravelPx < putBackSlopPx) return false;

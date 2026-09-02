@@ -21,10 +21,11 @@ public static class RecycleBinService
     private static extern int SHEmptyRecycleBin(IntPtr hwnd, string? pszRootPath, uint dwFlags);
 
     // PKEY_Recycle_DeletedFrom ({9b174b33-40ff-11d2-a27e-00c04fc30871}, pid 2) — "Original location".
-    // Constructed directly rather than via Ole32.PROPERTYKEY.System, which does not expose every
-    // shell property (this one is niche enough it may not be wrapped).
     private static readonly Ole32.PROPERTYKEY PKEY_Recycle_DeletedFrom =
         new(new Guid("9b174b33-40ff-11d2-a27e-00c04fc30871"), 2);
+
+    private static readonly Ole32.PROPERTYKEY PKEY_Recycle_DateDeleted =
+        new(new Guid("9b174b33-40ff-11d2-a27e-00c04fc30871"), 3);
 
     public static bool IsRecycleBinPath(string? path)
     {
@@ -35,123 +36,179 @@ public static class RecycleBinService
             || p.Equals(ShellParsingName, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Typed recycle listing for SharedBuffer / backend-host JSON paths.</summary>
+    public static Task<List<DirListingSharedBuffer.DirEntryDto>> GetEntriesAsync()
+        => BndzShellStaThread.RunAsync(EnumerateEntries);
+
     public static Task<List<object>> GetContentsAsync()
+        => GetEntriesAsync().ContinueWith(t => t.Result.Cast<object>().ToList(), TaskContinuationOptions.ExecuteSynchronously);
+
+    private static List<DirListingSharedBuffer.DirEntryDto> EnumerateEntries()
     {
-        return Task.Run(() =>
+        var results = EnumerateFromRecycleBinApi();
+        if (results.Count == 0)
         {
-            var results = new List<object>();
             try
             {
-                foreach (var item in RecycleBin.GetItems())
+                var fallback = ShellFolderEnumerator.Enumerate(ShellPathResolver.RecycleBinClsid);
+                foreach (var item in fallback)
                 {
-                    using (item)
+                    if (item is ShellChildItem sci)
                     {
-                        var rawName = item.Name ?? "Unknown";
-                        var name = rawName;
-                        if (name.Contains('\\') || name.Contains('/'))
-                            name = Path.GetFileName(name.TrimEnd('\\', '/'));
-                        if (string.IsNullOrWhiteSpace(name))
-                            name = rawName;
-                        var parsingName = (item.ParsingName ?? rawName).Replace('\\', '/');
-                        var isFolder = item.IsFolder;
-                        long size = 0;
-                        try
-                        {
-                            if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.Size, out var sizeVal) && sizeVal is ulong ul)
-                                size = (long)ul;
-                        }
-                        catch { /* optional shell property */ }
-
-                        var modified = DateTime.UtcNow;
-                        try
-                        {
-                            if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.DateModified, out var modVal) && modVal is DateTime dt)
-                                modified = dt.ToUniversalTime();
-                        }
-                        catch { }
-
-                        string? originalLocation = null;
-                        string? originalPath = null;
-                        try
-                        {
-                            if (item.Properties.TryGetValue(PKEY_Recycle_DeletedFrom, out var fromVal) && fromVal is string from)
-                            {
-                                originalLocation = from;
-                                var leaf = Path.GetFileName((item.Name ?? name).TrimEnd('\\', '/'));
-                                if (string.IsNullOrWhiteSpace(leaf)) leaf = name;
-                                originalPath = Path.Combine(from, leaf);
-                            }
-                        }
-                        catch { /* optional recycle PKEY */ }
-
-                        DateTime? dateDeleted = null;
-                        try
-                        {
-                            // PKEY_Recycle_DateDeleted ({9b174b33-40ff-11d2-a27e-00c04fc30871}, pid 3)
-                            var pkeyDeleted = new Ole32.PROPERTYKEY(new Guid("9b174b33-40ff-11d2-a27e-00c04fc30871"), 3);
-                            if (item.Properties.TryGetValue(pkeyDeleted, out var delVal) && delVal is DateTime delDt)
-                                dateDeleted = delDt.ToUniversalTime();
-                        }
-                        catch { }
-
-                        results.Add(new
-                        {
-                            id = parsingName,
-                            name,
-                            type = isFolder ? "directory" : "file",
-                            path = parsingName,
-                            size,
-                            extension = isFolder ? "" : Path.GetExtension(name).TrimStart('.').ToLowerInvariant(),
-                            modified = modified.ToString("O"),
-                            isRecycleItem = true,
-                            originalLocation,
-                            originalPath,
-                            deleted = (dateDeleted ?? modified).ToString("O"),
-                        });
+                        var dto = DirListingSharedBuffer.FromShellChild(sci);
+                        dto.IsRecycleItem = true;
+                        dto.IsShellItem = true;
+                        results.Add(dto);
+                    }
+                    else
+                    {
+                        results.Add(DirListingSharedBuffer.FromLegacyObject(item));
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"RecycleBinService.GetContents: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"RecycleBinService fallback enumerate: {ex.Message}");
             }
+        }
 
-            return results;
+        System.Diagnostics.Debug.WriteLine($"RecycleBinService.GetContents: {results.Count} item(s)");
+        return results;
+    }
+
+    private static List<DirListingSharedBuffer.DirEntryDto> EnumerateFromRecycleBinApi()
+    {
+        var results = new List<DirListingSharedBuffer.DirEntryDto>();
+        try
+        {
+            foreach (var item in RecycleBin.GetItems())
+            {
+                using (item)
+                {
+                    var rawName = item.Name ?? "Unknown";
+                    var name = rawName;
+                    if (name.Contains('\\') || name.Contains('/'))
+                        name = Path.GetFileName(name.TrimEnd('\\', '/'));
+                    if (string.IsNullOrWhiteSpace(name))
+                        name = rawName;
+                    var parsingName = (item.ParsingName ?? rawName).Replace('\\', '/');
+                    var isFolder = item.IsFolder;
+                    long size = 0;
+                    try
+                    {
+                        if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.Size, out var sizeVal) && sizeVal is ulong ul)
+                            size = (long)ul;
+                    }
+                    catch { /* optional shell property */ }
+
+                    var modified = DateTimeOffset.UtcNow;
+                    try
+                    {
+                        if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.DateModified, out var modVal) && modVal is DateTime dt)
+                            modified = dt.ToUniversalTime();
+                    }
+                    catch { }
+
+                    string? originalLocation = null;
+                    string? originalPath = null;
+                    try
+                    {
+                        if (item.Properties.TryGetValue(PKEY_Recycle_DeletedFrom, out var fromVal) && fromVal is string from)
+                        {
+                            originalLocation = from;
+                            var leaf = Path.GetFileName((item.Name ?? name).TrimEnd('\\', '/'));
+                            if (string.IsNullOrWhiteSpace(leaf)) leaf = name;
+                            originalPath = Path.Combine(from, leaf);
+                        }
+                    }
+                    catch { /* optional recycle PKEY */ }
+
+                    DateTimeOffset? dateDeleted = null;
+                    try
+                    {
+                        if (item.Properties.TryGetValue(PKEY_Recycle_DateDeleted, out var delVal) && delVal is DateTime delDt)
+                            dateDeleted = delDt.ToUniversalTime();
+                    }
+                    catch { }
+
+                    results.Add(new DirListingSharedBuffer.DirEntryDto
+                    {
+                        Id = parsingName,
+                        Name = name,
+                        Type = isFolder ? "directory" : "file",
+                        Path = parsingName,
+                        Size = size,
+                        Extension = isFolder ? "" : Path.GetExtension(name).TrimStart('.').ToLowerInvariant(),
+                        ModifiedUtc = modified,
+                        CreatedUtc = modified,
+                        IsShellItem = true,
+                        AttrBits = DirListingSharedBuffer.AttrShellItem,
+                        IsRecycleItem = true,
+                        OriginalLocation = originalLocation,
+                        OriginalPath = originalPath,
+                        DeletedUtc = dateDeleted ?? modified,
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"RecycleBinService.GetContents: {ex.Message}");
+        }
+
+        return results;
+    }
+
+    public static Task<(bool ok, string? error)> EmptyAsync(IntPtr hwnd)
+    {
+        return Task.Run(() =>
+        {
+            (bool ok, string? error) result = (false, "Unknown error");
+            BndzShellStaThread.Run(() => result = EmptyOnSta(hwnd));
+            return result;
         });
     }
 
-    public static bool Empty(IntPtr hwnd)
+    private static (bool ok, string? error) EmptyOnSta(IntPtr hwnd)
     {
         try
         {
-            // SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI — BNDZ already confirmed in UI.
+            if (hwnd == IntPtr.Zero)
+                hwnd = (IntPtr)User32.GetDesktopWindow();
             var hr = SHEmptyRecycleBin(hwnd, null, SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI);
-            // S_OK (0). Already empty returns E_UNEXPECTED (0x8000FFFF / -2147418113) — treat as success
-            // (same as Explorer / Flow.Launcher / Files).
-            if (hr == 0) return true;
+            if (hr == 0) return (true, null);
             unchecked
             {
-                if (hr == (int)0x8000FFFF) return true; // E_UNEXPECTED — bin already empty
-                if (hr == (int)0x80070015) return true; // ERROR_NOT_READY — nothing to empty
+                if (hr == (int)0x8000FFFF) return (true, null); // already empty
+                if (hr == (int)0x80070015) return (true, null); // nothing to empty
             }
-            System.Diagnostics.Debug.WriteLine($"RecycleBinService.Empty hr=0x{hr:X8}");
-            return false;
+            var msg = $"Could not empty Recycle Bin (0x{hr:X8})";
+            System.Diagnostics.Debug.WriteLine($"RecycleBinService.Empty {msg}");
+            return (false, msg);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"RecycleBinService.Empty: {ex.Message}");
-            return false;
+            return (false, ex.Message);
         }
     }
 
+    public static bool Empty(IntPtr hwnd)
+        => EmptyAsync(hwnd).GetAwaiter().GetResult().ok;
+
     /// <summary>
-    /// Restores recycled items to their original location using the shell's own "undelete" verb —
-    /// the same mechanism Explorer's Recycle Bin "Restore" context menu item uses. Matches by the
-    /// same ParsingName identifier the frontend received from GetContentsAsync.
+    /// Restores recycled items to their original location using the shell's own "undelete" verb.
     /// </summary>
     public static (int restored, int failed) Restore(IEnumerable<string> parsingNames)
     {
         var targets = new HashSet<string>(parsingNames.Select(p => p.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
+        (int restored, int failed) result = (0, 0);
+        BndzShellStaThread.Run(() => result = RestoreOnSta(targets));
+        return result;
+    }
+
+    private static (int restored, int failed) RestoreOnSta(HashSet<string> targets)
+    {
         int restored = 0, failed = 0;
         try
         {
@@ -181,13 +238,18 @@ public static class RecycleBinService
     }
 
     /// <summary>
-    /// Restores recycled items by matching on their original pre-deletion path (PKEY_Recycle_DeletedFrom),
-    /// for undoing a "move to Recycle Bin" action log entry where only the original path is known —
-    /// distinct from Restore(), which matches by the Recycle Bin's own item identifier.
+    /// Restores recycled items by matching on their original pre-deletion path (PKEY_Recycle_DeletedFrom).
     /// </summary>
     public static (int restored, int failed) RestoreByOriginalPath(IEnumerable<string> originalPaths)
     {
         var targets = new HashSet<string>(originalPaths.Select(NormalizeWinPath), StringComparer.OrdinalIgnoreCase);
+        (int restored, int failed) result = (0, 0);
+        BndzShellStaThread.Run(() => result = RestoreByOriginalPathOnSta(targets));
+        return result;
+    }
+
+    private static (int restored, int failed) RestoreByOriginalPathOnSta(HashSet<string> targets)
+    {
         int restored = 0;
         try
         {
@@ -208,7 +270,7 @@ public static class RecycleBinService
                     if (!targets.Contains(originalFullPath)) continue;
 
                     try { item.InvokeVerb("undelete"); restored++; }
-                    catch { /* leave in recycle bin, counted as not-restored below */ }
+                    catch { /* leave in recycle bin */ }
                 }
             }
         }
@@ -220,6 +282,13 @@ public static class RecycleBinService
     public static (int purged, int failed) Purge(IEnumerable<string> parsingNames)
     {
         var targets = new HashSet<string>(parsingNames.Select(p => p.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
+        (int purged, int failed) result = (0, 0);
+        BndzShellStaThread.Run(() => result = PurgeOnSta(targets));
+        return result;
+    }
+
+    private static (int purged, int failed) PurgeOnSta(HashSet<string> targets)
+    {
         int purged = 0, failed = 0;
         try
         {

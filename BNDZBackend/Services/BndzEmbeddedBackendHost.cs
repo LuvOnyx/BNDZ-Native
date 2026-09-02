@@ -144,6 +144,8 @@ public static class BndzEmbeddedBackendHost
                     hostWindowHandle: hostWindowHandle);
 
                 ReadyTcs.TrySetResult(true);
+                BndzOleDragStaThread.WarmUp();
+                BndzShellStaThread.WarmUp();
                 Debug.WriteLine("[BndzEmbeddedBackendHost] headless BndzIpcHost ready");
             }
             catch (Exception ex)
@@ -497,5 +499,15 @@ public static class BndzEmbeddedBackendHost
         }
 #endif
         lock (PushSync) { PushTargets.Clear(); }
+    }
+
+    /// <summary>Position embedded OS console for Remote Mesh local terminal.</summary>
+    public static void LayoutMeshTerminal(string sessionId, IntPtr parentHwnd, int x, int y, int width, int height, bool visible)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.LayoutEmbeddedMeshTerminal(sessionId, parentHwnd, x, y, width, height, visible); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] LayoutMeshTerminal: {ex.Message}"); }
+#endif
     }
 }

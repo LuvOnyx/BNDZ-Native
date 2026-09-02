@@ -36,16 +36,24 @@ export function canonicalDropPath(path: string): string {
   return toWindowsPath(path);
 }
 
-/** Resolve a listing entity to a drag path — never stream or file: URI junk. */
+function isAbsoluteListingPath(path: string): boolean {
+  const n = normalizePanePath(path.replace(/\\/g, '/'));
+  return /^\/[A-Za-z]:\//.test(n) || /^\/\/[^/]/.test(n);
+}
+
+/** Resolve a listing entity to a drag path — Rain-Explorer uses FileItem.FullPath verbatim. */
 export function resolveEntityDragPath(
   entity: { name: string; path?: string; id?: string; fsPath?: string },
   panePath: string,
 ): string {
+  const idRaw = entity.id ? String(entity.id).trim() : '';
   const raw = entity.fsPath
     ? String(entity.fsPath)
     : entity.path
       ? String(entity.path)
-      : joinPanePath(panePath, entity);
+      : idRaw && isAbsoluteListingPath(idRaw)
+        ? idRaw
+        : joinPanePath(panePath, entity);
   const trimmed = raw.trim();
   const slashed = trimmed.replace(/\\/g, '/');
   if (isUriJunkPath(trimmed)) {

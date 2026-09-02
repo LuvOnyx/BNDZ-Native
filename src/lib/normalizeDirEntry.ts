@@ -40,6 +40,7 @@ export function normalizeDirEntry(item: any, index = 0): any {
     id: id != null ? String(id) : `item-${index}`,
     name: nameStr,
     path: path != null ? String(path) : item.path,
+    fsPath: item.fsPath ?? item.FsPath ?? (path != null ? String(path).replace(/\//g, '\\') : undefined),
     type: isDir ? 'directory' : (rawType || 'file'),
     size: item.size != null ? Number(item.size) : (item.Size != null ? Number(item.Size) : (isDir ? 0 : undefined)),
     extension,

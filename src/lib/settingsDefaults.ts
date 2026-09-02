@@ -244,7 +244,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   excludeFileExtensionFromInitialSelection: false,
   expandInTree: false,
   expandTreeNodesOnBrowse: false,
-  expandTreeNodesOnDragOver: false,
+  expandTreeNodesOnDragOver: true,
   expandTreeNodesOnSingleClick: false,
   lockTreeState: false,
   extendedCompatibilityForClipboardAndDragAndDrop: false,

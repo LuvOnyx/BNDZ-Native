@@ -19,10 +19,25 @@ import {
 import { type MeshSyncRule, type MeshHost, normalizeMeshHost } from '../../lib/meshTypes';
 import type { BottomPluginLaunchContext } from '../BottomPluginPanel';
 
-function MeshTerminalPanel({ sessionId, active }: { sessionId: string | null; active: boolean }) {
+function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null; active: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const sessionIdRef = useRef(sessionId);
+  const pendingOutputRef = useRef<string[]>([]);
+  sessionIdRef.current = sessionId;
+
+  const writeTerminalOutput = useCallback((b64: string) => {
+    const term = termRef.current;
+    if (!term) {
+      pendingOutputRef.current.push(b64);
+      return;
+    }
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    term.write(bytes);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current || termRef.current) return;
@@ -43,16 +58,18 @@ function MeshTerminalPanel({ sessionId, active }: { sessionId: string | null; ac
     fit.fit();
     termRef.current = term;
     fitRef.current = fit;
+    for (const chunk of pendingOutputRef.current) writeTerminalOutput(chunk);
+    pendingOutputRef.current = [];
     term.onData(data => {
-      if (!sessionId) return;
-      IPC.meshTerminalInput(sessionId, btoa(unescape(encodeURIComponent(data))));
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+      IPC.meshTerminalInput(sid, btoa(unescape(encodeURIComponent(data))));
     });
     const ro = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(() => {
           fit.fit();
-          if (sessionId) {
-            IPC.meshTerminalResize(sessionId, term.cols, term.rows);
-          }
+          const sid = sessionIdRef.current;
+          if (sid) IPC.meshTerminalResize(sid, term.cols, term.rows);
         })
       : null;
     ro?.observe(containerRef.current);
@@ -61,7 +78,7 @@ function MeshTerminalPanel({ sessionId, active }: { sessionId: string | null; ac
       term.dispose();
       termRef.current = null;
     };
-  }, []);
+  }, [writeTerminalOutput]);
 
   useEffect(() => {
     if (!active || !sessionId) return;
@@ -74,15 +91,95 @@ function MeshTerminalPanel({ sessionId, active }: { sessionId: string | null; ac
 
   useEffect(() => {
     return IPC.onMeshTerminalOutput(({ sessionId: sid, data }) => {
-      if (!sessionId || sid !== sessionId || !termRef.current) return;
-      const bin = atob(data);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      termRef.current.write(bytes);
+      if (!sessionId || sid !== sessionId) return;
+      writeTerminalOutput(data);
     });
-  }, [sessionId]);
+  }, [sessionId, writeTerminalOutput]);
 
   return <div ref={containerRef} className="w-full h-full min-h-[200px] bndz-mesh-terminal" />;
+}
+
+/** Real Windows console (conhost) embedded by the WinUI host — not xterm/ConPTY. */
+function MeshOsTerminalHost({ sessionId, active }: { sessionId: string | null; active: boolean }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sid = sessionId;
+    const pushLayout = () => {
+      const el = hostRef.current;
+      if (!sid || !el) return;
+      const r = el.getBoundingClientRect();
+      const visible = active && r.width > 48 && r.height > 48;
+      IPC.meshTerminalLayout({
+        sessionId: sid,
+        screenX: window.screenX + r.left,
+        screenY: window.screenY + r.top,
+        width: r.width,
+        height: r.height,
+        visible,
+      });
+    };
+
+    if (!sid || !active) {
+      if (sid) {
+        IPC.meshTerminalLayout({
+          sessionId: sid,
+          screenX: 0,
+          screenY: 0,
+          width: 0,
+          height: 0,
+          visible: false,
+        });
+      }
+      return;
+    }
+
+    pushLayout();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(pushLayout) : null;
+    if (hostRef.current) ro?.observe(hostRef.current);
+    window.addEventListener('resize', pushLayout);
+    window.addEventListener('scroll', pushLayout, true);
+    const tick = window.setInterval(pushLayout, 500);
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', pushLayout);
+      window.removeEventListener('scroll', pushLayout, true);
+      window.clearInterval(tick);
+      IPC.meshTerminalLayout({
+        sessionId: sid,
+        screenX: 0,
+        screenY: 0,
+        width: 0,
+        height: 0,
+        visible: false,
+      });
+    };
+  }, [sessionId, active]);
+
+  return (
+    <div
+      ref={hostRef}
+      className="w-full h-full min-h-[200px] bndz-mesh-terminal bndz-mesh-os-terminal-host bg-[#0c0c0c]"
+      data-bndz-os-terminal-host
+      tabIndex={-1}
+    />
+  );
+}
+
+function MeshTerminalPanel({
+  sessionId,
+  active,
+  embedded,
+}: {
+  sessionId: string | null;
+  active: boolean;
+  embedded: boolean;
+}) {
+  if (embedded) {
+    return <MeshOsTerminalHost sessionId={sessionId} active={active} />;
+  }
+  return <MeshSshTerminalPanel sessionId={sessionId} active={active} />;
 }
 
 export const MeshPluginDef = {
@@ -107,6 +204,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionEmbedded, setSessionEmbedded] = useState(false);
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const [liveShareOn, setLiveShareOn] = useState(false);
   const [livePeers, setLivePeers] = useState<any[]>([]);
@@ -189,12 +287,20 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           cwd = parsed.remotePath || '/';
         }
       }
+      if (!local && hostId) {
+        const conn = await IPC.meshConnect(hostId);
+        if (conn?.error) {
+          setStatus(String(conn.error));
+          return;
+        }
+      }
       const session = await IPC.meshTerminalOpen({ hostId, local, cwd });
       if (session?.error) {
         setStatus(session.error);
         return;
       }
       setSessionId(session.id || session.Id);
+      setSessionEmbedded(!!(session.embedded ?? session.Embedded));
       setTab('terminal');
       setStatus(local ? 'Local PowerShell' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
     } catch (e: any) {
@@ -307,6 +413,11 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
             <MeshEphemeralPanel
               onNavigate={onNavigate}
               onStatus={setStatus}
+              onOpenTerminal={(sessionId, hostId) => {
+                setSessionId(sessionId);
+                setSelectedHostId(hostId);
+                setTab('terminal');
+              }}
             />
           )}
 
@@ -385,14 +496,14 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                   </PluginToolbarButton>
                 )}
                 {sessionId && (
-                  <PluginToolbarButton onClick={() => { IPC.meshTerminalClose(sessionId); setSessionId(null); }}>
+                  <PluginToolbarButton onClick={() => { IPC.meshTerminalClose(sessionId); setSessionId(null); setSessionEmbedded(false); }}>
                     Close session
                   </PluginToolbarButton>
                 )}
               </div>
               <div className="flex-1 min-h-0 border border-sky-400/15 rounded-[18px] overflow-hidden bg-[#07090e] bndz-mesh-terminal-frame">
                 {sessionId ? (
-                  <MeshTerminalPanel sessionId={sessionId} active={tab === 'terminal'} />
+                  <MeshTerminalPanel sessionId={sessionId} active={tab === 'terminal'} embedded={sessionEmbedded} />
                 ) : (
                   <div className="flex items-center justify-center h-full text-xs text-gray-500 p-6 text-center">
                     Open a local PowerShell or SSH session. Browse a /mesh folder and use Shell Here to land in that remote path.

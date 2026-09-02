@@ -5,6 +5,20 @@
 
 import { isFsDropTargetPath } from './bndzVirtualViews';
 import { joinPanePath } from './pathUtils';
+import { recordPointerDragHover, recallPointerDragHover } from './fileDragHover';
+
+/** Nav-tree drop path with WebView2 pointer-up fallbacks (avoids circular import with fileDragHover helpers). */
+function resolveNavTreeDropAtPoint(clientX: number, clientY: number): string | null {
+  return hitTestNavTreeAtPoint(clientX, clientY)
+    || recallPointerDragHover(clientX, clientY)?.navTreePath
+    || (recordPointerDragHover.last.valid ? recordPointerDragHover.last.navTreePath : null);
+}
+
+function resolveBreadcrumbDropAtPoint(clientX: number, clientY: number): string | null {
+  return hitTestBreadcrumbAtPoint(clientX, clientY)
+    || recallPointerDragHover(clientX, clientY)?.breadcrumbPath
+    || (recordPointerDragHover.last.valid ? recordPointerDragHover.last.breadcrumbPath : null);
+}
 
 export type TabHoverTarget = { paneId: string; tabIndex: number; tabId: string };
 export type ListFolderTarget = { id: string; type?: string; name?: string };
@@ -368,6 +382,38 @@ export function isPointerOverMenubar(clientX: number, clientY: number): boolean 
   return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
 }
 
+/**
+ * True when an in-app drag should hand off to native OLE at the WebView rim.
+ * WebView2 clamps clientX/Y — use side/bottom edge + screen leave, not outside-viewport.
+ */
+export function shouldTriggerOutboundOleBoundaryHandoff(
+  clientX: number,
+  clientY: number,
+  prevClientX: number,
+  prevClientY: number,
+  screenX?: number,
+  screenY?: number,
+  edgePx = 4,
+): boolean {
+  if (typeof screenX === 'number' && typeof screenY === 'number'
+    && isPointerOutsideScreenWindow(screenX, screenY, 2)) {
+    return true;
+  }
+  if (isPointerOverMenubar(clientX, clientY)) return false;
+  const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+  if (w <= 0 || h <= 0) return false;
+  const atLeft = clientX <= edgePx;
+  const atRight = clientX >= w - edgePx;
+  const atBottom = clientY >= h - edgePx;
+  if (!atLeft && !atRight && !atBottom) return false;
+  if (atLeft && clientX <= prevClientX) return true;
+  if (atRight && clientX >= prevClientX) return true;
+  if (atBottom && clientY >= prevClientY) return true;
+  // Clamped on the rim (e.g. clientY stuck at innerHeight - 1) while LMB still down.
+  return atLeft || atRight || atBottom;
+}
+
 /** Screen-space leave check — works when clientX/Y are clamped by WebView2. */
 export function isPointerOutsideScreenWindow(screenX: number, screenY: number, marginPx = 4): boolean {
   if (typeof window === 'undefined') return false;
@@ -393,6 +439,16 @@ export function isPointerNearWindowTopChrome(screenY: number, chromePx = 48): bo
  * Escalate in-app pointer drag to native OLE (Explorer/desktop).
  * Host FILE_DRAG_ACTIVE poll is authoritative; this is the FE backup path.
  */
+/** Pointer-up: only when screen coords left the WebView window (host poll handles rim while LMB down). */
+export function shouldEscalateOutboundOnPointerEnd(
+  _clientX: number,
+  _clientY: number,
+  screenX: number,
+  screenY: number,
+): boolean {
+  return isPointerOutsideScreenWindow(screenX, screenY);
+}
+
 export function shouldEscalateFileDragToOle(
   clientX: number,
   clientY: number,
@@ -407,7 +463,7 @@ export function shouldEscalateFileDragToOle(
     && isPointerOutsideScreenWindow(screenX, screenY)) {
     return true;
   }
-  if (overInternalChrome || outsideChromeStreak < 2) return false;
+  if (overInternalChrome || outsideChromeStreak < 1) return false;
   if (isPointerOverMenubar(clientX, clientY)) return false;
   return isPointerNearWebViewSideOrBottomEdge(clientX, clientY);
 }
@@ -427,7 +483,7 @@ export function shouldArchiveEscalateToOle(
   }
   if (!isOutsideArchivePreviewAtPoint(clientX, clientY)) return false;
   if (isInternalFileDragChromeAtPoint(clientX, clientY)) return false;
-  if (outsideChromeStreak < 2) return false;
+  if (outsideChromeStreak < 1) return false;
   if (isPointerOverMenubar(clientX, clientY)) return false;
   return isPointerNearWebViewSideOrBottomEdge(clientX, clientY);
 }
@@ -522,8 +578,8 @@ export function resolveNativeFileDropTarget(
   const listBody = hitTestListBodyAtPoint(clientX, clientY);
   const listWins = !!listBody;
 
-  const navTreePath = listWins ? null : hitTestNavTreeAtPoint(clientX, clientY);
-  const breadcrumbPath = listWins ? null : (navTreePath ? null : hitTestBreadcrumbAtPoint(clientX, clientY));
+  const navTreePath = listWins ? null : resolveNavTreeDropAtPoint(clientX, clientY);
+  const breadcrumbPath = listWins ? null : (navTreePath ? null : resolveBreadcrumbDropAtPoint(clientX, clientY));
   const tabHit = hitTestTabAtPoint(clientX, clientY);
 
   let hover: { paneId: string; tabIndex: number } | null = null;

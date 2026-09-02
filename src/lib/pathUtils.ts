@@ -180,6 +180,27 @@ export function findEntityInCache(
   return null;
 }
 
+const WSL_ROOT_PANE = '//wsl.localhost/';
+
+/** True when pane path is the WSL distro root (`//wsl.localhost/`). */
+export function isWslRootPanePath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const p = normalizePanePath(path).replace(/\/+$/, '').toLowerCase();
+  return p === '//wsl.localhost' || p === '//wsl$';
+}
+
+/** True for any `//wsl.localhost/...` pane path. */
+export function isWslPanePath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const p = normalizePanePath(path).toLowerCase();
+  return p.startsWith('//wsl.localhost') || p.startsWith('//wsl$');
+}
+
+/** Canonical WSL root pane path for navigation. */
+export function wslRootPanePath(): string {
+  return WSL_ROOT_PANE;
+}
+
 /** Safe locale date formatting — avoids "Invalid Date" in preview panel */
 export function formatFsDate(value: string | number | Date | null | undefined): string {
   if (!value) return '--';

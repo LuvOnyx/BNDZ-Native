@@ -191,8 +191,10 @@ public sealed class MeshLocalVpsFactory
 
         try
         {
-            // Pull is best-effort; create will fail clearly if missing.
-            _ = Run(podman, $"pull {Quote(imageRef)}", TimeSpan.FromMinutes(10));
+            var pull = Run(podman, $"pull {Quote(imageRef)}", TimeSpan.FromMinutes(10));
+            if (pull.Exit != 0)
+                throw new InvalidOperationException(
+                    "Local VPS image pull failed:\n" + Truncate(pull.Stderr + "\n" + pull.Stdout, 900));
 
             var args = new StringBuilder();
             args.Append("run -d --name ").Append(Quote(name));
@@ -256,11 +258,9 @@ public sealed class MeshLocalVpsFactory
     {
         var record = _db.GetIncusEphemeral(ephemeralId)
             ?? throw new InvalidOperationException("Local VPS not found");
-        if (!string.Equals(record.EndpointId, LocalEndpointId, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Not a local VPS instance");
 
         var podman = FindPodman();
-        if (podman != null)
+        if (podman != null && !string.IsNullOrWhiteSpace(record.InstanceName))
         {
             await Task.Run(() =>
             {
@@ -274,6 +274,27 @@ public sealed class MeshLocalVpsFactory
             catch { /* ignore */ }
         }
         _db.DeleteIncusEphemeral(ephemeralId);
+    }
+
+    public async Task SetLocalActionAsync(string ephemeralId, string action, CancellationToken ct = default)
+    {
+        var record = _db.GetIncusEphemeral(ephemeralId)
+            ?? throw new InvalidOperationException("Local VPS not found");
+        if (string.IsNullOrWhiteSpace(record.InstanceName))
+            throw new InvalidOperationException("Local VPS has no container name");
+
+        var podman = FindPodman()
+            ?? throw new InvalidOperationException("Podman is not installed or not on PATH");
+
+        var cmd = action switch
+        {
+            "start" => $"start {Quote(record.InstanceName)}",
+            "stop" => $"stop {Quote(record.InstanceName)}",
+            "restart" => $"restart {Quote(record.InstanceName)}",
+            _ => throw new InvalidOperationException($"Unsupported local VPS action: {action}"),
+        };
+
+        await Task.Run(() => Run(podman, cmd, TimeSpan.FromSeconds(90)), ct).ConfigureAwait(false);
     }
 
     public void EnsureVisible() => EnsureLocalEndpointRecord();

@@ -94,7 +94,7 @@ public sealed partial class MainWindow : Window
             try { BndzEmbeddedBackendHost.SetHostCloseAction(() => { }); } catch { /* ignore */ }
         };
 
-        ChromeHost.Prewarm();
+        // WebView2 init runs from PaneWebView Loaded — calling Prewarm here races before the control is in-tree.
         Activate();
     }
 
@@ -313,28 +313,32 @@ public sealed partial class MainWindow : Window
             var winW = _appWindow.Size.Width;
             if (winW <= 0 || menuH <= 0) return;
 
-            // Match React menubar padding-right + minimum flex drag strip (see index.css native-host).
             var captionReserve = (int)Math.Round(138 * scale);
-            var dragStripMin = (int)Math.Round(72 * scale);
-            var capW = Math.Clamp(captionReserve + dragStripMin, (int)Math.Round(96 * scale), winW);
+            var capW = Math.Clamp(captionReserve, (int)Math.Round(96 * scale), winW);
             var passW = Math.Max(0, winW - capW);
+
+            // Logo + menu triggers stay passthrough; drag strip + system buttons are native caption.
+            var menuPassW = Math.Clamp((int)Math.Round(560 * scale), (int)Math.Round(220 * scale), passW);
+            var dragX = menuPassW;
+            var dragW = Math.Max(0, passW - menuPassW);
 
             source.ClearRegionRects(NonClientRegionKind.Passthrough);
             source.ClearRegionRects(NonClientRegionKind.Caption);
 
-            if (passW > 0)
+            if (menuPassW > 0)
             {
                 source.SetRegionRects(
                     NonClientRegionKind.Passthrough,
-                    [new RectInt32(0, 0, passW, menuH)]);
+                    [new RectInt32(0, 0, menuPassW, menuH)]);
             }
 
+            var captionRects = new List<RectInt32>();
+            if (dragW > 0)
+                captionRects.Add(new RectInt32(dragX, 0, dragW, menuH));
             if (capW > 0)
-            {
-                source.SetRegionRects(
-                    NonClientRegionKind.Caption,
-                    [new RectInt32(passW, 0, capW, menuH)]);
-            }
+                captionRects.Add(new RectInt32(passW, 0, capW, menuH));
+            if (captionRects.Count > 0)
+                source.SetRegionRects(NonClientRegionKind.Caption, captionRects.ToArray());
         }
         catch (Exception ex)
         {

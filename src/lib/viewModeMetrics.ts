@@ -63,6 +63,7 @@ export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts
 
   // Caption: Files uses ~2 lines under the square (margin 4,0,4,8).
   const labelBlock = dense ? 0 : Math.max(36, Math.min(48, Math.round(34 + itemWidth * 0.04)));
+  const captionMarginBottom = dense ? 0 : 8;
   const gap = 4;
   const iconSlot = itemWidth; // square, Files-identical
   const padding = 0;
@@ -75,6 +76,7 @@ export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts
     + iconSlot
     + tileInnerGap
     + labelBlock
+    + captionMarginBottom
     + cardPadBottom
     + marqueePad
     + (dense ? 0 : 4);

@@ -29,6 +29,7 @@ const VERB_MAP: Record<string, string> = {
   harddrive: 'disk_mgmt',
   package: 'zip',
   download: 'download',
+  shortcut: 'link',
   link: 'link',
   link2: 'link',
   symlink: 'link',

@@ -3,6 +3,7 @@ import { Icons8Icon } from './Icons8Icon';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { toWindowsPath } from '../lib/pathUtils';
+import { isMeshPath } from '../lib/meshPaths';
 import { isCodeExt, prismLanguageForExt } from '../lib/textFileTypes';
 
 interface TextPreviewEditorProps {
@@ -51,6 +52,41 @@ export default function TextPreviewEditor({
     setStatus(null);
     try {
       const { IPC } = await import('../lib/ipcBridge');
+      const meshSession = (window as any).__bndzMeshEditSession as
+        | { meshPath: string; localPath: string; expectedRemoteMtime?: string }
+        | undefined;
+      if (isMeshPath(path) || (meshSession?.meshPath && meshSession.meshPath === path)) {
+        const meshPath = isMeshPath(path) ? path : meshSession!.meshPath;
+        let localFile = meshSession?.localPath;
+        if (!localFile) {
+          const { resolveLocalReadPath } = await import('../lib/meshPreviewResolve');
+          const resolved = await resolveLocalReadPath(meshPath);
+          localFile = resolved.localPath;
+        }
+        if (!localFile) {
+          setStatus('Remote cache path missing');
+          return;
+        }
+        const wrote = await IPC.writeTextFile(localFile, content);
+        if (!wrote) {
+          setStatus('Local cache write failed');
+          return;
+        }
+        const res = await IPC.meshWrite({
+          path: meshPath,
+          localFile,
+          expectedRemoteMtime: meshSession?.expectedRemoteMtime,
+        });
+        if (res.ok) {
+          setDirty(false);
+          setStatus('Saved to remote host');
+          (window as any).__bndzMeshEditSession = { meshPath, localFile, expectedRemoteMtime: meshSession?.expectedRemoteMtime };
+          onSaved?.();
+        } else {
+          setStatus(res.error || 'Remote save failed');
+        }
+        return;
+      }
       const ok = await IPC.writeTextFile(toWindowsPath(path), content);
       if (ok) {
         setDirty(false);

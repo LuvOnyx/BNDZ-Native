@@ -405,6 +405,17 @@ public sealed class MeshEphemeralService
                 results.Add(record);
                 continue;
             }
+            if (IsLocalEphemeral(record))
+            {
+                try { results.Add(await RefreshLocalAsync(record, ct).ConfigureAwait(false)); }
+                catch (Exception ex)
+                {
+                    record.LastError = ex.Message;
+                    _db.UpsertIncusEphemeral(record);
+                    results.Add(record);
+                }
+                continue;
+            }
             try
             {
                 results.Add(await RefreshAsync(record.Id, ct).ConfigureAwait(false));
@@ -425,6 +436,8 @@ public sealed class MeshEphemeralService
 
     public async Task<IReadOnlyList<IncusInstanceSummary>> ListServerInstancesAsync(string endpointId, CancellationToken ct = default)
     {
+        if (IsLocalEndpointId(endpointId))
+            return Array.Empty<IncusInstanceSummary>();
         var endpoint = _db.GetIncusEndpoint(endpointId)
             ?? throw new InvalidOperationException("Incus endpoint not found");
         await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
@@ -433,6 +446,8 @@ public sealed class MeshEphemeralService
 
     public async Task<IReadOnlyList<IncusProfileSummary>> ListProfilesAsync(string endpointId, CancellationToken ct = default)
     {
+        if (IsLocalEndpointId(endpointId))
+            return Array.Empty<IncusProfileSummary>();
         var endpoint = _db.GetIncusEndpoint(endpointId)
             ?? throw new InvalidOperationException("Incus endpoint not found");
         await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
@@ -441,6 +456,8 @@ public sealed class MeshEphemeralService
 
     public async Task<IReadOnlyList<IncusNetworkSummary>> ListNetworksAsync(string endpointId, CancellationToken ct = default)
     {
+        if (IsLocalEndpointId(endpointId))
+            return Array.Empty<IncusNetworkSummary>();
         var endpoint = _db.GetIncusEndpoint(endpointId)
             ?? throw new InvalidOperationException("Incus endpoint not found");
         await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
@@ -519,12 +536,20 @@ public sealed class MeshEphemeralService
     {
         var record = _db.GetIncusEphemeral(ephemeralId)
             ?? throw new InvalidOperationException("Ephemeral instance not found");
-        var endpoint = _db.GetIncusEndpoint(record.EndpointId)
-            ?? throw new InvalidOperationException("Incus endpoint not found");
         var normalized = action.Trim().ToLowerInvariant();
         if (normalized is not ("start" or "stop" or "restart" or "freeze" or "unfreeze"))
             throw new InvalidOperationException($"Unsupported Incus action: {action}");
 
+        if (IsLocalEphemeral(record))
+        {
+            if (normalized is "freeze" or "unfreeze")
+                throw new InvalidOperationException("Freeze is not supported for local Podman VPS");
+            await _localFactory.SetLocalActionAsync(ephemeralId, normalized, ct).ConfigureAwait(false);
+            return await RefreshAsync(ephemeralId, ct).ConfigureAwait(false);
+        }
+
+        var endpoint = _db.GetIncusEndpoint(record.EndpointId)
+            ?? throw new InvalidOperationException("Incus endpoint not found");
         await using var client = await OpenClientOnlyAsync(endpoint, ct).ConfigureAwait(false);
         try
         {
@@ -779,6 +804,10 @@ public sealed class MeshEphemeralService
     {
         var record = _db.GetIncusEphemeral(ephemeralId)
             ?? throw new InvalidOperationException("Ephemeral instance not found");
+
+        if (IsLocalEphemeral(record))
+            return await RefreshLocalAsync(record, ct).ConfigureAwait(false);
+
         var endpoint = _db.GetIncusEndpoint(record.EndpointId)
             ?? throw new InvalidOperationException("Incus endpoint not found");
 
@@ -845,24 +874,14 @@ public sealed class MeshEphemeralService
         var record = _db.GetIncusEphemeral(ephemeralId)
             ?? throw new InvalidOperationException("VPS instance not found");
 
-        // Local factory instances (or 127.0.0.1 / localvps-* mesh) — never hang on remote DNS.
-        var looksLocal =
-            string.Equals(record.EndpointId, MeshLocalVpsFactory.LocalEndpointId, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(record.Ipv4, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
-            || (!string.IsNullOrWhiteSpace(record.MeshHostId)
-                && record.MeshHostId!.StartsWith("localvps-", StringComparison.OrdinalIgnoreCase));
-
-        if (looksLocal)
+        // Local factory instances (Podman) — never hang on remote Incus/DNS.
+        if (IsLocalEphemeral(record))
         {
-            if (string.Equals(record.EndpointId, MeshLocalVpsFactory.LocalEndpointId, StringComparison.OrdinalIgnoreCase))
+            try { await _localFactory.DestroyLocalAsync(ephemeralId, ct).ConfigureAwait(false); }
+            catch
             {
-                try { await _localFactory.DestroyLocalAsync(ephemeralId, ct).ConfigureAwait(false); }
-                catch { await PruneEphemeralRecordAsync(record).ConfigureAwait(false); }
-            }
-            else
-            {
-                // Mis-tagged local box (wrong endpoint id) — prune Mesh/DB without remote Incus hang.
-                await PruneEphemeralRecordAsync(record).ConfigureAwait(false);
+                try { await PruneEphemeralRecordAsync(record).ConfigureAwait(false); }
+                catch { /* best-effort */ }
             }
             return;
         }
@@ -921,8 +940,10 @@ public sealed class MeshEphemeralService
         return await IncusApiClient.ConnectAsync(endpoint, cert, key, ct).ConfigureAwait(false);
     }
 
-    private async Task<IncusApiClient> OpenClientOnlyAsync(IncusEndpointRecord endpoint, CancellationToken ct)
+	private async Task<IncusApiClient> OpenClientOnlyAsync(IncusEndpointRecord endpoint, CancellationToken ct)
     {
+        if (IsLocalEndpointId(endpoint.Id))
+            throw new InvalidOperationException("Local Podman VPS does not use the Incus HTTP API");
         var (client, info) = await OpenClientAsync(endpoint, ct).ConfigureAwait(false);
         PersistEndpointConnectState(endpoint, info.Trusted, info.Fingerprint);
         return client;
@@ -1074,6 +1095,37 @@ public sealed class MeshEphemeralService
         if (cleaned.Length > 63) cleaned = cleaned[..63].TrimEnd('-');
         if (char.IsDigit(cleaned[0])) cleaned = "i-" + cleaned;
         return cleaned;
+    }
+
+    private static bool IsLocalEphemeral(IncusEphemeralInstanceRecord record) =>
+        string.Equals(record.EndpointId, MeshLocalVpsFactory.LocalEndpointId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(record.EndpointId, "local", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(record.Ipv4, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
+        || (!string.IsNullOrWhiteSpace(record.MeshHostId)
+            && record.MeshHostId.StartsWith("localvps-", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsLocalEndpointId(string endpointId) =>
+        string.Equals(endpointId, MeshLocalVpsFactory.LocalEndpointId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(endpointId, "local", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<IncusEphemeralInstanceRecord> RefreshLocalAsync(
+        IncusEphemeralInstanceRecord record,
+        CancellationToken ct)
+    {
+        record.LastError = null;
+        if (!string.IsNullOrWhiteSpace(record.MeshHostId))
+        {
+            var host = _orchestrator.GetHost(record.MeshHostId!);
+            if (host != null && host.Port > 0)
+            {
+                var sshReady = await WaitForSshPortAsync("127.0.0.1", host.Port, ct, 8).ConfigureAwait(false);
+                record.Status = sshReady ? "Running" : "Starting";
+                if (!sshReady)
+                    record.LastError = "SSH port not open yet — cloud-init may still be running";
+            }
+        }
+        _db.UpsertIncusEphemeral(record);
+        return record;
     }
 
     private static IncusEndpointRecord SanitizeEndpoint(IncusEndpointRecord e) => new()

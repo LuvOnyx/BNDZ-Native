@@ -271,12 +271,16 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
 
   const displaySrc = nativeSrc || iconifyUrl;
   const hasRealThumb = !!usableThumb;
+  const transparencyMode = String(config.thumbnailTransparency || 'Neutral');
+  const transparencyPlate = hasRealThumb && (
+    transparencyMode === 'Checkered' || transparencyMode === 'White' || transparencyMode === 'Black'
+  );
 
   return (
     <div
       ref={containerRef}
-      className={`${showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}${size >= 64 ? ' bndz-list-thumb--hero' : ''}`}
-      data-thumb-transparency={String(config.thumbnailTransparency || 'Neutral')}
+      className={`${showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}${size >= 112 ? ' bndz-list-thumb--hero' : ''}`}
+      data-thumb-transparency={transparencyMode}
       style={{
         width: size,
         height: size,
@@ -289,14 +293,13 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
         boxShadow: config.useThumbnailChromeColor && config.thumbnailChromeColor
           ? `inset 0 0 0 1px #${String(config.thumbnailChromeColor).replace(/^#/, '')}`
           : undefined,
-        background:
-          String(config.thumbnailTransparency || 'Neutral') === 'Checkered'
+        background: transparencyPlate
+          ? transparencyMode === 'Checkered'
             ? 'repeating-conic-gradient(#3a3a3a 0% 25%, #2a2a2a 0% 50%) 50% / 8px 8px'
-            : String(config.thumbnailTransparency || 'Neutral') === 'White'
+            : transparencyMode === 'White'
               ? '#ffffff'
-              : String(config.thumbnailTransparency || 'Neutral') === 'Black'
-                ? '#000000'
-                : undefined,
+              : '#000000'
+          : undefined,
       }}
     >
       {displaySrc ? (

@@ -196,6 +196,7 @@ export const IPC = {
         } else if (data.type === 'OLE_DRAG_ESCALATED') {
           window.dispatchEvent(new CustomEvent('bndz-ole-drag-escalated', { detail: data.payload }));
         } else if (data.type === 'OLE_DRAG_ENDED') {
+          this.notifyFileDragActive(false);
           window.dispatchEvent(new CustomEvent('bndz-ole-drag-ended', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DRAG_HOVER') {
           window.dispatchEvent(new CustomEvent('bndz-external-drag-hover', { detail: data.payload }));
@@ -620,6 +621,24 @@ export const IPC = {
       type: 'MESH_TERMINAL_RESIZE',
       payload: { sessionId, cols, rows },
     });
+  },
+
+  /** Position real OS console HWND in the Remote Mesh local terminal panel. */
+  meshTerminalLayout(opts: {
+    sessionId: string;
+    screenX: number;
+    screenY: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  }): void {
+    if (!this.isNative || !opts.sessionId) return;
+    try {
+      (window as any).chrome.webview.postMessage({
+        type: 'MESH_TERMINAL_LAYOUT',
+        payload: opts,
+      });
+    } catch { /* ignore */ }
   },
 
   meshStat(path: string): Promise<any> {
@@ -1401,10 +1420,10 @@ export const IPC = {
     label?: string,
     priority?: 'low' | 'normal' | 'high',
     recreateSourceStructure?: boolean,
-  ): Promise<{ ok: boolean; error?: string; background?: boolean }> {
+  ): Promise<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }> {
     if (this.isNative) {
       const timeoutMs = action === 'copy' || action === 'move' ? 600_000 : 120_000;
-      return _nativeCall<{ ok: boolean; error?: string; background?: boolean }>(
+      return _nativeCall<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }>(
         'EXECUTE_FS_OPERATION',
         'FS_OPERATION_RESULT',
         operationId,
@@ -1496,12 +1515,17 @@ export const IPC = {
    * Force host OLE handoff now (WebView2 pointercancel at left/right/bottom often fires
    * before the cursor reaches the host rim poll zone).
    */
-  requestOleEscalateNow(why = 'fe') {
+  requestOleEscalateNow(why = 'fe', screenX?: number, screenY?: number) {
     if (!this.isNative) return;
     try {
+      const payload: { why: string; screenX?: number; screenY?: number } = { why };
+      if (typeof screenX === 'number' && typeof screenY === 'number') {
+        payload.screenX = screenX;
+        payload.screenY = screenY;
+      }
       (window as any).chrome.webview.postMessage({
         type: 'OLE_ESCALATE_NOW',
-        payload: { why },
+        payload,
       });
     } catch { /* ignore */ }
   },
@@ -2480,12 +2504,12 @@ export const IPC = {
     return Promise.resolve(path);
   },
 
-  emptyRecycleBin(): Promise<{ success: boolean }> {
+  emptyRecycleBin(): Promise<{ success: boolean; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_emptyRecycleBin`;
-      return _nativeCall<{ success: boolean }>('EMPTY_RECYCLE_BIN', 'EMPTY_RECYCLE_BIN_RESULT', id, {}, 60000);
+      return _nativeCall<{ success: boolean; error?: string }>('EMPTY_RECYCLE_BIN', 'EMPTY_RECYCLE_BIN_RESULT', id, {}, 600000);
     }
-    return Promise.resolve({ success: false });
+    return Promise.resolve({ success: false, error: 'Native host required' });
   },
 
   /** Restore items from the Recycle Bin to their original location (the shell's own "undelete" verb). */

@@ -29,17 +29,54 @@ export const recordExternalDragHover = {
   last: { clientX: 0, clientY: 0, valid: false as boolean },
 };
 
+export type DragHoverMemory = {
+  clientX: number;
+  clientY: number;
+  valid: boolean;
+  overList: boolean;
+  navTreePath: string | null;
+  breadcrumbPath: string | null;
+  listFolderId: string | null;
+};
+
+const emptyDragHoverMemory = (): DragHoverMemory => ({
+  clientX: 0,
+  clientY: 0,
+  valid: false,
+  overList: false,
+  navTreePath: null,
+  breadcrumbPath: null,
+  listFolderId: null,
+});
+
 /** Last in-app pointer-drag coords (archive / list) — mirrors external hover for drop commit. */
 export const recordPointerDragHover = {
-  last: { clientX: 0, clientY: 0, valid: false as boolean, overList: false as boolean },
+  last: emptyDragHoverMemory(),
 };
 
 export function setExternalDragHover(clientX: number, clientY: number) {
   recordExternalDragHover.last = { clientX, clientY, valid: true };
 }
 
-export function setPointerDragHover(clientX: number, clientY: number, overList: boolean) {
-  recordPointerDragHover.last = { clientX, clientY, valid: true, overList };
+export function setPointerDragHover(
+  clientX: number,
+  clientY: number,
+  overList: boolean,
+  extras?: {
+    navTreePath?: string | null;
+    breadcrumbPath?: string | null;
+    listFolderId?: string | null;
+  },
+) {
+  recordPointerDragHover.last = {
+    clientX,
+    clientY,
+    valid: true,
+    overList,
+    navTreePath: extras?.navTreePath ?? null,
+    breadcrumbPath: extras?.breadcrumbPath ?? null,
+    listFolderId: extras?.listFolderId ?? null,
+  };
 }
 
 export function clearExternalDragHover() {
@@ -47,8 +84,41 @@ export function clearExternalDragHover() {
 }
 
 export function clearPointerDragHover() {
-  recordPointerDragHover.last.valid = false;
-  recordPointerDragHover.last.overList = false;
+  recordPointerDragHover.last = emptyDragHoverMemory();
+}
+
+/** WebView2 often poisons elementsFromPoint on pointer-up — recall last hover within slop. */
+export function recallPointerDragHover(clientX: number, clientY: number, slopPx = 96): DragHoverMemory | null {
+  const r = recordPointerDragHover.last;
+  if (!r.valid) return null;
+  if (Math.hypot(clientX - r.clientX, clientY - r.clientY) <= slopPx) return r;
+  // Drop commit: trust last hover when pointer-up hit-test is poisoned but we were dragging recently.
+  if (r.navTreePath || r.breadcrumbPath || r.listFolderId) return r;
+  return null;
+}
+
+/** Resolve nav-tree drop path: live hit-test → live ref → recalled/sticky hover. */
+export function resolveNavTreeDropPath(
+  clientX: number,
+  clientY: number,
+  liveRef?: string | null,
+): string | null {
+  return hitTestNavTreeAtPoint(clientX, clientY)
+    || liveRef
+    || recallPointerDragHover(clientX, clientY)?.navTreePath
+    || (recordPointerDragHover.last.valid ? recordPointerDragHover.last.navTreePath : null);
+}
+
+/** Resolve breadcrumb drop path with the same poisoned pointer-up fallbacks. */
+export function resolveBreadcrumbDropPath(
+  clientX: number,
+  clientY: number,
+  liveRef?: string | null,
+): string | null {
+  return hitTestBreadcrumbAtPoint(clientX, clientY)
+    || liveRef
+    || recallPointerDragHover(clientX, clientY)?.breadcrumbPath
+    || (recordPointerDragHover.last.valid ? recordPointerDragHover.last.breadcrumbPath : null);
 }
 
 export function resolveFileDragHoverAtPoint(
@@ -59,8 +129,8 @@ export function resolveFileDragHoverAtPoint(
   const archiveEl = hitTestArchiveRootAtPoint(clientX, clientY);
   const archivePath = archiveEl?.getAttribute('data-archive-path') || null;
 
-  const navTreePath = hitTestNavTreeAtPoint(clientX, clientY);
-  const breadcrumbPath = navTreePath ? null : hitTestBreadcrumbAtPoint(clientX, clientY);
+  const navTreePath = resolveNavTreeDropPath(clientX, clientY);
+  const breadcrumbPath = navTreePath ? null : resolveBreadcrumbDropPath(clientX, clientY);
   const newTabPaneId = hitTestNewTabZoneAtPoint(clientX, clientY);
 
   const favoriteEl = document.elementsFromPoint(clientX, clientY)

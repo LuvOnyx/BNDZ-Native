@@ -17,7 +17,7 @@ import {
   resolveNativeFileDropTarget,
   type PaneTabSnapshot,
 } from './fileDragSession';
-import { recordExternalDragHover, recordPointerDragHover } from './fileDragHover';
+import { recordExternalDragHover, recordPointerDragHover, recallPointerDragHover, resolveNavTreeDropPath, resolveBreadcrumbDropPath } from './fileDragHover';
 import { hitTestMagnetAtPoint } from '../components/DropMagnetStrip';
 import { isQueuedIpcResult } from './transferIpc';
 import { IPC } from './ipcBridge';
@@ -255,6 +255,28 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
 
   const { clientX, clientY, coordSource } = resolveDropCoords(opts, opts.source);
   ctx.applyHover(clientX, clientY);
+
+  const recalled = recallPointerDragHover(clientX, clientY);
+  const navTreePath = resolveNavTreeDropPath(clientX, clientY, recalled?.navTreePath ?? null);
+  if (navTreePath && isFsDropTargetPath(navTreePath)) {
+    const op: 'copy' | 'move' = opts.op === 'move' || opts.preferredEffect === 'move' ? 'move' : 'copy';
+    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(navTreePath));
+    lastDropDebug = { clientX, clientY, coordSource, destPath: navTreePath, source: opts.source, committed: true };
+    if (isDropDebugEnabled()) {
+      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
+    }
+    return true;
+  }
+  const breadcrumbPath = resolveBreadcrumbDropPath(clientX, clientY, recalled?.breadcrumbPath ?? null);
+  if (breadcrumbPath && isFsDropTargetPath(breadcrumbPath)) {
+    const op: 'copy' | 'move' = opts.op === 'move' || opts.preferredEffect === 'move' ? 'move' : 'copy';
+    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(breadcrumbPath));
+    lastDropDebug = { clientX, clientY, coordSource, destPath: breadcrumbPath, source: opts.source, committed: true };
+    if (isDropDebugEnabled()) {
+      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
+    }
+    return true;
+  }
 
   const dropStackEl = document.elementsFromPoint(clientX, clientY)
     .map(el => {
