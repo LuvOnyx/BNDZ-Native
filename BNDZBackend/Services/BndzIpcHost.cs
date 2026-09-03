@@ -494,6 +494,7 @@ namespace BNDZ.Services
                 // otherwise Register sees ole-active and skips (REGISTER skipped log).
                 try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
                 catch { /* ignore */ }
+                try { ReleaseCapture(); } catch { /* ignore */ }
                 PostOleDragEndedToUi(ok, error, paths, dragResult);
             }
 
@@ -578,6 +579,133 @@ namespace BNDZ.Services
                 Debug.WriteLine($"[START_DRAG] {ex.Message}");
                 FinishOleDrag(false, ex.Message, pathArray);
             }
+        }
+
+        /// <summary>
+        /// WebView2 DragStarting — synchronous DoDragDrop with IDataObject from the page (official path).
+        /// Runs on WinUI STA; no boundary START_DRAG / FE ghost handoff.
+        /// </summary>
+        public void HandleWebView2DragStarting(object dataObject)
+        {
+            if (dataObject is null) return;
+
+            void FinishOleDrag(
+                bool ok,
+                string? error = null,
+                string[]? paths = null,
+                WebView2DropTargetService.NativeDragDropResult dragResult = default)
+            {
+                _bndzOleDragActive = false;
+                _oleDragArmedAtMs = 0;
+                try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
+                catch { /* ignore */ }
+                try { ReleaseCapture(); } catch { /* ignore */ }
+                PostOleDragEndedToUi(ok, error, paths, dragResult);
+            }
+
+            string[] paths = Array.Empty<string>();
+            var pathSummary = "";
+                try
+                {
+                    var oleUnk = Marshal.GetIUnknownForObject(dataObject);
+                    try
+                    {
+                        var comData = (System.Runtime.InteropServices.ComTypes.IDataObject)
+                            Marshal.GetObjectForIUnknown(oleUnk)!;
+                        paths = WebView2DropTargetService.ExtractPathsFromComDataObject(comData);
+                    }
+                    finally
+                    {
+                        Marshal.Release(oleUnk);
+                    }
+                pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
+                OleDndLog($"DragStarting handoff paths={paths.Length} {pathSummary}");
+            }
+            catch (Exception ex)
+            {
+                OleDndLog($"DragStarting extract paths failed {ex.Message}");
+            }
+
+            if (paths.Length == 0)
+            {
+                OleDndLog("DragStarting skip — no CF_HDROP paths in WebView2 IDataObject");
+                return;
+            }
+
+            _bndzOleDragActive = true;
+            _oleDragArmedAtMs = Environment.TickCount64;
+            WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+            try
+            {
+                DeliverIpcJson(JsonSerializer.Serialize(new
+                {
+                    type = "OLE_DRAG_ESCALATED",
+                    payload = new { paths, source = "webview-dragstarting", why = "DragStarting" },
+                }));
+            }
+            catch { /* best-effort */ }
+
+            if (_hostWindowHandle == IntPtr.Zero)
+            {
+                FinishOleDrag(false, "no HWND", paths);
+                return;
+            }
+
+            var capturedHwnd = WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
+                ? WebView2DropTargetService.RegisteredWebViewHwnd
+                : _hostWindowHandle;
+            var capturedPaths = paths;
+            InvokeOnOleDragSta(() =>
+            {
+                var ok = true;
+                string? errMsg = null;
+                var dragResult = default(WebView2DropTargetService.NativeDragDropResult);
+                try
+                {
+                    object dragPayload = dataObject;
+                    // Prefer Explorer-grade payload when WebView2 HDROP is present but lacks shell formats.
+                    if (paths.Length > 0)
+                    {
+                        var owned = BndzOutboundDragHelper.CreateDataObjectWithKind(paths);
+                        using (owned.Lifetime)
+                        {
+                            dragPayload = owned.Data;
+                            var cleanSummary = BndzOutboundDragHelper.FormatPathSummary(owned.Paths);
+                            try
+                            {
+                                dragPayload = AttachShellDragImage(owned.Data, owned.Paths);
+                            }
+                            catch (Exception imgEx)
+                            {
+                                Debug.WriteLine($"[DragStarting] drag image: {imgEx.Message}");
+                            }
+                            dragResult = WebView2DropTargetService.RunNativeDragDrop(
+                                capturedHwnd, dragPayload, cleanSummary, owned.Paths, fromDragStarting: true);
+                        }
+                    }
+                    else
+                    {
+                        dragResult = WebView2DropTargetService.RunNativeDragDrop(
+                            capturedHwnd, dragPayload, pathSummary, capturedPaths, fromDragStarting: true);
+                    }
+
+                    ok = dragResult.Dropped && dragResult.EffectBits is 1 or 2 or 4;
+                    if (!ok && dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                        errMsg = "drop-effect-none";
+                    else if (!ok && !dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                        errMsg = "cancelled";
+                }
+                catch (Exception ex)
+                {
+                    ok = false;
+                    errMsg = ex.Message;
+                    OleDndLog($"DragStarting DoDragDrop failed {ex.Message} {pathSummary}");
+                }
+                finally
+                {
+                    FinishOleDrag(ok, errMsg, capturedPaths, dragResult);
+                }
+            });
         }
 
         private static string DropEffectLabel(uint effectBits) => effectBits switch
@@ -669,6 +797,11 @@ namespace BNDZ.Services
         private void QueueStartDragOnNextTick(string[] paths)
         {
             if (paths == null || paths.Length == 0) return;
+            if (_bndzOleDragActive)
+            {
+                OleDndLog("START_DRAG skip already-active");
+                return;
+            }
             const int VK_LBUTTON = 0x01;
             var btnDown = (GetAsyncKeyStateShort(VK_LBUTTON) & 0x8000) != 0;
             var pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
@@ -677,8 +810,12 @@ namespace BNDZ.Services
             var captured = paths;
             ScheduleOleDragOnNextTick(() =>
             {
-                try { ReleaseCapture(); }
-                catch (Exception capEx) { OleDndLog($"START_DRAG ReleaseCapture error {capEx.Message}"); }
+                if (_bndzOleDragActive)
+                {
+                    OleDndLog("START_DRAG skip already-active (dispatch)");
+                    return;
+                }
+                // Do not ReleaseCapture here — that synthesizes WM_LBUTTONUP and poisons wallpaper release.
 
                 OleDndLog("START_DRAG dispatch DoDragDrop");
                 _bndzOleDragActive = true;

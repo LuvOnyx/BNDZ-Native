@@ -19,7 +19,7 @@ internal static class BndzOutboundDragHelper
         string[] Paths);
 
     private static readonly DragDropEffects PreferredCopyMove =
-        DragDropEffects.Copy | DragDropEffects.Move;
+        DragDropEffects.Move | DragDropEffects.Copy;
 
     internal static OutboundDragPayload CreateDataObjectWithKind(
         IEnumerable<string> rawPaths,

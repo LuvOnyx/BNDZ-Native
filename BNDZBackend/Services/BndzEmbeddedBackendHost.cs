@@ -429,6 +429,20 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    /// <summary>WebView2 DragStarting COM path — host DoDragDrop from WebView2 IDataObject.</summary>
+    public static void HandleWebView2DragStarting(object dataObject)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        if (_host is null || dataObject is null) return;
+        try { _host.HandleWebView2DragStarting(dataObject); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] DragStarting: {ex.Message}"); }
+#endif
+    }
+
+    public static bool IsDragStartingEnabled =>
+        string.Equals(Environment.GetEnvironmentVariable("BNDZ_DRAGSTARTING"), "1", StringComparison.Ordinal);
+
     /// <summary>WinUI timer poll — escalate FILE_DRAG_ACTIVE when cursor leaves WebView HWND.</summary>
     public static bool TryEscalateOutboundOleDrag()
     {

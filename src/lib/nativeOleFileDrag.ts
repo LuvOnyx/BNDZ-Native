@@ -1,22 +1,25 @@
 /**
- * Outbound OLE drag: React ghost inside the app; native DoDragDrop only at the boundary.
+ * Outbound OLE drag: DoDragDrop starts at list drag threshold (button still down inside the app).
+ * Boundary ReleaseCapture handoff poisons wallpaper mouse-up — do not use it as the OLE start.
  */
 
 import { IPC } from './ipcBridge';
 import { isValidOutboundDragPath, toWindowsPath } from './pathUtils';
 import type { FileDragSessionState } from './fileDragSession';
 import { stashOleDragSession } from './fileDragSession';
+import { isWebView2DragStartingEnabled } from './webView2DragStarting';
 
 export function isNativeOleDragHost(): boolean {
   return IPC.isNative;
 }
 
-/** Arm host session at threshold — React keeps the ghost; no START_DRAG yet. */
+/** Start Windows OLE drag at gesture threshold — LMB still down, still inside the app. */
 export function launchNativeFileDragAtThreshold(
   session: FileDragSessionState,
   why = 'threshold',
 ): void {
   if (!IPC.isNative) return;
+  if (isWebView2DragStartingEnabled()) return;
   const local = session.paths
     .map(p => toWindowsPath(p))
     .filter(isValidOutboundDragPath);
@@ -29,6 +32,7 @@ export function launchNativeFileDragAtThreshold(
     count: local.length,
     sample: local.slice(0, 2),
   });
+  IPC.startDrag(local);
 }
 
 export type OutboundOleBoundaryHandoffOpts = {
@@ -45,6 +49,7 @@ export type OutboundOleBoundaryHandoffOpts = {
  */
 export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHandoffOpts): void {
   if (!IPC.isNative) return;
+  if (isWebView2DragStartingEnabled()) return;
   const list = opts.paths.map(p => toWindowsPath(String(p))).filter(isValidOutboundDragPath);
   if (!list.length) return;
 
@@ -65,6 +70,7 @@ export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHando
 /** FE rim backup when boundary handoff did not run (pointercancel, etc.). */
 export function commitOutboundOleDrag(paths: string | string[], why = 'fe'): void {
   if (!IPC.isNative) return;
+  if (isWebView2DragStartingEnabled()) return;
   const raw = (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
   const list = raw.map(p => toWindowsPath(String(p))).filter(isValidOutboundDragPath);
   if (!list.length) return;

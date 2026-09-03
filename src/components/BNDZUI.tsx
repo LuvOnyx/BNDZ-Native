@@ -92,6 +92,11 @@ import {
 import { endInternalFileDragUi, hideFileDragGhostForOleHandoff, isOleDragHandoffActive, installOleDragEscalateGhostHook, onHostOleDragEscalated } from '../lib/fileDragUiCleanup';
 import { launchNativeFileDragAtThreshold, performOutboundOleBoundaryHandoff } from '../lib/nativeOleFileDrag';
 import {
+  isWebView2DragStartingQuery,
+  markWebView2DragStartingInstalled,
+  populateHtml5FileDragDataTransfer,
+} from '../lib/webView2DragStarting';
+import {
   POINTER_FILE_DRAG_MOVE,
   POINTER_FILE_DRAG_ACTIVE,
   dispatchPointerFileDragMove,
@@ -496,6 +501,17 @@ export default function BNDZUI() {
       });
     });
     return () => unsub?.();
+  }, []);
+
+  const [webView2DragStartingInstalled, setWebView2DragStartingInstalled] = useState(false);
+  useEffect(() => {
+    const onCap = (e: Event) => {
+      const installed = !!(e as CustomEvent).detail?.installed;
+      setWebView2DragStartingInstalled(installed);
+      markWebView2DragStartingInstalled(installed);
+    };
+    window.addEventListener('bndz-host-drag-starting', onCap);
+    return () => window.removeEventListener('bndz-host-drag-starting', onCap);
   }, []);
 
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
@@ -11093,6 +11109,11 @@ export default function BNDZUI() {
                     return;
                   }
 
+                  if (IPC.isNative && isWebView2DragStartingQuery() && webView2DragStartingInstalled) {
+                    // HTML5 draggable + WebView2 DragStarting owns outbound OLE.
+                    return;
+                  }
+
                   const copyDrag = copyHeld;
                   const dragSelection = listGestureRef.current.dragSelection;
 
@@ -11137,6 +11158,8 @@ export default function BNDZUI() {
                         { ...dragSession, paths: localRawPaths.map(p => toWindowsPath(p)) },
                         'list-threshold',
                       );
+                      oleDragStarted = true;
+                      nativeOleDragRef.current = true;
                     }
                   } else {
                     IPC.postOleDndDebug({
@@ -11151,7 +11174,9 @@ export default function BNDZUI() {
                     totalCount: dragPaths.length,
                     sample: localRawPaths.slice(0, 2),
                   });
-                  if (fluidDragEnabled) {
+                  if (oleDragStarted) {
+                    // Native DoDragDrop owns the cursor from threshold — no React ghost / boundary handoff.
+                  } else if (fluidDragEnabled) {
                     const dragItems = buildFluidDragItems(entityId, dragSelection);
                     fluidDragBridgeSetPointer(listDragGhostElRef.current, ev.clientX, ev.clientY);
                     setMotionDragPhase('arming');
@@ -11193,33 +11218,9 @@ export default function BNDZUI() {
                   autoScrollNearEdges(listEl, ev.clientY, { edgePx: 64, maxStepPx: 32 });
                   if (cachedNavTreeScroll) autoScrollNearEdges(cachedNavTreeScroll, ev.clientY, { edgePx: 48, maxStepPx: 24 });
                   const _dragPerfT0 = (window as any).__BNDZ_PERF_DEBUG__ ? performance.now() : 0;
-                  updateListDragGhost(ev);
 
-                  // Only re-run expensive hit-tests when pointer moves > 2px.
-                  const hitMoved = Math.abs(ev.clientX - lastHitTestX) > 2 || Math.abs(ev.clientY - lastHitTestY) > 2;
-                  if (hitMoved) {
-                    lastHitTestX = ev.clientX;
-                    lastHitTestY = ev.clientY;
-                    // Fire hover update (RAF-coalesced via dispatchPointerFileDragMove; stores result
-                    // in lastDragHoverStateRef for the gate below).
-                    dispatchPointerFileDragMove(ev.clientX, ev.clientY);
-                    // tabFileDragHoverRef is already updated synchronously by dispatchPointerFileDragMove above.
-                    const hover = tabFileDragHoverRef.current;
-                    const hoverPath = hover
-                      ? panesRef.current.find(p => p.id === hover.paneId)?.tabs[hover.tabIndex]?.path
-                      : null;
-                    // Use the last computed hover state (1-frame lag is imperceptible) to decide
-                    // whether a folder target exists — avoids repeating the 5-probe elementsFromPoint
-                    // calls that already ran in the hover RAF from the previous pointer tick.
-                    const lastHover = lastDragHoverStateRef.current?.state;
-                    if (!lastHover?.navTreePath && !lastHover?.breadcrumbPath) {
-                      resolveDropTarget(ev.clientX, ev.clientY, hoverPath ? contentsForPanePath(hoverPath) : contents);
-                    } else {
-                      setDragTargetHighlight(null);
-                    }
-                  }
-
-                  // Outbound desktop handoff: boundary START_DRAG only (no timer poll / OLE_ESCALATE_NOW).
+                  // Outbound desktop handoff BEFORE ghost/hit-test work — otherwise the handoff
+                  // frame still paints a React ghost on the wallpaper (shell drag image is unavailable).
                   if (
                     !outboundHandoffAttempted
                     && !oleDragStarted
@@ -11245,13 +11246,53 @@ export default function BNDZUI() {
                         paths: handoffPaths,
                         pointerId: capturePointerId,
                         captureEl: listEl,
-                        hideGhost: () => hideFileDragGhostForOleHandoff(),
+                        hideGhost: () => onHostOleDragEscalated(),
                         why: 'list-boundary',
                       });
+                      // Detach FE gesture immediately — do not wait for OLE_DRAG_ESCALATED.
+                      // Otherwise pointerup never arrives (button released outside WebView) and
+                      // WinUI stays "pressed" until the user clicks wallpaper.
+                      oleDragStarted = true;
+                      nativeOleDragRef.current = true;
+                      dragScrollLoop.stop();
+                      dragPointerY = null;
+                      window.removeEventListener('pointermove', onMove);
+                      window.removeEventListener('pointerup', onUp);
+                      window.removeEventListener('pointercancel', onCancel);
+                      window.removeEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
+                      unbindKeyModifiers();
+                      detachFeAfterBoundaryHandoff();
+                      return;
                     }
                   }
                   boundaryPrevClientX = ev.clientX;
                   boundaryPrevClientY = ev.clientY;
+
+                  updateListDragGhost(ev);
+
+                  // Only re-run expensive hit-tests when pointer moves > 2px.
+                  const hitMoved = Math.abs(ev.clientX - lastHitTestX) > 2 || Math.abs(ev.clientY - lastHitTestY) > 2;
+                  if (hitMoved) {
+                    lastHitTestX = ev.clientX;
+                    lastHitTestY = ev.clientY;
+                    // Fire hover update (RAF-coalesced via dispatchPointerFileDragMove; stores result
+                    // in lastDragHoverStateRef for the gate below).
+                    dispatchPointerFileDragMove(ev.clientX, ev.clientY);
+                    // tabFileDragHoverRef is already updated synchronously by dispatchPointerFileDragMove above.
+                    const hover = tabFileDragHoverRef.current;
+                    const hoverPath = hover
+                      ? panesRef.current.find(p => p.id === hover.paneId)?.tabs[hover.tabIndex]?.path
+                      : null;
+                    // Use the last computed hover state (1-frame lag is imperceptible) to decide
+                    // whether a folder target exists — avoids repeating the 5-probe elementsFromPoint
+                    // calls that already ran in the hover RAF from the previous pointer tick.
+                    const lastHover = lastDragHoverStateRef.current?.state;
+                    if (!lastHover?.navTreePath && !lastHover?.breadcrumbPath) {
+                      resolveDropTarget(ev.clientX, ev.clientY, hoverPath ? contentsForPanePath(hoverPath) : contents);
+                    } else {
+                      setDragTargetHighlight(null);
+                    }
+                  }
 
                   if ((window as any).__BNDZ_PERF_DEBUG__) {
                     console.log(`[BNDZ perf] drag onMove work: ${(performance.now() - _dragPerfT0).toFixed(2)}ms`);
@@ -11676,9 +11717,11 @@ export default function BNDZUI() {
                       paths: handoffPaths,
                       pointerId: capturePointerId,
                       captureEl: listEl,
-                      hideGhost: () => hideFileDragGhostForOleHandoff(),
+                      hideGhost: () => onHostOleDragEscalated(),
                       why: 'pointercancel-boundary',
                     });
+                    oleDragStarted = true;
+                    nativeOleDragRef.current = true;
                   }
                   dragScrollLoop.stop();
                   dragPointerY = null;
@@ -12037,6 +12080,36 @@ export default function BNDZUI() {
                 contextMenuBlockRef,
                 suppressNavClickUntilRef,
                 selectionAnchorRef,
+                html5NativeDrag: IPC.isNative && isWebView2DragStartingQuery() && webView2DragStartingInstalled,
+                onHtml5NativeDragStart: (entityId, e) => {
+                  if (!IPC.isNative || !isWebView2DragStartingQuery() || !webView2DragStartingInstalled) {
+                    e.preventDefault();
+                    return;
+                  }
+                  const paths = buildDragPaths(entityId);
+                  const local = paths
+                    .map(p => toWindowsPath(p))
+                    .filter(p => !isMeshPath(p) && isValidOutboundDragPath(p));
+                  if (!local.length) {
+                    e.preventDefault();
+                    return;
+                  }
+                  const copy = !!(e.altKey || e.ctrlKey);
+                  populateHtml5FileDragDataTransfer(e.dataTransfer, local, copy);
+                  beginFileDragSession({
+                    paths: local,
+                    op: copy ? 'copy' : 'move',
+                    sourcePaneId: pane.id,
+                    sourceTabPath: panePath,
+                  });
+                  IPC.notifyFileDragActive(true, local);
+                  IPC.postOleDndDebug({
+                    kind: 'html5-dragstart',
+                    count: local.length,
+                    sample: local.slice(0, 2),
+                    multi: local.length > 1,
+                  });
+                },
               } satisfies FileListRowBridge} />
             <VirtualizedFileList
               items={listRows || []}
@@ -12191,6 +12264,7 @@ export default function BNDZUI() {
                     filterTintKey={filterResult?.rowTint || filterResult?.hexColor || filterResult?.name || undefined}
                     healthSeverity={healthBadge?.severity}
                     layoutKey={fileListLayoutKey}
+                    html5NativeDrag={IPC.isNative && isWebView2DragStartingQuery() && webView2DragStartingInstalled}
                   />
                 );
               }}

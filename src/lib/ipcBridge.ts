@@ -235,6 +235,8 @@ export const IPC = {
           window.dispatchEvent(new CustomEvent('bndz-quick-look-close'));
         } else if (data.type === 'HOST_OLE_DROP_READY') {
           window.dispatchEvent(new CustomEvent('bndz-host-ole-drop-ready', { detail: data.payload }));
+        } else if (data.type === 'HOST_DRAG_STARTING') {
+          window.dispatchEvent(new CustomEvent('bndz-host-drag-starting', { detail: data.payload }));
         } else if (data.type === 'CLOSE_REQUEST') {
           const source = data.payload?.source;
           const payload = { source };

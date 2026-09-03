@@ -174,19 +174,44 @@ export function installOleDragEscalateGhostHook(): void {
   });
   window.addEventListener('bndz-ole-drag-ended', () => {
     stopScreenDragGhostMonitor();
-    // Kill React ghost state BEFORE dropping the handoff CSS class — removing handoff first
-    // was re-showing the MOVE card under the WinUI menubar for a frame (or stuck forever
-    // if listDragGhost / fluid meta was never cleared).
     try {
+      try { document.exitPointerLock?.(); } catch { /* ignore */ }
+      try {
+        document.querySelectorAll('[data-list-body], [data-entity-id], .bndz-fluid-drag-stack').forEach(node => {
+          const el = node as Element & {
+            hasPointerCapture?: (id: number) => boolean;
+            releasePointerCapture?: (id: number) => void;
+          };
+          for (let id = 1; id <= 8; id++) {
+            try {
+              if (el.hasPointerCapture?.(id)) el.releasePointerCapture?.(id);
+            } catch { /* ignore */ }
+          }
+        });
+      } catch { /* ignore */ }
+      // Synthesize mouse/pointer up so WinUI/WebView gesture state is not stuck until wallpaper click.
+      try {
+        window.dispatchEvent(new PointerEvent('pointerup', {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true,
+          buttons: 0,
+        }));
+      } catch { /* ignore */ }
+      try {
+        window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, buttons: 0 }));
+      } catch { /* ignore */ }
       disarmFluidDrag();
       endFileDragSession();
+      clearOleHandoffDom();
+      notifyOleDragHandoffListeners();
       window.dispatchEvent(new CustomEvent('bndz-end-file-drag', { detail: { reason: 'ole-ended' } }));
     } catch { /* ignore */ }
-    // Next frame: handoff class off only after listeners cleared ghost state.
     requestAnimationFrame(() => {
       clearOleHandoffDom();
       notifyOleDragHandoffListeners();
-      // Second frame — belt against late React commits re-showing ghosts.
       requestAnimationFrame(() => {
         clearOleHandoffDom();
         notifyOleDragHandoffListeners();

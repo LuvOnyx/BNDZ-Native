@@ -255,6 +255,7 @@ public sealed partial class CraftPaneHost : UserControl
 			_initialized = true;
 			WebViewInitialized?.Invoke(this, EventArgs.Empty);
 			TryRegisterOleDropTarget();
+			TryInstallDragStartingBridge();
 			PaneStatusHint.Text = "Loading BNDZ UI…";
 			ApplyPaneRoute(forceNavigate: true);
 			ScheduleReadyWatchdog();
@@ -365,7 +366,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 	
 	/// <summary>
-	/// Modal DoDragDrop must run on the WinUI STA (Explorer model). Blocking is expected during drag.
+	/// Modal DoDragDrop must run on the WinUI STA that owns the HWND (Explorer model).
 	/// </summary>
 	private void WireHostStaInvokeForOle()
 	{
@@ -498,7 +499,7 @@ public sealed partial class CraftPaneHost : UserControl
 				Directory.CreateDirectory(dir);
 				File.AppendAllText(
 					Path.Combine(dir, "ole-dnd.log"),
-					$"{DateTime.Now:HH:mm:ss.fff} STARTUP ole-wire topChrome=on awaitHandoff=on topMask=on ownedPayload=hdrop-only acceptGate=fb!=0&&fb!=7 feedbackTrusted=on denyTrayDrop=on pathSanitize=on dropVerify=on forensics=on build={DateTime.Now:yyyyMMdd-HHmm}{Environment.NewLine}");
+					$"{DateTime.Now:HH:mm:ss.fff} STARTUP ole-wire topChrome=on awaitHandoff=on topMask=on ownedPayload=hdrop-only acceptGate=fb!=0&&fb!=7 feedbackTrusted=on denyTrayDrop=on pathSanitize=on dropVerify=on forensics=on dragStarting={(WebView2DragStartingBridge.IsEnabled ? "on" : "off")} build={DateTime.Now:yyyyMMdd-HHmm}{Environment.NewLine}");
 			}
 			catch { /* never break host on logging */ }
 		}
@@ -914,7 +915,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 			_navigatedPane = "browser";
 			_documentReady = false;
-			PaneWebView.CoreWebView2.Navigate("http://bndz.local/index.html?nativeShell=1");
+			PaneWebView.CoreWebView2.Navigate(BuildNativeShellNavigateUrl());
 			return;
 		}
 
@@ -937,7 +938,43 @@ public sealed partial class CraftPaneHost : UserControl
 
 		_navigatedPane = pane;
 		_documentReady = false;
-		PaneWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?{qs}");
+		PaneWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?{BuildPaneQueryString(qs)}");
+	}
+
+	private static string BuildNativeShellNavigateUrl() =>
+		$"http://bndz.local/index.html?{BuildPaneQueryString("nativeShell=1")}";
+
+	private static string BuildPaneQueryString(string baseQs) =>
+		baseQs.Contains("dragStarting=", StringComparison.Ordinal)
+			? baseQs
+			: $"{baseQs}&dragStarting=1";
+
+	private void TryInstallDragStartingBridge()
+	{
+		try
+		{
+			var ok = WebView2DragStartingBridge.TryInstall(PaneWebView, PaneWebView.CoreWebView2);
+			if (ok)
+			{
+				PostHostMessage(new
+				{
+					type = "HOST_DRAG_STARTING",
+					payload = new { enabled = true, installed = true },
+				});
+			}
+			else
+			{
+				PostHostMessage(new
+				{
+					type = "HOST_DRAG_STARTING",
+					payload = new { enabled = true, installed = false },
+				});
+			}
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] DragStarting bridge: {ex.Message}");
+		}
 	}
 
 	/// <summary>Push Files list selection / cwd into the React pane.</summary>

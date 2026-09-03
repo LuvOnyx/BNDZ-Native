@@ -57,6 +57,7 @@ export type FileListRowProps = {
   filterTintKey?: string;
   healthSeverity?: string;
   layoutKey?: string;
+  html5NativeDrag?: boolean;
 };
 
 function arePropsEqual(prev: FileListRowProps, next: FileListRowProps): boolean {
@@ -82,6 +83,7 @@ function arePropsEqual(prev: FileListRowProps, next: FileListRowProps): boolean 
     && prev.folderPrefetching === next.folderPrefetching
     && prev.filterTintKey === next.filterTintKey
     && prev.healthSeverity === next.healthSeverity
+    && prev.html5NativeDrag === next.html5NativeDrag
   );
 }
 
@@ -102,6 +104,7 @@ function FileListRow(props: FileListRowProps) {
     clipboardMark,
     realityMissing,
     folderPrefetching,
+    html5NativeDrag,
   } = props;
 
   const bridge = getPaneFileListBridge(paneId);
@@ -461,9 +464,13 @@ function FileListRow(props: FileListRowProps) {
           entity.extension || null,
         );
       }}
-      draggable={false}
+      draggable={!!html5NativeDrag}
       onDragStart={(e) => {
-        e.preventDefault();
+        if (!html5NativeDrag) {
+          e.preventDefault();
+          return;
+        }
+        bridge.onHtml5NativeDragStart?.(entity.id, e);
       }}
     >
       {isDrive && drive && computedViewMode !== 'details' ? (
