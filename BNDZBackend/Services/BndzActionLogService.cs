@@ -351,13 +351,12 @@ public sealed class BndzActionLogService
                 }
                 break;
 
-            case ActionKind.SyncFolder:
             case ActionKind.ExtractArchive:
-                foreach (var created in entry.TargetPaths)
-                {
-                    if (File.Exists(created)) File.Delete(created);
-                    else if (Directory.Exists(created)) Directory.Delete(created, true);
-                }
+                UndoExtractArchive(entry);
+                break;
+
+            case ActionKind.SyncFolder:
+                UndoSyncFolder(entry);
                 break;
 
             case ActionKind.CreateArchive:
@@ -378,6 +377,74 @@ public sealed class BndzActionLogService
             default:
                 throw new NotSupportedException($"Undo not supported for {entry.Kind}.");
         }
+    }
+
+    /// <summary>
+    /// Extract records the folder extracted <em>into</em>, not the files the archive created.
+    /// Undo must delete only contained archive entries — never the destination tree.
+    /// </summary>
+    private static void UndoExtractArchive(ActionLogEntry entry)
+    {
+        var destination = entry.TargetPaths.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(destination))
+            throw new InvalidOperationException("Cannot undo extract — destination path is missing.");
+
+        // Rare: extract produced a single file path rather than a folder.
+        if (File.Exists(destination) && !Directory.Exists(destination))
+        {
+            File.Delete(destination);
+            return;
+        }
+
+        if (!Directory.Exists(destination))
+            return;
+
+        var archivePath = entry.SourcePaths.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(archivePath) || !File.Exists(archivePath))
+        {
+            throw new InvalidOperationException(
+                "Cannot undo extract — the archive is gone, so BNDZ will not delete the destination folder (that would destroy unrelated files).");
+        }
+
+        var listed = new ArchiveService().ListContents(archivePath, limit: 1_000_000);
+        if (!string.IsNullOrEmpty(listed.Error))
+        {
+            throw new InvalidOperationException(
+                $"Cannot undo extract — could not read the archive ({listed.Error}). Destination was left untouched.");
+        }
+
+        var rels = listed.Entries
+            .Select(e => e.Path)
+            .Where(p => !string.IsNullOrWhiteSpace(p));
+        var targets = ActionLogUndoSafety.CollectUndoTargets(destination, rels);
+        ActionLogUndoSafety.DeleteContainedTargets(destination, targets);
+    }
+
+    /// <summary>
+    /// Sync records the destination folder, which usually already had files.
+    /// Undo removes only dest paths that correspond to the source tree.
+    /// </summary>
+    private static void UndoSyncFolder(ActionLogEntry entry)
+    {
+        var source = entry.SourcePaths.FirstOrDefault();
+        var dest = entry.TargetPaths.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(dest))
+            throw new InvalidOperationException("Cannot undo folder sync — source or destination path is missing.");
+
+        if (!Directory.Exists(dest))
+            return;
+
+        if (!Directory.Exists(source))
+        {
+            throw new InvalidOperationException(
+                "Cannot undo folder sync — the source folder is gone, so BNDZ will not delete the destination folder (that would destroy unrelated files).");
+        }
+
+        var sourceFull = Path.GetFullPath(source);
+        var rels = Directory.EnumerateFileSystemEntries(sourceFull, "*", SearchOption.AllDirectories)
+            .Select(p => Path.GetRelativePath(sourceFull, p));
+        var targets = ActionLogUndoSafety.CollectUndoTargets(dest, rels);
+        ActionLogUndoSafety.DeleteContainedTargets(dest, targets);
     }
 
     private static async Task ApplyForwardAsync(FileOperationService fileOps, ActionLogEntry entry)

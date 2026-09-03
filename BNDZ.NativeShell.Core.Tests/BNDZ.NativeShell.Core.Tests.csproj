@@ -21,4 +21,9 @@
     <ProjectReference Include="..\BNDZ.NativeShell.Core\BNDZ.NativeShell.Core.csproj" />
   </ItemGroup>
 
+  <!-- Link the portable undo-safety helper so tests do not take a WPF BNDZBackend reference. -->
+  <ItemGroup>
+    <Compile Include="..\BNDZBackend\Services\ActionLogUndoSafety.cs" Link="ActionLogUndoSafety.cs" />
+  </ItemGroup>
+
 </Project>
