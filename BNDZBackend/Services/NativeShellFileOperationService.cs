@@ -567,6 +567,39 @@ public sealed class NativeShellFileOperationService
             throw new IOException($"Windows {(move ? "move" : "copy")} operation failed (code {result}).");
     }
 
+        public static bool TryCopyOrMoveIntoDirectory(
+            IReadOnlyList<string> sources,
+            string destDir,
+            bool move,
+            IntPtr ownerHwnd = default)
+        {
+            try
+            {
+                var list = sources?.Where(s => !string.IsNullOrWhiteSpace(s)).Select(NormalizePath).ToList()
+                    ?? new List<string>();
+                destDir = NormalizePath(destDir);
+                if (list.Count == 0 || string.IsNullOrEmpty(destDir) || !Directory.Exists(destDir))
+                    return false;
+                RunOperation(
+                    "ole-desktop-" + Guid.NewGuid().ToString("N")[..8],
+                    move ? "move" : "copy",
+                    list,
+                    destDir,
+                    bypassRecycleBin: true,
+                    onProgress: null,
+                    cancellationToken: CancellationToken.None,
+                    showProgress: false,
+                    onAccessDenied: null,
+                    ownerHwnd: ownerHwnd);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[NativeShell] TryCopyOrMoveIntoDirectory: {ex.Message}");
+                return false;
+            }
+        }
+
     private static bool IsSameDirectoryRename(string source, string target)
     {
         var srcDir = Path.GetDirectoryName(source);

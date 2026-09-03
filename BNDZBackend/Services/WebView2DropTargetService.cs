@@ -81,6 +81,12 @@ internal static class WebView2DropTargetService
     private static extern IntPtr GetParent(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+    private const uint GA_PARENT = 1;
+    private const uint GA_ROOT = 2;
+
+    [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumWindows(
         [MarshalAs(UnmanagedType.FunctionPtr)] EnumChildProc lpEnumFunc,
@@ -1029,8 +1035,8 @@ internal static class WebView2DropTargetService
     }
 
     /// <summary>
-    /// Cursor over the shell Desktop (Progman/WorkerW + SysListView32) — authorize DROP at
-    /// commit time even when GiveFeedback is stale from a prior taskbar hover.
+    /// Cursor over the shell Desktop (Progman/WorkerW wallpaper / SHELLDLL_DefView / SysListView32).
+    /// WorkerW (animated wallpaper) is often the hit HWND and has no IDropTarget — OLE reports NONE.
     /// </summary>
     private static bool IsDesktopDropTargetAtPoint(int screenX, int screenY)
     {
@@ -1038,27 +1044,19 @@ internal static class WebView2DropTargetService
         {
             var hit = WindowFromPoint(new NativePoint { x = screenX, y = screenY });
             if (hit == IntPtr.Zero) return false;
-            var sawExplorerCabinet = false;
+            var chain = new List<string>(8);
             for (var cur = hit; cur != IntPtr.Zero; cur = GetParent(cur))
             {
-                var cls = GetHwndClassName(cur);
-                if (cls is "CabinetWClass" or "ExploreWClass")
-                {
-                    sawExplorerCabinet = true;
-                    break;
-                }
-                if (cls is "Progman" or "WorkerW" or "SHELLDLL_DefView") return true;
+                chain.Add(GetHwndClassName(cur));
+                if (chain.Count > 16) break;
             }
-            if (sawExplorerCabinet) return false;
-            if (GetHwndClassName(hit) == "SysListView32")
-            {
-                for (var cur = GetParent(hit); cur != IntPtr.Zero; cur = GetParent(cur))
-                {
-                    var cls = GetHwndClassName(cur);
-                    if (cls is "Progman" or "WorkerW" or "SHELLDLL_DefView") return true;
-                }
-            }
-            return false;
+            var root = GetAncestor(hit, GA_ROOT);
+            if (root != IntPtr.Zero && root != hit)
+                chain.Add(GetHwndClassName(root));
+            var parentAnc = GetAncestor(hit, GA_PARENT);
+            if (parentAnc != IntPtr.Zero && parentAnc != hit)
+                chain.Add(GetHwndClassName(parentAnc));
+            return OleDesktopTarget.IsDesktopClassChain(chain);
         }
         catch { return false; }
     }
@@ -1121,6 +1119,12 @@ internal static class WebView2DropTargetService
         private bool _lastFeedbackTrusted;
         private bool _loggedFeedbackOnce;
         private int _buttonUpStreak;
+        /// <summary>True when a real IDropTarget offered a non-zero effect (not wallpaper WorkerW miss).</summary>
+        private bool _oleTargetOfferedEffect;
+
+        internal bool EscapePressed { get; private set; }
+        /// <summary>Release was over Desktop wallpaper with no OLE IDropTarget — commit via Desktop folder.</summary>
+        internal bool PendingDesktopFolderCommit { get; private set; }
 
         internal BndzNativeDropSource(Action<string>? log = null) => _log = log;
 
@@ -1166,6 +1170,8 @@ internal static class WebView2DropTargetService
         {
             if (fEscapePressed)
             {
+                EscapePressed = true;
+                PendingDesktopFolderCommit = false;
                 LogDecision($"cancel escape {DescribeCursorHit()}");
                 return DRAGDROP_S_CANCEL;
             }
@@ -1216,6 +1222,7 @@ internal static class WebView2DropTargetService
             var overForeignFolder = haveCursor
                 && (IsDesktopDropTargetAtPoint(pt.x, pt.y)
                     || IsExplorerFolderDropTargetAtPoint(pt.x, pt.y));
+            var overDesktop = haveCursor && IsDesktopDropTargetAtPoint(pt.x, pt.y);
             var rawFb = RawFeedbackBits();
 
             if (!_sawButtonDown)
@@ -1223,21 +1230,32 @@ internal static class WebView2DropTargetService
 
             if (overDeniedChrome)
             {
+                PendingDesktopFolderCommit = false;
                 LogDecision($"cancel button-up denied-chrome cursor=({pt.x},{pt.y}) latched={_latchedAcceptEffect} {hit}");
                 return DRAGDROP_S_CANCEL;
             }
 
-            if (overForeignFolder && _latchedAcceptEffect is 1 or 2 or 4)
+            // Real shell IDropTarget (desktop icons / Explorer folder) — let ole32 call Drop.
+            if (overForeignFolder && _oleTargetOfferedEffect && _latchedAcceptEffect is 1 or 2 or 4)
             {
                 LogDecision($"drop folder cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} latched={_latchedAcceptEffect} oleDown={oleDown} asyncDown={asyncDown} {hit}");
                 return DRAGDROP_S_DROP;
             }
 
-            // Explorer latched COPY|MOVE on Desktop — commit even if the cursor drifted back over BNDZ chrome.
-            if (_latchedAcceptEffect is 1 or 2 or 4 && _sawFolderAccept)
+            // Explorer latched COPY|MOVE on Desktop DefView — commit even if the cursor drifted back over BNDZ chrome.
+            if (_oleTargetOfferedEffect && _latchedAcceptEffect is 1 or 2 or 4 && _sawFolderAccept)
             {
                 LogDecision($"drop latched-commit cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} {hit}");
                 return DRAGDROP_S_DROP;
+            }
+
+            // Wallpaper WorkerW has no IDropTarget — OLE would DROP with effect=NONE. Cancel the
+            // OLE loop immediately and copy/move into the Desktop folder ourselves.
+            if (overDesktop && !_oleTargetOfferedEffect)
+            {
+                PendingDesktopFolderCommit = true;
+                LogDecision($"desktop-folder-fallback cursor=({pt.x},{pt.y}) lastFb={rawFb} {hit}");
+                return DRAGDROP_S_CANCEL;
             }
 
             if (insideHostRect && !overSelf)
@@ -1315,6 +1333,8 @@ internal static class WebView2DropTargetService
 
             if (!overDenied && resolved != 0 && overForeignFolder)
                 _latchedAcceptEffect = resolved;
+            if (overForeignFolder && bits != 0)
+                _oleTargetOfferedEffect = true;
             if (overForeignFolder)
                 _sawFolderAccept = true;
             if (overForeignFolder && bits == 7)
@@ -1465,11 +1485,24 @@ internal static class WebView2DropTargetService
                 var selfDrops = Volatile.Read(ref _outboundSelfDropCount);
                 AppendOleDndLog($"DoDragDrop end hr={hrName} effect={effectName}({effectBits}) selfDrop={selfDrops} CF_HDROP={hasHdrop} ShellIDList={hasShellIdList}{summary}");
 
-                if (hr == DRAGDROP_S_DROP && sourcePaths is { Length: > 0 }
-                    && effectBits is 1 or 2 or 4)
-                    LogPostDropVerify(sourcePaths, effectBits);
-                else if (hr == DRAGDROP_S_CANCEL && sourcePaths is { Length: > 0 })
-                    AppendOleDndLog($"drop-cancelled effect={effectBits}{summary}");
+                if (!src.EscapePressed && sourcePaths is { Length: > 0 })
+                {
+                    var oleLanded = hr == DRAGDROP_S_DROP && effectBits is 1 or 2 or 4;
+                    if (oleLanded)
+                    {
+                        LogPostDropVerify(sourcePaths, effectBits);
+                    }
+                    else
+                    {
+                        if (src.PendingDesktopFolderCommit)
+                        {
+                            var moved = TryCompleteDropToDesktopFolder(sourcePaths, ResolveDesktopFolderEffect(sourcePaths));
+                            AppendOleDndLog($"desktop-folder-commit ok={moved} pending=true{summary}");
+                        }
+                        else if (hr == DRAGDROP_S_CANCEL)
+                            AppendOleDndLog($"drop-cancelled effect={effectBits}{summary}");
+                    }
+                }
             }
             finally
             {
@@ -1481,6 +1514,68 @@ internal static class WebView2DropTargetService
         {
             AppendOleDndLog($"DoDragDrop error {ex.Message}");
             Debug.WriteLine($"[OleDrag] RunNativeDragDrop: {ex.Message}");
+        }
+    }
+
+    private static uint ResolveDesktopFolderEffect(string[] sourcePaths)
+    {
+        const int VK_SHIFT = 0x10;
+        const int VK_CONTROL = 0x11;
+        if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) return 1u; // COPY
+        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) return 2u; // MOVE
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            var deskRoot = Path.GetPathRoot(desktop);
+            if (!string.IsNullOrEmpty(deskRoot)
+                && sourcePaths.Length > 0
+                && sourcePaths.All(p =>
+                    string.Equals(Path.GetPathRoot(p), deskRoot, StringComparison.OrdinalIgnoreCase)))
+                return 2u; // same volume — Explorer default MOVE
+        }
+        catch { /* COPY */ }
+        return 1u;
+    }
+
+    /// <summary>
+    /// WorkerW wallpaper has no OLE IDropTarget. Land the files in the user's Desktop folder
+    /// the same way Explorer does for a drop on empty wallpaper.
+    /// </summary>
+    private static bool TryCompleteDropToDesktopFolder(string[] sourcePaths, uint effectBits)
+    {
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrEmpty(desktop) || !Directory.Exists(desktop))
+                return false;
+
+            var work = new List<string>();
+            foreach (var raw in sourcePaths)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                string full;
+                try { full = Path.GetFullPath(raw); }
+                catch { continue; }
+                if (!File.Exists(full) && !Directory.Exists(full)) continue;
+                var parent = Path.GetDirectoryName(full.TrimEnd('\\', '/'));
+                if (string.Equals(parent, desktop, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                work.Add(full);
+            }
+            if (work.Count == 0)
+            {
+                AppendOleDndLog("desktop-folder-commit skip — sources already on Desktop or missing");
+                return false;
+            }
+
+            var move = effectBits == 2;
+            return NativeShellFileOperationService.TryCopyOrMoveIntoDirectory(
+                work, desktop, move, _hostWindowHwnd);
+        }
+        catch (Exception ex)
+        {
+            AppendOleDndLog($"desktop-folder-commit error {ex.Message}");
+            return false;
         }
     }
 

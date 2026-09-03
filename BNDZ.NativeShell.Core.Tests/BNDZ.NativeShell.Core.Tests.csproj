@@ -19,6 +19,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BNDZ.NativeShell.Core\BNDZ.NativeShell.Core.csproj" />
+    <Compile Include="..\BNDZBackend\Services\PathContainment.cs" Link="PathContainment.cs" />
+    <Compile Include="..\BNDZBackend\Services\OleDesktopTarget.cs" Link="OleDesktopTarget.cs" />
+    <Compile Include="..\BNDZBackend\Services\MeshDrop\MeshDropPathSafety.cs" Link="MeshDropPathSafety.cs" />
   </ItemGroup>
 
 </Project>

@@ -469,8 +469,8 @@ public sealed class MeshDropService : IDisposable
         var data = payload.AsSpan(4 + pathLen + 4).ToArray();
 
         var destDir = ctx.DestDir ?? Path.Combine(Path.GetTempPath(), "BNDZ", "MeshDrop", ctx.SessionId);
-        Directory.CreateDirectory(destDir);
-        var destFile = Path.Combine(destDir, relPath.Replace('/', Path.DirectorySeparatorChar));
+        if (!MeshDropPathSafety.TryResolveContainedFile(destDir, relPath, out var destFile))
+            return;
         var destFileDir = Path.GetDirectoryName(destFile);
         if (!string.IsNullOrEmpty(destFileDir)) Directory.CreateDirectory(destFileDir);
 
