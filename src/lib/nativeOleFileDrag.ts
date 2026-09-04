@@ -1,19 +1,25 @@
 /**
- * Outbound OLE drag: DoDragDrop starts at list drag threshold (button still down inside the app).
- * Boundary ReleaseCapture handoff poisons wallpaper mouse-up — do not use it as the OLE start.
+ * Outbound OLE drag:
+ * - Inside BNDZ: React/fluid ghosts + in-app drop/cancel (no DoDragDrop yet).
+ * - At window boundary: START_DRAG without ReleaseCapture (ReleaseCapture poisons wallpaper up).
+ * - Outside: host layered ghost + existing wallpaper shell-recover path.
  */
 
 import { IPC } from './ipcBridge';
 import { isValidOutboundDragPath, toWindowsPath } from './pathUtils';
 import type { FileDragSessionState } from './fileDragSession';
 import { stashOleDragSession } from './fileDragSession';
+import { hideFileDragGhostForOleHandoff } from './fileDragUiCleanup';
 import { isWebView2DragStartingEnabled } from './webView2DragStarting';
 
 export function isNativeOleDragHost(): boolean {
   return IPC.isNative;
 }
 
-/** Start Windows OLE drag at gesture threshold — LMB still down, still inside the app. */
+/**
+ * @deprecated Prefer boundary handoff so in-app ghosts and cancel keep working.
+ * Kept for callers that must start OLE while still inside the HWND.
+ */
 export function launchNativeFileDragAtThreshold(
   session: FileDragSessionState,
   why = 'threshold',
@@ -25,6 +31,7 @@ export function launchNativeFileDragAtThreshold(
     .filter(isValidOutboundDragPath);
   if (!local.length) return;
   stashOleDragSession(session);
+  hideFileDragGhostForOleHandoff();
   IPC.notifyFileDragActive(true, local);
   IPC.postOleDndDebug({
     kind: 'launch-native-at-threshold',
@@ -44,8 +51,8 @@ export type OutboundOleBoundaryHandoffOpts = {
 };
 
 /**
- * Boundary handoff: hide React ghost → release pointer capture → START_DRAG.
- * Call only when the cursor crosses the outer WebView/app edge toward the desktop.
+ * Boundary handoff: hide React ghost → START_DRAG.
+ * Do NOT releasePointerCapture — that synthesizes button-up and breaks wallpaper commit.
  */
 export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHandoffOpts): void {
   if (!IPC.isNative) return;
@@ -53,11 +60,11 @@ export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHando
   const list = opts.paths.map(p => toWindowsPath(String(p))).filter(isValidOutboundDragPath);
   if (!list.length) return;
 
+  stashOleDragSession();
   opts.hideGhost();
-  if (opts.captureEl) {
-    try { opts.captureEl.releasePointerCapture(opts.pointerId); } catch { /* ignore */ }
-  }
+  // Intentionally no releasePointerCapture / ReleaseCapture.
 
+  IPC.notifyFileDragActive(true, list);
   IPC.postOleDndDebug({
     kind: 'boundary-handoff',
     why: opts.why ?? 'boundary',
@@ -74,6 +81,7 @@ export function commitOutboundOleDrag(paths: string | string[], why = 'fe'): voi
   const raw = (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
   const list = raw.map(p => toWindowsPath(String(p))).filter(isValidOutboundDragPath);
   if (!list.length) return;
+  hideFileDragGhostForOleHandoff();
   IPC.postOleDndDebug({ kind: 'commit-outbound-ole', why, count: list.length, sample: list.slice(0, 2) });
   IPC.startDrag(list);
 }

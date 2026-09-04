@@ -90,7 +90,7 @@ import {
   shouldTriggerOutboundOleBoundaryHandoff,
 } from '../lib/fileDragSession';
 import { endInternalFileDragUi, hideFileDragGhostForOleHandoff, isOleDragHandoffActive, installOleDragEscalateGhostHook, onHostOleDragEscalated } from '../lib/fileDragUiCleanup';
-import { launchNativeFileDragAtThreshold, performOutboundOleBoundaryHandoff } from '../lib/nativeOleFileDrag';
+import { performOutboundOleBoundaryHandoff } from '../lib/nativeOleFileDrag';
 import {
   isWebView2DragStartingQuery,
   markWebView2DragStartingInstalled,
@@ -11153,14 +11153,8 @@ export default function BNDZUI() {
                   beginFileDragSession(dragSession);
                   if (localRawPaths.length) {
                     IPC.notifyFileDragActive(true, localRawPaths);
-                    if (IPC.isNative) {
-                      launchNativeFileDragAtThreshold(
-                        { ...dragSession, paths: localRawPaths.map(p => toWindowsPath(p)) },
-                        'list-threshold',
-                      );
-                      oleDragStarted = true;
-                      nativeOleDragRef.current = true;
-                    }
+                    // Do not START_DRAG at threshold — keep React/fluid ghosts + in-app cancel.
+                    // OLE begins at window boundary (no ReleaseCapture).
                   } else {
                     IPC.postOleDndDebug({
                       kind: 'list-drag-no-local-paths',
@@ -11174,9 +11168,7 @@ export default function BNDZUI() {
                     totalCount: dragPaths.length,
                     sample: localRawPaths.slice(0, 2),
                   });
-                  if (oleDragStarted) {
-                    // Native DoDragDrop owns the cursor from threshold — no React ghost / boundary handoff.
-                  } else if (fluidDragEnabled) {
+                  if (fluidDragEnabled) {
                     const dragItems = buildFluidDragItems(entityId, dragSelection);
                     fluidDragBridgeSetPointer(listDragGhostElRef.current, ev.clientX, ev.clientY);
                     setMotionDragPhase('arming');

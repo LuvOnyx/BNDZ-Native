@@ -29,7 +29,7 @@ import {
   stashOleDragSession,
   shouldTriggerOutboundOleBoundaryHandoff,
 } from '../lib/fileDragSession';
-import { launchNativeFileDragAtThreshold, performOutboundOleBoundaryHandoff } from '../lib/nativeOleFileDrag';
+import { performOutboundOleBoundaryHandoff } from '../lib/nativeOleFileDrag';
 import { setDragGhostPosition, armDragGhost } from '../lib/pointerDragGhost';
 import { onHostOleDragEscalated } from '../lib/fileDragUiCleanup';
 import { IPC } from '../lib/ipcBridge';
@@ -457,10 +457,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             sourceTabPath: winPath,
           });
           IPC.notifyFileDragActive(true, paths);
-          const archiveSession = getFileDragSession();
-          if (IPC.isNative && archiveSession) {
-            launchNativeFileDragAtThreshold(archiveSession, 'archive-threshold');
-          }
+          // Keep archive ghost in-app; OLE starts at window boundary.
           showArchiveGhost(live, false);
         }).catch(() => {
           setStatus('Could not extract for drag.');

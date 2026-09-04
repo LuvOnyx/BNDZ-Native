@@ -1551,8 +1551,9 @@ internal static class WebView2DropTargetService
                 _oleReportedButtonUp = true;
 
             var haveCursorEarly = GetCursorPos(out var earlyCursorPt);
+            var underHostEarly = haveCursorEarly && IsPointUnderOurHost(earlyCursorPt.x, earlyCursorPt.y);
             var geoDesktopEarly = haveCursorEarly
-                && !IsPointUnderOurHost(earlyCursorPt.x, earlyCursorPt.y)
+                && !underHostEarly
                 && IsCursorOverShellDesktopListView(earlyCursorPt.x, earlyCursorPt.y);
 
             bool buttonDown;
@@ -1581,6 +1582,16 @@ internal static class WebView2DropTargetService
                     LogDecision("desktop-async-up — release over SysListView32 (sticky oleDown ignored)");
                 }
             }
+            // Release inside BNDZ to abort — don't require leaving the window first.
+            else if (underHostEarly && !asyncDown && _sawButtonDown)
+            {
+                buttonDown = false;
+                if (oleDown && !_loggedStickyAsyncOnce)
+                {
+                    _loggedStickyAsyncOnce = true;
+                    LogDecision("host-async-up — release inside app (cancel allowed)");
+                }
+            }
             else if (_oleReportedButtonUp || _sawFolderAccept || _lastTrustedWasDesktop)
             {
                 buttonDown = oleDown;
@@ -1603,6 +1614,7 @@ internal static class WebView2DropTargetService
                 _buttonUpStreak = 0;
                 _buttonUpInsideSinceMs = 0;
                 _buttonUpOutsideNoneSinceMs = 0;
+                try { BndzOutboundDragGhostOverlay.FollowCursor(); } catch { /* ignore */ }
                 if (GetCursorPos(out var downPt)
                     && (IsDesktopDropTargetAtPoint(downPt.x, downPt.y)
                         || IsExplorerFolderDropTargetAtPoint(downPt.x, downPt.y)))
@@ -1697,37 +1709,13 @@ internal static class WebView2DropTargetService
                 }
             }
 
-            // Soft edge: release landed on WinUI chrome after Desktop hover — try real DROP
-            // through disabled-host hit-test, else shell recover. Do not wait for another move.
+            // Soft edge / back inside BNDZ: abort. Never force desktop shell-recover here —
+            // that made cancel feel impossible (had to finish the drop after visiting wallpaper).
             if (underOurHost || !outsideHostForDrop || IsBadLatchedCommitHit(hit))
             {
-                if (freshFb && _lastTrustedWasDesktop && _latchedAcceptEffect is 1 or 2 or 4)
-                {
-                    if (TryDisableHostForDesktopOleHit())
-                    {
-                        if (GetCursorPos(out var bypassPt)
-                            && !IsPointUnderOurHost(bypassPt.x, bypassPt.y)
-                            && IsDesktopDropTargetAtPoint(bypassPt.x, bypassPt.y))
-                        {
-                            var bypassHit = DescribeCursorHit(bypassPt.x, bypassPt.y);
-                            LogDecision($"drop desktop-host-disabled cursor=({bypassPt.x},{bypassPt.y}) effect={_latchedAcceptEffect} fbAgeMs={fbAgeMs} was={hit} now={bypassHit}");
-                            return DRAGDROP_S_DROP;
-                        }
-                    }
-                    _requestDesktopShellRecover = true;
-                    LogDecision($"cancel-for-desktop-shell-recover cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} fbAgeMs={fbAgeMs} {hit}");
-                    return DRAGDROP_S_CANCEL;
-                }
-                if (_buttonUpInsideSinceMs == 0)
-                    _buttonUpInsideSinceMs = Environment.TickCount64;
-                else if (Environment.TickCount64 - _buttonUpInsideSinceMs >= 2500)
-                {
-                    LogDecision($"cancel button-up under-host cursor=({pt.x},{pt.y}) lastFb={rawFb} fbAgeMs={fbAgeMs} {hit}");
-                    return DRAGDROP_S_CANCEL;
-                }
-                if (Environment.TickCount64 - _buttonUpInsideSinceMs < 40)
-                    LogDecision($"defer-drop under-host cursor=({pt.x},{pt.y}) lastFb={rawFb} fbAgeMs={fbAgeMs} {hit}");
-                return S_OK;
+                _requestDesktopShellRecover = false;
+                LogDecision($"cancel button-up under-host (abort) cursor=({pt.x},{pt.y}) lastFb={rawFb} fbAgeMs={fbAgeMs} latched={_latchedAcceptEffect} {hit}");
+                return DRAGDROP_S_CANCEL;
             }
 
             if (overForeignFolder && _latchedAcceptEffect is 1 or 2 or 4 && freshFb)
@@ -1851,6 +1839,13 @@ internal static class WebView2DropTargetService
             else if (!overSelf)
                 _lastFeedbackEffect = 0;
             _lastFeedbackTrusted = trusted;
+            try
+            {
+                // Badge tracks Ctrl (copy) vs move while OLE runs.
+                BndzOutboundDragGhostOverlay.SetCopyMode(resolved == 1 || bits == 1);
+                BndzOutboundDragGhostOverlay.FollowCursor();
+            }
+            catch { /* ignore */ }
             return DRAGDROP_S_USEDEFAULTCURSORS;
         }
     }
@@ -2085,6 +2080,19 @@ internal static class WebView2DropTargetService
                 var summary = string.IsNullOrWhiteSpace(pathSummary) ? "" : $" paths={pathSummary}";
                 AppendOleDndLog($"DoDragDrop begin CF_HDROP={hasHdrop} ShellIDList={hasShellIdList} dragStarting={fromDragStarting}{summary}");
 
+                // Host layered ghost — WebView2 cannot paint outside the HWND; IDragSourceHelper
+                // fails on this machine. Click-through overlay so wallpaper release still works.
+                try
+                {
+                    const int VK_CONTROL = 0x11;
+                    var copyHeld = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                    BndzOutboundDragGhostOverlay.Show(sourcePaths, copyMode: copyHeld);
+                }
+                catch (Exception ghostEx)
+                {
+                    AppendOleDndLog($"outbound-ghost show error {ghostEx.Message}");
+                }
+
                 if (!fromDragStarting)
                     TryInstallOutboundMouseHook();
                 int hr;
@@ -2095,6 +2103,8 @@ internal static class WebView2DropTargetService
                 }
                 finally
                 {
+                    try { BndzOutboundDragGhostOverlay.Hide(); }
+                    catch { /* ignore */ }
                     if (!fromDragStarting)
                         UninstallOutboundMouseHook();
                 }
