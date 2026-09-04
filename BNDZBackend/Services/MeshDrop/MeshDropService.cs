@@ -52,7 +52,10 @@ public sealed class MeshDropService : IDisposable
         CancellationToken ct = default)
     {
         var sessionId = Guid.NewGuid().ToString("N")[..12];
-        var manifest = BuildManifest(sessionId, paths);
+        var (manifest, sourcePaths, sourceMap) = BuildManifest(sessionId, paths);
+        if (manifest.Files.Count(f => !f.IsDirectory) == 0)
+            throw new InvalidOperationException("No readable files for Mesh Drop — pick files or folders that exist.");
+
         var session = new MeshDropSession
         {
             SessionId = sessionId,
@@ -64,7 +67,14 @@ public sealed class MeshDropService : IDisposable
         };
         _sessions[sessionId] = session;
 
-        var ctx = new PeerContext { SessionId = sessionId, Role = MeshDropSessionRole.Host, Manifest = manifest };
+        var ctx = new PeerContext
+        {
+            SessionId = sessionId,
+            Role = MeshDropSessionRole.Host,
+            Manifest = manifest,
+            SourcePaths = sourcePaths,
+            SourceMap = sourceMap,
+        };
         _peers[sessionId] = ctx;
 
         var pc = CreatePeerConnection(ctx);
@@ -209,13 +219,21 @@ public sealed class MeshDropService : IDisposable
 
         try
         {
+            await WaitForDataChannelAsync(ctx, ct).ConfigureAwait(false);
             await SendFrameAsync(ctx, MeshDropProtocol.BuildManifestFrame(ctx.Manifest), ct);
 
+            var missing = 0;
             foreach (var file in files)
             {
                 ct.ThrowIfCancellationRequested();
-                var fullPath = file.RelativePath;
-                if (ctx.SourcePaths != null)
+                string? fullPath = null;
+                if (ctx.SourceMap != null
+                    && ctx.SourceMap.TryGetValue(file.RelativePath, out var mapped)
+                    && !string.IsNullOrWhiteSpace(mapped))
+                {
+                    fullPath = mapped;
+                }
+                else if (ctx.SourcePaths != null)
                 {
                     var match = ctx.SourcePaths.FirstOrDefault(p =>
                         string.Equals(Path.GetFileName(p), Path.GetFileName(file.RelativePath), StringComparison.OrdinalIgnoreCase)
@@ -223,12 +241,16 @@ public sealed class MeshDropService : IDisposable
                     if (!string.IsNullOrEmpty(match)) fullPath = match;
                 }
 
-                if (!File.Exists(fullPath))
+                if (string.IsNullOrWhiteSpace(fullPath) || !File.Exists(fullPath))
                 {
                     var resolved = ResolveSourcePath(ctx, file.RelativePath);
                     if (resolved != null) fullPath = resolved;
                 }
-                if (!File.Exists(fullPath)) continue;
+                if (string.IsNullOrWhiteSpace(fullPath) || !File.Exists(fullPath))
+                {
+                    missing++;
+                    continue;
+                }
 
                 await using var fs = File.OpenRead(fullPath);
                 var chunkIndex = 0;
@@ -247,6 +269,14 @@ public sealed class MeshDropService : IDisposable
                     NotifySessionChanged(session);
                 }
                 completed++;
+            }
+
+            if (completed == 0 && files.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    missing > 0
+                        ? $"Mesh Drop send failed — could not open any of {files.Count} file(s) (missing paths)."
+                        : "Mesh Drop send failed — no bytes were streamed.");
             }
 
             await SendFrameAsync(ctx, MeshDropProtocol.BuildCompleteFrame(), ct);
@@ -463,14 +493,24 @@ public sealed class MeshDropService : IDisposable
 
     private async Task SendFrameAsync(PeerContext ctx, byte[] frame, CancellationToken ct)
     {
-        if (ctx.DataChannel?.readyState == RTCDataChannelState.open)
+        await WaitForDataChannelAsync(ctx, ct, timeoutMs: 8000).ConfigureAwait(false);
+        if (ctx.DataChannel?.readyState != RTCDataChannelState.open)
+            throw new InvalidOperationException("Mesh Drop data channel is not open");
+        ctx.DataChannel.send(frame);
+    }
+
+    private static async Task WaitForDataChannelAsync(PeerContext ctx, CancellationToken ct, int timeoutMs = 30000)
+    {
+        if (ctx.DataChannel?.readyState == RTCDataChannelState.open) return;
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
         {
-            ctx.DataChannel.send(frame);
-            return;
+            ct.ThrowIfCancellationRequested();
+            if (ctx.DataChannel?.readyState == RTCDataChannelState.open) return;
+            await Task.Delay(40, ct).ConfigureAwait(false);
         }
-        await Task.Delay(50, ct);
-        if (ctx.DataChannel?.readyState == RTCDataChannelState.open)
-            ctx.DataChannel.send(frame);
+        throw new InvalidOperationException(
+            "Mesh Drop data channel did not open — peer unreachable. Use LAN on the same subnet, or configure TURN in Settings → Workspace Tools → Mesh Drop.");
     }
 
     private static async Task WaitForIceGatheringAsync(RTCPeerConnection pc, CancellationToken ct)
@@ -485,7 +525,7 @@ public sealed class MeshDropService : IDisposable
         try
         {
             using var reg = ct.Register(() => tcs.TrySetCanceled());
-            await Task.WhenAny(tcs.Task, Task.Delay(5000, ct));
+            await Task.WhenAny(tcs.Task, Task.Delay(8000, ct));
         }
         finally
         {
@@ -493,44 +533,57 @@ public sealed class MeshDropService : IDisposable
         }
     }
 
-    private MeshDropManifest BuildManifest(string sessionId, IReadOnlyList<string> paths)
+    private static (MeshDropManifest Manifest, List<string> SourcePaths, Dictionary<string, string> SourceMap) BuildManifest(
+        string sessionId,
+        IReadOnlyList<string> paths)
     {
         var files = new List<MeshDropFileEntry>();
         var sourcePaths = new List<string>();
+        var sourceMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var path in paths)
         {
             if (!File.Exists(path) && !Directory.Exists(path)) continue;
-            sourcePaths.Add(Path.GetFullPath(path));
+            var full = Path.GetFullPath(path);
+            sourcePaths.Add(full);
 
-            if (File.Exists(path))
+            if (File.Exists(full))
             {
-                var fi = new FileInfo(path);
+                var fi = new FileInfo(full);
+                var rel = fi.Name;
+                // Disambiguate duplicate filenames across multi-select.
+                if (sourceMap.ContainsKey(rel))
+                    rel = $"{Path.GetFileNameWithoutExtension(fi.Name)}_{fi.GetHashCode():x}{fi.Extension}";
                 files.Add(new MeshDropFileEntry
                 {
-                    RelativePath = fi.Name,
+                    RelativePath = rel,
                     Size = fi.Length,
-                    Sha256 = MeshDropProtocol.ComputeSha256(path),
+                    Sha256 = MeshDropProtocol.ComputeSha256(full),
                 });
+                sourceMap[rel] = full;
             }
             else
             {
-                CollectDirectory(path, Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "folder", files);
+                CollectDirectory(full, Path.GetFileName(full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "folder", files, sourceMap);
             }
         }
 
-        if (_peers.TryGetValue(sessionId, out var ctx))
-            ctx.SourcePaths = sourcePaths;
-
-        return new MeshDropManifest
-        {
-            SessionId = sessionId,
-            HostName = Environment.MachineName,
-            Files = files,
-        };
+        return (
+            new MeshDropManifest
+            {
+                SessionId = sessionId,
+                HostName = Environment.MachineName,
+                Files = files,
+            },
+            sourcePaths,
+            sourceMap);
     }
 
-    private static void CollectDirectory(string root, string prefix, List<MeshDropFileEntry> files)
+    private static void CollectDirectory(
+        string root,
+        string prefix,
+        List<MeshDropFileEntry> files,
+        Dictionary<string, string> sourceMap)
     {
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
@@ -542,17 +595,38 @@ public sealed class MeshDropService : IDisposable
                 Size = fi.Length,
                 Sha256 = MeshDropProtocol.ComputeSha256(file),
             });
+            sourceMap[rel] = file;
         }
     }
 
     private static string? ResolveSourcePath(PeerContext ctx, string relativePath)
     {
+        if (ctx.SourceMap != null
+            && ctx.SourceMap.TryGetValue(relativePath, out var mapped)
+            && File.Exists(mapped))
+            return mapped;
+
         if (ctx.SourcePaths == null) return null;
         foreach (var root in ctx.SourcePaths)
         {
-            if (File.Exists(root)) continue;
-            var candidate = Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar));
-            if (File.Exists(candidate)) return candidate;
+            if (File.Exists(root))
+            {
+                if (string.Equals(Path.GetFileName(root), Path.GetFileName(relativePath), StringComparison.OrdinalIgnoreCase))
+                    return root;
+                continue;
+            }
+            // relativePath is "FolderName/sub/file" while root is ...\FolderName
+            var leaf = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var norm = relativePath.Replace('/', Path.DirectorySeparatorChar);
+            if (!string.IsNullOrEmpty(leaf)
+                && norm.StartsWith(leaf + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                var under = norm[(leaf.Length + 1)..];
+                var candidate = Path.Combine(root, under);
+                if (File.Exists(candidate)) return candidate;
+            }
+            var direct = Path.Combine(root, norm);
+            if (File.Exists(direct)) return direct;
         }
         return null;
     }
@@ -591,6 +665,7 @@ public sealed class MeshDropService : IDisposable
         public MeshDropSessionRole Role { get; init; }
         public MeshDropManifest? Manifest { get; set; }
         public List<string>? SourcePaths { get; set; }
+        public Dictionary<string, string>? SourceMap { get; set; }
         public string? DestDir { get; init; }
         public RTCPeerConnection? PeerConnection { get; set; }
         public RTCDataChannel? DataChannel { get; set; }

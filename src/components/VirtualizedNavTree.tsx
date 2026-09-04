@@ -351,7 +351,7 @@ function TreeRow({
         <input
           type="text"
           autoFocus
-          className="bg-[#111] text-white border border-[#007acc] px-1.5 outline-none text-[12px] w-[140px] rounded-sm"
+          className="bndz-inline-rename-input px-1.5 outline-none text-[12px] w-[140px] rounded-sm"
           value={inlineRename.currentName}
           onChange={e => setInlineRename({ ...inlineRename, currentName: e.target.value })}
           onBlur={() => {

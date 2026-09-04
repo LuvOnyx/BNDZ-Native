@@ -14,6 +14,7 @@ export function PluginToolbarButton({
   onClick,
   disabled,
   active,
+  destructive,
   title,
   icon,
 }: {
@@ -21,6 +22,7 @@ export function PluginToolbarButton({
   onClick?: () => void;
   disabled?: boolean;
   active?: boolean;
+  destructive?: boolean;
   title?: string;
   icon?: string;
 }) {
@@ -31,7 +33,9 @@ export function PluginToolbarButton({
       disabled={disabled}
       title={title}
       className={`bndz-plugin-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none ${
-        active
+        destructive
+          ? 'bg-red-950/40 border-red-500/45 text-red-200 hover:bg-red-900/55 hover:border-red-400/60 hover:text-red-50 shadow-[0_0_12px_rgba(239,68,68,0.12)]'
+          : active
           ? 'bg-[#094771]/35 border-[#0078d4]/40 text-[#cce4f7]'
           : 'bg-white/[0.03] border-white/10 text-gray-300 hover:bg-white/[0.06] hover:text-white'
       }`}

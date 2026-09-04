@@ -12,7 +12,6 @@ import {
 } from '../lib/fileTransferQueue';
 import { motionTransferDismiss } from '../lib/bndzMotion';
 import { useAppConfig } from '../data/configContext';
-import { isOleDragHandoffActive, subscribeOleDragHandoff } from '../lib/fileDragUiCleanup';
 
 type Props = {
   className?: string;
@@ -20,7 +19,8 @@ type Props = {
 };
 
 const TRANSFER_EXPANDED_KEY = 'bndz-transfer-panel-expanded';
-const AUTO_CLEAR_DELAY_MS = 1600;
+/** Keep finished rows long enough to notice; toast uses the same window via isRecentlyCompleted. */
+const AUTO_CLEAR_DELAY_MS = 8_000;
 
 /** Survives unmount when the panel hides between jobs. */
 let transferPanelExpandedSession: boolean | null = null;
@@ -213,21 +213,6 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
   const rowElsRef = useRef<Record<string, HTMLDivElement | null>>({});
   const clearTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const animatingRef = useRef<Record<string, boolean>>({});
-  const [oleHandoff, setOleHandoff] = useState(() => isOleDragHandoffActive());
-  const [pointerFileDrag, setPointerFileDrag] = useState(false);
-
-  useEffect(() => subscribeOleDragHandoff(() => {
-    setOleHandoff(isOleDragHandoffActive());
-  }), []);
-
-  useEffect(() => {
-    const onActive = (ev: Event) => {
-      setPointerFileDrag(!!(ev as CustomEvent<{ active?: boolean }>).detail?.active);
-    };
-    window.addEventListener('bndz-pointer-file-drag-active', onActive);
-    return () => window.removeEventListener('bndz-pointer-file-drag-active', onActive);
-  }, []);
-
   const setExpandedAndPersist = (next: boolean | ((prev: boolean) => boolean)) => {
     setExpanded(prev => {
       const value = typeof next === 'function' ? next(prev) : next;
@@ -242,6 +227,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
     let unsubProgress: (() => void) | undefined;
     let alive = true;
     let progressPoll: ReturnType<typeof setTimeout> | undefined;
+    let pollId: number | undefined;
 
     (async () => {
       const { IPC } = await import('../lib/ipcBridge');
@@ -265,6 +251,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
           return changed ? nextMap : prev;
         });
       });
+      pollId = window.setInterval(() => { void refresh(); }, 500);
       unsubProgress = IPC.onProgress((payload: {
         percentage?: number;
         operationId?: string;
@@ -312,6 +299,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
       unsub?.();
       unsubProgress?.();
       if (progressPoll) clearTimeout(progressPoll);
+      if (pollId != null) window.clearInterval(pollId);
       Object.values(clearTimersRef.current).forEach(clearTimeout);
     };
   }, [enabled]);
@@ -411,10 +399,8 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
   if (failedRecent > 0) summaryParts.push(`${failedRecent} failed`);
   if (cancelledRecent > 0 && state.activeCount === 0) summaryParts.push(`${cancelledRecent} cancelled`);
 
-  if (!enabled || oleHandoff || pointerFileDrag) return null;
-
   return (
-    <div className={`bndz-transfer-panel shrink-0 ${className}`}>
+    <div className={`bndz-transfer-panel shrink-0 ${className}`} data-bndz-transfer-panel="1">
       <div className="bndz-transfer-header w-full flex items-center gap-2 px-3 py-2">
         <button
           type="button"

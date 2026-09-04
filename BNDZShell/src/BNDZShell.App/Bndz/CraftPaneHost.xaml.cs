@@ -45,6 +45,7 @@ public sealed partial class CraftPaneHost : UserControl
 	private string? _pendingListingJson;
 	/// <summary>Pre-ready push fan-out queue — earlier messages must not be overwritten.</summary>
 	private readonly List<string> _pendingPushQueue = new();
+	private string? _pendingCloseRequestJson;
 	/// <summary>Last DIR listing JSON — re-posted on BNDZ_UI_READY because early PostWebMessage drops if React has not subscribed yet.</summary>
 	private string? _lastListingJson;
 	private Action<string>? _pushHandler;
@@ -52,8 +53,6 @@ public sealed partial class CraftPaneHost : UserControl
 	public IntPtr HostWindowHandle { get; set; }
 
 	private bool _oleDropRegistered;
-	private Microsoft.UI.Dispatching.DispatcherQueueTimer? _fileDragEscalateTimer;
-	private bool _fileDragEscalateArmed;
 	private bool _oleGhostMaskVisible;
 
 	private static CoreWebView2Environment? s_sharedPaneEnv;
@@ -109,6 +108,13 @@ public sealed partial class CraftPaneHost : UserControl
 	public void Prewarm()
 	{
 		_ = EnsureInitializedAsync(showHint: false);
+	}
+
+	/// <summary>Surface a fatal shell error on the pane status strip (used from MainWindow / App).</summary>
+	public void ShowPaneStatus(string message)
+	{
+		PaneStatusHint.Visibility = Visibility.Visible;
+		PaneStatusHint.Text = message;
 	}
 
 	private async void PaneWebView_Loaded(object sender, RoutedEventArgs e)
@@ -249,6 +255,7 @@ public sealed partial class CraftPaneHost : UserControl
 			_initialized = true;
 			WebViewInitialized?.Invoke(this, EventArgs.Empty);
 			TryRegisterOleDropTarget();
+			TryInstallDragStartingBridge();
 			PaneStatusHint.Text = "Loading BNDZ UI…";
 			ApplyPaneRoute(forceNavigate: true);
 			ScheduleReadyWatchdog();
@@ -359,7 +366,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 	
 	/// <summary>
-	/// Modal DoDragDrop must run on the WinUI STA (Explorer model). Blocking is expected during drag.
+	/// Modal DoDragDrop must run on the WinUI STA that owns the HWND (Explorer model).
 	/// </summary>
 	private void WireHostStaInvokeForOle()
 	{
@@ -444,7 +451,7 @@ public sealed partial class CraftPaneHost : UserControl
 			// Fire-and-forget — must NOT block-wait on UI thread (deadlocks script completion).
 			_ = core.ExecuteScriptAsync(GhostDismissScript);
 		});
-		// Ghost dismiss runs in parallel — DoDragDrop must start while LMB is still down.
+		// Ghost dismiss runs in parallel — defer DoDragDrop one tick so WebView2 can release capture.
 		BndzEmbeddedBackendHost.SetRunOleAfterFeHandoff(oleAction =>
 		{
 			if (oleAction is null) return;
@@ -462,11 +469,11 @@ public sealed partial class CraftPaneHost : UserControl
 						    Path.Combine(
 							    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 							    "BNDZ", "ole-dnd.log"),
-						    $"{DateTime.Now:HH:mm:ss.fff} FE ghost dismiss ready why=immediate-next-tick{Environment.NewLine}");
+						    $"{DateTime.Now:HH:mm:ss.fff} FE ghost dismiss ready why=next-tick{Environment.NewLine}");
 				    }
 				    catch { /* ignore */ }
 				    try { oleAction(); }
-				    catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE immediate: {ex.Message}"); }
+				    catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] OLE handoff: {ex.Message}"); }
 			    }))
 			{
 				try { oleAction(); }
@@ -492,7 +499,7 @@ public sealed partial class CraftPaneHost : UserControl
 				Directory.CreateDirectory(dir);
 				File.AppendAllText(
 					Path.Combine(dir, "ole-dnd.log"),
-					$"{DateTime.Now:HH:mm:ss.fff} STARTUP ole-wire topChrome=on awaitHandoff=on topMask=on ownedPayload=hdrop-only acceptGate=fb!=0&&fb!=7 feedbackTrusted=on denyTrayDrop=on pathSanitize=on dropVerify=on forensics=on build={DateTime.Now:yyyyMMdd-HHmm}{Environment.NewLine}");
+					$"{DateTime.Now:HH:mm:ss.fff} STARTUP ole-wire topChrome=on awaitHandoff=on topMask=on ownedPayload=hdrop-only acceptGate=fb!=0&&fb!=7 feedbackTrusted=on denyTrayDrop=on pathSanitize=on dropVerify=on forensics=on dragStarting={(WebView2DragStartingBridge.IsEnabled ? "on" : "off")} build={DateTime.Now:yyyyMMdd-HHmm}{Environment.NewLine}");
 			}
 			catch { /* never break host on logging */ }
 		}
@@ -500,42 +507,12 @@ public sealed partial class CraftPaneHost : UserControl
 
 	private static bool _oleWireStartupLogged;
 
-	private void StartFileDragEscalatePoll()
+	/// <summary>Window close / crash path — revoke OLE drop target on HWND death.</summary>
+	public void StopOutboundDragCleanup()
 	{
-		_fileDragEscalateArmed = true;
-		if (_fileDragEscalateTimer is null)
-		{
-			_fileDragEscalateTimer = DispatcherQueue.CreateTimer();
-			_fileDragEscalateTimer.Interval = TimeSpan.FromMilliseconds(16);
-			_fileDragEscalateTimer.Tick += (_, _) =>
-			{
-				if (!_fileDragEscalateArmed)
-				{
-					StopFileDragEscalatePoll();
-					return;
-				}
-				try
-				{
-					var stopPoll = BndzEmbeddedBackendHost.TryEscalateOutboundOleDrag();
-					SyncOleGhostMask(BndzEmbeddedBackendHost.ShouldShowOleTopGhostMask());
-					if (stopPoll)
-						StopFileDragEscalatePoll();
-				}
-				catch (Exception ex)
-				{
-					Debug.WriteLine($"[CraftPaneHost] escalate poll: {ex.Message}");
-				}
-			};
-		}
-		if (!_fileDragEscalateTimer.IsRunning)
-			_fileDragEscalateTimer.Start();
-	}
-
-	private void StopFileDragEscalatePoll()
-	{
-		_fileDragEscalateArmed = false;
-		try { _fileDragEscalateTimer?.Stop(); } catch { /* ignore */ }
 		SyncOleGhostMask(false);
+		try { BndzEmbeddedBackendHost.RevokeHostOleDropTarget(); } catch { /* ignore */ }
+		_oleDropRegistered = false;
 	}
 
 	/// <summary>
@@ -626,7 +603,6 @@ public sealed partial class CraftPaneHost : UserControl
 			});
 			BndzEmbeddedBackendHost.HandleStartDragSync(msg);
 			SmokeLog($"OLE smoke host-direct arm paths={paths.Count} sample={paths[0]}");
-			StartFileDragEscalatePoll();
 			StopOleSmokePoll();
 		}
 		catch (Exception ex)
@@ -650,6 +626,10 @@ public sealed partial class CraftPaneHost : UserControl
 	internal void TryRegisterOleDropTarget()
 	{
 		if (!_initialized || PaneWebView.CoreWebView2 is null)
+			return;
+		// Plugin pop-outs must not steal host HWND / OLE STA from the main FM window —
+		// that froze the whole app when a tear-off was open.
+		if (!string.IsNullOrWhiteSpace(PluginWindowId))
 			return;
 		// Never revoke/re-register mid outbound DoDragDrop — that produced REGISTER lines
 		// during an active drag and helped yield effect=NONE at the desktop.
@@ -693,6 +673,7 @@ public sealed partial class CraftPaneHost : UserControl
 			}
 			else
 			{
+				NotifyOleDropReady();
 				// Chromium often re-installs its IDropTarget after first paint — reclaim shortly after.
 				ScheduleOleDropReassert();
 			}
@@ -755,11 +736,25 @@ public sealed partial class CraftPaneHost : UserControl
 						_oleDropRegistered = ok;
 						if (!ok)
 							ScheduleOleDropRetry();
+						else
+							NotifyOleDropReady();
 					});
 				}
 				catch { /* ignore */ }
 			}
 		});
+	}
+
+	private void NotifyOleDropReady()
+	{
+		try
+		{
+			PostHostMessage(new { type = "HOST_OLE_DROP_READY", payload = new { ready = true } });
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] NotifyOleDropReady: {ex.Message}");
+		}
 	}
 
 	private void Core_NavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
@@ -826,8 +821,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 	private void Core_ProcessFailed(CoreWebView2 sender, CoreWebView2ProcessFailedEventArgs args)
 	{
-		BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
-		_oleDropRegistered = false;
+		StopOutboundDragCleanup();
 		_documentReady = false;
 		PaneStatusHint.Visibility = Visibility.Visible;
 		PaneStatusHint.Text = "UI process crashed — reloading…";
@@ -921,7 +915,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 			_navigatedPane = "browser";
 			_documentReady = false;
-			PaneWebView.CoreWebView2.Navigate("http://bndz.local/index.html?nativeShell=1");
+			PaneWebView.CoreWebView2.Navigate(BuildNativeShellNavigateUrl());
 			return;
 		}
 
@@ -944,7 +938,43 @@ public sealed partial class CraftPaneHost : UserControl
 
 		_navigatedPane = pane;
 		_documentReady = false;
-		PaneWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?{qs}");
+		PaneWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?{BuildPaneQueryString(qs)}");
+	}
+
+	private static string BuildNativeShellNavigateUrl() =>
+		$"http://bndz.local/index.html?{BuildPaneQueryString("nativeShell=1")}";
+
+	private static string BuildPaneQueryString(string baseQs) =>
+		baseQs.Contains("dragStarting=", StringComparison.Ordinal)
+			? baseQs
+			: $"{baseQs}&dragStarting=1";
+
+	private void TryInstallDragStartingBridge()
+	{
+		try
+		{
+			var ok = WebView2DragStartingBridge.TryInstall(PaneWebView, PaneWebView.CoreWebView2);
+			if (ok)
+			{
+				PostHostMessage(new
+				{
+					type = "HOST_DRAG_STARTING",
+					payload = new { enabled = true, installed = true },
+				});
+			}
+			else
+			{
+				PostHostMessage(new
+				{
+					type = "HOST_DRAG_STARTING",
+					payload = new { enabled = true, installed = false },
+				});
+			}
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] DragStarting bridge: {ex.Message}");
+		}
 	}
 
 	/// <summary>Push Files list selection / cwd into the React pane.</summary>
@@ -983,6 +1013,11 @@ public sealed partial class CraftPaneHost : UserControl
 	{
 		if (PaneWebView.CoreWebView2 is null || !_documentReady)
 			return;
+		if (!string.IsNullOrEmpty(_pendingCloseRequestJson))
+		{
+			PostJsonRaw(_pendingCloseRequestJson);
+			_pendingCloseRequestJson = null;
+		}
 		if (!string.IsNullOrEmpty(_pendingContextJson))
 		{
 			PostJsonRaw(_pendingContextJson);
@@ -1066,6 +1101,16 @@ public sealed partial class CraftPaneHost : UserControl
 			_lastListingJson = json;
 			_pendingListingJson = json;
 		}
+		if (json.Contains("\"CLOSE_REQUEST\"", StringComparison.Ordinal))
+		{
+			if (!_documentReady || PaneWebView.CoreWebView2 is null)
+			{
+				_pendingCloseRequestJson = json;
+				return;
+			}
+			PostJsonRaw(json);
+			return;
+		}
 		// Queue until React signals BNDZ_UI_READY — NavigationCompleted alone is too early (listeners not attached).
 		if (!_documentReady || PaneWebView.CoreWebView2 is null)
 		{
@@ -1074,9 +1119,16 @@ public sealed partial class CraftPaneHost : UserControl
 			else if (!json.Contains("\"BNDZ_DIR_LISTING\"", StringComparison.Ordinal))
 			{
 				_pendingPushQueue.Add(json);
-				// Cap so a stuck WebView cannot grow unbounded.
-				while (_pendingPushQueue.Count > 32)
-					_pendingPushQueue.RemoveAt(0);
+				// Prefer keeping transfer + FS watch pushes when capping — dropping them
+				// made copy/paste silent and left the list stale until manual refresh.
+				while (_pendingPushQueue.Count > 64)
+				{
+					var dropIdx = _pendingPushQueue.FindIndex(j =>
+						!j.Contains("\"FILE_TRANSFER_QUEUE_CHANGED\"", StringComparison.Ordinal)
+						&& !j.Contains("\"FS_EVENT_BATCH\"", StringComparison.Ordinal));
+					if (dropIdx < 0) dropIdx = 0;
+					_pendingPushQueue.RemoveAt(dropIdx);
+				}
 			}
 			return;
 		}
@@ -1136,7 +1188,6 @@ public sealed partial class CraftPaneHost : UserControl
 			{
 				try { BndzEmbeddedBackendHost.HandleStartDragSync(raw); }
 				catch (Exception dragEx) { Debug.WriteLine($"[CraftPaneHost] START_DRAG sync: {dragEx.Message}"); }
-				StopFileDragEscalatePoll();
 				return;
 			}
 			if (type is "OLE_DND_DEBUG")
@@ -1190,35 +1241,13 @@ public sealed partial class CraftPaneHost : UserControl
 			}
 			if (type is "FILE_DRAG_ACTIVE")
 			{
-				try
-				{
-					BndzEmbeddedBackendHost.HandleStartDragSync(raw);
-					var active = false;
-					if (root.TryGetProperty("payload", out var dragPayload)
-						&& dragPayload.ValueKind == JsonValueKind.Object
-						&& dragPayload.TryGetProperty("active", out var actEl))
-					{
-						active = actEl.ValueKind == JsonValueKind.True;
-					}
-					if (active) StartFileDragEscalatePoll();
-					else if (!BndzEmbeddedBackendHost.IsOutboundOleDragActive)
-						StopFileDragEscalatePoll();
-					else
-						StartFileDragEscalatePoll(); // keep dismiss alive through DoDragDrop handoff
-				}
+				try { BndzEmbeddedBackendHost.HandleStartDragSync(raw); }
 				catch (Exception dragEx) { Debug.WriteLine($"[CraftPaneHost] FILE_DRAG_ACTIVE: {dragEx.Message}"); }
 				return;
 			}
 			if (type is "OLE_ESCALATE_NOW")
 			{
-				try
-				{
-					StartFileDragEscalatePoll();
-					BndzEmbeddedBackendHost.HandleStartDragSync(raw);
-					// Force path may start DoDragDrop inline — keep poll for ghost dismiss.
-					StartFileDragEscalatePoll();
-				}
-				catch (Exception escEx) { Debug.WriteLine($"[CraftPaneHost] OLE_ESCALATE_NOW: {escEx.Message}"); }
+				// Deprecated — outbound handoff is boundary START_DRAG only (no timer poll).
 				return;
 			}
 			// React painted — hide any residual host spinner and flush queued selection.

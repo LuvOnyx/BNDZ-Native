@@ -4,15 +4,15 @@ namespace BNDZ.Services.Mesh.Incus;
 public sealed class IncusEndpointRecord
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
-    public string Alias { get; set; } = "Incus";
+    public string Alias { get; set; } = "VPS host";
     /// <summary>Base API URL, e.g. https://incus.example:8443</summary>
     public string ApiUrl { get; set; } = "";
     public string? ServerFingerprint { get; set; }
     public string? Project { get; set; } = "default";
-    public string DefaultImage { get; set; } = "ubuntu/24.04";
+    public string DefaultImage { get; set; } = "ubuntu/24.04/cloud";
     public string DefaultImageServer { get; set; } = "https://images.linuxcontainers.org";
     public string DefaultInstanceType { get; set; } = "container";
-    public string DefaultSshUser { get; set; } = "root";
+    public string DefaultSshUser { get; set; } = "ubuntu";
     public int DefaultSshPort { get; set; } = 22;
     public string? DefaultSshKeyPath { get; set; }
     public bool AllowInsecureTls { get; set; }
@@ -58,6 +58,12 @@ public sealed class IncusLaunchRequest
     public string? Alias { get; set; }
     /// <summary>Seconds to wait for a global IPv4 after start.</summary>
     public int WaitIpSeconds { get; set; } = 90;
+    /// <summary>Incus profiles applied at create (e.g. default).</summary>
+    public List<string>? Profiles { get; set; }
+    /// <summary>NIC network name — wired as eth0 device when set.</summary>
+    public string? Network { get; set; }
+    /// <summary>Optional limits.cpu / limits.memory style config keys.</summary>
+    public Dictionary<string, string>? Config { get; set; }
 }
 
 public sealed class IncusServerInfo
@@ -69,6 +75,14 @@ public sealed class IncusServerInfo
     public string? Fingerprint { get; set; }
 }
 
+public sealed class IncusImageAlias
+{
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string? Target { get; set; }
+    public string? Type { get; set; }
+}
+
 public sealed class IncusInstanceSummary
 {
     public string Name { get; set; } = "";
@@ -76,4 +90,76 @@ public sealed class IncusInstanceSummary
     public string Type { get; set; } = "";
     public bool Ephemeral { get; set; }
     public string? Project { get; set; }
+}
+
+public sealed class IncusProfileSummary
+{
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+}
+
+public sealed class IncusNetworkSummary
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "";
+    public bool Managed { get; set; }
+    public string? Status { get; set; }
+    public string? Description { get; set; }
+}
+
+public sealed class IncusSnapshotSummary
+{
+    public string Name { get; set; } = "";
+    public bool Stateful { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? ExpiresAt { get; set; }
+}
+
+public sealed class IncusInstanceDetail
+{
+    public string Name { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string Type { get; set; } = "";
+    public bool Ephemeral { get; set; }
+    public string? Description { get; set; }
+    public string? Architecture { get; set; }
+    public List<string> Profiles { get; set; } = new();
+    public Dictionary<string, string> Config { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, Dictionary<string, string>> Devices { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public string? ETag { get; set; }
+}
+
+public sealed class IncusInstancePut
+{
+    public List<string>? Profiles { get; set; }
+    public Dictionary<string, string>? Config { get; set; }
+    public Dictionary<string, Dictionary<string, string>>? Devices { get; set; }
+    public string? Description { get; set; }
+    public bool? Ephemeral { get; set; }
+    public string? Architecture { get; set; }
+    public string? Restore { get; set; }
+    public bool DiskOnly { get; set; }
+}
+
+/// <summary>
+/// One-shot connect: SSH into the Linux host, install BNDZ client cert into the VPS API trust store, probe until Trusted.
+/// No manual trust-token paste.
+/// </summary>
+public sealed class IncusBootstrapRequest
+{
+    public string? EndpointId { get; set; }
+    public string? Alias { get; set; }
+    /// <summary>Optional full API URL. When empty, derived as https://{sshHost}:{ApiPort}.</summary>
+    public string? ApiUrl { get; set; }
+    public int ApiPort { get; set; } = 8443;
+    public bool AllowInsecureTls { get; set; } = true;
+    /// <summary>Reuse an existing Mesh SSH host (preferred when already connected).</summary>
+    public string? MeshHostId { get; set; }
+    public string? SshHostname { get; set; }
+    public int SshPort { get; set; } = 22;
+    public string? SshUsername { get; set; }
+    public string? SshKeyPath { get; set; }
+    public string? SshPassword { get; set; }
+    /// <summary>When true, upsert a Mesh SSH host for the hypervisor itself.</summary>
+    public bool PersistControlHost { get; set; } = true;
 }

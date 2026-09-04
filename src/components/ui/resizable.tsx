@@ -9,7 +9,11 @@ import {
     usePanelRef,
 } from 'react-resizable-panels';
 import React, { useCallback } from 'react';
-import { clearChromeDragCursor } from '../../lib/workspace/workspaceCursorGuard';
+import {
+    beginPanelResizeGuard,
+    clearChromeDragCursor,
+    endPanelResizeGuard,
+} from '../../lib/workspace/workspaceCursorGuard';
 
 export type { Layout, GroupImperativeHandle, PanelImperativeHandle };
 export { useGroupRef, usePanelRef };
@@ -91,6 +95,7 @@ function endResizeCursor(el: EventTarget | null) {
             }
         } catch { /* ignore */ }
     }
+    endPanelResizeGuard();
     clearChromeDragCursor();
 }
 
@@ -99,15 +104,17 @@ export const ResizableHandle = ({
     direction,
     withHandle = false,
     disabled,
+    onPointerDown,
     onPointerUp,
     onPointerCancel,
     onLostPointerCapture,
+    style,
     ...props
 }: ResizableHandleProps) => {
     const isVertical = direction === 'vertical' || className?.includes('cursor-row-resize');
     const defaultClassName = isVertical
-        ? 'h-1 bg-[#282830] transition-colors hover:bg-[#3b82f6] flex items-center justify-center cursor-row-resize z-50 data-[disabled]:opacity-0 data-[disabled]:pointer-events-none'
-        : 'w-1 bg-[#282830] transition-colors hover:bg-[#3b82f6] flex items-center justify-center cursor-col-resize z-50 data-[disabled]:opacity-0 data-[disabled]:pointer-events-none';
+        ? 'h-1.5 bg-[#282830] transition-colors hover:bg-[#3b82f6] flex items-center justify-center cursor-row-resize z-[80] touch-none data-[disabled]:opacity-0 data-[disabled]:pointer-events-none'
+        : 'w-1 bg-[#282830] transition-colors hover:bg-[#3b82f6] flex items-center justify-center cursor-col-resize z-[80] touch-none data-[disabled]:opacity-0 data-[disabled]:pointer-events-none';
 
     const finish = useCallback((e: React.PointerEvent) => {
         endResizeCursor(e.currentTarget);
@@ -115,13 +122,28 @@ export const ResizableHandle = ({
 
     return (
         <Separator
-            className={className || defaultClassName}
+            {...props}
+            className={`${className || defaultClassName} bndz-resize-handle`}
             disabled={disabled}
+            style={{ touchAction: 'none', ...style }}
+            onPointerDown={(e) => {
+                // Capture + global guard so the list behind the bottom resize bar
+                // cannot scroll, marquee, or steal the drag.
+                e.stopPropagation();
+                e.preventDefault();
+                beginPanelResizeGuard();
+                try {
+                    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                } catch { /* ignore */ }
+                onPointerDown?.(e);
+            }}
             onPointerUp={(e) => {
+                e.stopPropagation();
                 finish(e);
                 onPointerUp?.(e);
             }}
             onPointerCancel={(e) => {
+                e.stopPropagation();
                 finish(e);
                 onPointerCancel?.(e);
             }}
@@ -129,7 +151,6 @@ export const ResizableHandle = ({
                 finish(e);
                 onLostPointerCapture?.(e);
             }}
-            {...props}
         >
             {withHandle && (
                 <div className="w-0.5 h-6 bg-[#555] rounded-full" />

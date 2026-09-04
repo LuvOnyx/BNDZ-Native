@@ -82,6 +82,48 @@ public sealed class BndzTagSidecarStore
 
     public IReadOnlyList<TagSidecarEntry> GetAll() => _map.Values.OrderBy(v => v.Path).ToList();
 
+    /// <summary>Remove a tag key from every sidecar entry (tag definition deleted in Tag Manager).</summary>
+    public int PurgeTagKey(string tagKey)
+    {
+        if (string.IsNullOrWhiteSpace(tagKey)) return 0;
+        var changed = 0;
+        foreach (var entry in _map.Values)
+        {
+            var before = entry.Tags.Count;
+            entry.Tags = entry.Tags
+                .Where(t => !string.Equals(t, tagKey, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (entry.Tags.Count != before)
+            {
+                entry.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                changed++;
+            }
+        }
+        if (changed > 0) Save();
+        return changed;
+    }
+
+    /// <summary>Rename a tag key across all sidecar entries.</summary>
+    public int RenameTagKey(string oldKey, string newKey)
+    {
+        if (string.IsNullOrWhiteSpace(oldKey) || string.IsNullOrWhiteSpace(newKey)) return 0;
+        if (string.Equals(oldKey, newKey, StringComparison.OrdinalIgnoreCase)) return 0;
+        var changed = 0;
+        foreach (var entry in _map.Values)
+        {
+            var idx = entry.Tags.FindIndex(t => string.Equals(t, oldKey, StringComparison.OrdinalIgnoreCase));
+            if (idx < 0) continue;
+            if (entry.Tags.Any(t => string.Equals(t, newKey, StringComparison.OrdinalIgnoreCase)))
+                entry.Tags.RemoveAt(idx);
+            else
+                entry.Tags[idx] = newKey;
+            entry.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            changed++;
+        }
+        if (changed > 0) Save();
+        return changed;
+    }
+
     /// <summary>Copy label, comment, and tags from source paths to destination paths after copy/sync.</summary>
     public void CopyMetadata(IEnumerable<(string source, string dest)> mappings)
     {

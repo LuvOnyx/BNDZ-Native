@@ -19,8 +19,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
-import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import { Icons8Icon, DragHandleGlyph, PopOutGlyph } from './Icons8Icon';
 import BndzErrorBoundary from './BndzErrorBoundary';
+import { IPC } from '../lib/ipcBridge';
+import { pushToast } from './ToastHost';
 import type { ContextToolId } from '../workstation/command-deck/contextToolRegistry';
 
 /** Keep tab reorder drags horizontal — no vertical pull on the tab strip. */
@@ -387,20 +389,19 @@ export default function BottomPluginPanel(props: any & {
                   title="Pop out plugin into a separate window"
                   onClick={() => {
                     const name = activePlugin?.name;
-                    void import('../lib/ipcBridge').then(async ({ IPC }) => {
+                    void (async () => {
                       const r = await IPC.openPluginWindow(activeTab, { title: name });
                       if (!r?.ok) {
-                        const { pushToast } = await import('./ToastHost');
                         pushToast({
                           kind: 'error',
                           title: 'Pop-out failed',
                           message: r?.error || 'Could not open plugin window',
                         });
                       }
-                    });
+                    })();
                   }}
                 >
-                  <Icons8Icon id="external_link" size={12} />
+                  <PopOutGlyph size={12} className="text-sky-200" />
                 </button>
               )}
               {!immersive && onEnterImmersive && (

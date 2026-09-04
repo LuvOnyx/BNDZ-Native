@@ -24,6 +24,8 @@ internal static class BndzOleDragStaThread
     [DllImport("ole32.dll")]
     private static extern int OleInitialize(IntPtr reserved);
 
+    internal static void WarmUp() => Run(static () => { }, block: false);
+
     internal static void Run(Action action, bool block = true)
     {
         if (action is null) return;

@@ -57,27 +57,47 @@ function iconRequestPx(displaySize: number): number {
   return Math.min(128, Math.max(32, listPx, displaySize * dpr));
 }
 
+function buildThumbnailIconPolicyKey(config: ReturnType<typeof useAppConfig>['config']): string {
+  return [
+    config.iconCacheBuster,
+    config.showFolderThumbnails,
+    config.showThumbnailsForNonImages,
+    config.showThumbnailsForRawFiles,
+    config.useGenericIconsForSuperFastBrowsing,
+    config.butOnlyInNetworkLocations,
+    config.showFileIconOnThumbnail,
+    config.showFilmStripOverlayOnVideoThumbnails,
+    config.showIconOverlays,
+    config.inNetworkLocationsAsWell,
+    config.showShortcutOverlays,
+    config.showSharedFolderOverlays,
+    config.audioPreview,
+  ].join('|');
+}
+
+type ThumbnailIconProps = {
+  entity: FSEntity;
+  isDir: boolean;
+  path: string;
+  size?: number;
+  eager?: boolean;
+  forceShellOnly?: boolean;
+  policyKey: string;
+};
+
 /**
  * List/grid icon — CAS thumb first, shell glyph second.
  * Virtualized rows are already viewport-culled, so we fetch eagerly (no IntersectionObserver).
  */
-export const ThumbnailIcon = memo(function ThumbnailIcon({
+const ThumbnailIconInner = memo(function ThumbnailIconInner({
   entity,
   isDir,
   path,
   size = 16,
   eager = true,
   forceShellOnly = false,
-}: {
-  entity: FSEntity;
-  isDir: boolean;
-  path: string;
-  size?: number;
-  /** When true (default), fetch immediately — required for virtualized list rows. */
-  eager?: boolean;
-  /** Skip thumbnail fetch (shell glyph only) — titles/list when thumbs-in-titles is off. */
-  forceShellOnly?: boolean;
-}) {
+  policyKey: _policyKey,
+}: ThumbnailIconProps) {
   const { config } = useAppConfig();
   const overlays = getOverlaysBehavior(config);
   const ext = entityExt(entity);
@@ -95,6 +115,7 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
   const [shellBroken, setShellBroken] = useState(false);
   const [isVisible, setIsVisible] = useState(eager);
   const containerRef = useRef<HTMLDivElement>(null);
+  const shellRetryRef = useRef(0);
   const showFilm = isVideo && config.showFilmStripOverlayOnVideoThumbnails === true;
   const showTypeBadge = useThumbnail && config.showFileIconOnThumbnail === true;
   const isGhostLink = !!(entity as any).isGhostLink;
@@ -128,6 +149,7 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
   }, [config.iconCacheBuster]);
 
   useEffect(() => {
+    shellRetryRef.current = 0;
     setIconifyUrl(null);
     setSvgInline(null);
     setNativeFailed(false);
@@ -249,12 +271,16 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
 
   const displaySrc = nativeSrc || iconifyUrl;
   const hasRealThumb = !!usableThumb;
+  const transparencyMode = String(config.thumbnailTransparency || 'Neutral');
+  const transparencyPlate = hasRealThumb && (
+    transparencyMode === 'Checkered' || transparencyMode === 'White' || transparencyMode === 'Black'
+  );
 
   return (
     <div
       ref={containerRef}
-      className={`${showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}${size >= 64 ? ' bndz-list-thumb--hero' : ''}`}
-      data-thumb-transparency={String(config.thumbnailTransparency || 'Neutral')}
+      className={`${showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}${size >= 112 ? ' bndz-list-thumb--hero' : ''}`}
+      data-thumb-transparency={transparencyMode}
       style={{
         width: size,
         height: size,
@@ -267,14 +293,13 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
         boxShadow: config.useThumbnailChromeColor && config.thumbnailChromeColor
           ? `inset 0 0 0 1px #${String(config.thumbnailChromeColor).replace(/^#/, '')}`
           : undefined,
-        background:
-          String(config.thumbnailTransparency || 'Neutral') === 'Checkered'
+        background: transparencyPlate
+          ? transparencyMode === 'Checkered'
             ? 'repeating-conic-gradient(#3a3a3a 0% 25%, #2a2a2a 0% 50%) 50% / 8px 8px'
-            : String(config.thumbnailTransparency || 'Neutral') === 'White'
+            : transparencyMode === 'White'
               ? '#ffffff'
-              : String(config.thumbnailTransparency || 'Neutral') === 'Black'
-                ? '#000000'
-                : undefined,
+              : '#000000'
+          : undefined,
       }}
     >
       {displaySrc ? (
@@ -310,7 +335,12 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
               return;
             }
             if (usableShell && broken === usableShell) {
-              // Shell delivery is base64 now — clear poison and refetch once.
+              if (shellRetryRef.current >= 1) {
+                setShellBroken(true);
+                setNativeFailed(true);
+                return;
+              }
+              shellRetryRef.current += 1;
               setShellBroken(false);
               void requestNativeIcon(path, dirFlag, 'shell', requestPx, 1000);
               return;
@@ -365,10 +395,16 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
     </div>
   );
 }, (prev, next) => (
-  prev.entity.id === next.entity.id
+  prev.policyKey === next.policyKey
+  && prev.entity.id === next.entity.id
   && prev.path === next.path
   && prev.size === next.size
   && prev.isDir === next.isDir
   && prev.eager === next.eager
   && prev.forceShellOnly === next.forceShellOnly
 ));
+
+export function ThumbnailIcon(props: Omit<ThumbnailIconProps, 'policyKey'>) {
+  const { config } = useAppConfig();
+  return <ThumbnailIconInner {...props} policyKey={buildThumbnailIconPolicyKey(config)} />;
+}

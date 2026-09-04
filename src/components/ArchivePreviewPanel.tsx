@@ -22,11 +22,14 @@ import {
 import {
   beginFileDragSession,
   endFileDragSession,
+  getFileDragSession,
   hitTestArchiveRootAtPoint,
   hitTestListBodyAtPoint,
   isInternalFileDragChromeAtPoint,
   stashOleDragSession,
+  shouldTriggerOutboundOleBoundaryHandoff,
 } from '../lib/fileDragSession';
+import { performOutboundOleBoundaryHandoff } from '../lib/nativeOleFileDrag';
 import { setDragGhostPosition, armDragGhost } from '../lib/pointerDragGhost';
 import { onHostOleDragEscalated } from '../lib/fileDragUiCleanup';
 import { IPC } from '../lib/ipcBridge';
@@ -359,6 +362,10 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     let oleDragStarted = false;
     let hostOleEscalated = false;
     let pathsPromise: Promise<string[]> | null = null;
+    let boundaryHandoffDone = false;
+    let prevClientX = startX;
+    let prevClientY = startY;
+    const captureEl = e.currentTarget as HTMLElement;
 
     const captureOpts = { capture: true } as const;
 
@@ -450,6 +457,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             sourceTabPath: winPath,
           });
           IPC.notifyFileDragActive(true, paths);
+          // Keep archive ghost in-app; OLE starts at window boundary.
           showArchiveGhost(live, false);
         }).catch(() => {
           setStatus('Could not extract for drag.');
@@ -467,8 +475,31 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
       }
 
       if (!drag.paths?.length) return;
-      if (hostOleEscalated) return;
-      // Host poll is authoritative for leave-window → DoDragDrop.
+      if (hostOleEscalated || oleDragStarted) return;
+
+      if (
+        !boundaryHandoffDone
+        && IPC.isNative
+        && shouldTriggerOutboundOleBoundaryHandoff(
+          ev.clientX,
+          ev.clientY,
+          prevClientX,
+          prevClientY,
+          ev.screenX,
+          ev.screenY,
+        )
+      ) {
+        boundaryHandoffDone = true;
+        performOutboundOleBoundaryHandoff({
+          paths: drag.paths,
+          pointerId: capturePointerId,
+          captureEl,
+          hideGhost: () => setArchiveDragGhost(null),
+          why: 'archive-boundary',
+        });
+      }
+      prevClientX = ev.clientX;
+      prevClientY = ev.clientY;
     };
 
     const onUp = async (ev: PointerEvent) => {
@@ -512,18 +543,8 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     };
 
     const onCancel = (ev: PointerEvent) => {
-      // Leaving the WebView cancels the pointer — keep FILE_DRAG_ACTIVE armed so the
-      // host poll can still escalate to DoDragDrop after the cursor leaves the window.
       if (ev.pointerId !== capturePointerId) return;
-      const drag = dragRef.current;
-      if (drag && (drag.active || drag.preparing || drag.paths?.length) && !oleDragStarted && !hostOleEscalated) {
-        document.removeEventListener('pointermove', onMove, captureOpts);
-        document.removeEventListener('pointerup', onUp, captureOpts);
-        document.removeEventListener('pointercancel', onCancel, captureOpts);
-        setArchiveDragGhost(null);
-        dispatchPointerFileDragActive(false);
-        return;
-      }
+      if (oleDragStarted || hostOleEscalated) return;
       void onUp(ev);
     };
 

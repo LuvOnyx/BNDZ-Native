@@ -51,6 +51,10 @@ export function formatTransferAction(action: string): string {
     case 'folder-sync': return 'Sync';
     case 'archive-add': return 'Archive';
     case 'archive-extract': return 'Extract';
+    case 'archive-extract-rpf': return 'Extract RPF';
+    case 'mesh-upload': return 'Upload (Mesh)';
+    case 'mesh-download': return 'Download (Mesh)';
+    case 'mesh-drop-send': return 'Mesh Drop';
     case 'archive-create': return 'Archive';
     case 'undo': return 'Undo';
     case 'redo': return 'Redo';

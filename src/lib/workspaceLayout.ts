@@ -11,7 +11,7 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 62;
+export const WORKSPACE_LAYOUT_VERSION = 63;
 
 /**
  * Canonical outer split (user-confirmed):
@@ -52,8 +52,8 @@ export const MIN_OUTER_LAYOUT: Layout = {
     /** Soft floor under default tree (12) so a small shrink does not collapse. */
     sidebar: 9,
     workspace: 35,
-    /** Soft floor under default preview (16) so small shrinks do not collapse. */
-    preview: 11,
+    /** Soft floor = good starting default so reopen is never paper-thin. */
+    preview: 16,
 };
 
 export const MAX_OUTER_LAYOUT: Layout = {
@@ -64,9 +64,9 @@ export const MAX_OUTER_LAYOUT: Layout = {
 
 /**
  * ResizablePanel minSize for preview: drag below this % and it collapses.
- * Kept well under the 10% default so a small shrink does NOT shut the panel.
+ * Match the good starting default (~16%) so reopen never lands paper-thin.
  */
-export const PREVIEW_COLLAPSE_SIZE = 5;
+export const PREVIEW_COLLAPSE_SIZE = 16;
 
 export const MIN_INNER_LAYOUT: Layout = {
     main: 8,

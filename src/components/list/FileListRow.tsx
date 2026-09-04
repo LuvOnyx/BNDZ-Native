@@ -56,6 +56,8 @@ export type FileListRowProps = {
   folderPrefetching: boolean;
   filterTintKey?: string;
   healthSeverity?: string;
+  layoutKey?: string;
+  html5NativeDrag?: boolean;
 };
 
 function arePropsEqual(prev: FileListRowProps, next: FileListRowProps): boolean {
@@ -63,7 +65,8 @@ function arePropsEqual(prev: FileListRowProps, next: FileListRowProps): boolean 
     if (prev.inlineRenameName !== next.inlineRenameName) return false;
   }
   return (
-    prev.entity.id === next.entity.id
+    prev.layoutKey === next.layoutKey
+    && prev.entity.id === next.entity.id
     && prev.entityStamp === next.entityStamp
     && prev.rowIndex === next.rowIndex
     && prev.isSelected === next.isSelected
@@ -80,6 +83,7 @@ function arePropsEqual(prev: FileListRowProps, next: FileListRowProps): boolean 
     && prev.folderPrefetching === next.folderPrefetching
     && prev.filterTintKey === next.filterTintKey
     && prev.healthSeverity === next.healthSeverity
+    && prev.html5NativeDrag === next.html5NativeDrag
   );
 }
 
@@ -100,6 +104,7 @@ function FileListRow(props: FileListRowProps) {
     clipboardMark,
     realityMissing,
     folderPrefetching,
+    html5NativeDrag,
   } = props;
 
   const bridge = getPaneFileListBridge(paneId);
@@ -269,7 +274,7 @@ function FileListRow(props: FileListRowProps) {
       data-peer-label={peerLabel || undefined}
       className={`fs-item-wrapper ${isGridMode ? `fs-grid-item${isDrive ? '' : ' bndz-view-grid'}${gridDenseHideCaption ? ' bndz-tile--dense' : ''}` : isListMode ? `fs-list-item${isDrive ? '' : ' bndz-view-list'}${listDenseChrome ? ' bndz-tile--dense' : ''}` : `fs-list-item bndz-view-details flex items-center ${isDrive ? 'mb-1 p-1' : ''}`} ${isGridMode ? 'flex flex-col items-stretch justify-start w-full' : isListMode ? 'flex items-center w-full min-w-0' : ''} border border-transparent cursor-pointer
         ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected || !!config.underlineSelectedRows ? 'underline decoration-[#007acc]' : ''}` : (mouseRt.highlightHovered || config.highlightHoveredItems !== false) ? ((isGridMode || isListMode) && !isDrive ? 'bndz-tile--hoverable' : (isDetailsMode ? 'bndz-tile--hoverable' : (!isDrive ? 'hover:bg-[#2a2d2e]' : ''))) : ''}
-        ${isFocused && !showSelectionChrome ? 'ring-1 ring-inset ring-white/30' : ''}
+        ${isFocused && !showSelectionChrome ? 'bndz-grid-focus-ring' : ''}
         ${peerLabel ? 'fs-item-wrapper--peer-share' : ''}
         ${isDragTarget && isDir ? 'ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30' : ''}
         ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
@@ -459,9 +464,13 @@ function FileListRow(props: FileListRowProps) {
           entity.extension || null,
         );
       }}
-      draggable={false}
+      draggable={!!html5NativeDrag}
       onDragStart={(e) => {
-        e.preventDefault();
+        if (!html5NativeDrag) {
+          e.preventDefault();
+          return;
+        }
+        bridge.onHtml5NativeDragStart?.(entity.id, e);
       }}
     >
       {isDrive && drive && computedViewMode !== 'details' ? (
@@ -511,9 +520,13 @@ function FileListRow(props: FileListRowProps) {
                 <div
                   className={`bndz-grid-icon-well flex items-center justify-center relative shrink-0 ${iconDimClass}`}
                   style={{
-                    width: '100%',
+                    width: gridMetrics.iconSlot,
                     height: gridMetrics.iconSlot,
+                    minWidth: gridMetrics.iconSlot,
                     minHeight: gridMetrics.iconSlot,
+                    maxWidth: gridMetrics.iconSlot,
+                    marginLeft: 'auto',
+                    marginRight: 'auto',
                     padding: gridMetrics.thumbMargin ?? 12,
                     boxSizing: 'border-box',
                   }}

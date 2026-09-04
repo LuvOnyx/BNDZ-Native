@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CloseGlyph, MaximizeGlyph, MinimizeGlyph } from './ChromeGlyphs';
 import { IPC } from '../lib/ipcBridge';
 
-const BNDZ_APP_ICON = '/bndz-light.png';
+const BNDZ_APP_ICON = '/Bndz-main.png';
 
 interface WindowTitleBarProps {
   title?: string;

@@ -42,7 +42,7 @@
 
 [Setup]
 
-AppId={{A7B3E4F1-9C2D-4B8A-BNDZ-36200001}
+AppId={{A7B3E4F1-9C2D-4B8A-BNDZ-36200001}}
 
 AppName={#MyAppName}
 

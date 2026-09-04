@@ -93,6 +93,11 @@ export function isBndzWorkspacePath(path: string): boolean {
   return isBndzCanvasPath(path) || isBndzAutomationPath(path) || isBndzTwinVolumePath(path) || isBndzTemporalDiffPath(path);
 }
 
+/** Home + workspace tools — hide FM chrome (bottom dock, breadcrumbs, column bars) for full canvas. */
+export function isBndzImmersiveWorkspacePath(path: string): boolean {
+  return isBndzHomePath(path) || isBndzWorkspacePath(path);
+}
+
 export function parseBndzWorkspaceView(path: string): BndzWorkspaceView | null {
   const n = path.replace(/\\/g, '/').replace(/\/+$/, '');
   if (n === BNDZ_CANVAS) return 'canvas';

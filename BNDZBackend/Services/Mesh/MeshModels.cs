@@ -101,4 +101,6 @@ public sealed class MeshTerminalSessionInfo
     public string HostId { get; set; } = "";
     public string? RemoteCwd { get; set; }
     public bool IsLocal { get; set; }
+    /// <summary>True when local shell is a real OS console HWND embedded by the WinUI host.</summary>
+    public bool Embedded { get; set; }
 }

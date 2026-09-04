@@ -244,7 +244,8 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(255,255,255,0.88)');
   root.style.setProperty('--list-header-bg', isLight ? '#eef0f3' : elevated);
   root.style.setProperty('--list-header-text', isLight ? 'rgba(0,0,0,0.82)' : 'rgba(255,255,255,0.55)');
-  root.style.setProperty('--list-text-secondary', isLight ? 'rgba(0,0,0,0.58)' : 'rgba(255,255,255,0.45)');
+  root.style.setProperty('--list-text-secondary', isLight ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.45)');
+  root.style.setProperty('--text-secondary', isLight ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--list-bg', isLight ? '#ffffff' : preset.bg);
   root.style.setProperty('--list-text', preset.text);
   root.style.setProperty('--list-alt-bg', elevated);

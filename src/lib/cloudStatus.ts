@@ -1,5 +1,7 @@
 /** Cloud provider path detection + sync status badges for list rows. */
 
+import type { EmblemId } from '../components/EmblemIcon';
+
 export type CloudProvider = {
   name: string;
   path: string;
@@ -15,6 +17,8 @@ export type CloudBadge = {
   tone: 'sky' | 'amber' | 'emerald' | 'gray';
   title: string;
 };
+
+export type CloudStatusKind = 'available' | 'online-only' | 'pinned' | 'offline' | 'syncing' | 'error' | 'missing';
 
 function norm(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -63,4 +67,34 @@ export function cloudSidebarStatusLabel(status?: string): string {
     case 'available': return 'Available';
     default: return '';
   }
+}
+
+/** Resolve per-file cloud status from listing DTO + provider roots. */
+export function resolveEntityCloudStatus(
+  entity: { cloudStatus?: string; path?: string; name?: string },
+  panePath: string,
+  providers: CloudProvider[] | null | undefined,
+): { kind: CloudStatusKind; title: string; emblem: EmblemId } | null {
+  const full = (entity.path || `${panePath}/${entity.name || ''}`).replace(/\\/g, '/');
+  const provider = matchCloudProvider(full, providers);
+  const raw = (entity.cloudStatus || provider?.syncStatus || '').toLowerCase();
+  if (!raw && !provider) return null;
+
+  const name = provider?.name || 'Cloud';
+  if (raw === 'online-only' || raw === 'offline') {
+    return { kind: 'online-only', title: `${name} — online-only`, emblem: 'state-download' };
+  }
+  if (raw === 'pinned') {
+    return { kind: 'pinned', title: `${name} — always keep on this device`, emblem: 'state-ok' };
+  }
+  if (raw === 'missing' || raw === 'error') {
+    return { kind: 'error', title: `${name} — unavailable`, emblem: 'state-error' };
+  }
+  if (raw === 'syncing') {
+    return { kind: 'syncing', title: `${name} — syncing`, emblem: 'state-sync' };
+  }
+  if (provider || raw === 'available') {
+    return { kind: 'available', title: `${name} — available locally`, emblem: 'state-ok' };
+  }
+  return null;
 }

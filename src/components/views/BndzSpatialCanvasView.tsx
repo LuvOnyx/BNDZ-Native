@@ -4,7 +4,7 @@ import WorkspaceMenuPanel, { WorkspaceMenuItem, WorkspaceMenuSep } from '../work
 import SpatialStickyNote from '../workspace/SpatialStickyNote';
 import SpatialSpringBoard from '../../workstation/spatial/SpatialSpringBoard';
 import { readBndzFileDragData, hasBndzFileDrag } from '../../lib/bndzDrag';
-import { getFileDragSession } from '../../lib/fileDragSession';
+import { getFileDragSession, hitTestWorkspaceSurfaceAtPoint } from '../../lib/fileDragSession';
 import { endInternalFileDragUi } from '../../lib/fileDragUiCleanup';
 import { readClipboardText, writeClipboardText } from '../../lib/clipboardSafe';
 import {
@@ -670,7 +670,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       if (!paths?.length) return;
       const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : window.innerWidth / 2;
       const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : window.innerHeight / 2;
-      if (!hitBoardAt(clientX, clientY)) return;
+      if (!hitBoardAt(clientX, clientY)) {
+        if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) {
+          setStatus('Drop on the canvas board to pin files.');
+        }
+        return;
+      }
       const wasEmpty = !docRef.current?.items.length && !(docRef.current?.stickies?.length);
       addPaths(paths, resolveDropPoint(clientX, clientY));
       // Fit board into view when items land on an otherwise-empty canvas so the

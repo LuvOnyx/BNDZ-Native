@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
 import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath, normalizePanePath, isRecycleBinPath } from '../lib/pathUtils';
+import { isMeshPath } from '../lib/meshPaths';
+import { resolveLocalReadPath } from '../lib/meshPreviewResolve';
 import { formatUiPath } from '../lib/displayPath';
 import { isPreviewEnabledForExt, buildSettingsRuntime } from '../lib/settingsRuntime';
 import { getBlowUpMouseBehavior, getPreviewAvBehavior } from '../lib/settingsBehavior';
@@ -9,7 +11,7 @@ import { applyWebPathMap } from '../lib/listReportExport';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
-import { Icons8Icon } from './Icons8Icon';
+import { Icons8Icon, PopOutGlyph } from './Icons8Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
@@ -290,8 +292,23 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   // Use local-stream prefix so C# WebResourceRequested can intercept and stream local files securely
   // For web fallback, use the Express backend route
   const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
-  const virtualUrl = path && !isDir
-      ? (isNative ? toVirtualStreamUrl(path) : `/local-stream/${encodeLocalStreamPath(toWindowsPath(path))}`)
+  const [meshPreviewLocalPath, setMeshPreviewLocalPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!path || !isMeshPath(path)) {
+      setMeshPreviewLocalPath(null);
+      return;
+    }
+    let cancelled = false;
+    void resolveLocalReadPath(path).then(res => {
+      if (!cancelled) setMeshPreviewLocalPath(res.error ? null : res.localPath);
+    });
+    return () => { cancelled = true; };
+  }, [path]);
+
+  const previewFsPath = meshPreviewLocalPath || path;
+  const virtualUrl = previewFsPath && !isDir
+      ? (isNative ? toVirtualStreamUrl(previewFsPath) : `/local-stream/${encodeLocalStreamPath(toWindowsPath(previewFsPath))}`)
       : '';
   const previewAllowed = isArchive || isTorrent || isRageConvertModelExt(ext) || isPreviewEnabledForExt(ext, config);
 
@@ -413,8 +430,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
          try {
              if (isEditableText) {
                  const { IPC } = await import('../lib/ipcBridge');
+                 const { resolveLocalReadPath } = await import('../lib/meshPreviewResolve');
                  if (IPC.isNative) {
-                     const result = await IPC.readTextFile(toWindowsPath(path));
+                     const resolved = await resolveLocalReadPath(path);
+                     if (resolved.error) throw new Error(resolved.error);
+                     const result = await IPC.readTextFile(resolved.localPath);
                      if (result.error) throw new Error(result.error);
                      setFileContent(result.content ?? '');
                  } else {
@@ -1113,7 +1133,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              ))}
           </div>
           <div className="flex gap-0.5 shrink-0 ml-auto">
-             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" /></button>
+             {onOpenFloatingPreview && (
+               <button
+                 type="button"
+                 onClick={onOpenFloatingPreview}
+                 className="bndz-preview-action-btn"
+                 title="Pop out preview"
+               >
+                 <PopOutGlyph size={16} className="bndz-preview-action-icon text-sky-200" />
+               </button>
+             )}
+             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="folder_open_ui" size={18} className="bndz-preview-action-icon" /></button>
              <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={18} className="bndz-preview-action-icon" /></button>
           </div>
        </div>

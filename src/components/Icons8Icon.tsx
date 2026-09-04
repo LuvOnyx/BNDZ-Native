@@ -99,3 +99,25 @@ export function DragHandleGlyph({ size = 14, className = '' }: { size?: number; 
     </svg>
   );
 }
+
+/** Pop-out / open-in-new-window glyph — replaces the misleading chain-link external_link asset. */
+export function PopOutGlyph({ size = 14, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="2.5" y="4.5" width="9" height="9" rx="1.5" opacity={0.85} />
+      <path d="M7 2.5h6.5V9" />
+      <path d="M13.5 2.5 8 8" />
+    </svg>
+  );
+}

@@ -2706,28 +2706,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="Plugin Rack" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Modular Plugin Rack</h1>
-              
-              <SectionHeader title="Active Bottom Panel Plugins" />
-              <div className="ml-[4px] mb-6 space-y-[6px]">
-                 {([
-                   ['properties', 'Properties'],
-                   ['context-menu-manager', 'Context Menus'],
-                   ['icon-studio', 'Icon Studio'],
-                   ['batch-rename', 'Batch Rename'],
-                   ['find', 'Fast Search'],
-                   ['dropstack', 'Drop Stack'],
-                   ['filters', 'Visual Filters'],
-                   ['metadata', 'Metadata Inspector'],
-                 ] as const).map(([id, label]) => {
-                   const defaults = ['properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare'];
-                   const current = localConfig.installedPlugins || defaults;
-                   return (
-                     <Checkbox key={id} label={<span>Enable <span className="font-bold">{label}</span> Module</span>} checked={current.includes(id)} onChange={e => {
-                       updateLocalConfig({ installedPlugins: e.target.checked ? [...new Set([...current, id])] : current.filter((x: string) => x !== id) });
-                     }} />
-                   );
-                 })}
+              <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Modular Plugin Rack</h1>
+              <p className="text-[12px] text-gray-400 mb-6 max-w-[560px] leading-relaxed">
+                Install and uninstall extensions in the <span className="text-gray-200">Extension Hub</span> (Help → Extension Hub or the bottom panel empty state).
+                This settings tab no longer duplicates the install list — that prevented marketplace and config from fighting each other.
+              </p>
+              <div className="bndz-native-dialog-panel p-4 max-w-[520px] space-y-2">
+                <p className="text-[12px] text-gray-300">Default installed: System Properties, Fast Search, Visual Filters.</p>
+                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Extension Hub to add Remote Mesh, Ghost-Link, RAM Staging, and selling-pillar tools.</p>
               </div>
 
               <SectionHeader title="Right Sidebar Preview Engine" />

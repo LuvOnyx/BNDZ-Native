@@ -297,20 +297,27 @@ public sealed class NativeShellFileOperationService
                     break;
 
                 case "create-dir":
-                    if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
-                    else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
+                {
+                    var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(dir))
+                        throw new InvalidOperationException("No folder path was provided.");
+                    var uniqueDir = GetUniquePath(dir);
+                    Directory.CreateDirectory(uniqueDir);
+                    onProgress?.Invoke(operationId, 100, uniqueDir, 0, 0, 0, 1, 1);
                     return;
+                }
 
                 case "create-file":
                 {
                     var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
-                    if (!string.IsNullOrEmpty(filePath))
-                    {
-                        var dir = Path.GetDirectoryName(filePath);
-                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                            Directory.CreateDirectory(dir);
-                        if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
-                    }
+                    if (string.IsNullOrEmpty(filePath))
+                        throw new InvalidOperationException("No file path was provided.");
+                    var uniqueFile = GetUniquePath(filePath);
+                    var dir = Path.GetDirectoryName(uniqueFile);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                        Directory.CreateDirectory(dir);
+                    if (!File.Exists(uniqueFile)) File.WriteAllBytes(uniqueFile, Array.Empty<byte>());
+                    onProgress?.Invoke(operationId, 100, uniqueFile, 0, 0, 0, 1, 1);
                     return;
                 }
 
@@ -580,5 +587,21 @@ public sealed class NativeShellFileOperationService
     {
         if (string.IsNullOrWhiteSpace(path)) return "";
         return path.Replace('/', '\\').Trim();
+    }
+
+    private static string GetUniquePath(string path)
+    {
+        if (!File.Exists(path) && !Directory.Exists(path)) return path;
+        var dir = Path.GetDirectoryName(path) ?? "";
+        var name = Path.GetFileNameWithoutExtension(path);
+        var ext = Path.GetExtension(path);
+        var n = 2;
+        string candidate;
+        do
+        {
+            candidate = Path.Combine(dir, $"{name} ({n}){ext}");
+            n++;
+        } while (File.Exists(candidate) || Directory.Exists(candidate));
+        return candidate;
     }
 }

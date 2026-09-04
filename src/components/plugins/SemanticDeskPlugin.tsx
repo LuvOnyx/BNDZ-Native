@@ -34,6 +34,15 @@ type ClusterPile = {
   paths: string[];
 };
 
+type EmbeddingStatus = {
+  modelLoaded: boolean;
+  embeddingDimension: number;
+  modelPath: string;
+  vocabPath: string;
+  modelExists: boolean;
+  vocabExists: boolean;
+};
+
 function normalizeCluster(raw: Record<string, unknown>): ClusterPile {
   const pathsRaw = raw.paths ?? raw.Paths;
   return {
@@ -53,8 +62,41 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath }: {
   const [loading, setLoading] = useState(false);
   const [piles, setPiles] = useState<ClusterPile[]>([]);
   const [itemCount, setItemCount] = useState(0);
+  const [emb, setEmb] = useState<EmbeddingStatus | null>(null);
+  const [embLoading, setEmbLoading] = useState(false);
 
   const folderPath = toWindowsPath((focusedPath || currentPath || '').replace(/\/+$/, ''));
+
+  const refreshEmbedding = useCallback(async () => {
+    setEmbLoading(true);
+    try {
+      const res = await IPC.embeddingStatus();
+      if (res.ok && res.status) {
+        setEmb({
+          modelLoaded: !!res.status.modelLoaded,
+          embeddingDimension: Number(res.status.embeddingDimension || 0),
+          modelPath: String(res.status.modelPath || ''),
+          vocabPath: String(res.status.vocabPath || ''),
+          modelExists: !!res.status.modelExists,
+          vocabExists: !!res.status.vocabExists,
+        });
+      } else {
+        setEmb(null);
+      }
+    } catch {
+      setEmb(null);
+    } finally {
+      setEmbLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setActive(isSemanticDeskActive());
+    void refreshEmbedding();
+  }, [refreshEmbedding]);
+
+  const onnxReady = !!emb && emb.modelExists && emb.vocabExists;
+  const onnxPartial = !!emb && (emb.modelExists !== emb.vocabExists);
 
   const runCluster = useCallback(async () => {
     if (!folderPath) {
@@ -76,12 +118,13 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath }: {
       setActive(true);
       window.dispatchEvent(new CustomEvent('bndz-semantic-desk-changed', { detail: { active: true } }));
       pushToast(`${clusters.length} semantic piles · ${clusters.reduce((n, c) => n + c.count, 0)} items`, 'success');
+      void refreshEmbedding();
     } catch (e: unknown) {
       pushToast(e instanceof Error ? e.message : 'Cluster failed', 'error');
     } finally {
       setLoading(false);
     }
-  }, [folderPath, clusterCount]);
+  }, [folderPath, clusterCount, refreshEmbedding]);
 
   const clearOverlay = () => {
     clearSemanticDesk();
@@ -91,10 +134,6 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath }: {
     window.dispatchEvent(new CustomEvent('bndz-semantic-desk-changed', { detail: { active: false } }));
     pushToast('Semantic overlay cleared', 'info');
   };
-
-  useEffect(() => {
-    setActive(isSemanticDeskActive());
-  }, []);
 
   return (
     <PluginPanelShell
@@ -113,13 +152,72 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath }: {
     >
       <PluginHeroStrip
         title="Semantic desk overlay"
-        subtitle="Local feature vectors (extension, size, name tokens) → 3–8 piles with list group headers."
+        subtitle={onnxReady
+          ? 'ONNX embeddings loaded — cluster by meaning, then group the list.'
+          : 'Local feature vectors (extension, size, name tokens) → 3–8 piles. Drop ONNX model for richer ranking.'}
         actions={
           <PluginHeroActionButton icon="folder_open_ui" onClick={runCluster} disabled={loading}>
             Analyze {folderPath ? folderPath.split('\\').pop() : 'folder'}
           </PluginHeroActionButton>
         }
       />
+
+      {emb && !onnxReady && (
+        <div className="mx-3 mb-2 rounded-xl border border-amber-400/25 bg-gradient-to-br from-amber-950/40 via-[#1a1408] to-[#0c0e14] p-3 space-y-2">
+          <div className="flex items-start gap-2">
+            <Icons8Icon id="info_ui" size={14} className="text-amber-300 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-semibold text-amber-100">
+                {onnxPartial ? 'ONNX model incomplete' : 'ONNX embedding model not installed'}
+              </div>
+              <p className="text-[10px] text-amber-100/70 mt-1 leading-relaxed">
+                Place <span className="font-mono text-amber-50/90">embedding.onnx</span> and{' '}
+                <span className="font-mono text-amber-50/90">vocab.txt</span> under{' '}
+                <span className="font-mono text-amber-50/90">%LocalAppData%\BNDZ\Models\</span>.
+                Clustering still works with built-in local features until then.
+              </p>
+              <div className="mt-2 grid gap-1 text-[10px] font-mono text-amber-100/55">
+                <div className={emb.modelExists ? 'text-emerald-400/80' : ''}>
+                  {emb.modelExists ? '✓' : '○'} {emb.modelPath || 'embedding.onnx'}
+                </div>
+                <div className={emb.vocabExists ? 'text-emerald-400/80' : ''}>
+                  {emb.vocabExists ? '✓' : '○'} {emb.vocabPath || 'vocab.txt'}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <PluginToolbarButton icon="refresh" onClick={() => void refreshEmbedding()} disabled={embLoading}>
+              Recheck model
+            </PluginToolbarButton>
+            {emb.modelPath && (
+              <PluginToolbarButton
+                icon="folder_open_ui"
+                onClick={() => {
+                  const folder = emb.modelPath.replace(/[/\\][^/\\]+$/, '');
+                  if (folder) void IPC.shellExecute('openExplorer', folder);
+                }}
+              >
+                Open Models folder
+              </PluginToolbarButton>
+            )}
+          </div>
+        </div>
+      )}
+
+      {onnxReady && (
+        <div className="mx-3 mb-2 rounded-xl border border-emerald-400/20 bg-emerald-950/20 px-3 py-2 flex items-center gap-2 text-[10px] text-emerald-200/90">
+          <Icons8Icon id="checksquare_ui" size={12} className="text-emerald-400 shrink-0" />
+          ONNX ready{emb?.modelLoaded ? ' · loaded' : ''} · dim {emb?.embeddingDimension || '—'}
+          <button
+            type="button"
+            className={`${PLUGIN_INPUT_CLASS} !w-auto !py-0.5 !px-2 !text-[10px] ml-auto`}
+            onClick={() => void refreshEmbedding()}
+          >
+            Refresh
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 px-3 pb-2">
         <PluginStatCard label="Overlay" value={active ? 'On' : 'Off'} />

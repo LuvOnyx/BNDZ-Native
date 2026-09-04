@@ -60,20 +60,24 @@ export default function PropertiesPlugin({
     const isMulti = selectionCount > 1;
 
     const targetPath = useMemo(() => {
-        if (primarySelectedPath) return formatPropertiesPath(primarySelectedPath);
         if (selectedItems.length > 0) return formatPropertiesPath(selectedItems[0]);
+        if (primarySelectedPath) return formatPropertiesPath(primarySelectedPath);
         if (entity?.path) return formatPropertiesPath(entity.path);
         return formatPropertiesPath(focusedPath);
     }, [primarySelectedPath, selectedItems, entity?.path, focusedPath]);
 
     const displayName = useMemo(() => {
         if (isMulti) return `${selectionCount} items selected`;
+        if (selectedItems.length === 1) {
+            const leaf = selectedItems[0].split(/[/\\]/).filter(Boolean).pop();
+            if (leaf) return leaf;
+        }
         if ((entity as any)?.isVirtual && entity?.name) return entity.name;
         if (entity?.name && !entity.name.toLowerCase().startsWith('shell:')) return entity.name;
         const pane = normalizePanePath(focusedPath || entity?.path || '');
         if (pane) return getPaneTabLabel(pane);
         return targetPath.split(/[/\\]/).pop() || 'Selection';
-    }, [isMulti, selectionCount, entity?.name, entity?.path, focusedPath, targetPath]);
+    }, [isMulti, selectionCount, entity?.name, entity?.path, focusedPath, targetPath, selectedItems]);
 
     const ext = !isMulti && entity?.type === 'file' ? ((entity as any)?.extension?.toLowerCase() || '') : '';
     const isDir = !isMulti && (entity?.type === 'directory' || (entity as any)?.isVirtual || isRecycleBinPath(focusedPath));

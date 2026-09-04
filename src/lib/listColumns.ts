@@ -6,9 +6,10 @@ import { isRecycleBinPath } from './pathUtils';
 export type BuiltinListColumnId =
   | 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'label' | 'comment' | 'path'
   | 'originalLocation' | 'originalPath'
+  | 'cloudStatus'
   | 'ghostState' | 'coldTarget' | 'ramZone';
 export type ListColumnId = BuiltinListColumnId | `custom:${string}`;
-export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags' | 'ghostState' | 'ramZone';
+export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags' | 'ghostState' | 'ramZone' | 'cloudStatus';
 
 export interface ListColumnDef {
   id: ListColumnId;
@@ -28,6 +29,7 @@ export const LIST_COLUMN_DEFS: ListColumnDef[] = [
   { id: 'size', label: 'Size', widthClass: 'shrink-0', widthPx: 128, align: 'right', sortable: true },
   { id: 'modified', label: 'Modified', widthClass: 'shrink-0', widthPx: 150, sortable: true },
   { id: 'created', label: 'Created', widthClass: 'shrink-0', widthPx: 150, sortable: true },
+  { id: 'cloudStatus', label: 'Cloud', widthClass: 'shrink-0', widthPx: 72, sortable: true },
   { id: 'attributes', label: 'Attributes', widthClass: 'shrink-0', widthPx: 100 },
   { id: 'tags', label: 'Tags', widthClass: 'shrink-0', widthPx: 120, sortable: true },
   { id: 'label', label: 'Label', widthClass: 'shrink-0', widthPx: 120 },
@@ -46,6 +48,7 @@ export const DEFAULT_LIST_COLUMN_PX: Record<BuiltinListColumnId, number> = {
   size: 90,
   modified: 150,
   created: 150,
+  cloudStatus: 72,
   attributes: 100,
   tags: 120,
   label: 120,
@@ -64,6 +67,7 @@ export const DEFAULT_LIST_COLUMN_VISIBILITY: Record<ListColumnId, boolean> = {
   size: true,
   modified: true,
   created: false,
+  cloudStatus: true,
   attributes: false,
   tags: true,
   label: false,

@@ -7125,6 +7125,9 @@ function booleanOp(mode) {
     syncRailColorChip();
     setTool('select');
     toast('Design Board ready — artboard locked');
+    try {
+      window.parent?.postMessage({ source: 'bndz-design-board', type: 'ready' }, '*');
+    } catch { /* ignore */ }
     installDesignBoardDock();
     if (USE_OPENPENCIL) bootEngineInline();
 

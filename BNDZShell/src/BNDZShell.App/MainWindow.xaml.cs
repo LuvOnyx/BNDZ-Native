@@ -82,11 +82,19 @@ public sealed partial class MainWindow : Window
         {
             RemoveWindowSubclass();
             DisposeTray();
+            try
+            {
+                BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
+                ChromeHost.StopOutboundDragCleanup();
+                if (!_launch.IsPlugin)
+                    BndzEmbeddedBackendHost.Shutdown();
+            }
+            catch { /* ignore */ }
             if (_launch.IsPlugin) return;
             try { BndzEmbeddedBackendHost.SetHostCloseAction(() => { }); } catch { /* ignore */ }
         };
 
-        ChromeHost.Prewarm();
+        // WebView2 init runs from PaneWebView Loaded — calling Prewarm here races before the control is in-tree.
         Activate();
     }
 
@@ -98,6 +106,30 @@ public sealed partial class MainWindow : Window
         BndzEmbeddedBackendHost.SetHostCloseAction(RequestHostClose);
         BndzEmbeddedBackendHost.SetHostTrayActions(HideToTray, RestoreFromTray);
         BndzEmbeddedBackendHost.SetOpenPluginWindowAction(PluginWindowRegistry.Open);
+        BndzEmbeddedBackendHost.SetHostActivateMainAction(ActivateMainFromHost);
+    }
+
+    private void ActivateMainFromHost()
+    {
+        try
+        {
+            void DoActivate()
+            {
+                try
+                {
+                    AppWindow?.Show();
+                    Activate();
+                }
+                catch { /* ignore */ }
+            }
+            if (DispatcherQueue is not null && !DispatcherQueue.HasThreadAccess)
+            {
+                DispatcherQueue.TryEnqueue(DoActivate);
+                return;
+            }
+            DoActivate();
+        }
+        catch { /* ignore */ }
     }
 
     private void RequestHostClose()
@@ -265,8 +297,9 @@ public sealed partial class MainWindow : Window
         => ApplyMenubarInputRegions();
 
     /// <summary>
-    /// WinUI caption covers the top band by default. Mark File/Edit (left ~520px of ~36px)
-    /// as Passthrough so WebView2 receives clicks; keep Caption on the trailing drag strip.
+    /// WinUI caption covers the top band by default. Passthrough almost the full menubar width
+    /// so every menu trigger (Scripting → Help) reaches WebView2; reserve only the trailing
+    /// drag strip + WinUI min/max/close overlay on the right.
     /// </summary>
     private void ApplyMenubarInputRegions()
     {
@@ -277,29 +310,35 @@ public sealed partial class MainWindow : Window
             var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
             if (scale < 0.5) scale = 1.0;
             var menuH = (int)Math.Round(36 * scale);
-            var menuW = (int)Math.Round(520 * scale);
             var winW = _appWindow.Size.Width;
             if (winW <= 0 || menuH <= 0) return;
+
+            var captionReserve = (int)Math.Round(138 * scale);
+            var capW = Math.Clamp(captionReserve, (int)Math.Round(96 * scale), winW);
+            var passW = Math.Max(0, winW - capW);
+
+            // Logo + menu triggers stay passthrough; drag strip + system buttons are native caption.
+            var menuPassW = Math.Clamp((int)Math.Round(560 * scale), (int)Math.Round(220 * scale), passW);
+            var dragX = menuPassW;
+            var dragW = Math.Max(0, passW - menuPassW);
 
             source.ClearRegionRects(NonClientRegionKind.Passthrough);
             source.ClearRegionRects(NonClientRegionKind.Caption);
 
-            var passW = Math.Min(menuW, winW);
-            if (passW > 0)
+            if (menuPassW > 0)
             {
                 source.SetRegionRects(
                     NonClientRegionKind.Passthrough,
-                    [new RectInt32(0, 0, passW, menuH)]);
+                    [new RectInt32(0, 0, menuPassW, menuH)]);
             }
 
-            var capX = passW;
-            var capW = winW - capX;
+            var captionRects = new List<RectInt32>();
+            if (dragW > 0)
+                captionRects.Add(new RectInt32(dragX, 0, dragW, menuH));
             if (capW > 0)
-            {
-                source.SetRegionRects(
-                    NonClientRegionKind.Caption,
-                    [new RectInt32(capX, 0, capW, menuH)]);
-            }
+                captionRects.Add(new RectInt32(passW, 0, capW, menuH));
+            if (captionRects.Count > 0)
+                source.SetRegionRects(NonClientRegionKind.Caption, captionRects.ToArray());
         }
         catch (Exception ex)
         {
@@ -799,5 +838,26 @@ public sealed partial class MainWindow : Window
         if (_hwnd == IntPtr.Zero) return;
         ReleaseCapture();
         SendMessage(_hwnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+    }
+
+    internal void ShowFatalError(string message)
+    {
+        try
+        {
+            ChromeHost.ShowPaneStatus($"BNDZ shell error — see shell-crash.log\n{message}");
+        }
+        catch { /* ignore */ }
+        try
+        {
+            var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+            {
+                Title = "BNDZ shell error",
+                Content = message + "\n\nDetails were written to %LocalAppData%\\BNDZ\\shell-crash.log",
+                CloseButtonText = "Close",
+                XamlRoot = Content?.XamlRoot,
+            };
+            _ = dialog.ShowAsync();
+        }
+        catch { /* ignore */ }
     }
 }

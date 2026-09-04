@@ -7,11 +7,8 @@ namespace BNDZ.Services;
 
 /// <summary>
 /// Builds Explorer-compatible outbound OLE drag payloads.
-///
-/// Locked design (forensic ole-dnd.log + Files/Raymond Chen):
-/// Never pass a live shell GetChildrenUIObjects / SHCreateDataObject IDataObject into
-/// ole32 DoDragDrop. Never attach Shell IDList via WinForms MemoryStream.
-/// Only path: owned WinForms DataObject with CF_HDROP + Preferred DropEffect COPY|MOVE.
+/// Locked design: owned WinForms <see cref="DataObject"/> with CF_HDROP + Preferred DropEffect.
+/// Never pass live shell IDataObject into ole32 DoDragDrop (Drop returns NONE).
 /// </summary>
 internal static class BndzOutboundDragHelper
 {
@@ -22,11 +19,11 @@ internal static class BndzOutboundDragHelper
         string[] Paths);
 
     private static readonly DragDropEffects PreferredCopyMove =
-        DragDropEffects.Copy | DragDropEffects.Move;
+        DragDropEffects.Move | DragDropEffects.Copy;
 
     internal static OutboundDragPayload CreateDataObjectWithKind(
         IEnumerable<string> rawPaths,
-        DragDropEffects preferred = DragDropEffects.Copy | DragDropEffects.Move | DragDropEffects.Link)
+        System.Windows.DragDropEffects preferred = System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link)
     {
         _ = preferred;
         var rejected = new List<string>();
@@ -55,6 +52,9 @@ internal static class BndzOutboundDragHelper
             owned.SetData("Preferred DropEffect", false, new MemoryStream(effectBytes));
         }
         catch { /* optional */ }
+
+        try { WebView2DropTargetService.AppendOleDndLogPublic("payload kind=owned-hdrop"); }
+        catch { /* ignore */ }
 
         return new OutboundDragPayload(owned, "owned-hdrop", Lifetime: null, Paths: distinct);
     }
@@ -107,7 +107,6 @@ internal static class BndzOutboundDragHelper
                 }
             }
 
-            // Never Uri.UnescapeDataString on whole paths — breaks folders literally named file%3A.
             if (p.StartsWith("::{", StringComparison.Ordinal)
                 || p.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
                 return p;
@@ -121,7 +120,7 @@ internal static class BndzOutboundDragHelper
                 p = p.TrimStart('\\');
 
             p = Path.GetFullPath(p);
-            if (p.Length > 2 && (File.Exists(p) || Directory.Exists(p)))
+            if (p.Length > 2 && PathExistsOnDisk(p))
                 return p;
 
             rejectReason = "missing";
@@ -132,6 +131,19 @@ internal static class BndzOutboundDragHelper
             rejectReason = ex.GetType().Name;
             return null;
         }
+    }
+
+    private static bool PathExistsOnDisk(string path)
+    {
+        if (File.Exists(path) || Directory.Exists(path)) return true;
+        try
+        {
+            var probe = path.StartsWith(@"\\", StringComparison.Ordinal)
+                ? @"\\?\UNC\" + path[2..]
+                : @"\\?\" + path;
+            return File.Exists(probe) || Directory.Exists(probe);
+        }
+        catch { return false; }
     }
 
     private static string[] NormalizeExistingPaths(IEnumerable<string> rawPaths, List<string> rejected)

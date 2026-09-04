@@ -90,10 +90,28 @@ Test-Artifact $PortableZip "Portable ZIP" | Out-Null
 
 Write-Host "`nInstaller prerequisites:" -ForegroundColor Yellow
 if (Test-Path $WebView2Bootstrapper) {
-    $mb = [math]::Round((Get-Item $WebView2Bootstrapper).Length / 1MB, 1)
-    Write-Host "  OK  WebView2 bootstrapper ($mb MB)" -ForegroundColor Green
+    $wvBytes = (Get-Item $WebView2Bootstrapper).Length
+    $mb = [math]::Round($wvBytes / 1MB, 1)
+    if ($wvBytes -lt 1MB) {
+        $failures += "WebView2 bootstrapper is only $wvBytes bytes (corrupt): $WebView2Bootstrapper"
+    } else {
+        Write-Host "  OK  WebView2 bootstrapper ($mb MB)" -ForegroundColor Green
+    }
+} elseif ($RequireInstaller) {
+    $failures += "Missing WebView2 bootstrapper: $WebView2Bootstrapper (run npm run package:installer to download)"
 } else {
     Write-Host "  --  WebView2 bootstrapper not cached (downloaded during package:installer)" -ForegroundColor DarkGray
+}
+
+# Optional ONNX Runtime native — warn (not hard-fail) so portable builds without Semantic Desk stay shippable.
+$ortCandidates = @(
+    (Join-Path $PublishDir "onnxruntime.dll"),
+    (Join-Path $PublishDir "runtimes\win-x64\native\onnxruntime.dll")
+) | Where-Object { Test-Path $_ }
+if ($ortCandidates.Count -gt 0) {
+    Write-Host "  OK  ONNX Runtime present ($($ortCandidates[0]))" -ForegroundColor Green
+} else {
+    Write-Host "  --  onnxruntime.dll not in publish (Semantic Desk ONNX optional)" -ForegroundColor DarkGray
 }
 
 $iscc = @(

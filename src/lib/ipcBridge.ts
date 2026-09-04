@@ -162,6 +162,7 @@ export const IPC = {
   _meshTerminalOutputListeners: [] as Array<(payload: { sessionId: string; data: string }) => void>,
   _meshHostsChangedListeners: [] as Array<(hosts: any[]) => void>,
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
+  _pendingCloseRequest: null as { source?: string } | null,
   _openPathListeners: [] as Array<(path: string) => void>,
   _pendingOpenPaths: [] as string[],
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean; lastActionUtc?: string }) => void>,
@@ -195,6 +196,7 @@ export const IPC = {
         } else if (data.type === 'OLE_DRAG_ESCALATED') {
           window.dispatchEvent(new CustomEvent('bndz-ole-drag-escalated', { detail: data.payload }));
         } else if (data.type === 'OLE_DRAG_ENDED') {
+          this.notifyFileDragActive(false);
           window.dispatchEvent(new CustomEvent('bndz-ole-drag-ended', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DRAG_HOVER') {
           window.dispatchEvent(new CustomEvent('bndz-external-drag-hover', { detail: data.payload }));
@@ -231,9 +233,18 @@ export const IPC = {
           window.dispatchEvent(new CustomEvent('bndz-quick-look-open', { detail: { paths, items } }));
         } else if (data.type === 'BNDZ_QUICK_LOOK_CLOSE') {
           window.dispatchEvent(new CustomEvent('bndz-quick-look-close'));
+        } else if (data.type === 'HOST_OLE_DROP_READY') {
+          window.dispatchEvent(new CustomEvent('bndz-host-ole-drop-ready', { detail: data.payload }));
+        } else if (data.type === 'HOST_DRAG_STARTING') {
+          window.dispatchEvent(new CustomEvent('bndz-host-drag-starting', { detail: data.payload }));
         } else if (data.type === 'CLOSE_REQUEST') {
           const source = data.payload?.source;
-          this._closeRequestListeners.forEach(cb => cb({ source }));
+          const payload = { source };
+          if (!this._closeRequestListeners.length) {
+            this._pendingCloseRequest = payload;
+          } else {
+            this._closeRequestListeners.forEach(cb => cb(payload));
+          }
         } else if (data.type === 'BNDZ_OPEN_PATH') {
           const path = data.payload?.path ?? '';
           if (path) this._dispatchOpenPath(path);
@@ -384,6 +395,11 @@ export const IPC = {
   onCloseRequest(callback: (payload?: { source?: string }) => void) {
     this.init();
     this._closeRequestListeners.push(callback);
+    if (this._pendingCloseRequest) {
+      const pending = this._pendingCloseRequest;
+      this._pendingCloseRequest = null;
+      callback(pending);
+    }
     return () => {
       this._closeRequestListeners = this._closeRequestListeners.filter(cb => cb !== callback);
     };
@@ -430,6 +446,14 @@ export const IPC = {
         bundle,
       },
     });
+  },
+
+  /** Open a path in the main FM list (works from plugin pop-outs). */
+  hostNavigate(path: string): void {
+    if (!this.isNative) return;
+    const p = (path || '').trim();
+    if (!p) return;
+    (window as any).chrome.webview.postMessage({ type: 'HOST_NAVIGATE', payload: { path: p } });
   },
 
   requestClose(source: 'x' | 'menu' | 'tray' | 'exit-without-saving' | 'restart-without-saving' | 'restart' = 'x'): void {
@@ -516,7 +540,7 @@ export const IPC = {
   meshListHosts(): Promise<any[]> {
     if (!this.isNative) return Promise.resolve([]);
     const id = `${Date.now()}_meshHosts`;
-    return _nativeCall<any>('MESH_LIST_HOSTS', 'MESH_LIST_HOSTS_RESULT', id, {}, 15000).then(r => {
+    return _nativeCall<any>('MESH_LIST_HOSTS', 'MESH_LIST_HOSTS_RESULT', id, {}, 45000).then(r => {
       if (Array.isArray(r)) return r;
       if (r && Array.isArray(r.hosts)) return r.hosts;
       if (r?.error) return Promise.reject(new Error(String(r.error)));
@@ -599,6 +623,24 @@ export const IPC = {
       type: 'MESH_TERMINAL_RESIZE',
       payload: { sessionId, cols, rows },
     });
+  },
+
+  /** Position real OS console HWND in the Remote Mesh local terminal panel. */
+  meshTerminalLayout(opts: {
+    sessionId: string;
+    screenX: number;
+    screenY: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  }): void {
+    if (!this.isNative || !opts.sessionId) return;
+    try {
+      (window as any).chrome.webview.postMessage({
+        type: 'MESH_TERMINAL_LAYOUT',
+        payload: opts,
+      });
+    } catch { /* ignore */ }
   },
 
   meshStat(path: string): Promise<any> {
@@ -816,6 +858,54 @@ export const IPC = {
     }));
   },
 
+  /** SSH into the Linux host, install BNDZ client cert, return Trusted — no manual trust token. */
+  meshIncusBootstrapTrust(req: {
+    endpointId?: string;
+    alias?: string;
+    apiUrl?: string;
+    apiPort?: number;
+    allowInsecureTls?: boolean;
+    meshHostId?: string;
+    sshHostname?: string;
+    sshPort?: number;
+    sshUsername?: string;
+    sshKeyPath?: string;
+    sshPassword?: string;
+    persistControlHost?: boolean;
+  }): Promise<{ ok: boolean; endpoint?: any; info?: any; endpoints?: any[]; hosts?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusBootstrap`;
+    return _nativeCall<any>('MESH_INCUS_BOOTSTRAP_TRUST', 'MESH_INCUS_BOOTSTRAP_TRUST_RESULT', id, req, 120000).then(r => ({
+      ok: r?.ok === true,
+      endpoint: r?.endpoint,
+      info: r?.info,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      hosts: Array.isArray(r?.hosts) ? r.hosts : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusLocalStatus(): Promise<{ ok: boolean; status?: { ready?: boolean; runtime?: string; phase?: string; detail?: string; needsElevation?: boolean; error?: string }; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLocalStatus`;
+    return _nativeCall<any>('MESH_INCUS_LOCAL_STATUS', 'MESH_INCUS_LOCAL_STATUS_RESULT', id, {}, 20000).then(r => ({
+      ok: r?.ok === true,
+      status: r?.status,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusLocalEnsure(): Promise<{ ok: boolean; status?: any; endpoints?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLocalEnsure`;
+    return _nativeCall<any>('MESH_INCUS_LOCAL_ENSURE', 'MESH_INCUS_LOCAL_ENSURE_RESULT', id, {}, 600000).then(r => ({
+      ok: r?.ok === true,
+      status: r?.status,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      error: r?.error,
+    }));
+  },
+
   meshIncusListEphemeral(): Promise<any[]> {
     if (!this.isNative) return Promise.resolve([]);
     const id = `${Date.now()}_incusEph`;
@@ -823,6 +913,16 @@ export const IPC = {
       if (r?.error) return Promise.reject(new Error(String(r.error)));
       return Array.isArray(r?.instances) ? r.instances : [];
     });
+  },
+
+  meshIncusReconcile(): Promise<{ ok: boolean; instances?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusReconcile`;
+    return _nativeCall<any>('MESH_INCUS_RECONCILE', 'MESH_INCUS_RECONCILE_RESULT', id, {}, 300000).then(r => ({
+      ok: r?.ok === true,
+      instances: Array.isArray(r?.instances) ? r.instances : undefined,
+      error: r?.error,
+    }));
   },
 
   meshIncusLaunch(req: Record<string, unknown>): Promise<{ ok: boolean; instance?: any; error?: string }> {
@@ -852,6 +952,153 @@ export const IPC = {
       ok: r?.ok === true,
       error: r?.error,
     }));
+  },
+
+  meshIncusListImages(endpointId: string): Promise<{ ok: boolean; aliases: Array<{ name: string; description?: string; type?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, aliases: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusImages`;
+    return _nativeCall<any>('MESH_INCUS_LIST_IMAGES', 'MESH_INCUS_LIST_IMAGES_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      aliases: Array.isArray(r?.aliases) ? r.aliases : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListServerInstances(endpointId: string): Promise<{ ok: boolean; instances: any[]; tracked?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, instances: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusSrvList`;
+    return _nativeCall<any>('MESH_INCUS_LIST_SERVER_INSTANCES', 'MESH_INCUS_LIST_SERVER_INSTANCES_RESULT', id, { endpointId }, 120000).then(r => ({
+      ok: r?.ok === true,
+      instances: Array.isArray(r?.instances) ? r.instances : [],
+      tracked: Array.isArray(r?.tracked) ? r.tracked : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusInstanceAction(ephemeralId: string, action: 'start' | 'stop' | 'restart'): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusAction`;
+    return _nativeCall<any>('MESH_INCUS_INSTANCE_ACTION', 'MESH_INCUS_INSTANCE_ACTION_RESULT', id, { ephemeralId, action }, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusImportInstance(req: { endpointId: string; instanceName: string; alias?: string; registerMeshHost?: boolean }): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusImport`;
+    return _nativeCall<any>('MESH_INCUS_IMPORT_INSTANCE', 'MESH_INCUS_IMPORT_INSTANCE_RESULT', id, req, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListProfiles(endpointId: string): Promise<{ ok: boolean; profiles: Array<{ name: string; description?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, profiles: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusProfiles`;
+    return _nativeCall<any>('MESH_INCUS_LIST_PROFILES', 'MESH_INCUS_LIST_PROFILES_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      profiles: Array.isArray(r?.profiles) ? r.profiles : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListNetworks(endpointId: string): Promise<{ ok: boolean; networks: Array<{ name: string; type?: string; managed?: boolean; status?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, networks: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusNets`;
+    return _nativeCall<any>('MESH_INCUS_LIST_NETWORKS', 'MESH_INCUS_LIST_NETWORKS_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      networks: Array.isArray(r?.networks) ? r.networks : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusGetInstance(ephemeralId: string): Promise<{ ok: boolean; instance?: any; etag?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusGet`;
+    return _nativeCall<any>('MESH_INCUS_GET_INSTANCE', 'MESH_INCUS_GET_INSTANCE_RESULT', id, { ephemeralId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      etag: r?.etag,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusUpdateInstance(req: {
+    ephemeralId: string;
+    profiles?: string[];
+    config?: Record<string, string>;
+    devices?: Record<string, Record<string, string>>;
+    description?: string;
+    etag?: string;
+  }): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusUpd`;
+    return _nativeCall<any>('MESH_INCUS_UPDATE_INSTANCE', 'MESH_INCUS_UPDATE_INSTANCE_RESULT', id, req, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListSnapshots(ephemeralId: string): Promise<{ ok: boolean; snapshots: Array<{ name: string; stateful?: boolean; createdAt?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, snapshots: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusSnaps`;
+    return _nativeCall<any>('MESH_INCUS_LIST_SNAPSHOTS', 'MESH_INCUS_LIST_SNAPSHOTS_RESULT', id, { ephemeralId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusCreateSnapshot(ephemeralId: string, name: string, stateful = false): Promise<{ ok: boolean; snapshots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapC`;
+    return _nativeCall<any>('MESH_INCUS_CREATE_SNAPSHOT', 'MESH_INCUS_CREATE_SNAPSHOT_RESULT', id, { ephemeralId, name, stateful }, 300000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusDeleteSnapshot(ephemeralId: string, name: string): Promise<{ ok: boolean; snapshots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapD`;
+    return _nativeCall<any>('MESH_INCUS_DELETE_SNAPSHOT', 'MESH_INCUS_DELETE_SNAPSHOT_RESULT', id, { ephemeralId, name }, 180000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusRestoreSnapshot(ephemeralId: string, name: string, diskOnly = false): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapR`;
+    return _nativeCall<any>('MESH_INCUS_RESTORE_SNAPSHOT', 'MESH_INCUS_RESTORE_SNAPSHOT_RESULT', id, { ephemeralId, name, diskOnly }, 300000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  getAllTagged(): Promise<Array<{ path: string; tags?: string[]; label?: string; comment?: string }>> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_allTagged`;
+    return _nativeCall<any>('GET_ALL_TAGGED', 'ALL_TAGGED_RESULT', id, {}, 30000).then(r =>
+      Array.isArray(r?.entries) ? r.entries : [],
+    ).catch(() => []);
+  },
+
+  renameTagInSidecar(oldKey: string, newKey: string): void {
+    if (!this.isNative || !oldKey || !newKey) return;
+    (window as any).chrome.webview.postMessage({ type: 'RENAME_TAG_IN_SIDECAR', payload: { oldKey, newKey } });
+  },
+
+  purgeTagFromSidecar(tagKey: string): void {
+    if (!this.isNative || !tagKey) return;
+    (window as any).chrome.webview.postMessage({ type: 'PURGE_TAG_FROM_SIDECAR', payload: { tagKey } });
   },
 
   ghostLinkGetRules(): Promise<{ rules: unknown[] }> {
@@ -1175,10 +1422,10 @@ export const IPC = {
     label?: string,
     priority?: 'low' | 'normal' | 'high',
     recreateSourceStructure?: boolean,
-  ): Promise<{ ok: boolean; error?: string; background?: boolean }> {
+  ): Promise<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }> {
     if (this.isNative) {
       const timeoutMs = action === 'copy' || action === 'move' ? 600_000 : 120_000;
-      return _nativeCall<{ ok: boolean; error?: string; background?: boolean }>(
+      return _nativeCall<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }>(
         'EXECUTE_FS_OPERATION',
         'FS_OPERATION_RESULT',
         operationId,
@@ -1270,12 +1517,17 @@ export const IPC = {
    * Force host OLE handoff now (WebView2 pointercancel at left/right/bottom often fires
    * before the cursor reaches the host rim poll zone).
    */
-  requestOleEscalateNow(why = 'fe') {
+  requestOleEscalateNow(why = 'fe', screenX?: number, screenY?: number) {
     if (!this.isNative) return;
     try {
+      const payload: { why: string; screenX?: number; screenY?: number } = { why };
+      if (typeof screenX === 'number' && typeof screenY === 'number') {
+        payload.screenX = screenX;
+        payload.screenY = screenY;
+      }
       (window as any).chrome.webview.postMessage({
         type: 'OLE_ESCALATE_NOW',
-        payload: { why },
+        payload,
       });
     } catch { /* ignore */ }
   },
@@ -2254,12 +2506,12 @@ export const IPC = {
     return Promise.resolve(path);
   },
 
-  emptyRecycleBin(): Promise<{ success: boolean }> {
+  emptyRecycleBin(): Promise<{ success: boolean; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_emptyRecycleBin`;
-      return _nativeCall<{ success: boolean }>('EMPTY_RECYCLE_BIN', 'EMPTY_RECYCLE_BIN_RESULT', id, {}, 60000);
+      return _nativeCall<{ success: boolean; error?: string }>('EMPTY_RECYCLE_BIN', 'EMPTY_RECYCLE_BIN_RESULT', id, {}, 600000);
     }
-    return Promise.resolve({ success: false });
+    return Promise.resolve({ success: false, error: 'Native host required' });
   },
 
   /** Restore items from the Recycle Bin to their original location (the shell's own "undelete" verb). */
