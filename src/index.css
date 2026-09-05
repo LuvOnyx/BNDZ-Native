@@ -5382,15 +5382,42 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   align-items: center;
 }
 
-/* Square thumbnail pane ? Files ItemWidth ? ItemWidth */
+.bndz-chrome-sidebar,
+.bndz-chrome-sidebar *,
+.bndz-files-modern-sidebar,
+.bndz-files-modern-sidebar *,
+.bndz-sidebar-nav-hit,
+.bndz-drive-card,
+.sidebar-pin-row {
+  app-region: no-drag !important;
+  -webkit-app-region: no-drag !important;
+}
+.bndz-chrome-sidebar img,
+.bndz-chrome-sidebar canvas,
+.bndz-sidebar-nav-hit img {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+.bndz-sidebar-nav-hit {
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* Square thumbnail pane — Files ItemWidth × ItemWidth */
 .bndz-view-grid .bndz-grid-icon-well {
   aspect-ratio: 1 / 1;
-  width: 100%;
+  /* Prefer explicit inline iconSlot — do not force 100% (starves caption width). */
+  width: auto;
+  max-width: 100%;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   overflow: hidden;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .bndz-view-grid .bndz-grid-icon-stage {
@@ -5409,29 +5436,53 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   object-fit: contain;
   max-width: 100%;
   max-height: 100%;
+  transform: none !important;
+  -webkit-user-drag: none;
 }
 
 .bndz-view-grid .bndz-grid-caption {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  overflow-wrap: break-word;
-  word-break: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   white-space: normal;
-  width: 100%;
+  width: 100% !important;
   min-width: 0;
-  line-height: 1.25;
-  font-size: var(--bndz-font-list-size, 12px);
+  max-width: 100% !important;
+  flex: 0 0 auto;
+  align-self: stretch;
+  line-height: 1.3;
+  font-size: max(11px, var(--bndz-font-list-size, 12px));
   font-family: var(--bndz-font-list-family, var(--bndz-font-family));
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0;
-  color: var(--list-text, rgba(236, 242, 250, 0.92));
+  color: var(--list-text, rgba(236, 242, 250, 0.94));
   text-shadow: none;
-  padding: 0 4px;
-  margin: 0 0 8px;
+  padding: 2px 6px 0;
+  margin: 0;
   box-sizing: border-box;
-  max-width: 100%;
   text-align: center;
+}
+
+/* Files GridViewItemBackgroundSelected — magenta/purple default selection */
+.bndz-view-grid.fs-item-selected {
+  background: color-mix(in srgb, var(--accent, #c026d3) 28%, rgba(38, 24, 48, 0.55)) !important;
+  border-color: color-mix(in srgb, var(--accent, #c026d3) 45%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #c026d3) 35%, transparent) !important;
+}
+
+.bndz-view-list.fs-item-selected,
+.bndz-view-details.fs-item-selected {
+  background: color-mix(in srgb, var(--accent, #c026d3) 26%, rgba(30, 20, 40, 0.5)) !important;
+  border-color: transparent !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent, #c026d3) 80%, white) !important;
+}
+
+.bndz-view-list .bndz-list-caption {
+  min-width: 48px !important;
+  font-size: max(11px, var(--bndz-font-list-size, 12px));
+  font-weight: 500;
 }
 
 .bndz-view-grid .bndz-grid-caption--clamp-1 { -webkit-line-clamp: 1; }
@@ -5451,22 +5502,15 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   white-space: nowrap;
 }
 
-/* Files GridViewItemBackgroundPointerOver ? #142A2D2E */
+/* Files GridViewItemBackgroundPointerOver */
 .bndz-view-grid.bndz-tile--hoverable:hover:not(.fs-item-selected) {
-  background: rgba(42, 45, 46, 0.14) !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-/* Files GridViewItemBackgroundSelected ? #55264F78 */
-.bndz-view-grid.fs-item-selected {
-  background: rgba(38, 79, 120, 0.34) !important;
+  background: color-mix(in srgb, var(--accent, #c026d3) 10%, rgba(42, 45, 46, 0.18)) !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
 
 .bndz-view-grid.fs-item-selected:hover {
-  background: rgba(38, 79, 120, 0.4) !important;
+  background: color-mix(in srgb, var(--accent, #c026d3) 34%, rgba(38, 24, 48, 0.6)) !important;
 }
 
 .bndz-view-grid.fs-item-selected .bndz-grid-icon-well {
@@ -5915,14 +5959,15 @@ html.bndz-scrolling .bndz-view-details {
   width: 100%;
   height: 100%;
   min-height: 280px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent, #c026d3) 22%, rgba(255, 255, 255, 0.08));
   background:
-    radial-gradient(120% 90% at 12% 0%, color-mix(in srgb, var(--accent, #0078d4) 14%, transparent), transparent 55%),
-    linear-gradient(165deg, rgba(28, 32, 40, 0.96), rgba(16, 18, 24, 0.98));
+    radial-gradient(120% 90% at 8% -10%, color-mix(in srgb, var(--accent, #c026d3) 22%, transparent), transparent 52%),
+    radial-gradient(90% 70% at 100% 100%, rgba(56, 189, 248, 0.08), transparent 48%),
+    linear-gradient(165deg, rgba(22, 18, 32, 0.98), rgba(12, 14, 20, 0.99));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 8px 28px rgba(0, 0, 0, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 36px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 
@@ -10444,28 +10489,35 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-home-rail-wrap {
   position: relative;
   outline: none;
-  min-height: 118px;
+  min-height: 132px;
+  padding: 10px 12px 4px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--home-accent, #c026d3) 18%, rgba(255, 255, 255, 0.06));
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--home-accent, #c026d3) 16%, transparent), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .bndz-home-rail {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 6px 2px 14px;
+  padding: 4px 2px 12px;
   scroll-snap-type: x mandatory;
   scrollbar-width: thin;
 }
 
 .bndz-home-rail-item {
   position: relative;
-  flex: 0 0 92px;
-  width: 92px;
+  flex: 0 0 100px;
+  width: 100px;
   scroll-snap-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -10474,16 +10526,16 @@ html[data-theme] .nav-tree-row:focus-visible {
 }
 
 .bndz-home-rail-thumb {
-  width: 84px;
-  height: 84px;
-  border-radius: 10px;
+  width: 88px;
+  height: 88px;
+  border-radius: 14px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.28) 100%);
+    linear-gradient(155deg, rgba(255, 255, 255, 0.07) 0%, rgba(0, 0, 0, 0.32) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 6px 16px rgba(0, 0, 0, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 22px rgba(0, 0, 0, 0.32);
   display: flex;
   align-items: center;
   justify-content: center;

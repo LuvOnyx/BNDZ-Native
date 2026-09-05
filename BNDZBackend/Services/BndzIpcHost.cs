@@ -455,6 +455,10 @@ namespace BNDZ.Services
             // user is still holding. QueryContinueDrag owns drop/cancel once DoDragDrop runs.
             _fileDragButtonUpSinceMs = 0;
             var paths = _fileDragSessionPaths;
+            // Latch OLE-active BEFORE ClearFileDragSession — otherwise Clear hides the host
+            // ghost that was just Shown for the rim leave, and FollowCursor becomes a no-op
+            // until DoDragDrop Show (ghost "plants" at the window edge).
+            _bndzOleDragActive = true;
             ClearFileDragSession();
             var pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
             var escalateWhy = force
@@ -462,8 +466,6 @@ namespace BNDZ.Services
                 : WebView2DropTargetService.DescribeOutboundEscalateReason(pt.X, pt.Y);
             OleDndLog($"ESCALATE DoDragDrop count={paths.Length} cursor=({pt.X},{pt.Y}) btnDown={buttonDown} why={escalateWhy} {pathSummary}");
 
-            // Latch OLE-active BEFORE dismiss/register races — mid-drag REGISTER yields effect=NONE.
-            _bndzOleDragActive = true;
             WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
 
             // 1) Kill FE ghost first — fire-and-forget ExecuteScript (never block-wait on UI thread).

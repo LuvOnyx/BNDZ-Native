@@ -3200,7 +3200,7 @@ export const IPC = {
     return Promise.resolve({ ok: false, output: 'Script runner requires native host' });
   },
 
-  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag'): void {
+  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag' | 'releaseCapture'): void {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action } });
     }

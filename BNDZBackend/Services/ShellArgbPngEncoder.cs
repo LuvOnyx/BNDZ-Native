@@ -66,27 +66,29 @@ internal static class ShellArgbPngEncoder
             {
                 int stride = bm.bmWidthBytes;
                 int byteCount = checked(stride * height);
-                IntPtr flipped = Marshal.AllocHGlobal(byteCount);
+                // Positive bmHeight = bottom-up DIB (flip for GDI+). Negative = already top-down;
+                // flipping again vertically mirrors/inverts shell icons in the grid.
+                bool bottomUp = bm.bmHeight > 0;
+                IntPtr pixels = Marshal.AllocHGlobal(byteCount);
                 try
                 {
-                    // Match Files: treat source rows as top→bottom in bmBits, flip for GDI+ top-down.
                     var row = new byte[stride];
                     for (int y = 0; y < height; y++)
                     {
                         IntPtr src = IntPtr.Add(bm.bmBits, y * stride);
-                        IntPtr dst = IntPtr.Add(flipped, (height - y - 1) * stride);
+                        IntPtr dst = IntPtr.Add(pixels, (bottomUp ? (height - y - 1) : y) * stride);
                         Marshal.Copy(src, row, 0, stride);
                         Marshal.Copy(row, 0, dst, stride);
                     }
 
-                    using var wrapped = new Bitmap(width, height, stride, PixelFormat.Format32bppArgb, flipped);
+                    using var wrapped = new Bitmap(width, height, stride, PixelFormat.Format32bppArgb, pixels);
                     // Clone so we can free the temporary buffer before PNG encode returns.
                     using var clone = new Bitmap(wrapped);
                     return SavePngBase64(clone);
                 }
                 finally
                 {
-                    Marshal.FreeHGlobal(flipped);
+                    Marshal.FreeHGlobal(pixels);
                 }
             }
 

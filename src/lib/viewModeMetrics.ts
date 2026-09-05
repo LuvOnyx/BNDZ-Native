@@ -19,8 +19,9 @@ export function packGridTracks(
   const w = Math.max(0, Math.floor(availableWidth));
   if (w <= 0) return { cols: 1, tileWidth: minW };
   // CSS auto-fill equivalent: floor((W + G) / (min + G))
-  const cols = Math.max(1, Math.floor((w + g) / (minW + g)));
-  const tileWidth = Math.max(minW, Math.floor((w - (cols - 1) * g) / cols));
+  // Floor at 96px so captions never collapse to a single glyph + ellipsis.
+  const cols = Math.max(1, Math.floor((w + g) / (Math.max(96, minW) + g)));
+  const tileWidth = Math.max(Math.max(96, minW), Math.floor((w - (cols - 1) * g) / cols));
   return { cols, tileWidth };
 }
 
@@ -43,12 +44,13 @@ export type GridTileMetricsOpts = {
  */
 export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts) {
   const iconHint = Math.max(16, Math.min(256, gridIconSize));
-  const itemWidth = filesGridItemWidthFromIcon(iconHint);
-  const dense = itemWidth <= 80 && iconHint < 36;
-  const cardChrome = !!opts?.cardChrome && !dense;
+  const itemWidth = Math.max(96, filesGridItemWidthFromIcon(iconHint));
+  // Never drop captions at low zoom — welcoming surface must always show readable names.
+  const dense = false;
+  const cardChrome = !!opts?.cardChrome;
 
   // Files GridViewBrowserTemplate: Margin="12" on thumbnail presenter.
-  const thumbMargin = itemWidth <= 100 ? 10 : 12;
+  const thumbMargin = itemWidth <= 100 ? 8 : 12;
   const displayIcon = Math.max(16, itemWidth - thumbMargin * 2);
   // Fetch size near Files bands (96 / 128 / 256 / 384) — never below display needs.
   const icon =
@@ -61,14 +63,14 @@ export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts
   const cardPadTop = cardChrome ? 8 : 0;
   const cardPadBottom = cardChrome ? 6 : 0;
 
-  // Caption: Files uses ~2 lines under the square (margin 4,0,4,8).
-  const labelBlock = dense ? 0 : Math.max(36, Math.min(48, Math.round(34 + itemWidth * 0.04)));
-  const captionMarginBottom = dense ? 0 : 8;
-  const gap = 4;
+  // Caption: always reserve room for 2-line Explorer-style labels.
+  const labelBlock = Math.max(32, Math.min(52, Math.round(30 + itemWidth * 0.05)));
+  const captionMarginBottom = 6;
+  const gap = 6;
   const iconSlot = itemWidth; // square, Files-identical
   const padding = 0;
   const marqueePad = 2;
-  const tileInnerGap = 0;
+  const tileInnerGap = 2;
 
   const rowHeight =
     padding * 2
@@ -79,7 +81,7 @@ export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts
     + captionMarginBottom
     + cardPadBottom
     + marqueePad
-    + (dense ? 0 : 4);
+    + 4;
 
   return {
     icon: Math.min(icon, 384),
@@ -163,26 +165,24 @@ export function detailsTileMetrics(detailsIconSize: number) {
 export function listTileMetrics(listIconSize: number) {
   const icon = Math.max(12, Math.min(96, listIconSize));
   const t = (icon - 12) / (96 - 12);
-  const dense = icon < 18;
+  const dense = false; // keep captions readable at lowest zoom
   const large = icon >= 48;
   const hero = icon >= 72;
   const rowHeight =
-    icon <= 14 ? 24
+    icon <= 14 ? 28
     : icon <= 18 ? 32
     : icon <= 22 ? 36
     : icon <= 28 ? 40
     : icon <= 40 ? 44
     : Math.max(hero ? icon + 16 : 48, icon + 10);
-  const tileWidth = dense
-    ? Math.round(120 + t * 40)
-    : hero
-      ? Math.round(200 + t * 180)
-      : large
-        ? Math.round(170 + t * 160)
-        : Math.round(140 + t * 200);
-  const gap = dense ? 2 : large ? 6 : 4;
+  const tileWidth = hero
+    ? Math.round(220 + t * 180)
+    : large
+      ? Math.round(180 + t * 160)
+      : Math.max(148, Math.round(148 + t * 200));
+  const gap = large ? 6 : 4;
   const padY = Math.max(2, Math.round((rowHeight - Math.min(icon, rowHeight - 4)) / 2));
-  const padX = dense ? 6 : large ? 10 : 8;
+  const padX = large ? 10 : 8;
   const iconSlot = Math.max(16, Math.min(icon + (hero ? 8 : 4), rowHeight - 2));
   return {
     icon,

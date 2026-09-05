@@ -325,12 +325,19 @@ public sealed partial class MainWindow : Window
             source.ClearRegionRects(NonClientRegionKind.Passthrough);
             source.ClearRegionRects(NonClientRegionKind.Caption);
 
+            var passthrough = new List<RectInt32>();
             if (menuPassW > 0)
-            {
-                source.SetRegionRects(
-                    NonClientRegionKind.Passthrough,
-                    [new RectInt32(0, 0, menuPassW, menuH)]);
-            }
+                passthrough.Add(new RectInt32(0, 0, menuPassW, menuH));
+
+            // Full-height left sidebar band must stay client hit-testable — WinUI caption
+            // races with WebView2 were eating LMB on Drives / Rapid Access / Cloud.
+            var winH = _appWindow.Size.Height;
+            var sidebarW = Math.Clamp((int)Math.Round(winW * 0.14), (int)Math.Round(160 * scale), (int)Math.Round(280 * scale));
+            if (winH > menuH && sidebarW > 0)
+                passthrough.Add(new RectInt32(0, menuH, sidebarW, winH - menuH));
+
+            if (passthrough.Count > 0)
+                source.SetRegionRects(NonClientRegionKind.Passthrough, passthrough.ToArray());
 
             var captionRects = new List<RectInt32>();
             if (dragW > 0)
@@ -815,6 +822,10 @@ public sealed partial class MainWindow : Window
                     break;
                 case "drag":
                     BeginDrag();
+                    break;
+                case "releasecapture":
+                case "release_capture":
+                    try { ReleaseCapture(); } catch { /* ignore */ }
                     break;
             }
         }

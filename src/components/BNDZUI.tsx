@@ -3111,31 +3111,56 @@ export default function BNDZUI() {
       if (detail?.ok === false && detail.error) {
         setToastMessage(`Drag failed: ${detail.error}`);
       }
-      if (detail?.ok && detail.effect === 'MOVE' && Array.isArray(detail.paths) && detail.paths.length > 0) {
-        const winPaths = detail.paths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
-        if (winPaths.length > 0) {
-          const label = winPaths.length === 1
-            ? (winPaths[0].split(/[/\\]/).pop() || 'item')
-            : `${winPaths.length} items`;
-          try {
-            window.dispatchEvent(new CustomEvent('bndz-optimistic-fs-op', {
-              detail: {
-                opId: `ole-move-${Date.now()}`,
-                kind: 'move',
-                winPaths,
-                label,
-              },
-            }));
-          } catch { /* ignore */ }
-      // Force soft-refresh of each source parent so retainLarger cannot resurrect rows.
-          // Debounce navigate double-fire from tree pointerup+click.
-          for (const wp of winPaths) {
-            const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
-            if (slash <= 0) continue;
-            const parentPane = normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
+      if (detail?.ok && Array.isArray(detail.paths) && detail.paths.length > 0) {
+        const effect = String(detail.effect || '').toUpperCase();
+        const isMove = effect === 'MOVE' || effect === '2' || effect.includes('MOVE');
+        if (isMove) {
+          const winPaths = detail.paths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+          if (winPaths.length > 0) {
+            const label = winPaths.length === 1
+              ? (winPaths[0].split(/[/\\]/).pop() || 'item')
+              : `${winPaths.length} items`;
+            const names = new Set(winPaths.map(p => (p.split(/[/\\]/).pop() || '')).filter(Boolean));
+            // Instant list remove — do not wait for FS notify / soft-refresh races.
+            setPathContentsCache(prev => {
+              let changed = false;
+              const next = { ...prev };
+              for (const wp of winPaths) {
+                const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
+                if (slash <= 0) continue;
+                const parentPane = normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
+                const keys = [parentPane, parentPane.replace(/\/$/, ''), `/${parentPane}`.replace(/^\/\//, '/')];
+                for (const key of Object.keys(next)) {
+                  if (!keys.some(k => panePathsEqual(k, key)) && key !== parentPane) continue;
+                  const listing = next[key];
+                  if (!Array.isArray(listing) || !listing.length) continue;
+                  const filtered = listing.filter((e: any) => !names.has(e?.name));
+                  if (filtered.length !== listing.length) {
+                    next[key] = filtered;
+                    changed = true;
+                  }
+                }
+              }
+              return changed ? next : prev;
+            });
             try {
-              window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
+              window.dispatchEvent(new CustomEvent('bndz-optimistic-fs-op', {
+                detail: {
+                  opId: `ole-move-${Date.now()}`,
+                  kind: 'move',
+                  winPaths,
+                  label,
+                },
+              }));
             } catch { /* ignore */ }
+            for (const wp of winPaths) {
+              const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
+              if (slash <= 0) continue;
+              const parentPane = normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
+              try {
+                window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
+              } catch { /* ignore */ }
+            }
           }
         }
       }
@@ -3971,12 +3996,18 @@ export default function BNDZUI() {
     suppressNavClickUntilRef.current = 0;
   }, []);
 
-  /** Sidebar left-click can lose the synthetic click after OLE/pointer-capture — navigate on pointerup too. */
-  const sidebarNavigateFromPointer = React.useCallback((path: string, e: React.PointerEvent | React.MouseEvent) => {
-    if ('button' in e && typeof (e as React.PointerEvent).button === 'number' && (e as React.PointerEvent).button !== 0) return;
-    if (Date.now() - lastSidebarNavAtRef.current < 280) return;
+  /** Sidebar left-click can lose the synthetic click after OLE/pointer-capture — navigate on pointerdown. */
+  const sidebarNavigateFromPointer = React.useCallback((path: string, e?: React.PointerEvent | React.MouseEvent | { button?: number }) => {
+    if (e && 'button' in e && typeof e.button === 'number' && e.button !== 0) return;
+    if (!path) return;
+    if (Date.now() - lastSidebarNavAtRef.current < 180) return;
     lastSidebarNavAtRef.current = Date.now();
+    suppressNavClickUntilRef.current = 0;
     releaseStuckPointerCaptures();
+    try {
+      IPC.notifyFileDragActive(false);
+      IPC.windowChrome('releaseCapture');
+    } catch { /* ignore */ }
     setCurrentPath(path);
   }, [releaseStuckPointerCaptures]);
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
@@ -14583,11 +14614,24 @@ export default function BNDZUI() {
                       navigationDrives.map(drive => (
                      <div
                         key={drive.name}
-                        onClick={() => sidebarNavigateFromPointer(drive.name, { button: 0 } as React.MouseEvent)}
-                        onPointerUp={(e) => {
+                        data-sidebar-nav="drive"
+                        role="button"
+                        tabIndex={0}
+                        className="bndz-sidebar-nav-hit"
+                        onPointerDown={(e) => {
                           if (e.button !== 0) return;
                           e.stopPropagation();
                           sidebarNavigateFromPointer(drive.name, e);
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          sidebarNavigateFromPointer(drive.name, e);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            sidebarNavigateFromPointer(drive.name, { button: 0 });
+                          }
                         }}
                         onContextMenu={(e) => handleContextMenuRequest(e, drive.name, drive.name, true, drive.label, undefined, 'sidebar-item')}
                      >
@@ -14636,7 +14680,20 @@ export default function BNDZUI() {
                                  key={qaPath}
                                  data-favorite-path={qaPath}
                                  data-favorite-default={s.isDefault ? 'true' : 'false'}
-                                 className={`sidebar-pin-row group/pin relative flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 ${isQaSelected ? 'sidebar-pin-row-selected' : ''} ${favoriteDrag?.sourcePath === qaPath ? 'opacity-40' : ''} ${isFavoriteDropTarget ? 'bg-amber-400/15 border-amber-400/80 text-white' : isQaSelected ? '' : 'border-transparent hover:border-amber-400/70'}`}
+                                 className={`sidebar-pin-row group/pin relative flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 bndz-sidebar-nav-hit ${isQaSelected ? 'sidebar-pin-row-selected' : ''} ${favoriteDrag?.sourcePath === qaPath ? 'opacity-40' : ''} ${isFavoriteDropTarget ? 'bg-amber-400/15 border-amber-400/80 text-white' : isQaSelected ? '' : 'border-transparent hover:border-amber-400/70'}`}
+                                 onPointerDown={(e) => {
+                                   if (e.button !== 0 || isRenaming) return;
+                                   // Grip owns reorder — don't navigate from the drag handle.
+                                   if ((e.target as HTMLElement)?.closest?.('[data-favorite-grip]')) return;
+                                   e.stopPropagation();
+                                   const target = collapseKnownFolderShadowPath(s.path, shortcuts);
+                                   if (config.openFavoriteFilesDirectly) {
+                                     const looksFile = /\.[A-Za-z0-9]{1,8}$/.test(target.split(/[/\\]/).pop() || '')
+                                       && !target.toLowerCase().includes('/shell:');
+                                     if (looksFile) return;
+                                   }
+                                   sidebarNavigateFromPointer(target, e);
+                                 }}
                                  onClick={(e) => {
                                    if (isRenaming) return;
                                    e.stopPropagation();
@@ -14657,19 +14714,6 @@ export default function BNDZUI() {
                                    }
                                    sidebarNavigateFromPointer(target, e);
                                  }}
-                                 onPointerUp={(e) => {
-                                   if (e.button !== 0 || isRenaming) return;
-                                   // Backup when click is eaten after OLE pointer capture / handoff.
-                                   if (Date.now() < suppressNavClickUntilRef.current) return;
-                                   const target = collapseKnownFolderShadowPath(s.path, shortcuts);
-                                   if (config.openFavoriteFilesDirectly) {
-                                     const looksFile = /\.[A-Za-z0-9]{1,8}$/.test(target.split(/[/\\]/).pop() || '')
-                                       && !target.toLowerCase().includes('/shell:');
-                                     if (looksFile) return;
-                                   }
-                                   e.stopPropagation();
-                                   sidebarNavigateFromPointer(target, e);
-                                 }}
                                  onDoubleClick={() => { if (!s.isDefault) setRenamingFavoritePath(qaPath); }}
                                  onContextMenu={(e) => {
                                    handleContextMenuRequest(e, s.path, s.path, true, s.name, undefined, 'sidebar-item');
@@ -14678,6 +14722,7 @@ export default function BNDZUI() {
                                  {dropBefore && <span className="absolute left-2 right-2 top-0 h-[2px] bg-amber-400/80 rounded-full pointer-events-none" />}
                                  {dropAfter && <span className="absolute left-2 right-2 bottom-0 h-[2px] bg-amber-400/80 rounded-full pointer-events-none" />}
                                  <div
+                                   data-favorite-grip
                                    className="shrink-0 opacity-30 group-hover/pin:opacity-60 hover:!opacity-90 cursor-grab active:cursor-grabbing p-0.5 rounded"
                                    title="Drag to reorder"
                                    onPointerDown={e => beginFavoriteReorder(qaPath, s.name, e)}
@@ -14735,17 +14780,20 @@ export default function BNDZUI() {
                           key={`${item.path || item.label}-${idx}`}
                           role="button"
                           tabIndex={0}
-                          className={`sidebar-pin-row relative flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 ${isCloudSelected ? 'sidebar-pin-row-selected' : 'border-transparent'}`}
-                          onClick={() => item.path && sidebarNavigateFromPointer(item.path, { button: 0 } as React.MouseEvent)}
-                          onPointerUp={(e) => {
+                          className={`sidebar-pin-row relative flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 bndz-sidebar-nav-hit ${isCloudSelected ? 'sidebar-pin-row-selected' : 'border-transparent'}`}
+                          onPointerDown={(e) => {
                             if (e.button !== 0 || !item.path) return;
                             e.stopPropagation();
                             sidebarNavigateFromPointer(item.path, e);
                           }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (item.path) sidebarNavigateFromPointer(item.path, e);
+                          }}
                           onKeyDown={(e) => {
                             if ((e.key === 'Enter' || e.key === ' ') && item.path) {
                               e.preventDefault();
-                              sidebarNavigateFromPointer(item.path, { button: 0 } as React.MouseEvent);
+                              sidebarNavigateFromPointer(item.path, { button: 0 });
                             }
                           }}
                           onContextMenu={(e) => item.path && handleContextMenuRequest(e, item.path, item.path, true, item.label, undefined, 'sidebar-item')}

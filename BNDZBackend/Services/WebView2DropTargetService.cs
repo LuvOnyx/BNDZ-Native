@@ -1605,6 +1605,10 @@ internal static class WebView2DropTargetService
                 buttonDown = oleDown || asyncDown;
             }
 
+            // Always track the ghost while OLE is live — do not gate on buttonDown.
+            // Outside the HWND, GetAsyncKeyState flickers and used to freeze the card at the rim.
+            try { BndzOutboundDragGhostOverlay.FollowCursor(); } catch { /* ignore */ }
+
             if (buttonDown)
             {
                 _sawButtonDown = true;
@@ -1613,7 +1617,6 @@ internal static class WebView2DropTargetService
                 _buttonUpStreak = 0;
                 _buttonUpInsideSinceMs = 0;
                 _buttonUpOutsideNoneSinceMs = 0;
-                try { BndzOutboundDragGhostOverlay.FollowCursor(); } catch { /* ignore */ }
                 if (GetCursorPos(out var downPt)
                     && (IsDesktopDropTargetAtPoint(downPt.x, downPt.y)
                         || IsExplorerFolderDropTargetAtPoint(downPt.x, downPt.y)))
@@ -1879,7 +1882,13 @@ internal static class WebView2DropTargetService
         if (nCode >= 0)
         {
             var msg = unchecked((uint)(wParam.ToInt64() & 0xFFFFFFFF));
-            if (msg is WM_LBUTTONUP or WM_RBUTTONUP)
+            // Drive the layered ghost from the system mouse hook so it keeps following
+            // even when OLE QueryContinueDrag/GiveFeedback go quiet over empty wallpaper.
+            if (msg == WM_MOUSEMOVE)
+            {
+                try { BndzOutboundDragGhostOverlay.FollowCursor(); } catch { /* ignore */ }
+            }
+            else if (msg is WM_LBUTTONUP or WM_RBUTTONUP)
             {
                 if (!GetCursorPos(out var pt))
                     return CallNextHookEx(_llMouseHook, nCode, wParam, lParam);

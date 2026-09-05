@@ -142,7 +142,7 @@ export function LeftSidebar({
             className="w-full h-full min-h-0 flex flex-col py-2 select-none z-10 bg-inherit text-inherit overflow-y-auto overflow-x-hidden styled-scrollbar"
             onClick={onBackgroundClick}
             onContextMenu={e => e.preventDefault()}
-            onPointerDownCapture={() => {
+            onPointerDownCapture={(e) => {
               // Stuck list/OLE pointer-capture steals left-clicks while hover/RMB still work.
               try {
                 document.documentElement.classList.remove('bndz-ole-drag-handoff');
@@ -160,6 +160,13 @@ export function LeftSidebar({
                     } catch { /* ignore */ }
                   }
                 });
+              } catch { /* ignore */ }
+              // Ensure WinUI/WebView2 app-region never treats sidebar as caption drag.
+              try {
+                const t = e.target as HTMLElement | null;
+                if (t?.closest?.('.bndz-chrome-sidebar, [data-sidebar-nav], .sidebar-pin-row, .bndz-drive-card')) {
+                  t.style.setProperty('-webkit-app-region', 'no-drag');
+                }
               } catch { /* ignore */ }
             }}
         >
