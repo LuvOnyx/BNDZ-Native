@@ -142,6 +142,26 @@ export function LeftSidebar({
             className="w-full h-full min-h-0 flex flex-col py-2 select-none z-10 bg-inherit text-inherit overflow-y-auto overflow-x-hidden styled-scrollbar"
             onClick={onBackgroundClick}
             onContextMenu={e => e.preventDefault()}
+            onPointerDownCapture={() => {
+              // Stuck list/OLE pointer-capture steals left-clicks while hover/RMB still work.
+              try {
+                document.documentElement.classList.remove('bndz-ole-drag-handoff');
+                document.getElementById('bndz-ole-veil')?.remove();
+              } catch { /* ignore */ }
+              try {
+                document.querySelectorAll('[data-list-body], [data-entity-id], .bndz-fluid-drag-stack').forEach(node => {
+                  const el = node as Element & {
+                    hasPointerCapture?: (id: number) => boolean;
+                    releasePointerCapture?: (id: number) => void;
+                  };
+                  for (let id = 1; id <= 16; id++) {
+                    try {
+                      if (el.hasPointerCapture?.(id)) el.releasePointerCapture?.(id);
+                    } catch { /* ignore */ }
+                  }
+                });
+              } catch { /* ignore */ }
+            }}
         >
             {order.map((key, idx) => {
                 const sec = (sections as any)[key];

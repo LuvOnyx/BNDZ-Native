@@ -12,6 +12,7 @@ import {
   hitTestArchiveRootAtPoint,
   hitTestListBodyAtPoint,
   hitTestNewTabZoneAtPoint,
+  hitTestSelectorByRect,
   hitTestTabAtPoint,
   isArchiveInternalDropTargetAtPoint,
   resolveNativeFileDropTarget,
@@ -284,11 +285,36 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
       return node.closest('[data-drop-stack-zone]')
         || node.closest('[data-plugin-tab-id="dropstack"]');
     })
-    .find(Boolean);
+    .find(Boolean)
+    || hitTestSelectorByRect(clientX, clientY, '[data-drop-stack-zone]')
+    || hitTestSelectorByRect(clientX, clientY, '[data-plugin-tab-id="dropstack"]');
   if (dropStackEl) {
     appendDropStackPaths(paths);
     window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'dropstack' } }));
     lastDropDebug = { clientX, clientY, coordSource, destPath: 'drop-stack', source: opts.source, committed: true };
+    if (isDropDebugEnabled()) {
+      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
+    }
+    return true;
+  }
+
+  const ramZoneEl = (
+    document.elementsFromPoint(clientX, clientY)
+      .map(el => (el as HTMLElement).closest('[data-ram-zone-id]'))
+      .find(Boolean)
+    || hitTestSelectorByRect(clientX, clientY, '[data-ram-zone-id]')
+  ) as HTMLElement | null;
+  const ramZoneId = ramZoneEl?.getAttribute('data-ram-zone-id');
+  if (ramZoneId) {
+    void IPC.ramStagingStagePaths(ramZoneId, paths.map(toWindowsPath)).then(r => {
+      if (!r?.ok) {
+        void import('../components/ToastHost').then(({ pushToast }) => {
+          pushToast({ kind: 'error', title: 'RAM Staging', message: r?.error || 'Could not stage files.' });
+        }).catch(() => { /* ignore */ });
+      }
+    }).catch(() => { /* ignore */ });
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'ram-staging' } }));
+    lastDropDebug = { clientX, clientY, coordSource, destPath: `ram-zone:${ramZoneId}`, source: opts.source, committed: true };
     if (isDropDebugEnabled()) {
       window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
     }

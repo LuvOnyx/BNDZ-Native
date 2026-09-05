@@ -125,7 +125,7 @@ const HIT_PROBES = (clientX: number, clientY: number): Array<[number, number]> =
 ];
 
 /** Rect hit-test when WebView2 poisons elementsFromPoint during pointer drags. */
-function hitTestSelectorByRect(
+export function hitTestSelectorByRect(
   clientX: number,
   clientY: number,
   selector: string,
@@ -281,9 +281,13 @@ const OLE_EDGE_CHROME_SELECTORS = [
   '[data-new-tab-zone]',
   '[data-breadcrumb-path]',
   '[data-nav-path]',
+  '[data-home-nav-path]',
+  '[data-favorite-path]',
   '[data-list-body]',
   '[data-mesh-drop-inbox]',
   '[data-drop-stack-zone]',
+  '[data-plugin-tab-id="dropstack"]',
+  '[data-ram-zone-id]',
   '.fs-list-header',
   '.bndz-chrome-tabstrip',
   '.bndz-chrome-toolbar',
@@ -294,6 +298,7 @@ const OLE_EDGE_CHROME_SELECTORS = [
   '.bndz-chrome-preview',
   '.bndz-chrome-statusbar',
   '.bndz-archive-root',
+  '.bndz-ram-zone-card',
   '.sidebar-pin-row',
   '[data-bndz-workspace-surface]',
 ];
@@ -338,8 +343,15 @@ export function isOleEdgeChromeAtPoint(clientX: number, clientY: number): boolea
   if (hitTestListBodyAtPoint(clientX, clientY)) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-nav-path]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-breadcrumb-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-favorite-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-home-nav-path]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '.bndz-archive-root')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-sidebar')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-bottom')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-preview')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-drop-stack-zone]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-plugin-tab-id="dropstack"]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-ram-zone-id]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-tabstrip]')) return true;
   return false;
 }
@@ -385,6 +397,7 @@ export function isPointerOverMenubar(clientX: number, clientY: number): boolean 
 /**
  * True when an in-app drag should hand off to native OLE at the WebView rim.
  * WebView2 clamps clientX/Y — use side/bottom edge + screen leave, not outside-viewport.
+ * Never escalate while over real in-app drop chrome (sidebar / preview / Drop Stack / etc.).
  */
 export function shouldTriggerOutboundOleBoundaryHandoff(
   clientX: number,
@@ -395,11 +408,14 @@ export function shouldTriggerOutboundOleBoundaryHandoff(
   screenY?: number,
   edgePx = 4,
 ): boolean {
+  // True desktop/other-app leave — always escalate (chrome veto does not apply off-window).
   if (typeof screenX === 'number' && typeof screenY === 'number'
     && isPointerOutsideScreenWindow(screenX, screenY, 2)) {
     return true;
   }
   if (isPointerOverMenubar(clientX, clientY)) return false;
+  // Sidebar / bottom / preview / Drop Stack / RAM — keep FE ghosts + in-app drop.
+  if (isOleEdgeChromeAtPoint(clientX, clientY)) return false;
   const w = typeof window !== 'undefined' ? window.innerWidth : 0;
   const h = typeof window !== 'undefined' ? window.innerHeight : 0;
   if (w <= 0 || h <= 0) return false;

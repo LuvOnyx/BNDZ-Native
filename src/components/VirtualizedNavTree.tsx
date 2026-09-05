@@ -259,10 +259,6 @@ function TreeRow({
       data-nav-path={row.path || undefined}
       data-tree-key={row.treeKey || undefined}
       data-depth={row.depth}
-      onPointerDown={canDragFile ? (e) => {
-        if (e.button !== 0) return;
-        onFilePointerDown?.(row, e);
-      } : undefined}
       onDragOver={e => {
         if (canReorder) onDragOver?.(e, row);
       }}
@@ -277,6 +273,16 @@ function TreeRow({
       onMouseMove={tipHandlers?.onMouseMove}
       onMouseLeave={tipHandlers?.onMouseLeave}
       onClick={handleClick}
+      onPointerDown={(e) => {
+        // Clear stuck OLE/list capture so left-click can select again (hover/RMB still worked).
+        if (e.button === 0) {
+          try {
+            document.documentElement.classList.remove('bndz-ole-drag-handoff');
+            document.getElementById('bndz-ole-veil')?.remove();
+          } catch { /* ignore */ }
+        }
+        if (canDragFile && e.button === 0) onFilePointerDown?.(row, e);
+      }}
       onDoubleClick={e => {
         e.stopPropagation();
         clearSlowDoubleClickTimer(treeRenameTimerRef);
@@ -611,15 +617,69 @@ export function VirtualizedNavTree({
     const rowEl = (e.currentTarget as HTMLElement);
     let oleStarted = false;
     let hostOleEscalated = false;
-    let outsideChromeStreak = 0;
     let sessionStarted = false;
     let captured = false;
+    let treeGhostEl: HTMLElement | null = null;
+    const ghostOffsetX = Math.max(8, Math.min(e.clientX - rowEl.getBoundingClientRect().left, rowEl.offsetWidth - 8));
+    const ghostOffsetY = Math.max(4, Math.min(e.clientY - rowEl.getBoundingClientRect().top, rowEl.offsetHeight - 4));
+
+    const removeTreeGhost = () => {
+      if (!treeGhostEl) return;
+      try { treeGhostEl.remove(); } catch { /* ignore */ }
+      treeGhostEl = null;
+    };
+
+    const placeTreeGhost = (clientX: number, clientY: number) => {
+      if (!treeGhostEl) return;
+      treeGhostEl.style.transform = `translate3d(${clientX - ghostOffsetX}px, ${clientY - ghostOffsetY}px, 0)`;
+    };
+
+    const armTreeGhost = () => {
+      removeTreeGhost();
+      try {
+        const rect = rowEl.getBoundingClientRect();
+        const cs = getComputedStyle(rowEl);
+        const clone = rowEl.cloneNode(true) as HTMLElement;
+        clone.classList.add('bndz-tree-drag-ghost', 'nav-tree-row-selected');
+        clone.removeAttribute('data-nav-path');
+        clone.removeAttribute('data-tree-key');
+        clone.querySelectorAll('button, [data-nav-expand], input').forEach(el => {
+          el.setAttribute('tabindex', '-1');
+          (el as HTMLElement).style.pointerEvents = 'none';
+        });
+        // Paint like the live tree button — not a generic card.
+        clone.style.cssText = [
+          'position:fixed',
+          'left:0',
+          'top:0',
+          `width:${Math.max(rect.width, 120)}px`,
+          `height:${rect.height}px`,
+          `padding-left:${cs.paddingLeft}`,
+          `padding-right:${cs.paddingRight}`,
+          `background:${cs.backgroundColor}`,
+          `color:${cs.color}`,
+          `border-radius:${cs.borderRadius}`,
+          `font:${cs.font}`,
+          'box-shadow:0 10px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.1)',
+          'opacity:0.98',
+          'z-index:9500',
+          'pointer-events:none',
+          'margin:0',
+          'box-sizing:border-box',
+          'will-change:transform',
+        ].join(';');
+        document.body.appendChild(clone);
+        treeGhostEl = clone;
+        placeTreeGhost(startX, startY);
+      } catch { /* ignore */ }
+    };
 
     const cleanup = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
       window.removeEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
+      removeTreeGhost();
       if (captured) {
         try { rowEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
       }
@@ -630,6 +690,7 @@ export function VirtualizedNavTree({
       hostOleEscalated = true;
       oleStarted = true;
       suppressTreeClickRef.current = true;
+      removeTreeGhost();
       dispatchPointerFileDragActive(false);
       stashOleDragSession(getFileDragSession());
       endFileDragSession();
@@ -655,11 +716,12 @@ export function VirtualizedNavTree({
         });
         dispatchPointerFileDragActive(true);
         IPC.notifyFileDragActive(true, [winPath]);
+        armTreeGhost();
         window.addEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
       }
+      placeTreeGhost(ev.clientX, ev.clientY);
       dispatchPointerFileDragMove(ev.clientX, ev.clientY);
       if (hostOleEscalated) return;
-      // Host poll is authoritative for leave-window → DoDragDrop; no FE START_DRAG backup.
     };
 
     const onUp = (ev: PointerEvent) => {
@@ -700,6 +762,7 @@ export function VirtualizedNavTree({
       // host poll can still escalate to DoDragDrop after the cursor leaves the window.
       if (ev.pointerId !== capturePointerId) return;
       if (sessionStarted && !oleStarted && !hostOleEscalated) {
+        removeTreeGhost();
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onCancel);

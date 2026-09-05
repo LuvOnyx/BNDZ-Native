@@ -104,13 +104,14 @@ export function PluginCard({
   children,
   className = '',
   style,
+  ...rest
 }: {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`bndz-plugin-card ${className}`} style={style}>
+    <div className={`bndz-plugin-card ${className}`} style={style} {...rest}>
       {children}
     </div>
   );

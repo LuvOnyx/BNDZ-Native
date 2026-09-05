@@ -71,3 +71,18 @@ dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 - **Do not** claim Phase 9+ selling points are done when only backend stubs/plugins exist.
 - **Do not** ship UI/CSS without fresh `npm run build` + Debug `dotnet build`.
 - **Selling-point roadmap:** see `to-do-selling-points.md` (8 category-defining pillars — Session View, Heat/Ghost, Rack Signal Path, etc.). Parity backlog: `to-do-future-upgrades.md`.
+
+---
+
+## Active — Outbound drag / Details / Lens (2026-09-05)
+
+Reported after wallpaper OLE verify. Fix in this pass; re-verify before claiming done.
+
+- [x] Wallpaper drop occasionally refreshes whole desktop/Explorer (seen twice) — soft SHChangeNotify only
+- [ ] Outbound desktop drop copies instead of MOVE on same volume; list does not refresh after folder change — **retainLarger resurrected moved rows; FS notify delayed ~50s on index lock; ghost RegisterClassW bug**
+- [ ] No drag ghost outside app border (only finger cursor) — **RegisterClassW+WNDCLASSEX → err=87; fixed RegisterClassExW**
+- [ ] Tree drag ghosts ugly — clone real `.nav-tree-row` with computed paint
+- [ ] Left sidebar unclickable after init until repeated clicks (stuck capture / handoff) — release capture on sidebar pointerdown
+- [x] Details tab (next to Workspace) does not scroll — content cut off at bottom
+- [x] LENS `IPC timeout: LENS STAGE RESULT` (recovered after retry) — budget hash + longer IPC + quiet retry
+- [ ] Desktop icon appears very late after wallpaper drop — SHCNF_FLUSH on CREATE

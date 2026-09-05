@@ -48,7 +48,7 @@ public sealed class BndzLensService
                     mediaKind,
                     type = "file",
                 };
-                if (size > 0 && size <= 512L * 1024 * 1024)
+                if (size > 0 && size <= 32L * 1024 * 1024)
                     sha256 = await HashSha256HexAsync(win, ct).ConfigureAwait(false);
             }
             catch { }
@@ -93,7 +93,7 @@ public sealed class BndzLensService
             var candidates = sizePeers
                 .Select(ExtractPath)
                 .Where(p => !string.IsNullOrWhiteSpace(p) && !string.Equals(p, pane, StringComparison.OrdinalIgnoreCase))
-                .Take(28)
+                .Take(8)
                 .ToList();
 
             var matched = await Task.WhenAll(candidates.Select(async candidatePane =>
@@ -105,7 +105,8 @@ public sealed class BndzLensService
                 {
                     var fi = new FileInfo(cWin);
                     if (fi.Length != size) return null;
-                    if (fi.Length > 512L * 1024 * 1024) return null;
+                    // Twin verify is expensive — skip large peers so Lens stays within IPC budget.
+                    if (fi.Length > 16L * 1024 * 1024) return null;
                     var h = await HashSha256HexAsync(cWin, ct).ConfigureAwait(false);
                     if (!string.Equals(h, sha256, StringComparison.OrdinalIgnoreCase)) return null;
                     return (object)new

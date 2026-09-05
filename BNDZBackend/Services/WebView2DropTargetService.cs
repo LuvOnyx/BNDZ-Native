@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
@@ -639,13 +640,16 @@ internal static class WebView2DropTargetService
                 return true;
             }
 
-            // Physical window rim — sides + bottom only. Top exit uses outside-host / foreign HWND
-            // so OLE never starts while the cursor is still over the React menubar band.
+            // Physical window exit only for sides/bottom — do NOT escalate on a thick
+            // in-host rim (that stole left-sidebar / bottom Drop Stack / right-preview drops).
+            // FE boundary handoff + outside-host / foreign HWND cover real desktop exits.
             if (IsCursorInsideWebViewMenubarBand(screenX, screenY))
                 return false;
 
-            if (screenX < hostRect.Left + rim || screenX >= hostRect.Right - rim
-                || screenY >= hostRect.Bottom - rim)
+            // Tiny physical rim (~6px) as last-chance backup when FE cannot see the leave.
+            const int thinRim = 6;
+            if (screenX < hostRect.Left + thinRim || screenX >= hostRect.Right - thinRim
+                || screenY >= hostRect.Bottom - thinRim)
                 return true;
 
             // Foreign HWND under cursor (Desktop / other app) even if still near our frame.
@@ -1153,24 +1157,19 @@ internal static class WebView2DropTargetService
     {
         const int VK_CONTROL = 0x11;
         const int VK_SHIFT = 0x10;
+        // Ctrl = explicit COPY. Ignore poisoned COPY latch (effect=1 from okEffects echo).
         if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) return false;
         if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) return true;
-        if (effectBits == 2) return true;
         try
         {
             var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            var deskRoot = Path.GetPathRoot(desktop);
-            if (string.IsNullOrEmpty(deskRoot)) return effectBits != 1;
-            foreach (var src in sourcePaths)
-            {
-                if (string.IsNullOrWhiteSpace(src)) continue;
-                var srcRoot = Path.GetPathRoot(src);
-                if (!string.Equals(srcRoot, deskRoot, StringComparison.OrdinalIgnoreCase))
-                    return false;
-            }
-            return true;
+            if (SourcesShareVolumeWith(sourcePaths.Where(p => !string.IsNullOrWhiteSpace(p)), desktop))
+                return true; // same volume → MOVE (Explorer default)
         }
-        catch { return effectBits == 2; }
+        catch { /* fall through */ }
+        if (effectBits == 2) return true;
+        if (effectBits == 1) return false;
+        return true; // unknown latch — prefer MOVE for wallpaper recover
     }
 
     private static bool SourcesShareVolumeWith(IEnumerable<string> sources, string destinationFolder)
@@ -1841,8 +1840,10 @@ internal static class WebView2DropTargetService
             _lastFeedbackTrusted = trusted;
             try
             {
-                // Badge tracks Ctrl (copy) vs move while OLE runs.
-                BndzOutboundDragGhostOverlay.SetCopyMode(resolved == 1 || bits == 1);
+                // Badge tracks Ctrl — ignore poisoned COPY latch from okEffects=7 echo.
+                const int VK_CONTROL = 0x11;
+                var copyHeld = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                BndzOutboundDragGhostOverlay.SetCopyMode(copyHeld);
                 BndzOutboundDragGhostOverlay.FollowCursor();
             }
             catch { /* ignore */ }
@@ -2432,7 +2433,7 @@ internal static class WebView2DropTargetService
                 var srcPtr = Marshal.StringToHGlobalUni(src);
                 try
                 {
-                    SHChangeNotify(SHCNE_CREATE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, destPtr, IntPtr.Zero);
+                    SHChangeNotify(SHCNE_CREATE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSH, destPtr, IntPtr.Zero);
                     if (moved)
                         SHChangeNotify(SHCNE_DELETE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, srcPtr, IntPtr.Zero);
                 }
@@ -2443,24 +2444,10 @@ internal static class WebView2DropTargetService
                 }
             }
 
-            var deskPtr = Marshal.StringToHGlobalUni(desktop);
-            try
-            {
-                SHChangeNotify(SHCNE_UPDATEDIR, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, deskPtr, IntPtr.Zero);
-            }
-            finally { Marshal.FreeHGlobal(deskPtr); }
-
-            foreach (var dir in sourceDirs)
-            {
-                var dirPtr = Marshal.StringToHGlobalUni(dir);
-                try { SHChangeNotify(SHCNE_UPDATEDIR, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, dirPtr, IntPtr.Zero); }
-                finally { Marshal.FreeHGlobal(dirPtr); }
-            }
-
-            // Never SHCNF_FLUSH — it waits for Explorer and blocked ~3s after every wallpaper drop.
-            SHChangeNotify(0, SHCNF_FLUSHNOWAIT, IntPtr.Zero, IntPtr.Zero);
-            InvalidateDesktopListView();
-            AppendOleDndLog("desktop-shell-recover DefView notified");
+            // Do NOT SHCNE_UPDATEDIR / InvalidateDesktopListView — those caused full desktop
+            // and Explorer flashes. Per-item CREATE/DELETE + FLUSHNOWAIT is enough for DefView.
+            _ = sourceDirs;
+            AppendOleDndLog("desktop-shell-recover DefView notified (per-item only)");
         }
         catch (Exception ex)
         {

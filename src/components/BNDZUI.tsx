@@ -1969,14 +1969,22 @@ export default function BNDZUI() {
       if (existing?.length && (!filtered || filtered.length === 0)) {
         return prev;
       }
-      // Progressive first-page RESULT must not shrink a fuller warm/streamed listing.
+      // Progressive first-page RESULT must not shrink a fuller warm/streamed listing —
+      // but MUST drop tombstoned / gone names (OLE MOVE soft-refresh used to re-merge them).
       if (
         opts?.retainLarger
         && existing?.length
         && filtered?.length
         && existing.length > filtered.length
       ) {
-        return setPathCacheEntry(prev, path, mergeDirEntryChunks(existing, filtered));
+        const existingClean = filterTombstonedEntries(path, existing);
+        // Only retain when this looks like a tiny progressive first page.
+        const looksLikeFirstPage = filtered.length <= 80 && existingClean.length > filtered.length + 8;
+        if (looksLikeFirstPage) {
+          return setPathCacheEntry(prev, path, mergeDirEntryChunks(existingClean, filtered));
+        }
+        // Full/soft refresh shrunk the folder — trust the server (deletes/moves).
+        return setPathCacheEntry(prev, path, filtered);
       }
       if (config.addNewItemsAtTheEndOfTheList && existing?.length && filtered?.length) {
         const existingIds = new Set(existing.map((e: any) => e.id || e.name));
@@ -3000,6 +3008,15 @@ export default function BNDZUI() {
     void refetchPath(path);
   }, [refetchPath]);
 
+  useEffect(() => {
+    const onInvalidate = (ev: Event) => {
+      const path = (ev as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) invalidatePath(path);
+    };
+    window.addEventListener('bndz-invalidate-path', onInvalidate);
+    return () => window.removeEventListener('bndz-invalidate-path', onInvalidate);
+  }, [invalidatePath]);
+
   const refreshPathsForPanes = React.useCallback(() => {
     panes.forEach(p => {
       const tab = p.tabs[p.activeTabIndex];
@@ -3110,6 +3127,16 @@ export default function BNDZUI() {
               },
             }));
           } catch { /* ignore */ }
+      // Force soft-refresh of each source parent so retainLarger cannot resurrect rows.
+          // Debounce navigate double-fire from tree pointerup+click.
+          for (const wp of winPaths) {
+            const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
+            if (slash <= 0) continue;
+            const parentPane = normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
+            try {
+              window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
+            } catch { /* ignore */ }
+          }
         }
       }
       nativeOleDragRef.current = false;
@@ -3921,6 +3948,37 @@ export default function BNDZUI() {
       if (Date.now() < suppressNavClickUntilRef.current) return;
       setCurrentPath(p);
   };
+
+  const lastSidebarNavAtRef = React.useRef(0);
+  const releaseStuckPointerCaptures = React.useCallback(() => {
+    try {
+      document.querySelectorAll('[data-list-body], [data-entity-id], [data-nav-path], [data-favorite-path], .bndz-fluid-drag-stack, .sidebar-pin-row, .nav-tree-row').forEach(node => {
+        const el = node as Element & {
+          hasPointerCapture?: (id: number) => boolean;
+          releasePointerCapture?: (id: number) => void;
+        };
+        for (let id = 1; id <= 16; id++) {
+          try {
+            if (el.hasPointerCapture?.(id)) el.releasePointerCapture?.(id);
+          } catch { /* ignore */ }
+        }
+      });
+    } catch { /* ignore */ }
+    try {
+      document.documentElement.classList.remove('bndz-ole-drag-handoff');
+      document.getElementById('bndz-ole-veil')?.remove();
+    } catch { /* ignore */ }
+    suppressNavClickUntilRef.current = 0;
+  }, []);
+
+  /** Sidebar left-click can lose the synthetic click after OLE/pointer-capture — navigate on pointerup too. */
+  const sidebarNavigateFromPointer = React.useCallback((path: string, e: React.PointerEvent | React.MouseEvent) => {
+    if ('button' in e && typeof (e as React.PointerEvent).button === 'number' && (e as React.PointerEvent).button !== 0) return;
+    if (Date.now() - lastSidebarNavAtRef.current < 280) return;
+    lastSidebarNavAtRef.current = Date.now();
+    releaseStuckPointerCaptures();
+    setCurrentPath(path);
+  }, [releaseStuckPointerCaptures]);
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const dragTargetIdRef = useRef<string | null>(null);
   const setDragTargetHighlight = (id: string | null) => {
@@ -14525,7 +14583,12 @@ export default function BNDZUI() {
                       navigationDrives.map(drive => (
                      <div
                         key={drive.name}
-                        onClick={() => guardedSetCurrentPath(drive.name)}
+                        onClick={() => sidebarNavigateFromPointer(drive.name, { button: 0 } as React.MouseEvent)}
+                        onPointerUp={(e) => {
+                          if (e.button !== 0) return;
+                          e.stopPropagation();
+                          sidebarNavigateFromPointer(drive.name, e);
+                        }}
                         onContextMenu={(e) => handleContextMenuRequest(e, drive.name, drive.name, true, drive.label, undefined, 'sidebar-item')}
                      >
                         <DriveCard drive={{ ...drive, path: drive.name }} layout="compact" selected={isSidebarDriveActive(drive.name)} />
@@ -14574,8 +14637,9 @@ export default function BNDZUI() {
                                  data-favorite-path={qaPath}
                                  data-favorite-default={s.isDefault ? 'true' : 'false'}
                                  className={`sidebar-pin-row group/pin relative flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 ${isQaSelected ? 'sidebar-pin-row-selected' : ''} ${favoriteDrag?.sourcePath === qaPath ? 'opacity-40' : ''} ${isFavoriteDropTarget ? 'bg-amber-400/15 border-amber-400/80 text-white' : isQaSelected ? '' : 'border-transparent hover:border-amber-400/70'}`}
-                                 onClick={() => {
+                                 onClick={(e) => {
                                    if (isRenaming) return;
+                                   e.stopPropagation();
                                    const target = collapseKnownFolderShadowPath(s.path, shortcuts);
                                    // Settings → Open favorite files directly
                                    if (config.openFavoriteFilesDirectly) {
@@ -14591,7 +14655,20 @@ export default function BNDZUI() {
                                    if (config.expandInTree) {
                                      window.dispatchEvent(new CustomEvent('bndz-expand-tree-path', { detail: { path: target } }));
                                    }
-                                   guardedSetCurrentPath(target);
+                                   sidebarNavigateFromPointer(target, e);
+                                 }}
+                                 onPointerUp={(e) => {
+                                   if (e.button !== 0 || isRenaming) return;
+                                   // Backup when click is eaten after OLE pointer capture / handoff.
+                                   if (Date.now() < suppressNavClickUntilRef.current) return;
+                                   const target = collapseKnownFolderShadowPath(s.path, shortcuts);
+                                   if (config.openFavoriteFilesDirectly) {
+                                     const looksFile = /\.[A-Za-z0-9]{1,8}$/.test(target.split(/[/\\]/).pop() || '')
+                                       && !target.toLowerCase().includes('/shell:');
+                                     if (looksFile) return;
+                                   }
+                                   e.stopPropagation();
+                                   sidebarNavigateFromPointer(target, e);
                                  }}
                                  onDoubleClick={() => { if (!s.isDefault) setRenamingFavoritePath(qaPath); }}
                                  onContextMenu={(e) => {
@@ -14659,11 +14736,16 @@ export default function BNDZUI() {
                           role="button"
                           tabIndex={0}
                           className={`sidebar-pin-row relative flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 ${isCloudSelected ? 'sidebar-pin-row-selected' : 'border-transparent'}`}
-                          onClick={() => item.path && guardedSetCurrentPath(item.path)}
+                          onClick={() => item.path && sidebarNavigateFromPointer(item.path, { button: 0 } as React.MouseEvent)}
+                          onPointerUp={(e) => {
+                            if (e.button !== 0 || !item.path) return;
+                            e.stopPropagation();
+                            sidebarNavigateFromPointer(item.path, e);
+                          }}
                           onKeyDown={(e) => {
                             if ((e.key === 'Enter' || e.key === ' ') && item.path) {
                               e.preventDefault();
-                              guardedSetCurrentPath(item.path);
+                              sidebarNavigateFromPointer(item.path, { button: 0 } as React.MouseEvent);
                             }
                           }}
                           onContextMenu={(e) => item.path && handleContextMenuRequest(e, item.path, item.path, true, item.label, undefined, 'sidebar-item')}

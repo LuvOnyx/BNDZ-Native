@@ -14952,7 +14952,8 @@ html[data-theme] .nav-tree-row:focus-visible {
 }
 .bndz-gpu-viewport canvas { contain: strict; touch-action: none; }
 .bndz-fluid-drag-stack { pointer-events: none; will-change: transform; }
-/* Host OLE handoff — React ghost cannot paint outside WebView2 HWND. */
+/* Hide ghosts during shell DoDragDrop — do NOT disable list/sidebar pointer-events.
+   That left the tree dead after init / cancelled OLE when handoff CSS stuck. */
 html.bndz-ole-drag-handoff .bndz-fluid-drag-stack,
 html.bndz-ole-drag-handoff .bndz-fluid-drag-lead,
 html.bndz-ole-drag-handoff .bndz-fluid-drag-card,
@@ -14960,6 +14961,7 @@ html.bndz-ole-drag-handoff .bndz-fluid-drag-multi-pill,
 html.bndz-ole-drag-handoff .bndz-fluid-drag-overflow-badge,
 html.bndz-ole-drag-handoff .bndz-drag-ghost-root,
 html.bndz-ole-drag-handoff .bndz-drag-ghost-card,
+html.bndz-ole-drag-handoff .bndz-tree-drag-ghost,
 html.bndz-ole-drag-handoff [data-fluid-lead],
 html.bndz-ole-drag-handoff [data-fluid-fan],
 html.bndz-ole-drag-handoff [data-fluid-pill],
@@ -14970,15 +14972,6 @@ html.bndz-ole-drag-handoff [data-fluid-badge] {
   pointer-events: none !important;
   transform: none !important;
 }
-/* Block list/sidebar clicks while shell DoDragDrop owns the gesture.
-   Do NOT include bottom panel / preview — internal drops there must keep working
-   if handoff CSS is briefly active, and Escape clears the class. */
-html.bndz-ole-drag-handoff [data-list-body],
-html.bndz-ole-drag-handoff [data-nav-path],
-html.bndz-ole-drag-handoff .bndz-chrome-sidebar,
-html.bndz-ole-drag-handoff .bndz-chrome-tabstrip {
-  pointer-events: none !important;
-}
 /* Menubar stays clickable — OLE handoff must not brick Scripting→Help after a drag. */
 html.bndz-ole-drag-handoff .bndz-chrome-menubar,
 html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger],
@@ -14987,6 +14980,24 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-bndz-menubar-logo] {
 }
 html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   cursor: pointer !important;
+}
+.bndz-tree-drag-ghost {
+  position: fixed;
+  z-index: 9500;
+  pointer-events: none !important;
+  margin: 0;
+  box-sizing: border-box;
+  /* Clone keeps real .nav-tree-row / selected paint — just lift + soft shadow */
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  opacity: 0.98;
+  will-change: transform;
+  cursor: grabbing;
+}
+.bndz-tree-drag-ghost .nav-tree-chevron,
+.bndz-tree-drag-ghost [data-nav-expand] {
+  pointer-events: none !important;
 }
 .bndz-fluid-drag-lead {
   position: relative;

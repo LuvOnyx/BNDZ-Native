@@ -2272,7 +2272,7 @@ export const IPC = {
   }> {
     if (this.isNative) {
       const id = `${Date.now()}_lensStage`;
-      return _nativeCall('GET_LENS_STAGE', 'LENS_STAGE_RESULT', id, { path }, 20000)
+      return _nativeCall('GET_LENS_STAGE', 'LENS_STAGE_RESULT', id, { path }, 45000)
         .then((payload: any) => {
           if (payload?.error) throw new Error(payload.error);
           return {

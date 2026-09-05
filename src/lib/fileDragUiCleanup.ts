@@ -118,7 +118,7 @@ function armOleHandoffSafetyClear() {
     disarmFluidDrag();
     endFileDragSession();
     notifyOleDragHandoffListeners();
-  }, 12_000);
+  }, 4_000);
 }
 
 function stopScreenDragGhostMonitor() {
@@ -126,15 +126,18 @@ function stopScreenDragGhostMonitor() {
   screenDragMonitorStop = null;
 }
 
-/** Screen-space backup when WebView stops pointermove — only after cursor leaves the window. */
+/** Screen-space backup when WebView stops pointermove — only after cursor leaves the window.
+ *  Do NOT hide FE ghosts here — WebView cannot paint outside HWND; host overlay takes over
+ *  on escalate. Premature hide left only the finger cursor beyond the app border.
+ */
 function startScreenDragGhostMonitor() {
   if (screenDragMonitorStop || typeof document === 'undefined') return;
-  let hidden = false;
+  let escalatedHint = false;
   const onMove = (ev: MouseEvent) => {
-    if (hidden) return;
+    if (escalatedHint) return;
     if (isPointerOutsideScreenWindow(ev.screenX, ev.screenY, 2)) {
-      hidden = true;
-      hideFileDragGhostForOleHandoff();
+      escalatedHint = true;
+      // Keep session; host poll / OLE owns the outside-window card.
     }
   };
   document.addEventListener('mousemove', onMove, true);
@@ -145,6 +148,8 @@ function startScreenDragGhostMonitor() {
 export function installOleDragEscalateGhostHook(): void {
   if (oleEscalateHookInstalled || typeof window === 'undefined') return;
   oleEscalateHookInstalled = true;
+  // Boot: never leave a stuck handoff class from a previous session / HMR.
+  clearOleHandoffDom();
   window.__bndzDismissDragGhost = onHostOleDragEscalated;
   window.addEventListener('bndz-ole-drag-escalated', () => {
     onHostOleDragEscalated();

@@ -13,7 +13,6 @@ namespace BNDZ.Services;
 /// Click-through layered ghost that follows the cursor during outbound OLE.
 /// WebView2 cannot paint outside the HWND, and IDragSourceHelper fails on this host
 /// (CoCreate QI → E_NOINTERFACE) — so we own a topmost WS_EX_TRANSPARENT overlay instead.
-/// Does not capture mouse input; wallpaper / Explorer drops stay intact.
 /// </summary>
 internal static class BndzOutboundDragGhostOverlay
 {
@@ -31,6 +30,7 @@ internal static class BndzOutboundDragGhostOverlay
     private const uint SwpShowwindow = 0x0040;
     private const uint SwpHidewindow = 0x0080;
     private static readonly IntPtr HwndTopmost = new(-1);
+    private const string ClassName = "BndzOutboundDragGhost";
 
     private static readonly object Gate = new();
     private static IntPtr _hwnd;
@@ -46,6 +46,7 @@ internal static class BndzOutboundDragGhostOverlay
     private static string[] _paths = Array.Empty<string>();
     private static bool _classRegistered;
     private static WndProcKeepAlive? _wndProcKeepAlive;
+    private static IntPtr _classNamePtr;
 
     private delegate IntPtr WndProcKeepAlive(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
@@ -72,8 +73,26 @@ internal static class BndzOutboundDragGhostOverlay
         public byte AlphaFormat;
     }
 
+    /// <summary>WNDCLASSEXW — must pair with RegisterClassExW (not RegisterClassW).</summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WndClassEx
+    {
+        public uint cbSize;
+        public uint style;
+        public IntPtr lpfnWndProc;
+        public int cbClsExtra;
+        public int cbWndExtra;
+        public IntPtr hInstance;
+        public IntPtr hIcon;
+        public IntPtr hCursor;
+        public IntPtr hbrBackground;
+        public IntPtr lpszMenuName;
+        public IntPtr lpszClassName;
+        public IntPtr hIconSm;
+    }
+
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern ushort RegisterClassW(ref WndClassEx lpwcx);
+    private static extern ushort RegisterClassExW(ref WndClassEx lpwcx);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr CreateWindowExW(
@@ -120,23 +139,6 @@ internal static class BndzOutboundDragGhostOverlay
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr GetModuleHandleW(string? lpModuleName);
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct WndClassEx
-    {
-        public uint cbSize;
-        public uint style;
-        public IntPtr lpfnWndProc;
-        public int cbClsExtra;
-        public int cbWndExtra;
-        public IntPtr hInstance;
-        public IntPtr hIcon;
-        public IntPtr hCursor;
-        public IntPtr hbrBackground;
-        public string? lpszMenuName;
-        public string lpszClassName;
-        public IntPtr hIconSm;
-    }
-
     public static void Show(string[]? paths, bool copyMode)
     {
         if (paths is not { Length: > 0 }) return;
@@ -150,7 +152,7 @@ internal static class BndzOutboundDragGhostOverlay
             if (!GetCursorPos(out var pt)) return;
             PaintAtUnlocked(pt.x - _hotX, pt.y - _hotY, show: true);
             Interlocked.Exchange(ref _visible, 1);
-            AppendLog($"outbound-ghost show copy={copyMode} count={paths.Length}");
+            AppendLog($"outbound-ghost show copy={copyMode} count={paths.Length} hwnd=0x{_hwnd.ToInt64():X}");
         }
     }
 
@@ -202,11 +204,11 @@ internal static class BndzOutboundDragGhostOverlay
     private static void EnsureWindow()
     {
         if (_hwnd != IntPtr.Zero) return;
-        EnsureClass();
+        if (!EnsureClass()) return;
         var ex = WsExLayered | WsExTransparent | WsExTopmost | WsExToolwindow | WsExNoactivate;
         _hwnd = CreateWindowExW(
             ex,
-            "BndzOutboundDragGhost",
+            ClassName,
             "",
             WsPopup,
             0, 0, 8, 8,
@@ -215,21 +217,36 @@ internal static class BndzOutboundDragGhostOverlay
             AppendLog($"outbound-ghost CreateWindow failed err={Marshal.GetLastWin32Error()}");
     }
 
-    private static void EnsureClass()
+    private static bool EnsureClass()
     {
-        if (_classRegistered) return;
+        if (_classRegistered) return true;
         _wndProcKeepAlive = static (h, m, w, l) => DefWindowProcW(h, m, w, l);
+        if (_classNamePtr == IntPtr.Zero)
+            _classNamePtr = Marshal.StringToHGlobalUni(ClassName);
         var wc = new WndClassEx
         {
             cbSize = (uint)Marshal.SizeOf<WndClassEx>(),
+            style = 0,
             lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcKeepAlive),
+            cbClsExtra = 0,
+            cbWndExtra = 0,
             hInstance = GetModuleHandleW(null),
-            lpszClassName = "BndzOutboundDragGhost",
+            hIcon = IntPtr.Zero,
+            hCursor = IntPtr.Zero,
+            hbrBackground = IntPtr.Zero,
+            lpszMenuName = IntPtr.Zero,
+            lpszClassName = _classNamePtr,
+            hIconSm = IntPtr.Zero,
         };
-        var atom = RegisterClassW(ref wc);
-        if (atom == 0 && Marshal.GetLastWin32Error() != 1410) // already exists
-            AppendLog($"outbound-ghost RegisterClass failed err={Marshal.GetLastWin32Error()}");
+        var atom = RegisterClassExW(ref wc);
+        var err = Marshal.GetLastWin32Error();
+        if (atom == 0 && err != 1410) // already exists
+        {
+            AppendLog($"outbound-ghost RegisterClassEx failed err={err} cbSize={wc.cbSize}");
+            return false;
+        }
         _classRegistered = true;
+        return true;
     }
 
     [DllImport("gdi32.dll")]
@@ -275,7 +292,7 @@ internal static class BndzOutboundDragGhostOverlay
         {
             biSize = Marshal.SizeOf<BitmapInfoHeader>(),
             biWidth = w,
-            biHeight = -h, // top-down
+            biHeight = -h,
             biPlanes = 1,
             biBitCount = 32,
             biCompression = unchecked((int)BiRgb),
@@ -297,7 +314,6 @@ internal static class BndzOutboundDragGhostOverlay
             for (var y = 0; y < h; y++)
             {
                 Marshal.Copy(data.Scan0 + y * srcStride, row, 0, srcStride);
-                // Premultiply into DIB (already premultiplied in BuildCardBitmap).
                 Marshal.Copy(row, 0, bits + y * dstStride, dstStride);
             }
         }
@@ -422,7 +438,6 @@ internal static class BndzOutboundDragGhostOverlay
                 DrawFallback(g, well, Directory.Exists(lead));
             }
 
-            // Op badge (move magenta / copy green) — matches FE .bndz-drag-ghost-op-*
             var badge = new RectangleF(well.Right - 10, well.Bottom - 10, 14, 14);
             using (var badgePath = RoundRect(badge, 5f))
             {

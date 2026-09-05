@@ -1149,9 +1149,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
        </div>
        
        <div className={`bndz-preview-content flex-1 relative flex flex-col min-h-0 ${
-         isArchive || isTorrent || (isAudio && (activeTab === 'media' || activeTab === 'preview'))
+         activeTab === 'details'
+           || isArchive || isTorrent || (isAudio && (activeTab === 'media' || activeTab === 'preview'))
            || ((isImage || isSvg) && activeTab === 'preview')
-           || (activeTab === 'preview' && (isFont || isModel || isPdf || isDocx || isOfficeOther || isMarkdown || isHtml || isEditableText)) ? 'overflow-hidden overscroll-contain'
+           || (activeTab === 'preview' && (isFont || isModel || isPdf || isDocx || isOfficeOther || isMarkdown || isHtml || isEditableText))
+           ? 'overflow-hidden overscroll-contain'
            : 'overflow-y-auto bndz-scrollbar'
        }`}>
           {path && activeTab !== 'details' && (
@@ -1214,7 +1216,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}
                 transition={{ duration: animDuration, ease: "easeOut" }}
-                className={`flex flex-col flex-1 min-h-0 overflow-hidden ${
+                className={`flex flex-col min-h-0 ${
+                  activeTab === 'details'
+                    ? 'flex-1 overflow-y-auto overflow-x-hidden bndz-scrollbar overscroll-contain'
+                    : 'flex-1 overflow-hidden'
+                } ${
                   isArchive || isTorrent || ((isImage || isSvg) && activeTab === 'preview')
                     || (activeTab === 'preview' && (isFont || isModel || isPdf || isDocx || isOfficeOther || isMarkdown || isHtml || isEditableText))
                     ? 'h-full' : ''
@@ -1246,7 +1252,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 )}
 
                 {activeTab === 'details' && (
-                <div className="p-4 flex-1 bndz-preview-details flex flex-col gap-4">
+                <div className="p-4 pb-8 bndz-preview-details flex flex-col gap-4 w-full">
                     {/* Primary Identifier */}
                     <div className="pb-3 border-b border-[var(--border-subtle,rgba(255,255,255,0.08))]">
                        <h2 className="text-[14px] font-bold break-words leading-tight">{entity.name}</h2>

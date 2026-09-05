@@ -301,6 +301,12 @@ namespace BNDZ.Services
             _fileDragSessionActive = false;
             _fileDragSessionPaths = null;
             _fileDragButtonUpSinceMs = 0;
+            // Preview overlay is only for the armed FE→OLE gap; DoDragDrop owns Show/Hide after escalate.
+            if (!_bndzOleDragActive)
+            {
+                try { BndzOutboundDragGhostOverlay.Hide(); }
+                catch { /* ignore */ }
+            }
         }
 
         private static void OleDndLog(string message)
@@ -370,6 +376,7 @@ namespace BNDZ.Services
             if (!GetCursorPos(out var pt)) return false;
 
             const int VK_LBUTTON = 0x01;
+            const int VK_CONTROL = 0x11;
             bool buttonDown = (GetAsyncKeyStateShort(VK_LBUTTON) & 0x8000) != 0;
 
             bool shouldEscalate = false;
@@ -391,6 +398,21 @@ namespace BNDZ.Services
             else if (force)
             {
                 shouldEscalate = true;
+            }
+
+            // WebView2 cannot paint outside the HWND — arm the host layered ghost as soon as
+            // the cursor leaves the deep interior (before modal DoDragDrop), so wallpaper
+            // drags still show a card instead of only the finger cursor.
+            var outsideDeep = !WebView2DropTargetService.IsCursorDeepInsideHost(pt.X, pt.Y, insetPx: 12);
+            if ((outsideDeep || shouldEscalate) && _fileDragSessionPaths is { Length: > 0 })
+            {
+                try
+                {
+                    var copyHeld = (GetAsyncKeyStateShort(VK_CONTROL) & 0x8000) != 0;
+                    BndzOutboundDragGhostOverlay.Show(_fileDragSessionPaths, copyHeld);
+                    BndzOutboundDragGhostOverlay.FollowCursor();
+                }
+                catch { /* ignore */ }
             }
 
             // Hide FE ghost only when escalate is committed — not while dragging over menubar/list.
@@ -755,7 +777,8 @@ namespace BNDZ.Services
                 catch { /* ignore */ }
                 OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={effectLabel}");
 
-                if (ok && paths is { Length: > 0 } && effectBits is 1 or 2 or 4)
+                // Always reconcile listing when sources vanish (MOVE or recover with poisoned COPY latch).
+                if (paths is { Length: > 0 })
                 {
                     var syncPaths = paths;
                     var syncEffect = effectBits;
@@ -777,17 +800,50 @@ namespace BNDZ.Services
 
         private void NotifyOutboundOleListingSync(string[] paths, uint effectBits)
         {
-            if (effectBits != 2 || paths is not { Length: > 0 }) return;
+            if (paths is not { Length: > 0 }) return;
+            var deleted = 0;
+            var batch = new List<object>();
             foreach (var path in paths)
             {
                 if (string.IsNullOrWhiteSpace(path)) continue;
                 var dir = System.IO.Path.GetDirectoryName(path);
                 var name = System.IO.Path.GetFileName(path);
                 if (string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(name)) continue;
-                QueueFsEvent("Deleted", dir, name);
+                // MOVE always; also remove when source is gone (recover succeeded even if latch was COPY).
+                var gone = !System.IO.File.Exists(path) && !System.IO.Directory.Exists(path);
+                if (effectBits == 2 || gone)
+                {
+                    var dirPane = dir.Replace("\\", "/");
+                    batch.Add(new { type = "Deleted", dir = dirPane, name, oldName = (string?)null });
+                    deleted++;
+                }
             }
-            FlushFsEvents();
-            OleDndLog($"outbound-ole fs-delete count={paths.Length} {BndzOutboundDragHelper.FormatPathSummary(paths)}");
+            if (deleted == 0) return;
+
+            // Push FE batch immediately (do not wait for FlushFsEvents debounce / index lock).
+            var payload = new { type = "FS_EVENT_BATCH", payload = batch };
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => DeliverIpcJson(json));
+
+            _ = Task.Run(() =>
+            {
+                foreach (var raw in batch)
+                {
+                    try
+                    {
+                        var evJson = JsonSerializer.Serialize(raw);
+                        using var doc = JsonDocument.Parse(evJson);
+                        var root = doc.RootElement;
+                        var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                        var dir = root.TryGetProperty("dir", out var d) ? d.GetString() : null;
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+                        if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(name))
+                            BndzFileIndexService.Instance.ApplyFsEvent(type, dir, name, null);
+                    }
+                    catch { /* ignore */ }
+                }
+            });
+            OleDndLog($"outbound-ole fs-delete count={deleted} {BndzOutboundDragHelper.FormatPathSummary(paths)}");
         }
 
         /// <summary>
@@ -3074,30 +3130,30 @@ namespace BNDZ.Services
                 batch.Add(ev);
             }
 
-            foreach (var raw in batch)
-            {
-                try
-                {
-                    var evJson = JsonSerializer.Serialize(raw);
-                    using var doc = JsonDocument.Parse(evJson);
-                    var root = doc.RootElement;
-                    var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
-                    var dir = root.TryGetProperty("dir", out var d) ? d.GetString() : null;
-                    var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
-                    var oldName = root.TryGetProperty("oldName", out var o) ? o.GetString() : null;
-                    if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(name))
-                        BndzFileIndexService.Instance.ApplyFsEvent(type, dir, name, oldName);
-                }
-                catch { }
-            }
-
+            // Deliver to FE first — ApplyFsEvent can block on the index write lock for a long time
+            // and previously delayed OLE MOVE list updates by ~50s.
             var payload = new { type = "FS_EVENT_BATCH", payload = batch };
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => DeliverIpcJson(json));
 
-            PostToUi(() => 
+            _ = Task.Run(() =>
             {
-                // Send batched payload back to the React frontend
-                DeliverIpcJson(json);
+                foreach (var raw in batch)
+                {
+                    try
+                    {
+                        var evJson = JsonSerializer.Serialize(raw);
+                        using var doc = JsonDocument.Parse(evJson);
+                        var root = doc.RootElement;
+                        var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                        var dir = root.TryGetProperty("dir", out var d) ? d.GetString() : null;
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+                        var oldName = root.TryGetProperty("oldName", out var o) ? o.GetString() : null;
+                        if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(name))
+                            BndzFileIndexService.Instance.ApplyFsEvent(type, dir, name, oldName);
+                    }
+                    catch { /* index lag must not block listing */ }
+                }
             });
         }
 
@@ -8000,8 +8056,15 @@ namespace BNDZ.Services
                     {
                         try
                         {
-                            var stage = await BndzLensService.Instance.BuildLensStageAsync(lensPath).ConfigureAwait(false);
+                            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(18));
+                            var stage = await BndzLensService.Instance.BuildLensStageAsync(lensPath, cts.Token).ConfigureAwait(false);
                             var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = stage };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = new { error = "Lens timed out — try Retry." } };
                             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                             PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                         }
