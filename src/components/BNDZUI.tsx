@@ -6648,6 +6648,7 @@ export default function BNDZUI() {
     sourcePaths: string[],
     destPath: string,
     sourcePath?: string,
+    opts?: { skipConfirm?: boolean },
   ) => {
     void (async () => {
       const rt = buildSettingsRuntime(config);
@@ -6655,8 +6656,9 @@ export default function BNDZUI() {
       const destCanon = canonicalDropPath(destPath);
       const route = resolveDropRoute(op, canonSources, destCanon);
       const isMeshDropSend = route.kind === 'mesh-drop-send';
+      const skipConfirm = !!opts?.skipConfirm;
 
-      if (rt.shell.confirmMove && op === 'move' && route.kind === 'local') {
+      if (!skipConfirm && rt.shell.confirmMove && op === 'move' && route.kind === 'local') {
         const labelPreview = canonSources.length === 1
           ? (canonSources[0].split(/[/\\]/).pop() || 'item')
           : `${canonSources.length} items`;
@@ -6667,7 +6669,7 @@ export default function BNDZUI() {
           confirmLabel: 'Move',
         });
         if (!approved) return;
-      } else if (intentRequiresStrictConfirm(config) && op === 'move' && route.kind === 'local') {
+      } else if (!skipConfirm && intentRequiresStrictConfirm(config) && op === 'move' && route.kind === 'local') {
         const labelPreview = canonSources.length === 1
           ? (canonSources[0].split(/[/\\]/).pop() || 'item')
           : `${canonSources.length} items`;
@@ -8526,8 +8528,8 @@ export default function BNDZUI() {
         });
       },
       applyHover: applyFileDragHoverAtPoint,
-      executeDrop: (op, paths, destPath, sourcePath) => {
-        executeInternalDropRef.current(op, paths, destPath, sourcePath);
+      executeDrop: (op, paths, destPath, sourcePath, opts) => {
+        executeInternalDropRef.current(op, paths, destPath, sourcePath, opts);
       },
       addTab,
       setActivePaneId,
@@ -8563,9 +8565,7 @@ export default function BNDZUI() {
         : typeof detail.clientY === 'number' ? detail.clientY
         : (recordExternalDragHover.last.valid ? recordExternalDragHover.last.clientY : window.innerHeight / 2);
 
-      // Spatial / Automation own inbound drops — never let preview loupe swallow list drops.
-      if (hitTestExclusiveWorkspaceDropSurface(clientX, clientY)) return;
-
+      // Log before any early-return so ole-dnd.log proves FE received the drop.
       try {
         IPC.postOleDndDebug({
           kind: 'inbound-drop',
@@ -8577,6 +8577,9 @@ export default function BNDZUI() {
           y: clientY,
         });
       } catch { /* ignore */ }
+
+      // Spatial / Automation own inbound drops — never let preview loupe swallow list drops.
+      if (hitTestExclusiveWorkspaceDropSurface(clientX, clientY)) return;
 
       setExternalDragPaths(paths);
       void commitExternalOleDrop({

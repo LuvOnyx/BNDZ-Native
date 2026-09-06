@@ -82,17 +82,18 @@ public sealed partial class CraftPaneHost : UserControl
 		ActualThemeChanged += (_, _) => SyncRasterizationScale();
 		Unloaded += (_, _) =>
 		{
-			if (_pushHandler != null)
-			{
-				BndzEmbeddedBackendHost.UnregisterPushTarget(_pushHandler);
-				_pushHandler = null;
-			}
-			// Do NOT revoke OLE here — WinUI Unloaded fires on theme/layout reparent and would
-			// leave Chromium + BNDZ with no drop target until a full relaunch.
+			// Do NOT unregister PushToUi here — WinUI Unloaded fires on theme/layout reparent
+			// and would silently kill EXTERNAL_FILES_DROPPED / OLE_DRAG_ENDED delivery.
+			// Do NOT revoke OLE here either — same reparent race.
 		};
 		Loaded += (_, _) =>
 		{
 			WireHostStaInvokeForOle();
+			if (_pushHandler != null)
+			{
+				BndzEmbeddedBackendHost.RegisterPushTarget(_pushHandler);
+				BndzEmbeddedBackendHost.SetExternalDropDeliver(_pushHandler);
+			}
 			if (_initialized && !_oleDropRegistered)
 				TryRegisterOleDropTarget();
 		};
@@ -175,14 +176,29 @@ public sealed partial class CraftPaneHost : UserControl
 				BndzEmbeddedBackendHost.EnsureStarted();
 			_pushHandler = json =>
 			{
+				void Post()
+				{
+					try { PostHostMessageRaw(json); }
+					catch (Exception postEx) { Debug.WriteLine($"[CraftPaneHost] push post: {postEx.Message}"); }
+				}
 				try
 				{
-					if (DispatcherQueue is not null && !DispatcherQueue.HasThreadAccess)
+					var dq = DispatcherQueue;
+					if (dq is not null && !dq.HasThreadAccess)
 					{
-						DispatcherQueue.TryEnqueue(() => PostHostMessageRaw(json));
+						if (!dq.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, Post))
+						{
+							// Enqueue can fail under OLE STA pressure — retry next tick.
+							_ = Task.Run(async () =>
+							{
+								await Task.Delay(16).ConfigureAwait(false);
+								try { dq.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, Post); }
+								catch { /* ignore */ }
+							});
+						}
 						return;
 					}
-					PostHostMessageRaw(json);
+					Post();
 				}
 				catch (Exception pushEx)
 				{
@@ -190,6 +206,8 @@ public sealed partial class CraftPaneHost : UserControl
 				}
 			};
 			BndzEmbeddedBackendHost.RegisterPushTarget(_pushHandler);
+			// Dedicated inbound path — EXTERNAL_FILES_DROPPED must not depend on PushTargets alone.
+			BndzEmbeddedBackendHost.SetExternalDropDeliver(_pushHandler);
 
 			core.Settings.AreDefaultContextMenusEnabled = false;
 			core.Settings.IsStatusBarEnabled = false;
@@ -215,8 +233,10 @@ public sealed partial class CraftPaneHost : UserControl
                 controller?.GetType().GetProperty("AllowExternalDrop")?.SetValue(controller, true);
             }
             catch (Exception dropEx) { Debug.WriteLine($"[CraftPaneHost] AllowExternalDrop: {dropEx.Message}"); }
-			// Let WinUI ExtendsContentIntoTitleBar caption buttons receive clicks over WebView2.
-			try { core.Settings.IsNonClientRegionSupportEnabled = true; }
+			// Drag strip is WinUI Caption via InputNonClientPointerSource — do NOT enable
+			// WebView2 NonClientRegionSupport. Its async app-region bitmap races and treats the
+			// left sidebar as HTCAPTION until a list selection forces recomposite.
+			try { core.Settings.IsNonClientRegionSupportEnabled = false; }
 			catch (Exception ncEx) { Debug.WriteLine($"[CraftPaneHost] IsNonClientRegionSupportEnabled: {ncEx.Message}"); }
 			try
 			{
@@ -320,8 +340,8 @@ public sealed partial class CraftPaneHost : UserControl
 			streamScheme.AllowedOrigins.Add("http://bndz.local");
 			streamScheme.AllowedOrigins.Add("https://bndz.local");
 
-			// Native-feel compositor: D3D11 GPU path + zero-copy. Drag regions via
-			// IsNonClientRegionSupportEnabled only (not legacy msWebView2EnableDraggableRegions).
+			// Native-feel compositor: D3D11 GPU path + zero-copy.
+			// NonClientRegionSupport stays OFF — WinUI Caption owns the drag strip.
 			// --disable-frame-rate-limit: compositor follows monitor Hz (not Chromium's 60 cap).
 			// --disable-smooth-scrolling: 1:1 wheel like Explorer, not eased browser scroll.
 			var options = new CoreWebView2EnvironmentOptions
@@ -718,7 +738,8 @@ public sealed partial class CraftPaneHost : UserControl
 		var generation = ++_oleDropReassertGeneration;
 		_ = Task.Run(async () =>
 		{
-			foreach (var delayMs in new[] { 300, 800, 1600, 3200 })
+			// Chromium may steal the drop target once after first paint — reclaim a few times, then stop.
+			foreach (var delayMs in new[] { 400, 1200, 2800 })
 			{
 				await Task.Delay(delayMs).ConfigureAwait(false);
 				if (generation != _oleDropReassertGeneration) return;
@@ -736,8 +757,6 @@ public sealed partial class CraftPaneHost : UserControl
 						_oleDropRegistered = ok;
 						if (!ok)
 							ScheduleOleDropRetry();
-						else
-							NotifyOleDropReady();
 					});
 				}
 				catch { /* ignore */ }
@@ -1025,9 +1044,13 @@ public sealed partial class CraftPaneHost : UserControl
 		}
 		if (_pendingPushQueue.Count > 0)
 		{
-			foreach (var json in _pendingPushQueue)
-				PostJsonRaw(json);
+			var queued = _pendingPushQueue.ToArray();
 			_pendingPushQueue.Clear();
+			foreach (var json in queued)
+			{
+				// PostHostMessageRaw (not PostJsonRaw) so EXTERNAL_FILES_DROPPED still injects.
+				PostHostMessageRaw(json);
+			}
 		}
 		// Always re-post last listing on ready — NavigationCompleted can race ahead of React listeners.
 		var listing = _pendingListingJson ?? _lastListingJson;
@@ -1119,20 +1142,75 @@ public sealed partial class CraftPaneHost : UserControl
 			else if (!json.Contains("\"BNDZ_DIR_LISTING\"", StringComparison.Ordinal))
 			{
 				_pendingPushQueue.Add(json);
-				// Prefer keeping transfer + FS watch pushes when capping — dropping them
-				// made copy/paste silent and left the list stale until manual refresh.
+				// Prefer keeping transfer + FS watch + inbound drops when capping.
 				while (_pendingPushQueue.Count > 64)
 				{
 					var dropIdx = _pendingPushQueue.FindIndex(j =>
 						!j.Contains("\"FILE_TRANSFER_QUEUE_CHANGED\"", StringComparison.Ordinal)
-						&& !j.Contains("\"FS_EVENT_BATCH\"", StringComparison.Ordinal));
+						&& !j.Contains("\"FS_EVENT_BATCH\"", StringComparison.Ordinal)
+						&& !j.Contains("\"EXTERNAL_FILES_DROPPED\"", StringComparison.Ordinal));
 					if (dropIdx < 0) dropIdx = 0;
 					_pendingPushQueue.RemoveAt(dropIdx);
 				}
 			}
+			if (json.Contains("\"EXTERNAL_FILES_DROPPED\"", StringComparison.Ordinal))
+			{
+				try
+				{
+					File.AppendAllText(
+						Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BNDZ", "ole-dnd.log"),
+						$"{DateTime.Now:HH:mm:ss.fff} CraftPaneHost queued EXTERNAL_FILES_DROPPED (ready={_documentReady} core={(PaneWebView.CoreWebView2 != null)}){Environment.NewLine}");
+				}
+				catch { /* ignore */ }
+			}
 			return;
 		}
+		if (json.Contains("\"EXTERNAL_FILES_DROPPED\"", StringComparison.Ordinal))
+		{
+			try
+			{
+				File.AppendAllText(
+					Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BNDZ", "ole-dnd.log"),
+					$"{DateTime.Now:HH:mm:ss.fff} CraftPaneHost PostHostMessageRaw EXTERNAL_FILES_DROPPED{Environment.NewLine}");
+			}
+			catch { /* ignore */ }
+		}
 		PostJsonRaw(json);
+		// Dual-path: PostWebMessage can silently drop under OLE STA; inject CustomEvent too.
+		if (json.Contains("\"EXTERNAL_FILES_DROPPED\"", StringComparison.Ordinal))
+			InjectExternalDropScript(json);
+	}
+
+	/// <summary>
+	/// Backup delivery for desktop→list drops when WebView2 PostWebMessage is lost on the OLE thread.
+	/// </summary>
+	private void InjectExternalDropScript(string json)
+	{
+		try
+		{
+			var core = PaneWebView.CoreWebView2;
+			if (core is null) return;
+			var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+			var script =
+				"(function(){try{" +
+				$"var raw=atob('{b64}');var j=JSON.parse(raw);" +
+				"var detail=j.payload||j;" +
+				"window.dispatchEvent(new CustomEvent('bndz-external-drop',{detail:detail}));" +
+				"if(window.chrome&&window.chrome.webview){try{window.chrome.webview.postMessage({type:'OLE_DND_DEBUG',payload:{kind:'inbound-drop-script',paths:(detail.paths||[]).length}});}catch(_){}}" +
+				"}catch(e){console.error('[BNDZ] inbound drop inject',e);}})()";
+			_ = core.ExecuteScriptAsync(script);
+			try
+			{
+				File.AppendAllText(
+					Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BNDZ", "ole-dnd.log"),
+					$"{DateTime.Now:HH:mm:ss.fff} Inject EXTERNAL_FILES_DROPPED via ExecuteScript{Environment.NewLine}");
+			}
+			catch { /* ignore */ }
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] InjectExternalDropScript: {ex.Message}");
+		}
 	}
 
 	private void PostJson(object payload)

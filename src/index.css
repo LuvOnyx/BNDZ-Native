@@ -16970,9 +16970,9 @@ html[data-bndz-shell="native-host"] [data-window-btn] {
   margin: 0 !important;
   pointer-events: none !important;
 }
-/* WinUI caption buttons overlay the top-right — pad clear space; do NOT mark the whole
-   menubar as app-region:drag (WebView2 non-client hit-test races steal first clicks on File/Edit).
-   Drag only an explicit trailing strip (CSS app-region:drag) — do not also IPC-drag. */
+/* WinUI caption buttons overlay the top-right — pad clear space.
+   Drag strip is owned by WinUI InputNonClientPointerSource Caption — never CSS
+   app-region:drag (WebView2 NonClientRegionSupport is OFF to stop sidebar LMB steal). */
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar {
   padding-right: max(138px, env(titlebar-area-height, 32px)) !important;
   app-region: no-drag;
@@ -16983,11 +16983,12 @@ html[data-bndz-shell="native-host"] .bndz-chrome-menubar .bndz-menubar-drag-stri
   flex: 1 1 auto;
   min-width: 64px;
   align-self: stretch;
-  /* Keep drag strip behind menu hit targets if layouts ever overlap. */
   position: relative;
   z-index: 0;
-  app-region: drag;
-  -webkit-app-region: drag;
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+  /* Visual affordance only — actual drag is WinUI Caption over this strip. */
+  cursor: default;
 }
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-menu-trigger],
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-bndz-menubar-logo],

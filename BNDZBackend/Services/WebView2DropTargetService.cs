@@ -328,6 +328,9 @@ internal static class WebView2DropTargetService
     private static int _outboundTopChromePx = 48;
     private static bool _registeredOnChromeChild;
     private static int _lastRegisterHr;
+    private static long _lastRegisterLogMs;
+    private static IntPtr _lastRegisterLogHwnd;
+    private static int _lastRegisterLogExtras = -1;
 
     private const int DRAGDROP_E_ALREADYREGISTERED = unchecked((int)0x80040101);
 
@@ -428,17 +431,27 @@ internal static class WebView2DropTargetService
         }
 
         Debug.WriteLine($"[OleDrop] Registered IDropTarget on {_registeredHwnd:X} (+{_extraRegisteredHwnds.Count} siblings) total={registered.Count}");
-        try
+        // Throttle REGISTER spam — reassert fires often; keep ole-dnd.log readable for inbound proof.
+        var nowMs = Environment.TickCount64;
+        if (nowMs - _lastRegisterLogMs > 2000
+            || _lastRegisterLogHwnd != _registeredHwnd
+            || _lastRegisterLogExtras != _extraRegisteredHwnds.Count)
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "BNDZ");
-            Directory.CreateDirectory(dir);
-            File.AppendAllText(
-                Path.Combine(dir, "ole-dnd.log"),
-                $"{DateTime.Now:HH:mm:ss.fff} REGISTER ok primary=0x{_registeredHwnd:X} extras={_extraRegisteredHwnds.Count} hr=0x{primaryHr:X8}{Environment.NewLine}");
+            _lastRegisterLogMs = nowMs;
+            _lastRegisterLogHwnd = _registeredHwnd;
+            _lastRegisterLogExtras = _extraRegisteredHwnds.Count;
+            try
+            {
+                var dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BNDZ");
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(
+                    Path.Combine(dir, "ole-dnd.log"),
+                    $"{DateTime.Now:HH:mm:ss.fff} REGISTER ok primary=0x{_registeredHwnd:X} extras={_extraRegisteredHwnds.Count} hr=0x{primaryHr:X8}{Environment.NewLine}");
+            }
+            catch { /* ignore */ }
         }
-        catch { /* ignore */ }
         return true;
     }
 

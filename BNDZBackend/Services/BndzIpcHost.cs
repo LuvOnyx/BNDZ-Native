@@ -2319,6 +2319,9 @@ namespace BNDZ.Services
 
         private DateTime _lastExternalDropUtc = DateTime.MinValue;
         private string? _lastExternalDropFingerprint;
+        /// <summary>Last real folder the browser listed — host inbound commit fallback target.</summary>
+        private string? _lastBrowserFolderWinPath;
+        private int _inboundHostFallbackSeq;
         private double? _lastExternalDragWebViewX;
         private double? _lastExternalDragWebViewY;
         /// <summary>Environment.TickCount64 at the last PostExternalFileDragHover call — throttle guard.</summary>
@@ -2546,13 +2549,182 @@ namespace BNDZ.Services
                 },
             };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var pushTargets = 0;
+            try { pushTargets = BndzEmbeddedBackendHost.PushTargetCount; } catch { /* ignore */ }
             try
             {
                 WebView2DropTargetService.AppendOleDndLogPublic(
-                    $"Post EXTERNAL_FILES_DROPPED paths={paths.Length} effect={effect} coord={coordSource} wv=({webViewX:F0},{webViewY:F0}) push={(_pushWebMessage != null)}");
+                    $"Post EXTERNAL_FILES_DROPPED paths={paths.Length} effect={effect} coord={coordSource} wv=({webViewX:F0},{webViewY:F0}) push={(_pushWebMessage != null)} pushTargets={pushTargets} dest={_lastBrowserFolderWinPath ?? "?"}");
             }
             catch { /* never break drop on log */ }
-            PostToUi(() => DeliverIpcJson(json));
+
+            // Dedicated drop path — must not rely on PushTargets alone (push=True ≠ targets>0).
+            try { BndzEmbeddedBackendHost.DeliverExternalDropJson(json); }
+            catch (Exception ex)
+            {
+                try { WebView2DropTargetService.AppendOleDndLogPublic($"DeliverExternalDropJson error {ex.Message}"); }
+                catch { /* ignore */ }
+                PostToUi(() => DeliverIpcJson(json));
+            }
+
+            // If React never commits, host moves/copies into the last listed folder after a short delay.
+            ScheduleInboundHostFallback(paths, effect);
+        }
+
+        private void RememberBrowserFolder(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            try
+            {
+                var win = path.Replace('/', '\\').Trim();
+                if (win.StartsWith("\\\\", StringComparison.Ordinal)) { /* UNC ok */ }
+                else if (win.Length >= 2 && win[1] == ':') { /* drive ok */ }
+                else return;
+                if (win.IndexOfAny(System.IO.Path.GetInvalidPathChars()) >= 0) return;
+                // Only track real filesystem folders (not virtual panes).
+                if (!System.IO.Directory.Exists(win)) return;
+                _lastBrowserFolderWinPath = win.TrimEnd('\\');
+            }
+            catch { /* ignore */ }
+        }
+
+        /// <summary>
+        /// Host-side inbound commit when FE never receives EXTERNAL_FILES_DROPPED.
+        /// Skips if sources already gone (FE committed) or dest already has the leaf.
+        /// </summary>
+        private void ScheduleInboundHostFallback(string[] paths, string effect)
+        {
+            if (paths is not { Length: > 0 }) return;
+            var seq = Interlocked.Increment(ref _inboundHostFallbackSeq);
+            var captured = paths.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var move = string.Equals(effect, "move", StringComparison.OrdinalIgnoreCase);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(750).ConfigureAwait(false);
+                    if (seq != Volatile.Read(ref _inboundHostFallbackSeq)) return;
+
+                    var dest = _lastBrowserFolderWinPath;
+                    if (string.IsNullOrWhiteSpace(dest) || !System.IO.Directory.Exists(dest))
+                    {
+                        try
+                        {
+                            WebView2DropTargetService.AppendOleDndLogPublic(
+                                $"inbound-host-fallback skip — no dest folder (seq={seq})");
+                        }
+                        catch { /* ignore */ }
+                        return;
+                    }
+
+                    var stillThere = new List<string>();
+                    foreach (var src in captured)
+                    {
+                        var exists = System.IO.File.Exists(src) || System.IO.Directory.Exists(src);
+                        if (!exists) continue;
+                        var leaf = System.IO.Path.GetFileName(src.TrimEnd('\\', '/'));
+                        if (string.IsNullOrEmpty(leaf)) continue;
+                        var destPath = System.IO.Path.Combine(dest, leaf);
+                        if (System.IO.File.Exists(destPath) || System.IO.Directory.Exists(destPath))
+                            continue; // FE already landed it
+                        var srcParent = System.IO.Path.GetDirectoryName(src.TrimEnd('\\', '/'));
+                        if (!string.IsNullOrEmpty(srcParent)
+                            && string.Equals(
+                                srcParent.TrimEnd('\\'),
+                                dest.TrimEnd('\\'),
+                                StringComparison.OrdinalIgnoreCase))
+                            continue; // already in dest
+                        stillThere.Add(src);
+                    }
+
+                    if (stillThere.Count == 0)
+                    {
+                        try
+                        {
+                            WebView2DropTargetService.AppendOleDndLogPublic(
+                                $"inbound-host-fallback skip — FE already committed (seq={seq})");
+                        }
+                        catch { /* ignore */ }
+                        return;
+                    }
+
+                    try
+                    {
+                        WebView2DropTargetService.AppendOleDndLogPublic(
+                            $"inbound-host-fallback {(move ? "MOVE" : "COPY")} count={stillThere.Count} -> {dest}");
+                    }
+                    catch { /* ignore */ }
+
+                    var opId = "inbound-host-" + Guid.NewGuid().ToString("N");
+                    await _fileOperationService.ExecuteOperationAsync(
+                        opId,
+                        move ? "move" : "copy",
+                        stillThere,
+                        dest,
+                        bypassRecycleBin: false,
+                        recordActionLog: true).ConfigureAwait(false);
+
+                    // Push Created + Deleted so the list refreshes even when FE never saw the drop.
+                    var batch = new List<object>();
+                    foreach (var src in stillThere)
+                    {
+                        var leaf = System.IO.Path.GetFileName(src.TrimEnd('\\', '/'));
+                        if (string.IsNullOrEmpty(leaf)) continue;
+                        var destPane = dest.Replace("\\", "/");
+                        if (destPane.Length >= 2 && char.IsLetter(destPane[0]) && destPane[1] == ':' && !destPane.StartsWith('/'))
+                            destPane = "/" + destPane;
+                        batch.Add(new { type = "Created", dir = destPane, name = leaf, oldName = (string?)null });
+                        if (move)
+                        {
+                            var srcDir = System.IO.Path.GetDirectoryName(src);
+                            if (!string.IsNullOrEmpty(srcDir))
+                            {
+                                var srcPane = srcDir.Replace("\\", "/");
+                                if (srcPane.Length >= 2 && char.IsLetter(srcPane[0]) && srcPane[1] == ':' && !srcPane.StartsWith('/'))
+                                    srcPane = "/" + srcPane;
+                                batch.Add(new { type = "Deleted", dir = srcPane, name = leaf, oldName = (string?)null });
+                            }
+                        }
+                    }
+                    if (batch.Count > 0)
+                    {
+                        var payload = new { type = "FS_EVENT_BATCH", payload = batch };
+                        var fsJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                        PostToUi(() => DeliverIpcJson(fsJson));
+                    }
+
+                    try
+                    {
+                        var destPtr = Marshal.StringToHGlobalUni(dest);
+                        try
+                        {
+                            NativeShellService.SHChangeNotify(
+                                0x00001000 /* SHCNE_UPDATEDIR */,
+                                0x0005 | 0x2000, /* SHCNF_PATHW | SHCNF_FLUSHNOWAIT */
+                                destPtr,
+                                IntPtr.Zero);
+                        }
+                        finally { Marshal.FreeHGlobal(destPtr); }
+                    }
+                    catch { /* ignore */ }
+
+                    try
+                    {
+                        WebView2DropTargetService.AppendOleDndLogPublic(
+                            $"inbound-host-fallback ok count={stillThere.Count} -> {dest}");
+                    }
+                    catch { /* ignore */ }
+                }
+                catch (Exception ex)
+                {
+                    try
+                    {
+                        WebView2DropTargetService.AppendOleDndLogPublic(
+                            $"inbound-host-fallback error {ex.Message}");
+                    }
+                    catch { /* ignore */ }
+                }
+            });
         }
 
         private void SetupNativeFileDrop()
@@ -2695,17 +2867,29 @@ namespace BNDZ.Services
             }
 
             // onDrop: convert coords, apply dedup guard, post EXTERNAL_FILES_DROPPED.
+            // Always marshal onto WinUI STA — OLE Drop may run off the dispatcher and
+            // PostWebMessageAsJson then silently fails (desktop→list never reaches React).
             void OleDrop(string[] paths, double screenX, double screenY, uint grfEffect, bool fromBndzOle)
             {
-                if (paths == null || paths.Length == 0)
+                void Deliver()
                 {
-                    PostExternalFileDropFailed(Array.Empty<string>(), "No extractable paths in drop payload (OLE path).");
-                    return;
+                    if (paths == null || paths.Length == 0)
+                    {
+                        PostExternalFileDropFailed(Array.Empty<string>(), "No extractable paths in drop payload (OLE path).");
+                        return;
+                    }
+                    var pt = OleScreenToWebViewClient(screenX, screenY);
+                    var resolved = ResolveDropCoords(pt);
+                    var effect = grfEffect == 2u ? "move" : "copy"; // DROPEFFECT_MOVE=2
+                    PostExternalFileDrop(paths, resolved.X, resolved.Y, effect, "ole");
                 }
-                var pt = OleScreenToWebViewClient(screenX, screenY);
-                var resolved = ResolveDropCoords(pt);
-                var effect = grfEffect == 2u ? "move" : "copy"; // DROPEFFECT_MOVE=2
-                PostExternalFileDrop(paths, resolved.X, resolved.Y, effect, "ole");
+
+                if (_hostStaInvokeNextTick != null)
+                    _hostStaInvokeNextTick(Deliver);
+                else if (_hostStaInvoke != null)
+                    _hostStaInvoke(Deliver);
+                else
+                    Deliver();
             }
 
             WebView2DropTargetService.Register(
@@ -4344,6 +4528,7 @@ namespace BNDZ.Services
                     var payload = root.GetProperty("payload");
                     string path = payload.GetProperty("path").GetString() ?? "";
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    RememberBrowserFolder(path);
 
                     _ = Task.Run(async () =>
                     {
