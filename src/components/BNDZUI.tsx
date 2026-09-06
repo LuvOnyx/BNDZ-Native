@@ -3133,9 +3133,10 @@ export default function BNDZUI() {
   /** Last hover coords+state from the drag-hover RAF — used to skip duplicate hit-tests in onMove. */
   const lastDragHoverStateRef = useRef<{ x: number; y: number; state: import('../lib/fileDragHover').FileDragHoverState } | null>(null);
   const nativeOleDragRef = useRef(false);
+  const oleEscalateOpIdRef = useRef<string | null>(null);
   useEffect(() => {
     const applyOleMoveRemove = (winPaths: string[], opts?: { invalidate?: boolean; opId?: string }) => {
-      if (!winPaths.length) return;
+      if (!winPaths.length) return '';
       const label = winPaths.length === 1
         ? (winPaths[0].split(/[/\\]/).pop() || 'item')
         : `${winPaths.length} items`;
@@ -3197,9 +3198,33 @@ export default function BNDZUI() {
               window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
             } catch { /* ignore */ }
           }
-        }, 900);
+        }, 1200);
       }
       return opId;
+    };
+
+    const resolveOlePaths = (raw?: string[] | null): string[] => {
+      let winPaths = (Array.isArray(raw) ? raw : [])
+        .map(p => String(p || '').replace(/\//g, '\\'))
+        .filter(Boolean);
+      if (!winPaths.length) {
+        const stashed = peekOleDragSession();
+        if (Array.isArray(stashed?.paths) && stashed!.paths.length) {
+          winPaths = stashed!.paths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+        }
+      }
+      return winPaths;
+    };
+
+    // Wallpaper/desktop MOVE: strip list rows the moment OLE escalates (boundary handoff),
+    // not only after OLE_DRAG_ENDED — otherwise the folder sits in the list for the whole drop.
+    const onOleEscalated = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ paths?: string[] }>).detail;
+      const winPaths = resolveOlePaths(detail?.paths);
+      if (!winPaths.length) return;
+      const oleOpId = oleEscalateOpIdRef.current || `ole-move-${Date.now()}`;
+      oleEscalateOpIdRef.current = oleOpId;
+      applyOleMoveRemove(winPaths, { invalidate: false, opId: oleOpId });
     };
 
     let oleVerifyTimer: number | null = null;
@@ -3216,46 +3241,79 @@ export default function BNDZUI() {
         setToastMessage(`Drag failed: ${detail.error}`);
       }
       const cancelled = detail?.ok === false && (detail.error === 'cancelled' || !detail.error);
-      const rawPaths = Array.isArray(detail?.paths) ? detail!.paths! : [];
-      let winPaths = rawPaths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+      const winPaths = resolveOlePaths(detail?.paths);
       const stashed = peekOleDragSession();
-      if (!winPaths.length && Array.isArray(stashed?.paths) && stashed!.paths.length) {
-        winPaths = stashed!.paths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+      const outboundFromBndz = !!stashed || winPaths.length > 0 || !!oleEscalateOpIdRef.current;
+      const oleOpId = oleEscalateOpIdRef.current || `ole-move-${Date.now()}`;
+
+      if (cancelled) {
+        // Reinject rows stripped at escalate when the user cancelled the wallpaper drop.
+        if (oleEscalateOpIdRef.current) {
+          try {
+            for (const key of [...pendingFsOpsRef.current.keys()]) {
+              if (key === oleOpId || key.startsWith(`${oleOpId}:`)) reinjectFsTombstone(key);
+            }
+          } catch { /* ignore */ }
+        }
+        oleEscalateOpIdRef.current = null;
+        nativeOleDragRef.current = false;
+        clearListDragGhost({ immediate: true });
+        setPointerFileDragActive(false);
+        dispatchPointerFileDragActive(false);
+        endFileDragSession();
+        clearDragSession();
+        IPC.notifyFileDragActive(false);
+        return;
       }
+
       // BNDZ-originated outbound drag — wallpaper/desktop often latches COPY/NONE while MOVE completes.
-      const outboundFromBndz = !!stashed || winPaths.length > 0;
-      if (!cancelled && winPaths.length > 0 && outboundFromBndz) {
+      if (winPaths.length > 0 && outboundFromBndz) {
         const effect = String(detail?.effect || '').toUpperCase();
         const sourcesGone = detail?.sourcesGone === true
           || String(detail?.recover || '').toLowerCase() === 'move';
         const isMove = effect === 'MOVE' || effect === '2' || effect.includes('MOVE') || sourcesGone;
-        const oleOpId = `ole-move-${Date.now()}`;
+        oleEscalateOpIdRef.current = oleOpId;
         // Always strip immediately for outbound drops — reinject only if disk still has the item.
         applyOleMoveRemove(winPaths, { invalidate: false, opId: oleOpId });
         if (oleVerifyTimer != null) window.clearTimeout(oleVerifyTimer);
         const verifyGone = (pass: number) => {
+          // Prefer host sourcesGone when we already know — skip IPC storms that freeze WebView.
+          if (sourcesGone && pass === 0) {
+            applyOleMoveRemove(winPaths, { invalidate: true, opId: oleOpId });
+            window.setTimeout(() => {
+              try {
+                for (const key of [...pendingFsOpsRef.current.keys()]) {
+                  if (key === oleOpId || key.startsWith(`${oleOpId}:`)) clearFsTombstone(key);
+                }
+              } catch { /* ignore */ }
+              oleEscalateOpIdRef.current = null;
+            }, 5000);
+            return;
+          }
           void Promise.all(winPaths.map(p => IPC.checkPathExists(p).then(ex => !ex).catch(() => false)))
             .then(goneFlags => {
               const allGone = goneFlags.length > 0 && goneFlags.every(Boolean);
               if (allGone) {
                 applyOleMoveRemove(winPaths, { invalidate: true, opId: oleOpId });
-                // Keep tombstones a bit longer so soft-refresh cannot resurrect.
+                // Keep tombstones longer so soft-refresh / retainLarger cannot resurrect.
                 window.setTimeout(() => {
                   try {
                     for (const key of [...pendingFsOpsRef.current.keys()]) {
                       if (key === oleOpId || key.startsWith(`${oleOpId}:`)) clearFsTombstone(key);
                     }
                   } catch { /* ignore */ }
-                }, 4000);
+                  oleEscalateOpIdRef.current = null;
+                }, 5000);
                 return;
               }
-              // ~4s of gentle polling — avoid IPC storms that freeze the WebView.
-              if (pass < 16) {
-                oleVerifyTimer = window.setTimeout(() => verifyGone(pass + 1), 250);
+              // ~5s of gentle polling — avoid IPC storms that freeze the WebView.
+              if (pass < 12) {
+                oleVerifyTimer = window.setTimeout(() => verifyGone(pass + 1), 400);
                 return;
               }
               if (isMove || sourcesGone) {
                 applyOleMoveRemove(winPaths, { invalidate: true, opId: oleOpId });
+                window.setTimeout(() => { oleEscalateOpIdRef.current = null; }, 5000);
                 return;
               }
               // Still on disk after polls + COPY latch — true copy; reinject rows.
@@ -3264,6 +3322,7 @@ export default function BNDZUI() {
                   if (key === oleOpId || key.startsWith(`${oleOpId}:`)) reinjectFsTombstone(key);
                 }
               } catch { /* ignore */ }
+              oleEscalateOpIdRef.current = null;
               const activePane = panesRef.current.find(p => p.id === activePaneIdRef.current) || panesRef.current[0];
               const activePath = normalizePanePath(activePane?.tabs[activePane?.activeTabIndex ?? 0]?.path || '');
               if (activePath) {
@@ -3273,7 +3332,9 @@ export default function BNDZUI() {
               }
             });
         };
-        oleVerifyTimer = window.setTimeout(() => verifyGone(0), sourcesGone ? 80 : 200);
+        oleVerifyTimer = window.setTimeout(() => verifyGone(0), sourcesGone ? 40 : 180);
+      } else {
+        oleEscalateOpIdRef.current = null;
       }
       nativeOleDragRef.current = false;
       clearListDragGhost({ immediate: true });
@@ -3283,8 +3344,10 @@ export default function BNDZUI() {
       clearDragSession();
       IPC.notifyFileDragActive(false);
     };
+    window.addEventListener('bndz-ole-drag-escalated', onOleEscalated);
     window.addEventListener('bndz-ole-drag-ended', onOleEnded);
     return () => {
+      window.removeEventListener('bndz-ole-drag-escalated', onOleEscalated);
       window.removeEventListener('bndz-ole-drag-ended', onOleEnded);
       if (oleVerifyTimer != null) window.clearTimeout(oleVerifyTimer);
     };
@@ -4100,6 +4163,7 @@ export default function BNDZUI() {
   };
 
   const lastSidebarNavAtRef = React.useRef(0);
+  const sidebarInputRegionsNudgedRef = React.useRef(false);
   const releaseStuckPointerCaptures = React.useCallback(() => {
     try {
       document.querySelectorAll('[data-list-body], [data-entity-id], [data-nav-path], [data-favorite-path], .bndz-fluid-drag-stack, .sidebar-pin-row, .nav-tree-row, .bndz-drive-card, .bndz-sidebar-nav-hit').forEach(node => {
@@ -4128,7 +4192,14 @@ export default function BNDZUI() {
   const sidebarNavigateFromPointer = (path: string, e?: React.PointerEvent | React.MouseEvent | { button?: number }) => {
     if (e && 'button' in e && typeof e.button === 'number' && e.button !== 0) return;
     if (!path) return;
-    if (Date.now() - lastSidebarNavAtRef.current < 120) return;
+    // Nudge WinUI caption Passthrough on first sidebar interaction after boot —
+    // regions often settle late and leave LMB dead for seconds.
+    if (!sidebarInputRegionsNudgedRef.current) {
+      sidebarInputRegionsNudgedRef.current = true;
+      try { IPC.windowChrome('refreshInputRegions'); } catch { /* ignore */ }
+    }
+    // Only debounce true double-fires (pointerdown + click), not intentional rapid nav.
+    if (Date.now() - lastSidebarNavAtRef.current < 40) return;
     lastSidebarNavAtRef.current = Date.now();
     suppressNavClickUntilRef.current = 0;
     releaseStuckPointerCaptures();
@@ -8542,6 +8613,14 @@ export default function BNDZUI() {
         const tab = pane?.tabs?.[pane.activeTabIndex ?? 0];
         const cur = typeof tab?.path === 'string' ? normalizePanePath(tab.path) : '';
         if (cur) requestFilesHostDirListing(cur);
+      }
+      // Dense FE nudges — WinUIEx often wipes Passthrough after first paint.
+      if (IPC.isNative) {
+        for (const ms of [80, 250, 600, 1400, 2600]) {
+          window.setTimeout(() => {
+            try { IPC.windowChrome('refreshInputRegions'); } catch { /* ignore */ }
+          }, ms);
+        }
       }
     });
     window.addEventListener('resize', syncViewport);

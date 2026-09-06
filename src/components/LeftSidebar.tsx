@@ -151,6 +151,15 @@ export function LeftSidebar({
             onContextMenu={e => e.preventDefault()}
             onPointerDownCapture={(e) => {
               // Stuck list/OLE pointer-capture steals left-clicks while hover/RMB still work.
+              // Re-stamp WinUI Passthrough at most every 2s — boot can leave sidebar LMB dead.
+              try {
+                const now = Date.now();
+                const w = window as typeof window & { __bndzSidebarRegionNudgeAt?: number };
+                if (!w.__bndzSidebarRegionNudgeAt || now - w.__bndzSidebarRegionNudgeAt > 2000) {
+                  w.__bndzSidebarRegionNudgeAt = now;
+                  IPC.windowChrome('refreshInputRegions');
+                }
+              } catch { /* ignore */ }
               try {
                 document.documentElement.classList.remove('bndz-ole-drag-handoff');
                 document.getElementById('bndz-ole-veil')?.remove();

@@ -64,6 +64,14 @@ export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHando
   opts.hideGhost();
   // Intentionally no releasePointerCapture / ReleaseCapture.
 
+  // Optimistic strip ASAP — wallpaper MOVE can take hundreds of ms before OLE_DRAG_ENDED,
+  // and host OLE_DRAG_ESCALATED is one dispatcher tick later.
+  try {
+    window.dispatchEvent(new CustomEvent('bndz-ole-drag-escalated', {
+      detail: { paths: list, source: 'fe-boundary-handoff', why: opts.why ?? 'boundary' },
+    }));
+  } catch { /* ignore */ }
+
   IPC.notifyFileDragActive(true, list);
   IPC.postOleDndDebug({
     kind: 'boundary-handoff',

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using BNDZ.Services;
 using BNDZShell.Bndz;
@@ -71,7 +72,7 @@ public sealed partial class MainWindow : Window
 
         ChromeHost.PaneMessage += ChromeHost_PaneMessage;
         NativeList.ContextChanged += (_, _) => { };
-        ChromeHost.WebViewInitialized += (_, _) =>
+            ChromeHost.WebViewInitialized += (_, _) =>
         {
             WireHostLifecycle();
             // Plugin pop-outs must not overwrite the main FM host HWND (OLE / drag use it).
@@ -79,6 +80,7 @@ public sealed partial class MainWindow : Window
                 ChromeHost.HostWindowHandle = _hwnd;
             if (!_launch.IsPlugin)
                 ChromeHost.TryRegisterOleDropTarget();
+            ScheduleMenubarInputRegionRefresh("webview-init");
             _ = BootstrapAsync();
         };
 
@@ -290,6 +292,12 @@ public sealed partial class MainWindow : Window
                 }
             };
 
+            Activated += (_, _) =>
+            {
+                if (_launch.IsPlugin || _launch.IsSticky || _closing) return;
+                ScheduleMenubarInputRegionRefresh("activated");
+            };
+
             _appWindow.Changed += (_, args) =>
             {
                 if (args.DidPresenterChange || args.DidSizeChange)
@@ -297,12 +305,12 @@ public sealed partial class MainWindow : Window
                     BroadcastWindowState();
                     // Passthrough must re-apply after WinUIEx restore / DPI settle — otherwise
                     // Drives / Rapid Access / Cloud stay unclickable until a later layout pass.
-                    if (args.DidSizeChange)
+                    if (args.DidSizeChange || args.DidPresenterChange)
                     {
                         try
                         {
                             DispatcherQueue?.TryEnqueue(
-                                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                                Microsoft.UI.Dispatching.DispatcherQueuePriority.High,
                                 ApplyMenubarInputRegions);
                         }
                         catch { ApplyMenubarInputRegions(); }
@@ -366,13 +374,13 @@ public sealed partial class MainWindow : Window
             if (menuPassW > 0)
                 passthrough.Add(new RectInt32(0, 0, menuPassW, menuH));
 
-            // Full-height left sidebar band must stay client hit-testable — WinUI caption
-            // races with WebView2 were eating LMB on Drives / Rapid Access / Cloud.
-            // Cover a generous band (sidebar can be wider than the default 12%).
+            // ExtendsContentIntoTitleBar + WinUIEx persistence can leave Caption hit-tests that
+            // eat LMB on the left sidebar (and sometimes the whole client) for seconds after boot.
+            // Stamp the entire client below the menubar as Passthrough — only the top drag strip
+            // and system buttons remain Caption.
             var winH = _appWindow.Size.Height;
-            var sidebarW = Math.Clamp((int)Math.Round(winW * 0.22), (int)Math.Round(180 * scale), (int)Math.Round(360 * scale));
-            if (winH > menuH && sidebarW > 0)
-                passthrough.Add(new RectInt32(0, menuH, sidebarW, winH - menuH));
+            if (winH > menuH && passW > 0)
+                passthrough.Add(new RectInt32(0, menuH, passW, winH - menuH));
 
             if (passthrough.Count > 0)
                 source.SetRegionRects(NonClientRegionKind.Passthrough, passthrough.ToArray());
@@ -681,28 +689,49 @@ public sealed partial class MainWindow : Window
 
         if (type is "BNDZ_UI_READY")
         {
-            // React painted — re-apply sidebar Passthrough now that layout is real.
-            try
-            {
-                DispatcherQueue?.TryEnqueue(
-                    Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-                    ApplyMenubarInputRegions);
-            }
-            catch { ApplyMenubarInputRegions(); }
-            // Second pass after WinUIEx / DPI settle (first-click races on upper sidebar).
-            try
-            {
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(250).ConfigureAwait(false);
-                    DispatcherQueue?.TryEnqueue(ApplyMenubarInputRegions);
-                    await Task.Delay(750).ConfigureAwait(false);
-                    DispatcherQueue?.TryEnqueue(ApplyMenubarInputRegions);
-                });
-            }
-            catch { /* ignore */ }
+            ScheduleMenubarInputRegionRefresh("ui-ready");
             return;
         }
+    }
+
+    private int _menubarRegionRefreshGen;
+
+    /// <summary>
+    /// WinUIEx persistence / DPI settle often wipes InputNonClientPointerSource regions after
+    /// the first Apply — sidebar LMB stays dead until a later layout pass. Re-stamp aggressively.
+    /// </summary>
+    private void ScheduleMenubarInputRegionRefresh(string why)
+    {
+        try
+        {
+            DispatcherQueue?.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.High,
+                ApplyMenubarInputRegions);
+        }
+        catch { ApplyMenubarInputRegions(); }
+
+        var gen = Interlocked.Increment(ref _menubarRegionRefreshGen);
+        try
+        {
+            _ = Task.Run(async () =>
+            {
+                // Dense early stamps (WinUIEx/DPI wipe regions in the first ~1s), then a few late ones.
+                foreach (var delayMs in new[] { 16, 48, 100, 200, 400, 700, 1100, 1800, 2800, 4500 })
+                {
+                    await Task.Delay(delayMs).ConfigureAwait(false);
+                    if (gen != Volatile.Read(ref _menubarRegionRefreshGen)) return;
+                    try
+                    {
+                        DispatcherQueue?.TryEnqueue(
+                            Microsoft.UI.Dispatching.DispatcherQueuePriority.High,
+                            ApplyMenubarInputRegions);
+                    }
+                    catch { /* ignore */ }
+                }
+                System.Diagnostics.Debug.WriteLine($"[BNDZShell] menubar regions refresh done ({why})");
+            });
+        }
+        catch { /* ignore */ }
     }
 
     private void HandleSetSystemBackdrop(JsonElement root)
@@ -889,6 +918,10 @@ public sealed partial class MainWindow : Window
                 case "releasecapture":
                 case "release_capture":
                     try { ReleaseCapture(); } catch { /* ignore */ }
+                    break;
+                case "refreshinputregions":
+                case "refresh_input_regions":
+                    ScheduleMenubarInputRegionRefresh("fe-request");
                     break;
             }
         }

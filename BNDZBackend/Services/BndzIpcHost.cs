@@ -842,7 +842,7 @@ namespace BNDZ.Services
                     }
                 }
 
-                if (paths is { Length: > 0 })
+                if (paths is { Length: > 0 } && ok)
                 {
                     var syncPaths = paths;
                     var syncEffect = bits;

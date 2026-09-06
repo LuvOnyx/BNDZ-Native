@@ -446,6 +446,8 @@ export const IPC = {
         bundle,
       },
     });
+    // WinUI caption Passthrough often settles after first paint — nudge from FE too.
+    try { this.windowChrome('refreshInputRegions'); } catch { /* ignore */ }
   },
 
   /** Open a path in the main FM list (works from plugin pop-outs). */
@@ -3200,7 +3202,7 @@ export const IPC = {
     return Promise.resolve({ ok: false, output: 'Script runner requires native host' });
   },
 
-  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag' | 'releaseCapture'): void {
+  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag' | 'releaseCapture' | 'refreshInputRegions'): void {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action } });
     }

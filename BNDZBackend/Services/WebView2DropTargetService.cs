@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using ComIDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
 
 namespace BNDZ.Services;
@@ -2378,7 +2379,30 @@ internal static class WebView2DropTargetService
             }
 
             AppendOleDndLog($"desktop-shell-recover SHFileOperation {(move ? "MOVE" : "COPY")} count={sources.Count} -> {desktop}");
-            NotifyDesktopShellRefresh(desktop, sources, sourceDirs, move);
+            var destPaths = new List<string>();
+            foreach (var src in sources)
+            {
+                var leaf = Path.GetFileName(src.TrimEnd('\\', '/'));
+                if (string.IsNullOrEmpty(leaf)) continue;
+                var dest = Path.Combine(desktop, leaf);
+                if (!File.Exists(dest) && !Directory.Exists(dest))
+                {
+                    // FOF_RENAMEONCOLLISION may have produced "name (2).ext"
+                    var stem = Path.GetFileNameWithoutExtension(leaf);
+                    var ext = Path.GetExtension(leaf);
+                    for (var i = 2; i < 32; i++)
+                    {
+                        var alt = Path.Combine(desktop, $"{stem} ({i}){ext}");
+                        if (File.Exists(alt) || Directory.Exists(alt))
+                        {
+                            dest = alt;
+                            break;
+                        }
+                    }
+                }
+                destPaths.Add(dest);
+            }
+            NotifyDesktopShellRefresh(desktop, sources, destPaths, sourceDirs, move);
             return true;
         }
         catch (Exception ex)
@@ -2393,6 +2417,8 @@ internal static class WebView2DropTargetService
         committedEffect = move ? 2u : 1u;
         var ok = 0;
         var sourceDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var destPaths = new List<string>();
+        var movedSources = new List<string>();
         foreach (var path in sources)
         {
             var leaf = Path.GetFileName(path.TrimEnd('\\', '/'));
@@ -2411,6 +2437,8 @@ internal static class WebView2DropTargetService
                     else File.Copy(path, dest, overwrite: false);
                 }
                 ok++;
+                destPaths.Add(dest);
+                movedSources.Add(path);
                 var parent = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(parent)) sourceDirs.Add(parent);
                 AppendOleDndLog($"desktop-shell-recover managed-{(move ? "MOVE" : "COPY")} {path} -> {dest}");
@@ -2420,7 +2448,7 @@ internal static class WebView2DropTargetService
                 AppendOleDndLog($"desktop-shell-recover managed-fail {path}: {itemEx.Message}");
             }
         }
-        if (ok > 0) NotifyDesktopShellRefresh(desktop, sources, sourceDirs, move);
+        if (ok > 0) NotifyDesktopShellRefresh(desktop, movedSources, destPaths, sourceDirs, move);
         return ok > 0;
     }
 
@@ -2428,35 +2456,83 @@ internal static class WebView2DropTargetService
     private static void NotifyDesktopShellRefresh(
         string desktop,
         List<string> sources,
+        List<string> destPaths,
         HashSet<string> sourceDirs,
         bool moved)
     {
         try
         {
-            foreach (var src in sources)
+            void NotifyOne(string dest, string? src)
             {
-                var leaf = Path.GetFileName(src.TrimEnd('\\', '/'));
-                if (string.IsNullOrEmpty(leaf)) continue;
-                var dest = Path.Combine(desktop, leaf);
+                if (string.IsNullOrWhiteSpace(dest)) return;
                 var destPtr = Marshal.StringToHGlobalUni(dest);
-                var srcPtr = Marshal.StringToHGlobalUni(src);
+                IntPtr srcPtr = IntPtr.Zero;
                 try
                 {
-                    SHChangeNotify(SHCNE_CREATE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSH, destPtr, IntPtr.Zero);
-                    if (moved)
+                    // Never SHCNF_FLUSH here — sync flush blocked the STA for a beat after wallpaper drops.
+                    SHChangeNotify(SHCNE_CREATE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, destPtr, IntPtr.Zero);
+                    if (moved && !string.IsNullOrWhiteSpace(src))
+                    {
+                        srcPtr = Marshal.StringToHGlobalUni(src);
                         SHChangeNotify(SHCNE_DELETE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, srcPtr, IntPtr.Zero);
+                    }
                 }
                 finally
                 {
                     Marshal.FreeHGlobal(destPtr);
-                    Marshal.FreeHGlobal(srcPtr);
+                    if (srcPtr != IntPtr.Zero) Marshal.FreeHGlobal(srcPtr);
                 }
             }
+
+            var n = Math.Max(sources.Count, destPaths.Count);
+            for (var i = 0; i < n; i++)
+            {
+                var src = i < sources.Count ? sources[i] : null;
+                var dest = i < destPaths.Count
+                    ? destPaths[i]
+                    : (src != null ? Path.Combine(desktop, Path.GetFileName(src.TrimEnd('\\', '/')) ?? "") : "");
+                NotifyOne(dest, src);
+            }
+
+            // Second pulse — DefView sometimes ignores the first FLUSHNOWAIT after OLE release.
+            var destCopy = destPaths.ToList();
+            var srcCopy = sources.ToList();
+            var movedCopy = moved;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(120).ConfigureAwait(false);
+                    for (var i = 0; i < destCopy.Count; i++)
+                    {
+                        var dest = destCopy[i];
+                        var src = i < srcCopy.Count ? srcCopy[i] : null;
+                        if (string.IsNullOrWhiteSpace(dest)) continue;
+                        if (!File.Exists(dest) && !Directory.Exists(dest)) continue;
+                        var destPtr = Marshal.StringToHGlobalUni(dest);
+                        try
+                        {
+                            SHChangeNotify(SHCNE_CREATE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, destPtr, IntPtr.Zero);
+                            if (movedCopy && !string.IsNullOrWhiteSpace(src))
+                            {
+                                var srcPtr = Marshal.StringToHGlobalUni(src);
+                                try
+                                {
+                                    SHChangeNotify(SHCNE_DELETE | SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, srcPtr, IntPtr.Zero);
+                                }
+                                finally { Marshal.FreeHGlobal(srcPtr); }
+                            }
+                        }
+                        finally { Marshal.FreeHGlobal(destPtr); }
+                    }
+                }
+                catch { /* ignore */ }
+            });
 
             // Do NOT SHCNE_UPDATEDIR / InvalidateDesktopListView — those caused full desktop
             // and Explorer flashes. Per-item CREATE/DELETE + FLUSHNOWAIT is enough for DefView.
             _ = sourceDirs;
-            AppendOleDndLog("desktop-shell-recover DefView notified (per-item only)");
+            AppendOleDndLog("desktop-shell-recover DefView notified (per-item + deferred pulse)");
         }
         catch (Exception ex)
         {
