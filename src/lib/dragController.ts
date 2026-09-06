@@ -4,22 +4,21 @@
  */
 
 /**
- * Movement before a list drag can arm — slightly above SM_CXDRAG so a jittery
+ * Movement before a list drag can arm — above SM_CXDRAG so a jittery
  * first click of a double-click does not hijack into fluid-drag.
  */
-const DRAG_THRESHOLD_PX = 10;
-const NATIVE_DRAG_THRESHOLD_PX = 6;
-const DOUBLE_CLICK_GUARD_MS = 320;
+const DRAG_THRESHOLD_PX = 12;
+const NATIVE_DRAG_THRESHOLD_PX = 12;
+const DOUBLE_CLICK_GUARD_MS = 400;
 /**
  * Hold after threshold before drag arms. Explorer-like DragDetect needs both
  * distance and a brief settle so double-click navigation wins over drag.
- * Native shell uses a shorter settle — WebView2 often cancels the pointer at the
- * window rim before a long delay finishes, which left FILE_DRAG_ACTIVE unarmed.
+ * Native shell still needs enough settle that click micro-motion does not arm.
  */
 const DEFAULT_DRAG_DELAY_MS = 140;
 const SELECTED_DRAG_DELAY_MS = 110;
-const NATIVE_DRAG_DELAY_MS = 40;
-const NATIVE_SELECTED_DRAG_DELAY_MS = 28;
+const NATIVE_DRAG_DELAY_MS = 100;
+const NATIVE_SELECTED_DRAG_DELAY_MS = 85;
 /** Legacy defer slot — row onClick handles clicks directly (0 = instant). */
 export const LIST_CLICK_DEFER_MS = 0;
 
@@ -48,10 +47,11 @@ let dragThresholdMet = false;
 let dragThresholdPx = DRAG_THRESHOLD_PX;
 let dragThresholdHitsRequired = 2;
 
-/** WinUI / WebView2 native shell — snappier arm like Explorer DragDetect. */
+/** WinUI / WebView2 native shell — keep dual-hit + settle so clicks do not become drags. */
 export function configureExplorerGradeDragThreshold(enabled: boolean) {
   dragThresholdPx = enabled ? NATIVE_DRAG_THRESHOLD_PX : DRAG_THRESHOLD_PX;
-  dragThresholdHitsRequired = enabled ? 1 : 2;
+  // Always require two samples past threshold — a single jittery sample arms too early.
+  dragThresholdHitsRequired = 2;
 }
 
 export function hasMetDragThreshold() {

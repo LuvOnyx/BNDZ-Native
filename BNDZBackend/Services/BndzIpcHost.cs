@@ -749,7 +749,8 @@ namespace BNDZ.Services
             var effectBits = dragResult.EffectBits;
             var effectLabel = DropEffectLabel(effectBits);
             string[]? sourceDirs = null;
-            var sourcesGone = false;
+            // Never File.Exists / Directory.Exists on the STA path here — folder AV scans
+            // freeze the shell for a beat after wallpaper drops. Probe off-thread.
             if (paths is { Length: > 0 })
             {
                 sourceDirs = paths
@@ -758,27 +759,22 @@ namespace BNDZ.Services
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Cast<string>()
                     .ToArray();
-                sourcesGone = paths.All(p =>
-                    !string.IsNullOrWhiteSpace(p)
-                    && !System.IO.File.Exists(p)
-                    && !System.IO.Directory.Exists(p));
-                // Wallpaper recover often lands as MOVE on disk while OLE latch still says COPY/NONE.
-                if (sourcesGone && effectBits != 1u)
-                {
-                    effectBits = 2;
-                    effectLabel = "MOVE";
-                }
             }
 
-            void DeliverEnded()
+            void DeliverEnded(bool sourcesGone)
             {
-                // Always unblock FE first. Never stall OLE_DRAG_ENDED behind file-index locks —
-                // FlushFsEvents → ApplyFsEvent can Wait() on IndexLocation for minutes.
+                var bits = effectBits;
+                var label = effectLabel;
+                if (sourcesGone && bits != 1u)
+                {
+                    bits = 2;
+                    label = "MOVE";
+                }
                 try
                 {
                     object payload = ok
-                        ? new { ok = true, effect = effectLabel, paths, sourceDirs, sourcesGone }
-                        : new { ok = false, error = error ?? "unknown", effect = effectLabel, paths, sourceDirs, sourcesGone };
+                        ? new { ok = true, effect = label, paths, sourceDirs, sourcesGone }
+                        : new { ok = false, error = error ?? "unknown", effect = label, paths, sourceDirs, sourcesGone };
                     DeliverIpcJson(JsonSerializer.Serialize(new
                     {
                         type = "OLE_DRAG_ENDED",
@@ -788,19 +784,18 @@ namespace BNDZ.Services
                 catch { /* ignore */ }
                 try { PostFileTransferQueueChanged(); }
                 catch { /* ignore */ }
-                OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={effectLabel} sourcesGone={sourcesGone}");
+                OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={label} sourcesGone={sourcesGone}");
 
-                // Surface shell-handled MOVE in the transfer queue (Windows owns the dialog).
-                if (ok && paths is { Length: > 0 } && (effectBits == 2 || sourcesGone))
+                if (ok && paths is { Length: > 0 } && (bits == 2 || sourcesGone))
                 {
                     try
                     {
                         var opId = $"shell-move-{Environment.TickCount64}";
-                        var label = paths.Length == 1
+                        var jobLabel = paths.Length == 1
                             ? (System.IO.Path.GetFileName(paths[0]) ?? "item")
                             : $"{paths.Length} items";
                         var job = _fileTransferQueue.RegisterJob(
-                            opId, "move", label, "shell", paths.Length, "fs", FileTransferPriority.High);
+                            opId, "move", jobLabel, "shell", paths.Length, "fs", FileTransferPriority.High);
                         job.Status = FileTransferJobStatus.Running;
                         job.StartedUtc = DateTime.UtcNow;
                         job.CurrentFile = paths[0];
@@ -834,7 +829,6 @@ namespace BNDZ.Services
                                         try { NotifyOutboundOleListingSync(watchPaths, 2); } catch { /* ignore */ }
                                         return;
                                     }
-                                    // Timed out watching — still mark complete so the UI settles.
                                     _fileTransferQueue.MarkCompleted(watchOp);
                                 }
                                 catch { try { _fileTransferQueue.MarkCompleted(watchOp); } catch { /* ignore */ } }
@@ -848,18 +842,16 @@ namespace BNDZ.Services
                     }
                 }
 
-                // Always reconcile listing when sources vanish (MOVE or recover with poisoned COPY latch).
                 if (paths is { Length: > 0 })
                 {
                     var syncPaths = paths;
-                    var syncEffect = effectBits;
+                    var syncEffect = bits;
                     _ = Task.Run(() =>
                     {
                         try { NotifyOutboundOleListingSync(syncPaths, syncEffect); }
                         catch (Exception ex) { OleDndLog($"outbound-ole listing-sync error {ex.Message}"); }
                     });
 
-                    // Wallpaper MOVE can finish a beat after OLE returns COPY/NONE — re-check disk (~3.6s).
                     if (!sourcesGone)
                     {
                         var delayedPaths = paths;
@@ -888,11 +880,22 @@ namespace BNDZ.Services
                                             sourcesGone = true,
                                             recover = "move",
                                         };
-                                        DeliverIpcJson(JsonSerializer.Serialize(new
+                                        // Marshal to UI thread — DeliverIpcJson must not hitch the worker.
+                                        void PostRecover()
                                         {
-                                            type = "OLE_DRAG_ENDED",
-                                            payload,
-                                        }));
+                                            try
+                                            {
+                                                DeliverIpcJson(JsonSerializer.Serialize(new
+                                                {
+                                                    type = "OLE_DRAG_ENDED",
+                                                    payload,
+                                                }));
+                                            }
+                                            catch { /* ignore */ }
+                                        }
+                                        if (_hostStaInvokeNextTick != null) _hostStaInvokeNextTick(PostRecover);
+                                        else if (_hostStaInvoke != null) _hostStaInvoke(PostRecover);
+                                        else PostRecover();
                                     }
                                     catch { /* ignore */ }
                                     return;
@@ -907,12 +910,61 @@ namespace BNDZ.Services
                 }
             }
 
+            // Unblock FE immediately — probe sourcesGone asynchronously.
+            void DeliverImmediate() => DeliverEnded(sourcesGone: false);
             if (_hostStaInvokeNextTick != null)
-                _hostStaInvokeNextTick(DeliverEnded);
+                _hostStaInvokeNextTick(DeliverImmediate);
             else if (_hostStaInvoke != null)
-                _hostStaInvoke(DeliverEnded);
+                _hostStaInvoke(DeliverImmediate);
             else
-                DeliverEnded();
+                DeliverImmediate();
+
+            if (ok && paths is { Length: > 0 })
+            {
+                var probePaths = paths;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        // Brief yield so the UI message paints before disk probes.
+                        await Task.Delay(40).ConfigureAwait(false);
+                        var gone = probePaths.All(p =>
+                            !string.IsNullOrWhiteSpace(p)
+                            && !System.IO.File.Exists(p)
+                            && !System.IO.Directory.Exists(p));
+                        if (!gone) return;
+                        OleDndLog("outbound-ole quick sourcesGone=true");
+                        void PostGone()
+                        {
+                            try
+                            {
+                                DeliverIpcJson(JsonSerializer.Serialize(new
+                                {
+                                    type = "OLE_DRAG_ENDED",
+                                    payload = new
+                                    {
+                                        ok = true,
+                                        effect = "MOVE",
+                                        paths = probePaths,
+                                        sourcesGone = true,
+                                        recover = "move",
+                                    },
+                                }));
+                            }
+                            catch { /* ignore */ }
+                            try { NotifyOutboundOleListingSync(probePaths, 2); }
+                            catch { /* ignore */ }
+                        }
+                        if (_hostStaInvokeNextTick != null) _hostStaInvokeNextTick(PostGone);
+                        else if (_hostStaInvoke != null) _hostStaInvoke(PostGone);
+                        else PostGone();
+                    }
+                    catch (Exception ex)
+                    {
+                        OleDndLog($"outbound-ole quick sourcesGone probe error {ex.Message}");
+                    }
+                });
+            }
         }
 
         private void NotifyOutboundOleListingSync(string[] paths, uint effectBits)

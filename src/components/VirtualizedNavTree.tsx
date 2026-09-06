@@ -616,7 +616,7 @@ export function VirtualizedNavTree({
     clearExpandDragTimer();
   }, [clearExpandDragTimer]);
 
-  const FILE_DRAG_THRESHOLD_PX = 6;
+  const FILE_DRAG_THRESHOLD_PX = 12;
 
   const handleFilePointerDown = useCallback((row: FlatNavRow, e: React.PointerEvent) => {
     if (!row.path || disallowDragFromTree) return;

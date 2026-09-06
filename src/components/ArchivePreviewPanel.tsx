@@ -43,7 +43,7 @@ interface ArchivePreviewPanelProps {
   onExtract?: () => void;
 }
 
-const DRAG_THRESHOLD_PX = 4;
+const DRAG_THRESHOLD_PX = 10;
 
 type ArchiveDragState = {
   entry: ArchiveEntry;
