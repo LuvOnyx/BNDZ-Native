@@ -10759,7 +10759,7 @@ namespace BNDZ
         {
             try
             {
-                if (!FileOperationPreferences.Current.LogActions) return;
+                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel.
                 action = (action ?? "").ToLowerInvariant();
                 switch (action)
                 {

@@ -272,7 +272,7 @@ export default function SpatialInspector({
                   <button
                     type="button"
                     className="bndz-spatial-intel-link"
-                    onClick={() => openBottomPlugin('capacity-solver', { path: primary!.path })}
+                    onClick={() => openBottomPlugin('storage-cleanup', { currentPath: primary!.path, tab: 'capacity' })}
                   >
                     Open Solver →
                   </button>

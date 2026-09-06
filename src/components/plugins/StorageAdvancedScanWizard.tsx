@@ -153,7 +153,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-white tracking-tight">Advanced Storage Scan</h2>
-          <p className="text-xs bndz-panel-muted mt-0.5">CCleaner-style intelligent cleanup · you choose what gets removed</p>
+          <p className="text-xs bndz-panel-muted mt-0.5">Intelligent cleanup · you choose what gets removed</p>
         </div>
         <button type="button" onClick={onClose} disabled={executing || scanning} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40" aria-label="Close">
           <CloseGlyph size={16} />

@@ -5,6 +5,7 @@ import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
+import CaptureInboxPlugin from './CaptureInboxPlugin';
 import {
   PluginToolbarButton,
   PluginTabStrip,
@@ -21,12 +22,12 @@ export const InboundVolumePluginDef = {
   id: 'inbound-volume',
   name: 'Inbound Volume',
   icon: 'download_ui',
-  description: 'Clipboard catcher and inbound file watcher — capture, review, and copy into your library.',
+  description: 'Clipboard catcher, OCR capture inbox, and inbound file watcher — capture, review, and copy into your library.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
 
-type TabId = 'inbox' | 'settings';
+type TabId = 'inbox' | 'captures' | 'settings';
 
 type InboundEntry = {
   id: string;
@@ -79,9 +80,11 @@ function formatBytes(bytes?: number): string {
 
 export default function InboundVolumePlugin({
   currentPath,
+  pluginLaunch,
 }: {
   selectedPaths?: string[];
   currentPath?: string;
+  pluginLaunch?: { tab?: string; currentPath?: string } | null;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('inbox');
   const [entries, setEntries] = useState<InboundEntry[]>([]);
@@ -92,6 +95,13 @@ export default function InboundVolumePlugin({
   const [expandedPaths, setExpandedPaths] = useState<string[]>([]);
   const [inboundRoot, setInboundRoot] = useState('');
   const watchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const launchTab = String(pluginLaunch?.tab || '').toLowerCase();
+    if (launchTab === 'captures' || launchTab === 'capture' || launchTab === 'ocr') {
+      setActiveTab('captures');
+    }
+  }, [pluginLaunch?.tab]);
 
   const refresh = useCallback(async () => {
     try {
@@ -222,6 +232,7 @@ export default function InboundVolumePlugin({
 
   const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = [
     { id: 'inbox', label: 'Inbox', icon: 'download_ui', badge: entries.length },
+    { id: 'captures', label: 'Captures', icon: 'clipboard_ui' },
     { id: 'settings', label: 'Settings', icon: 'settings_ui' },
   ];
 
@@ -231,7 +242,7 @@ export default function InboundVolumePlugin({
       icon="download_ui"
       iconColor="#60a5fa"
       variant="embedded"
-      subtitle="Clipboard catcher · inbound file watcher"
+      subtitle="Clipboard catcher · OCR captures · inbound file watcher"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -248,6 +259,11 @@ export default function InboundVolumePlugin({
         </PluginTabStrip>
       }
     >
+      {activeTab === 'captures' ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <CaptureInboxPlugin currentPath={pluginLaunch?.currentPath || currentPath} />
+        </div>
+      ) : (
       <div className="flex flex-col min-h-0">
         <PluginHeroStrip
           icon={
@@ -280,6 +296,9 @@ export default function InboundVolumePlugin({
                 disabled={busy}
               >
                 {watching ? 'Stop' : 'Watch'}
+              </PluginHeroActionButton>
+              <PluginHeroActionButton icon="clipboard_ui" onClick={() => setActiveTab('captures')}>
+                OCR Captures
               </PluginHeroActionButton>
               <PluginHeroActionButton icon="reset_ui" onClick={() => void refresh()} disabled={busy}>
                 Refresh
@@ -449,6 +468,7 @@ export default function InboundVolumePlugin({
           )}
         </div>
       </div>
+      )}
     </PluginPanelShell>
   );
 }

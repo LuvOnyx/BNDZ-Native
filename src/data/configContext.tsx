@@ -164,6 +164,8 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     micaBackdrop: true,
     systemBackdropKind: 'mica',
     nativeActionCenterToasts: true,
+    toastDelivery: 'both',
+    toastPosition: 'top-right',
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {

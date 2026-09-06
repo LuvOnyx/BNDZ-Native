@@ -61,7 +61,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   allowPanning: true,
   allowRepeatedCharacters: true,
   allowZombiesInTheMiniTree: false,
-  allowedNumberOfItemsPerLoggedAction: false,
+  allowedNumberOfItemsPerLoggedAction: 50,
   alsoAutoSelectTabsInTheInactivePane: true,
   alsoOnFullRowSelect: false,
   alwaysAutosizeTheSizeColumn: false,

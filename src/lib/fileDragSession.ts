@@ -238,6 +238,11 @@ export function stashOleDragSession(state?: FileDragSessionState | null) {
   }
 }
 
+/** Read OLE stash without clearing — used when OLE_DRAG_ENDED omits paths. */
+export function peekOleDragSession(): FileDragSessionState | null {
+  return pendingOleSession ?? activeSession;
+}
+
 /** Read and clear OLE/in-app session for an EXTERNAL_FILES_DROPPED that originated from BNDZ. */
 export function consumeOleDragSession(): FileDragSessionState | null {
   const s = pendingOleSession ?? activeSession;

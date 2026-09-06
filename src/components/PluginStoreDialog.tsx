@@ -75,8 +75,8 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Surfaces in list and preview panes',
     ],
     'storage-cleanup': [
-      'Large-file discovery',
-      'Smart organize and cleanup passes',
+      'Large-file discovery and deep clean',
+      'Capacity what-if planning and budget governor',
       'Safe delete with recycle / permanent paths',
     ],
     'folder-sync': [
@@ -134,16 +134,6 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Folder-level vault mounts',
       'Native crypto without cloud keys',
     ],
-    'capture-inbox': [
-      'Clipboard and screenshot capture inbox',
-      'OCR and quick filing into the library',
-      'Producer-friendly intake surface',
-    ],
-    'reality-check': [
-      'DAW/project reference integrity scan',
-      'Missing-file glow in the list',
-      'Session hygiene for media libraries',
-    ],
     'transcode-rack': [
       'SkiaSharp JPEG/PNG/WebP batch queue',
       'Resize and quality presets',
@@ -156,18 +146,13 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     ],
     'inbound-volume': [
       'Clipboard and watcher intake volume',
+      'OCR screenshot capture inbox',
       'Stage downloads before filing',
-      'Pairs with Spatial and Automation seeds',
     ],
     'library-health': [
       'Library scan with repair plans',
-      'Broken alias and path diagnostics',
+      'Broken alias, path, and missing project refs',
       'One-click fix actions where safe',
-    ],
-    'capacity-solver': [
-      'What-if capacity planning',
-      'Approve offload and budget governor hooks',
-      'Pairs with Ghost-Link and RAM staging',
     ],
   };
   return byId[plugin.id] || [

@@ -51,7 +51,7 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'library-health':
       return { kind: 'plugin', pluginId: 'library-health' };
     case 'capacity-solver':
-      return { kind: 'plugin', pluginId: 'capacity-solver' };
+      return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'inbound-volume':
       return { kind: 'plugin', pluginId: 'inbound-volume' };
     case 'branching-time':

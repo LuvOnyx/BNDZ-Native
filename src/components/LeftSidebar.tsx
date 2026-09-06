@@ -180,7 +180,7 @@ export function LeftSidebar({
               // Ensure WinUI/WebView2 app-region never treats sidebar as caption drag.
               try {
                 const t = e.target as HTMLElement | null;
-                if (t?.closest?.('.bndz-chrome-sidebar, [data-sidebar-nav], .sidebar-pin-row, .bndz-drive-card, .bndz-sidebar-nav-hit')) {
+                if (t?.closest?.('.bndz-chrome-sidebar, [data-sidebar-nav], .sidebar-pin-row, .bndz-drive-card, .bndz-sidebar-nav-hit, .nav-tree-row, .nav-tree-host, [data-nav-path]')) {
                   t.style.setProperty('-webkit-app-region', 'no-drag');
                 }
               } catch { /* ignore */ }

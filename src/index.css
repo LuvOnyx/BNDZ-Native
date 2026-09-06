@@ -5569,10 +5569,16 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   border-color: transparent !important;
 }
 
-.bndz-view-list.bndz-tile--dense {
+.bndz-view-list.bndz-tile--dense:not(.fs-item-selected) {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
+}
+
+.bndz-view-list.bndz-tile--dense.fs-item-selected {
+  background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 42%, rgba(30, 16, 40, 0.55)) !important;
+  border-color: transparent !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--list-selected-bg, #a855f7) 85%, white) !important;
 }
 
 .bndz-view-list.bndz-tile--dense .bndz-list-icon-well {
@@ -5815,8 +5821,8 @@ html.theme-light .bndz-view-list.fs-item-selected {
 }
 
 /* ?? List/Grid cards setting (Appearance ? Show cards). Default: off. ?? */
-html[data-tile-cards="off"] .bndz-view-grid:not(.bndz-tile--dense),
-html[data-tile-cards="off"] .bndz-view-list:not(.bndz-tile--dense) {
+html[data-tile-cards="off"] .bndz-view-grid:not(.bndz-tile--dense):not(.fs-item-selected),
+html[data-tile-cards="off"] .bndz-view-list:not(.bndz-tile--dense):not(.fs-item-selected) {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -5852,6 +5858,13 @@ html[data-tile-cards="off"] .bndz-view-list.bndz-tile--hoverable:hover:not(.fs-i
 html[data-tile-cards="off"] .bndz-view-grid.fs-item-selected,
 html[data-tile-cards="off"] .bndz-view-list.fs-item-selected {
   border-color: transparent !important;
+  background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 42%, rgba(30, 16, 40, 0.55)) !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--list-selected-bg, #a855f7) 85%, white) !important;
+}
+
+html[data-tile-cards="off"] .bndz-view-list.bndz-tile--dense.fs-item-selected {
+  background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 42%, rgba(30, 16, 40, 0.55)) !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--list-selected-bg, #a855f7) 85%, white) !important;
 }
 
 html[data-selection-style="classic"][data-tile-cards="off"] .bndz-view-list.fs-item-selected:not([style*="background"]) {
@@ -9827,6 +9840,42 @@ html[data-theme] .nav-tree-row:focus-visible {
   max-width: calc(100vw - 1.5rem);
   contain: layout style;
   align-items: flex-end;
+}
+
+.bndz-pt-viewport[data-position="top-left"] {
+  top: 0;
+  right: auto;
+  left: 0;
+  align-items: flex-start;
+}
+
+.bndz-pt-viewport[data-position="bottom-right"] {
+  top: auto;
+  bottom: 0;
+  right: 0;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.bndz-pt-viewport[data-position="bottom-left"] {
+  top: auto;
+  bottom: 0;
+  right: auto;
+  left: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.bndz-pt-viewport[data-position="bottom-right"] .bndz-pt-toast:not([data-ready="true"]),
+.bndz-pt-viewport[data-position="bottom-left"] .bndz-pt-toast:not([data-ready="true"]) {
+  transform: translateY(6px) scale(0.95);
+  margin-bottom: 0;
+  margin-top: calc(-1 * (var(--bndz-pt-height) + 0.75rem));
+}
+
+.bndz-pt-viewport[data-position="bottom-right"] .bndz-pt-toast[data-ready="true"][data-exiting="true"],
+.bndz-pt-viewport[data-position="bottom-left"] .bndz-pt-toast[data-ready="true"][data-exiting="true"] {
+  transform: translateY(6px) scale(0.95);
 }
 
 .bndz-pt-toast {
@@ -16423,8 +16472,10 @@ html[data-bndz-shell="native-host"][data-apply-colors="true"] .bndz-chrome-sideb
   border: 1px solid color-mix(in srgb, var(--accent, #c026d3) 44%, transparent) !important;
   box-shadow:
     inset 3px 0 0 var(--accent, #c026d3),
-    0 1px 0 rgba(255,255,255,0.05) inset !important;
+    0 1px 0 rgba(255,255,255,0.05) inset,
+    0 8px 22px color-mix(in srgb, var(--accent, #c026d3) 18%, transparent) !important;
   color: var(--tree-text, #f3f4f6);
+  transition: background 0.14s ease, box-shadow 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.14s ease;
 }
 
 /* Rapid access + cloud — same squircle language as tree */

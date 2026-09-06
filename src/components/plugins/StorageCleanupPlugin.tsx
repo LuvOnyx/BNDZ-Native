@@ -19,6 +19,7 @@ import {
 import StorageCleanupWizard, { type StorageWizardMode } from './StorageCleanupWizard';
 import StorageAdvancedScanWizard from './StorageAdvancedScanWizard';
 import InstalledAppsPanel from './InstalledAppsPanel';
+import CapacitySolverPlugin from './CapacitySolverPlugin';
 import {
   ORGANIZE_BUCKETS,
   bucketForFile,
@@ -33,11 +34,12 @@ export const StorageCleanupPluginDef = {
   id: 'storage-cleanup',
   name: 'Storage Cleanup',
   icon: 'storage_cleanup',
+  description: 'Professional disk cleanup with capacity what-if planning, deep clean, duplicates, and app uninstall.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
 
-type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize';
+type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize' | 'capacity';
 
 export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap, pluginLaunch }: any) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -84,7 +86,11 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     if (mode === 'organize' || mode === 'cleanup') {
       openWizard(mode, pluginLaunch?.currentPath);
     }
-  }, [pluginLaunch?.wizardMode, pluginLaunch?.currentPath]);
+    const launchTab = String(pluginLaunch?.tab || '').toLowerCase();
+    if (launchTab === 'capacity' || launchTab === 'whatif' || launchTab === 'budget') {
+      setActiveTab('capacity');
+    }
+  }, [pluginLaunch?.wizardMode, pluginLaunch?.currentPath, pluginLaunch?.tab]);
 
   const items = pathContentsCache?.[currentPath] || [];
 
@@ -184,6 +190,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: 'overview', label: 'Cleaner', icon: 'storage_cleanup' },
+    { id: 'capacity', label: 'Capacity', icon: 'hard_drive_ui' },
     { id: 'advanced', label: 'Deep Clean', icon: 'zap_ui' },
     { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
     { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
@@ -198,7 +205,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Professional disk cleanup · review before delete"
+      subtitle="Professional disk cleanup · capacity what-if · review before delete"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -210,10 +217,16 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       }
     >
     <div className="h-full flex flex-col overflow-hidden relative">
+      {activeTab === 'capacity' ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <CapacitySolverPlugin currentPath={pluginLaunch?.currentPath || currentPath} />
+        </div>
+      ) : (
+        <>
       <PluginHeroStrip
         icon={<Icons8Icon id="storage_cleanup" size={52} className="opacity-90" />}
         name="Disk Cleanup"
-        typeLabel="CCleaner-grade · themed for BNDZ"
+        typeLabel="BNDZ Storage Cleanup"
         path={currentPath && currentPath !== '/' ? currentPath : undefined}
         meta={
           <span className="bndz-panel-muted text-xs">
@@ -224,6 +237,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
         actions={
           <>
             <PluginHeroActionButton icon="zap_ui" variant="primary" onClick={() => { setActiveTab('advanced'); setAdvancedWizardOpen(true); }}>Deep Clean</PluginHeroActionButton>
+            <PluginHeroActionButton icon="hard_drive_ui" onClick={() => setActiveTab('capacity')}>Capacity</PluginHeroActionButton>
             <PluginHeroActionButton icon="copy" onClick={() => openWizard('cleanup')}>Duplicates</PluginHeroActionButton>
             <PluginHeroActionButton icon="app_ui" onClick={() => setActiveTab('uninstaller')}>Apps</PluginHeroActionButton>
           </>
@@ -515,6 +529,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
             </PluginCard>
           )}
       </div>
+        </>
+      )}
     </div>
     </PluginPanelShell>
   );

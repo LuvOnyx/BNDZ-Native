@@ -209,6 +209,7 @@ function TreeRow({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // After a drag/drop we suppress the synthetic click once. Never leave navigate dead.
     if (suppressTreeClickRef?.current) {
       suppressTreeClickRef.current = false;
       return;
@@ -280,6 +281,8 @@ function TreeRow({
             document.documentElement.classList.remove('bndz-ole-drag-handoff');
             document.getElementById('bndz-ole-veil')?.remove();
           } catch { /* ignore */ }
+          // Fresh LMB — do not inherit a stuck suppress from a prior cancelled drag.
+          if (suppressTreeClickRef) suppressTreeClickRef.current = false;
         }
         if (canDragFile && e.button === 0) onFilePointerDown?.(row, e);
       }}
@@ -496,6 +499,13 @@ export function VirtualizedNavTree({
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // TreeRowMemo skips re-render when only onNavigate identity changes — keep a stable
+  // callback so Navigation Tree LMB never freezes on the first-render handler.
+  const onNavigateRef = useRef(onNavigate);
+  onNavigateRef.current = onNavigate;
+  const stableNavigate = useCallback((path: string) => {
+    onNavigateRef.current(path);
+  }, []);
   const [dynamicState, setDynamicState] = useState<Record<string, DynamicTreeState>>({});
   const didRestoreTreeStateRef = useRef(false);
   const [dragKey, setDragKey] = useState<string | null>(null);
@@ -703,7 +713,8 @@ export function VirtualizedNavTree({
       if (!sessionStarted) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < FILE_DRAG_THRESHOLD_PX) return;
         sessionStarted = true;
-        suppressTreeClickRef.current = true;
+        // Do NOT suppress row click here — pointercancel/up without OLE used to leave
+        // suppress stuck true and kill Navigation Tree LMB navigate (chevrons still worked).
         try {
           rowEl.setPointerCapture(capturePointerId);
           captured = true;
@@ -731,6 +742,7 @@ export function VirtualizedNavTree({
       IPC.notifyFileDragActive(false);
       const session = getFileDragSession();
       if (!session) {
+        suppressTreeClickRef.current = false;
         dispatchPointerFileDragActive(false);
         return;
       }
@@ -752,6 +764,8 @@ export function VirtualizedNavTree({
           destPath,
           op,
         );
+      } else {
+        suppressTreeClickRef.current = false;
       }
       endFileDragSession();
       dispatchPointerFileDragActive(false);
@@ -770,6 +784,7 @@ export function VirtualizedNavTree({
           try { rowEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
           captured = false;
         }
+        suppressTreeClickRef.current = false;
         dispatchPointerFileDragActive(false);
         return;
       }
@@ -1067,7 +1082,7 @@ export function VirtualizedNavTree({
       treeRt={rt.tree}
       currentPath={currentPath}
       onToggle={handleToggle}
-      onNavigate={onNavigate}
+      onNavigate={stableNavigate}
       onStaticNavigate={onStaticNavigate}
       onContextMenu={onContextMenu}
       inlineRename={inlineRename}

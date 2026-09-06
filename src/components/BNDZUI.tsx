@@ -78,6 +78,7 @@ import {
   endFileDragSession,
   stashOleDragSession,
   consumeOleDragSession,
+  peekOleDragSession,
   getFileDragSession,
   resolveFileDropDestination,
   isInternalFileDragChromeAtPoint,
@@ -485,23 +486,25 @@ export default function BNDZUI() {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const lastActionUtcRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-    import('../lib/ipcBridge').then(({ IPC }) => {
-      if (!IPC.isNative) return;
-      IPC.getActionLog().then(r => {
-        setCanUndo(!!r.canUndo);
-        setCanRedo(!!r.canRedo);
-        lastActionUtcRef.current = (r as { lastActionUtc?: string }).lastActionUtc;
-      });
-      unsub = IPC.onActionLogChanged(state => {
-        setCanUndo(state.canUndo);
-        setCanRedo(state.canRedo);
-        lastActionUtcRef.current = state.lastActionUtc;
-      });
-    });
-    return () => unsub?.();
+  const refreshUndoRedoState = React.useCallback(() => {
+    if (!IPC.isNative) return;
+    void IPC.getActionLog().then(r => {
+      setCanUndo(!!r.canUndo);
+      setCanRedo(!!r.canRedo);
+      lastActionUtcRef.current = (r as { lastActionUtc?: string }).lastActionUtc;
+    }).catch(() => { /* ignore */ });
   }, []);
+
+  useEffect(() => {
+    if (!IPC.isNative) return;
+    refreshUndoRedoState();
+    const unsub = IPC.onActionLogChanged(state => {
+      setCanUndo(state.canUndo);
+      setCanRedo(state.canRedo);
+      lastActionUtcRef.current = state.lastActionUtc;
+    });
+    return () => unsub();
+  }, [refreshUndoRedoState]);
 
   const [webView2DragStartingInstalled, setWebView2DragStartingInstalled] = useState(false);
   useEffect(() => {
@@ -1598,8 +1601,18 @@ export default function BNDZUI() {
       setShowMeshDropDialog(true);
       return;
     }
-    // Folded Part B sibling → Shell Menus (Explorer verbs tab lives there).
-    const resolvedId = pluginId === 'shell-verb-forge' ? 'context-menu-manager' : pluginId;
+    // Absorbed / retired plugin IDs → host plugin + launch tab hint.
+    const absorbMap: Record<string, { id: string; tab?: string }> = {
+      'shell-verb-forge': { id: 'context-menu-manager' },
+      'capacity-solver': { id: 'storage-cleanup', tab: 'capacity' },
+      'capture-inbox': { id: 'inbound-volume', tab: 'captures' },
+      'reality-check': { id: 'library-health', tab: 'refs' },
+    };
+    const absorb = absorbMap[pluginId];
+    const resolvedId = absorb?.id ?? pluginId;
+    const launchMerged: BottomPluginLaunchContext | undefined = absorb?.tab
+      ? { ...launch, tab: absorb.tab, currentPath: launch?.currentPath || (launch as any)?.path || (launch as any)?.rootPath }
+      : launch;
     // Never auto-install — only open plugins the user already has installed.
     if (!installedPluginIdSet.has(resolvedId)) {
       const label = (pluginRegistry || []).find((p: { id: string }) => p.id === resolvedId)?.name || resolvedId;
@@ -1608,7 +1621,7 @@ export default function BNDZUI() {
     }
     setIsBottomPanelOpen(true);
     setBottomPluginTab(resolvedId);
-    if (launch) setBottomPluginLaunch(launch);
+    if (launchMerged) setBottomPluginLaunch(launchMerged);
   }, [installedPluginIdSet, pluginRegistry]);
 
   // filesHost: always open System Properties in the bottom plugins panel on launch.
@@ -3120,12 +3133,21 @@ export default function BNDZUI() {
         ? (winPaths[0].split(/[/\\]/).pop() || 'item')
         : `${winPaths.length} items`;
       const names = winPaths.map(p => (p.split(/[/\\]/).pop() || '')).filter(Boolean);
-      const nameSet = new Set(names);
+      const nameSet = new Set(names.map(n => n.toLowerCase()));
+      const normWin = (p: string) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+      const winSet = new Set(winPaths.map(normWin));
       const sourceParents = [...new Set(winPaths.map(wp => {
         const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
         if (slash <= 0) return '';
         return normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
       }).filter(Boolean))];
+      // Always strip the active listing too — path-key mismatch used to leave the visible row.
+      const activePane = panesRef.current.find(p => p.id === activePaneIdRef.current) || panesRef.current[0];
+      const activePath = normalizePanePath(activePane?.tabs[activePane?.activeTabIndex ?? 0]?.path || '');
+      const parentsToStrip = [...new Set([
+        ...sourceParents,
+        ...(activePath && activePath !== '/' ? [activePath] : []),
+      ])];
       // Instant list remove — register tombstones for EVERY source parent before any soft-refresh.
       try {
         window.dispatchEvent(new CustomEvent('bndz-optimistic-fs-op', {
@@ -3134,7 +3156,7 @@ export default function BNDZUI() {
             kind: 'move',
             winPaths,
             label,
-            sourceParents,
+            sourceParents: parentsToStrip,
           },
         }));
       } catch { /* ignore */ }
@@ -3142,10 +3164,17 @@ export default function BNDZUI() {
         let changed = false;
         const next = { ...prev };
         for (const key of Object.keys(next)) {
-          if (!sourceParents.some(p => panePathsEqual(p, key))) continue;
           const listing = next[key];
           if (!Array.isArray(listing) || !listing.length) continue;
-          const filtered = listing.filter((e: any) => !nameSet.has(e?.name));
+          const parentMatch = parentsToStrip.some(p => panePathsEqual(p, key));
+          const stripByName = parentMatch || (activePath && panePathsEqual(activePath, key));
+          const filtered = listing.filter((e: any) => {
+            const ep = String(e?.path || e?.fsPath || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+            if (ep && winSet.has(ep)) return false;
+            const en = String(e?.name || '').toLowerCase();
+            if (stripByName && en && nameSet.has(en)) return false;
+            return true;
+          });
           if (filtered.length !== listing.length) {
             next[key] = filtered;
             changed = true;
@@ -3155,9 +3184,9 @@ export default function BNDZUI() {
       });
       // Soft-refresh only after shell settle — early GET_DIR while Windows still holds
       // the file resurrects rows despite tombstones if path keys diverge.
-      if (opts?.invalidate !== false) {
+      if (opts?.invalidate === true) {
         window.setTimeout(() => {
-          for (const parentPane of sourceParents) {
+          for (const parentPane of parentsToStrip) {
             try {
               window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
             } catch { /* ignore */ }
@@ -3179,35 +3208,43 @@ export default function BNDZUI() {
         setToastMessage(`Drag failed: ${detail.error}`);
       }
       const rawPaths = Array.isArray(detail?.paths) ? detail!.paths! : [];
-      const winPaths = rawPaths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+      let winPaths = rawPaths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+      // Host sometimes posts OLE_DRAG_ENDED without paths — fall back to FE OLE stash.
+      if (!winPaths.length) {
+        const stashed = peekOleDragSession()?.paths;
+        if (Array.isArray(stashed) && stashed.length) {
+          winPaths = stashed.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+        }
+      }
       if (winPaths.length > 0) {
         const effect = String(detail?.effect || '').toUpperCase();
         const sourcesGone = detail?.sourcesGone === true
           || String(detail?.recover || '').toLowerCase() === 'move';
         const isMove = effect === 'MOVE' || effect === '2' || effect.includes('MOVE') || sourcesGone;
-        // Windows/shell-handled MOVE: remove from list immediately; poll until gone then refresh.
-        if (isMove || effect === 'NONE' || effect === '0' || effect === 'COPY' || effect === '1') {
-          if (isMove) {
-            applyOleMoveRemove(winPaths, { invalidate: sourcesGone });
-          }
-          const verifyGone = (pass: number) => {
-            void Promise.all(winPaths.map(p => IPC.checkPathExists(p).then(ex => !ex).catch(() => false)))
-              .then(goneFlags => {
-                if (goneFlags.length && goneFlags.every(Boolean)) {
-                  applyOleMoveRemove(winPaths, { invalidate: true });
-                  return;
-                }
-                if (pass < 8) window.setTimeout(() => verifyGone(pass + 1), 200 + pass * 80);
-                else if (isMove) {
-                  // Final soft refresh even if some sources linger (locked/in-use).
-                  applyOleMoveRemove(winPaths, { invalidate: true });
-                }
-              });
-          };
-          if (!sourcesGone) {
-            window.setTimeout(() => verifyGone(0), 80);
-          }
+        const maybeMove = isMove
+          || effect === 'NONE'
+          || effect === '0'
+          || (!effect && sourcesGone);
+        // Strip immediately for MOVE / ambiguous latch. True COPY keeps the source row until
+        // exists-poll proves the file left (cross-volume MOVE often reports COPY).
+        if (maybeMove) {
+          applyOleMoveRemove(winPaths, { invalidate: false });
         }
+        const verifyGone = (pass: number) => {
+          void Promise.all(winPaths.map(p => IPC.checkPathExists(p).then(ex => !ex).catch(() => false)))
+            .then(goneFlags => {
+              if (goneFlags.length && goneFlags.every(Boolean)) {
+                applyOleMoveRemove(winPaths, { invalidate: true });
+                return;
+              }
+              if (pass < 24) window.setTimeout(() => verifyGone(pass + 1), 120 + Math.min(pass * 15, 100));
+              else if (maybeMove) applyOleMoveRemove(winPaths, { invalidate: true });
+            });
+        };
+        if (sourcesGone || isMove) {
+          window.setTimeout(() => applyOleMoveRemove(winPaths, { invalidate: true }), 200);
+        }
+        window.setTimeout(() => verifyGone(0), 60);
       }
       nativeOleDragRef.current = false;
       clearListDragGhost({ immediate: true });
@@ -3342,13 +3379,22 @@ export default function BNDZUI() {
 
   const runUndoRedo = React.useCallback(async (redo = false) => {
     const fileOps = buildFileOpsRuntime(config);
-    if (!(redo ? canRedo : canUndo)) {
+    // Always ask the host — FE canUndo can lag behind deletes (ACTION_LOG_CHANGED race).
+    let hostCan = redo ? canRedo : canUndo;
+    try {
+      const snap = await IPC.getActionLog();
+      setCanUndo(!!snap.canUndo);
+      setCanRedo(!!snap.canRedo);
+      lastActionUtcRef.current = (snap as { lastActionUtc?: string }).lastActionUtc;
+      hostCan = redo ? !!snap.canRedo : !!snap.canUndo;
+    } catch { /* use local flags */ }
+    if (!hostCan) {
       pushToast({
         kind: 'info',
         title: redo ? 'Redo' : 'Undo',
         message: redo
-          ? 'Nothing to redo in the Action Log.'
-          : 'Nothing to undo in the Action Log. Recent shell transfers appear here when Action Log is enabled; Windows may also keep its own undo stack (Explorer Ctrl+Z).',
+          ? 'Nothing to redo.'
+          : 'Nothing to undo.',
       });
       return;
     }
@@ -3370,6 +3416,7 @@ export default function BNDZUI() {
     try {
       const r = redo ? await executeRedoWithTimeout() : await executeUndoWithTimeout();
       dismissToast(toastId);
+      refreshUndoRedoState();
       if (isQueuedIpcResult(r)) {
         pushToast({ kind: 'info', title: redo ? 'Redo queued' : 'Undo queued', message: 'Running in the transfer panel…' });
         return;
@@ -3383,9 +3430,10 @@ export default function BNDZUI() {
       pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? (redo ? 'Redo' : 'Undo') : 'Failed', message: r.message });
     } catch (err: any) {
       dismissToast(toastId);
+      refreshUndoRedoState();
       pushToast({ kind: 'error', title: redo ? 'Redo failed' : 'Undo failed', message: err?.message || 'Operation timed out or was interrupted.' });
     }
-  }, [activePaneId, panes, refetchPath, refreshPathsForPanes, config, confirm, canRedo, canUndo]);
+  }, [activePaneId, panes, refetchPath, refreshPathsForPanes, config, confirm, canRedo, canUndo, refreshUndoRedoState]);
 
   // Trigger Global Search
   useEffect(() => {
@@ -4016,7 +4064,7 @@ export default function BNDZUI() {
 
   const guardedSetCurrentPath = (p: string) => {
       if (Date.now() < suppressNavClickUntilRef.current) return;
-      setCurrentPath(p);
+      setCurrentPathRef.current(p);
   };
 
   const lastSidebarNavAtRef = React.useRef(0);
@@ -4491,6 +4539,9 @@ export default function BNDZUI() {
                 : job.operationId.startsWith('extract-') ? 'Extraction complete'
                 : 'Transfer complete';
               pushToast({ kind: 'success', title: doneVerb, message: label });
+              if (isDelete || isMove || action === 'copy' || meta?.op === 'copy' || meta?.op === 'move') {
+                refreshUndoRedoState();
+              }
               if (meta?.op === 'move' && meta.selectParentPath && config.selectParentOfMovedFolder) {
                 setCurrentPath(meta.selectParentPath);
               }
@@ -4521,7 +4572,7 @@ export default function BNDZUI() {
       unsub();
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [refreshPathsForPanes, config.selectParentOfMovedFolder, clearFsTombstone, reinjectFsTombstone]);
+  }, [refreshPathsForPanes, config.selectParentOfMovedFolder, clearFsTombstone, reinjectFsTombstone, refreshUndoRedoState]);
 
   useEffect(() => {
     if (config.showTopMenubar === false || config.showTopMenuBar === false) return;
@@ -8119,9 +8170,12 @@ export default function BNDZUI() {
       if (d.id) {
         openBottomPlugin(d.id, {
           paths: d.paths,
-          currentPath: d.currentPath,
+          currentPath: d.currentPath || d.path || d.rootPath,
           wizardMode: d.wizardMode,
           findQuery: d.query ?? d.findQuery,
+          tab: d.tab,
+          sessionId: d.sessionId,
+          hostId: d.hostId,
         });
       }
     };
@@ -14930,7 +14984,9 @@ export default function BNDZUI() {
                           openWorkspaceToolTab(path);
                           return;
                         }
-                        guardedSetCurrentPath(path);
+                        // Same path as Drives / Rapid Access — clears suppressNavClickUntilRef
+                        // so tree LMB isn't eaten after list RMB / boot pointer races.
+                        sidebarNavigateFromPointer(path);
                       }}
                       onContextMenu={(e, path, name) => path && handleContextMenuRequest(e, path, path, true, name, undefined, 'tree-item')}
                       onBackgroundContextMenu={(e) => handleContextMenuRequest(e, currentPath, null, true, null, undefined, 'tree-background')}

@@ -273,7 +273,7 @@ export default function BottomPluginPanel(props: any & {
       'folder-sync': 'folder-sync',
       'project-sandbox': 'project-sandbox',
       'library-health': 'library-health',
-      'capacity-solver': 'capacity-solver',
+      'capacity-solver': 'storage-cleanup',
       'inbound-volume': 'inbound-volume',
       'branching-time': 'branching-time',
       'transcode-rack': 'transcode-rack',
@@ -282,7 +282,15 @@ export default function BottomPluginPanel(props: any & {
     };
     const tab = tabMap[id];
     // Hard invariant: never switch to a tab for an uninstalled plugin.
-    if (tab && orderedPlugins.some((p: any) => p.id === tab)) handleTabClick(tab);
+    if (tab && orderedPlugins.some((p: any) => p.id === tab)) {
+      if (id === 'capacity-solver') {
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+          detail: { id: 'storage-cleanup', tab: 'capacity' },
+        }));
+        return;
+      }
+      handleTabClick(tab);
+    }
   }, [onCommandDeckTool, config.bottomPanelRememberTab, updateConfig, orderedPlugins]);
 
   const handleDragEnd = (event: DragEndEvent) => {

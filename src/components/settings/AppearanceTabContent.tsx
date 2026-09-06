@@ -200,17 +200,56 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           ]}
           onChange={v => patch({ systemBackdropKind: v, micaBackdrop: true })}
         />
+        <VariantSelect<'inApp' | 'windows' | 'both'>
+          label="Toast delivery"
+          description="In-app stack, Windows Action Center, or both"
+          value={
+            (localConfig.toastDelivery as 'inApp' | 'windows' | 'both')
+            || (localConfig.nativeActionCenterToasts === false ? 'inApp' : 'both')
+          }
+          options={[
+            { id: 'inApp', label: 'In-app only', hint: 'Physics toast stack inside BNDZ' },
+            { id: 'windows', label: 'Windows only', hint: 'Action Center / Notification Center' },
+            { id: 'both', label: 'Both', hint: 'In-app + Action Center' },
+          ]}
+          onChange={v => patch({
+            toastDelivery: v,
+            nativeActionCenterToasts: v !== 'inApp',
+            useNativeWindowsNotifications: v !== 'inApp',
+          })}
+        />
+        <VariantSelect<'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'>
+          label="In-app toast position"
+          description="Corner for the physics toast stack"
+          value={(localConfig.toastPosition as 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left') || 'top-right'}
+          options={[
+            { id: 'top-right', label: 'Top right' },
+            { id: 'top-left', label: 'Top left' },
+            { id: 'bottom-right', label: 'Bottom right' },
+            { id: 'bottom-left', label: 'Bottom left' },
+          ]}
+          onChange={v => patch({ toastPosition: v })}
+        />
         <label className="flex items-start gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
           <input
             type="checkbox"
             className="accent-[#0078d4] mt-0.5"
-            checked={localConfig.nativeActionCenterToasts !== false}
-            onChange={e => patch({ nativeActionCenterToasts: e.target.checked })}
+            checked={(localConfig.toastDelivery || 'both') !== 'inApp' && localConfig.nativeActionCenterToasts !== false}
+            onChange={e => {
+              const on = e.target.checked;
+              patch({
+                nativeActionCenterToasts: on,
+                useNativeWindowsNotifications: on,
+                toastDelivery: on
+                  ? ((localConfig.toastDelivery === 'windows' ? 'windows' : 'both') as 'windows' | 'both')
+                  : 'inApp',
+              });
+            }}
           />
           <span className="text-[12px] text-white/90 leading-snug">
             Windows Notification Center toasts
             <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Mirror important alerts into Action Center via AppNotificationBuilder (in-app toasts stay).
+              Route success and alerts through AppNotificationBuilder when delivery includes Windows.
             </span>
           </span>
         </label>

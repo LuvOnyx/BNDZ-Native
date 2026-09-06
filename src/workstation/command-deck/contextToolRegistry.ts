@@ -124,7 +124,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
       tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
       tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
-      tool('capacity-solver', 'Capacity', 'bar_chart', 'capacity-solver'),
+      tool('capacity-solver', 'Capacity', 'bar_chart', 'storage-cleanup'),
       tool('inbound-volume', 'Inbound', 'download', 'inbound-volume'),
       tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
       tool('catalog', 'Catalog', 'catalog', 'catalog'),

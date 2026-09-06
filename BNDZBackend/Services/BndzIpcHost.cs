@@ -859,7 +859,7 @@ namespace BNDZ.Services
                         catch (Exception ex) { OleDndLog($"outbound-ole listing-sync error {ex.Message}"); }
                     });
 
-                    // Wallpaper MOVE can finish a beat after OLE returns COPY/NONE — re-check disk.
+                    // Wallpaper MOVE can finish a beat after OLE returns COPY/NONE — re-check disk (~3.6s).
                     if (!sourcesGone)
                     {
                         var delayedPaths = paths;
@@ -867,7 +867,7 @@ namespace BNDZ.Services
                         {
                             try
                             {
-                                for (var i = 0; i < 12; i++)
+                                for (var i = 0; i < 24; i++)
                                 {
                                     await Task.Delay(150).ConfigureAwait(false);
                                     var gone = delayedPaths.All(p =>
@@ -930,7 +930,10 @@ namespace BNDZ.Services
                 var gone = !System.IO.File.Exists(path) && !System.IO.Directory.Exists(path);
                 if (effectBits == 2 || gone)
                 {
+                    // Leading-slash pane path so FE watcherDirToPanePath / cache keys match open tabs.
                     var dirPane = dir.Replace("\\", "/");
+                    if (dirPane.Length >= 2 && char.IsLetter(dirPane[0]) && dirPane[1] == ':' && !dirPane.StartsWith('/'))
+                        dirPane = "/" + dirPane;
                     batch.Add(new { type = "Deleted", dir = dirPane, name, oldName = (string?)null });
                     deleted++;
                 }
@@ -11815,6 +11818,32 @@ namespace BNDZ.Services
                     }
                     catch { }
 
+                    // Record BEFORE execute so Ctrl+Z works as soon as the optimistic UI hides the row
+                    // (native IFileOperation can take seconds — late Record left "Nothing to undo").
+                    var recordedEarly = false;
+                    if (engine is "native" or "teracopy" || action is "delete" or "copy" or "move" or "rename" or "create-dir" or "create-file")
+                    {
+                        if (engine == "native" && action is "copy" or "move" or "delete")
+                        {
+                            var valid = sources.Where(s =>
+                                !string.IsNullOrWhiteSpace(s)
+                                && (File.Exists(s) || Directory.Exists(s)
+                                    || PortableDeviceService.IsPortableDevicePath(s)
+                                    || ShellPathResolver.IsShellVirtualPath(s))).ToList();
+                            if (valid.Count == 0)
+                                throw new FileNotFoundException("None of the source items exist. The operation could not run.");
+                            sources = valid;
+                            if (action is "copy" or "move")
+                                plannedTargets = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
+                        }
+                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
+                        recordedEarly = true;
+                        try { await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false); }
+                        catch { /* undo affordance is best-effort mid-op */ }
+                    }
+
+                    try
+                    {
                     if (engine == "teracopy" && action is "copy" or "move")
                     {
                         var result = _externalCopyHandler.Execute(
@@ -11832,23 +11861,9 @@ namespace BNDZ.Services
                         }
                         _fileTransferQueue.DetachProcess(operationId);
                         OnProgress(operationId, 99, target, 0, 0, 0, sources.Count, sources.Count);
-                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
                     }
                     else if (engine == "native")
                     {
-                        if (action is "copy" or "move" or "delete")
-                        {
-                            var valid = sources.Where(s =>
-                                !string.IsNullOrWhiteSpace(s)
-                                && (File.Exists(s) || Directory.Exists(s)
-                                    || PortableDeviceService.IsPortableDevicePath(s)
-                                    || ShellPathResolver.IsShellVirtualPath(s))).ToList();
-                            if (valid.Count == 0)
-                                throw new FileNotFoundException("None of the source items exist. The operation could not run.");
-                            sources = valid;
-                            if (action is "copy" or "move")
-                                plannedTargets = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
-                        }
                         await _nativeFileOperationService.ExecuteOperationAsync(
                             operationId,
                             action,
@@ -11860,7 +11875,6 @@ namespace BNDZ.Services
                             prefs.ShouldShowNativeProgress(action, sources, target),
                             OnAccessDenied,
                             _hostWindowHandle).ConfigureAwait(false);
-                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
                     }
                     else
                     {
@@ -11929,10 +11943,35 @@ namespace BNDZ.Services
                                 }
                                 return await tcs.Task.ConfigureAwait(false);
                             },
-                            recordActionLog: true,
+                            // Already recorded above — avoid duplicate undo entries.
+                            recordActionLog: !recordedEarly,
                             onAccessDenied: OnAccessDenied,
                             recreateSourceStructure: recreateSourceStructure,
                             cancellationToken: ct).ConfigureAwait(false);
+                    }
+                    }
+                    catch
+                    {
+                        if (recordedEarly)
+                        {
+                            try
+                            {
+                                var kind = action switch
+                                {
+                                    "delete" => ActionKind.Delete,
+                                    "copy" => ActionKind.Copy,
+                                    "move" or "rename" => ActionKind.Move,
+                                    "create-dir" => ActionKind.CreateDirectory,
+                                    "create-file" => ActionKind.CreateFile,
+                                    _ => (ActionKind?)null,
+                                };
+                                if (kind is { } k)
+                                    _actionLogService.TryDiscardLast(k, sources);
+                                await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                            }
+                            catch { /* ignore */ }
+                        }
+                        throw;
                     }
 
                     if ((action is "copy" or "move") && prefs.CopyTagsOnCopyOperations)
@@ -12424,7 +12463,8 @@ namespace BNDZ.Services
         {
             try
             {
-                if (!FileOperationPreferences.Current.LogActions) return;
+                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel,
+                // not the undo stack (matches Settings copy: Ctrl+Z always undoes).
                 action = (action ?? "").ToLowerInvariant();
                 switch (action)
                 {

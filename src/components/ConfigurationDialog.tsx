@@ -1348,8 +1348,59 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <div className="bndz-settings-section-header">
                   <h2 className="text-[13px] font-bold text-white">Notifications</h2>
                 </div>
-                <div className="p-4">
-                <Checkbox label="Show Windows toast notifications (Action Center)" checked={localConfig.useNativeWindowsNotifications !== false} onChange={e => updateLocalConfig({ useNativeWindowsNotifications: e.target.checked })} />
+                <div className="p-4 space-y-3">
+                <div className="flex flex-col gap-2">
+                  <span className="text-[12px] text-gray-300">Toast delivery</span>
+                  <div className="flex flex-wrap gap-3">
+                    {([
+                      { id: 'inApp', label: 'In-app only' },
+                      { id: 'windows', label: 'Windows only' },
+                      { id: 'both', label: 'Both' },
+                    ] as const).map(opt => (
+                      <label key={opt.id} className="flex items-center gap-1.5 text-[12px] text-gray-200 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="toastDelivery"
+                          checked={(localConfig.toastDelivery || (localConfig.useNativeWindowsNotifications === false ? 'inApp' : 'both')) === opt.id}
+                          onChange={() => updateLocalConfig({
+                            toastDelivery: opt.id,
+                            useNativeWindowsNotifications: opt.id !== 'inApp',
+                            nativeActionCenterToasts: opt.id !== 'inApp',
+                          })}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[12px] text-gray-300">In-app toast corner</span>
+                  <div className="flex flex-wrap gap-3">
+                    {([
+                      { id: 'top-right', label: 'Top right' },
+                      { id: 'top-left', label: 'Top left' },
+                      { id: 'bottom-right', label: 'Bottom right' },
+                      { id: 'bottom-left', label: 'Bottom left' },
+                    ] as const).map(opt => (
+                      <label key={opt.id} className="flex items-center gap-1.5 text-[12px] text-gray-200 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="toastPosition"
+                          checked={(localConfig.toastPosition || 'top-right') === opt.id}
+                          onChange={() => updateLocalConfig({ toastPosition: opt.id })}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <Checkbox label="Show Windows toast notifications (Action Center)" checked={(localConfig.toastDelivery || 'both') !== 'inApp' && localConfig.useNativeWindowsNotifications !== false} onChange={e => updateLocalConfig({
+                  useNativeWindowsNotifications: e.target.checked,
+                  nativeActionCenterToasts: e.target.checked,
+                  toastDelivery: e.target.checked
+                    ? (localConfig.toastDelivery === 'windows' ? 'windows' : 'both')
+                    : 'inApp',
+                })} />
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-[12px] text-gray-300">Folder size toast cooldown</span>
                   <input
