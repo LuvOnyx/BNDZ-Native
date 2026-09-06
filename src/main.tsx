@@ -145,12 +145,18 @@ function installExternalOleDragBridge() {
       e.preventDefault();
       e.stopPropagation();
       const liveSession = getFileDragSession();
+      const dt = e.dataTransfer;
+      const allowed = String(dt?.effectAllowed || '').toLowerCase();
+      const dropFx = String(dt?.dropEffect || '').toLowerCase();
+      // Explorer same-volume default is MOVE — HTML5 must not force COPY and leave desktop icons behind.
+      const preferMove = liveSession?.op === 'move'
+        || (!e.ctrlKey && (dropFx === 'move' || allowed.includes('move')));
       window.dispatchEvent(new CustomEvent('bndz-external-drop', {
         detail: {
           paths,
           webViewX: e.clientX,
           webViewY: e.clientY,
-          preferredEffect: liveSession?.op === 'move' ? 'move' : 'copy',
+          preferredEffect: preferMove ? 'move' : 'copy',
           fromBndzOle: !!liveSession,
           coordSource: 'html5',
         },

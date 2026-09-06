@@ -478,50 +478,66 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
 
 let lastInboundDropKey = '';
 let lastInboundDropMs = 0;
+let lastInboundDropOk = false;
 
-function shouldDedupeInboundDrop(paths: string[]): boolean {
+/** Only skip when a *successful* commit of the same paths landed very recently. */
+function shouldSkipDuplicateInbound(paths: string[]): boolean {
   const key = [...paths].sort().join('\0');
   const now = Date.now();
-  if (key === lastInboundDropKey && now - lastInboundDropMs < 600) return true;
-  lastInboundDropKey = key;
-  lastInboundDropMs = now;
-  return false;
+  return lastInboundDropOk
+    && key === lastInboundDropKey
+    && now - lastInboundDropMs < 700;
+}
+
+function markInboundDropResult(paths: string[], ok: boolean): void {
+  lastInboundDropKey = [...paths].sort().join('\0');
+  lastInboundDropMs = Date.now();
+  lastInboundDropOk = ok;
+}
+
+function resolveInboundOp(opts: ResolveAndCommitDropOpts): 'copy' | 'move' {
+  if (opts.op === 'move' || opts.preferredEffect === 'move') return 'move';
+  return 'copy';
 }
 
 /**
- * External OLE drop from WPF host — only fires when drop landed in our window.
+ * External OLE / HTML5 drop into BNDZ — only when drop landed in our window.
  * Falls back to active-pane folder when coord hit-tests miss (125% DPI, etc.).
+ * Dual-path (OLE + HTML5) must not treat a failed first attempt as a successful dedupe.
  */
 export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Promise<boolean> {
   if (!opts.paths?.length) return false;
-  if (shouldDedupeInboundDrop(opts.paths)) return true;
+  if (shouldSkipDuplicateInbound(opts.paths)) return true;
   if (!busContext) {
     pendingDrops.push(opts);
     return false;
   }
 
-  const { clientX, clientY } = resolveDropCoords(opts, 'externalOle');
+  const op = resolveInboundOp(opts);
+  const normalized: ResolveAndCommitDropOpts = { ...opts, op, preferredEffect: op, source: 'externalOle' };
+
+  const { clientX, clientY } = resolveDropCoords(normalized, 'externalOle');
   const magnetId = hitTestMagnetAtPoint(clientX, clientY);
   if (magnetId) {
-    const res = await IPC.magnetApplyDrop(
-      magnetId,
-      opts.paths,
-      opts.preferredEffect === 'move' ? 'move' : 'copy',
-    );
+    const res = await IPC.magnetApplyDrop(magnetId, opts.paths, op);
     if (res.ok || isQueuedIpcResult(res)) {
       lastDropDebug = { clientX, clientY, coordSource: 'htmlTarget', destPath: `magnet:${magnetId}`, source: 'externalOle', committed: true };
       window.dispatchEvent(new CustomEvent('bndz-magnet-applied', { detail: { magnetId, paths: opts.paths } }));
+      markInboundDropResult(opts.paths, true);
       return true;
     }
     busContext.toast(res.error || 'Magnet drop failed.');
+    markInboundDropResult(opts.paths, false);
     return false;
   }
 
-  if (resolveAndCommitDrop(opts)) return true;
+  if (resolveAndCommitDrop(normalized)) {
+    markInboundDropResult(opts.paths, true);
+    return true;
+  }
 
   // Defer to studio plugins when drop is over their surface (OLE steals HTML5 DnD).
   {
-    const { clientX, clientY } = resolveDropCoords(opts, 'externalOle');
     const hit = document.elementFromPoint(clientX, clientY);
     if (
       hit?.closest('[data-icon-studio]')
@@ -531,12 +547,15 @@ export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Pro
       || hit?.closest('.bndz-photo-studio')
       || hit?.closest('[data-studio-drop-surface]')
     ) {
+      markInboundDropResult(opts.paths, false);
       return false;
     }
   }
 
-  const op: 'copy' | 'move' = opts.preferredEffect === 'move' ? 'move' : 'copy';
-  if (forceCommitToActivePaneFolder(opts.paths, op, 'externalOle')) return true;
+  if (forceCommitToActivePaneFolder(opts.paths, op, 'externalOle')) {
+    markInboundDropResult(opts.paths, true);
+    return true;
+  }
   busContext.toast('Open a folder tab to receive dropped files.');
   lastDropDebug = {
     clientX: opts.webViewX ?? opts.clientX ?? 0,
@@ -546,6 +565,7 @@ export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Pro
     source: 'externalOle',
     committed: false,
   };
+  markInboundDropResult(opts.paths, false);
   return false;
 }
 

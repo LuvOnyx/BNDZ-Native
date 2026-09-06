@@ -155,6 +155,20 @@ export function hitTestWorkspaceSurfaceAtPoint(clientX: number, clientY: number)
     ?? hitTestSelectorByRect(clientX, clientY, '[data-bndz-workspace-surface]');
 }
 
+/**
+ * Only exclusive workspace canvases own inbound file drops.
+ * Preview loupe also stamps data-bndz-workspace-surface — must not swallow desktop→list.
+ */
+export function hitTestExclusiveWorkspaceDropSurface(clientX: number, clientY: number): HTMLElement | null {
+  const el = hitTestWorkspaceSurfaceAtPoint(clientX, clientY);
+  if (!el) return null;
+  if (el.getAttribute('data-bndz-workspace-surface') === 'preview') return null;
+  if (el.closest('.bndz-spatial-canvas, .bndz-automation, .bndz-twin-chess, [data-bndz-workspace-drop-own]')) {
+    return el;
+  }
+  return null;
+}
+
 /** Hit-test a list folder row during internal drag. */
 export function hitTestListFolderAtPoint<T extends ListFolderTarget>(
   clientX: number,

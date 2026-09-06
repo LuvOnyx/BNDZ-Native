@@ -463,11 +463,11 @@ function ContextMenuView({
           onMouseDown={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
         >
-          <ContextMenuItem label="Open" iconVerb="open" className="font-semibold" onClick={() => { addTab(activePaneId, RECYCLE_BIN_PATH); onClose(); }} />
+          <ContextMenuItem label="Open" iconVerb="open" className="font-semibold" tone="accent" onClick={() => { addTab(activePaneId, RECYCLE_BIN_PATH); onClose(); }} />
           <ContextMenuItem
             label="Empty Recycle Bin"
             iconVerb="delete"
-            className="text-red-300"
+            tone="danger"
             onClick={() => { onEmptyRecycleBin?.(); onClose(); }}
           />
           <div className="bndz-context-menu-sep" />
@@ -573,6 +573,7 @@ function ContextMenuView({
             <ContextMenuItem
               label="Folder"
               iconVerb="folder"
+              tone="positive"
               onClick={async e => {
                 e.stopPropagation();
                 const r = await createItemInPane(menu.path, 'New folder', 'dir');
@@ -588,6 +589,7 @@ function ContextMenuView({
             <ContextMenuItem
               label="Text Document"
               iconVerb="filetext"
+              tone="positive"
               onClick={async e => {
                 e.stopPropagation();
                 const r = await createItemInPane(menu.path, 'New Text Document.txt', 'file');
@@ -1027,10 +1029,10 @@ function ContextMenuView({
         />
       )}
       {isInRecycleBin ? (
-        <ContextMenuItem label="Delete permanently" iconVerb="delete" onClick={() => handleVerb('delete')} />
+        <ContextMenuItem label="Delete permanently" iconVerb="delete" tone="danger" onClick={() => handleVerb('delete')} />
       ) : (
         <>
-          <ContextMenuItem label="Delete" iconVerb="delete" onClick={() => handleVerb('delete')} />
+          <ContextMenuItem label="Delete" iconVerb="delete" tone="danger" onClick={() => handleVerb('delete')} />
           <ContextMenuItem label="Rename" iconVerb="rename" onClick={() => handleVerb('rename')} />
         </>
       )}

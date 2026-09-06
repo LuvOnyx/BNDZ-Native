@@ -159,25 +159,26 @@ export function TagManagerDialog({
   return (
     <BndzWindowFrame
       title="Tag Manager"
-      subtitle={`${tags.length} definitions · ${taggedItems.length} tagged files library-wide`}
+      subtitle={`${tags.length} definitions · ${taggedItems.length} tagged`}
       iconId="tag_manager"
       onClose={onClose}
-      widthClass="w-[min(780px,calc(100vw-2rem))]"
-      heightClass="h-[min(560px,calc(100vh-2rem))]"
+      widthClass="w-[min(820px,calc(100vw-2rem))]"
+      heightClass="h-[min(580px,calc(100vh-2rem))]"
       zIndexClass="z-[250]"
     >
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <div className="w-[40%] border-r border-white/[0.06] flex flex-col min-h-0 bg-black/15">
-          <div className="p-4 border-b border-white/[0.06] space-y-3 shrink-0">
+      <div className="bndz-tagmgr-shell flex flex-1 min-h-0 overflow-hidden">
+        <div className="bndz-tagmgr-palette w-[42%] flex flex-col min-h-0">
+          <div className="bndz-tagmgr-compose shrink-0 px-4 pt-4 pb-3 space-y-3">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-violet-300/70 font-semibold">Definitions</div>
             <div className="flex gap-2">
               <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addTag()}
-                placeholder="New tag name..."
+                placeholder="New tag name…"
                 className="bndz-native-input flex-1 text-sm"
               />
-              <button type="button" onClick={addTag} className="bndz-hub-btn-primary px-3 py-2 text-sm font-semibold flex items-center gap-1 shrink-0">
+              <button type="button" onClick={addTag} className="bndz-tagmgr-btn bndz-tagmgr-btn--add shrink-0">
                 <Icons8Icon id="plus_ui" size={14} /> Add
               </button>
             </div>
@@ -187,20 +188,21 @@ export function TagManagerDialog({
                   key={c}
                   type="button"
                   onClick={() => setNewColor(c)}
-                  className={`w-5 h-5 rounded-full border-2 transition-transform ${newColor === c ? 'border-white scale-110' : 'border-transparent'}`}
+                  className={`bndz-tagmgr-swatch ${newColor === c ? 'is-active' : ''}`}
                   style={{ backgroundColor: c }}
+                  aria-label={`Color ${c}`}
                 />
               ))}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 space-y-2 bndz-tag-manager-palette">
+
+          <div className="flex-1 overflow-y-auto bndz-scrollbar px-3 pb-3 space-y-2">
             {tags.map(tag => (
               <div
                 key={tag.name}
-                className={`bndz-plugin-card group flex items-center gap-3 !p-3 cursor-pointer transition-colors ${
-                  activeFilter === tag.name ? 'ring-1 ring-[#0078d4]/45 bg-[#094771]/25' : ''
-                }`}
+                className={`bndz-tagmgr-card group ${activeFilter === tag.name ? 'is-active' : ''}`}
                 onClick={() => setActiveFilter(activeFilter === tag.name ? null : tag.name)}
+                style={{ ['--tag-accent' as string]: tag.color || '#FACC15' }}
               >
                 <TagGlyph color={tag.color || '#FACC15'} size={18} />
                 <div className="flex-1 min-w-0">
@@ -218,29 +220,33 @@ export function TagManagerDialog({
                         value={editKey}
                         onChange={e => setEditKey(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(tag.name); if (e.key === 'Escape') setEditingId(null); }}
-                        className="bndz-native-input w-full text-[10px] font-mono"
+                        className="bndz-native-input w-full text-[11px] font-mono"
                         placeholder="Tag key (rename cascades library-wide)"
                       />
                     </div>
                   ) : (
                     <>
-                      <div className="text-sm font-medium text-gray-200 truncate">{tag.label}</div>
-                      <div className="text-[10px] text-gray-500 font-mono">{tagUsage[tag.name] || 0} items · {tag.name}</div>
+                      <div className="text-sm font-medium text-white/90 truncate">{tag.label}</div>
+                      <div className="text-[11px] text-white/40 font-mono mt-0.5">
+                        {tagUsage[tag.name] || 0} items · {tag.name}
+                      </div>
                     </>
                   )}
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                   <button
                     type="button"
-                    className="p-1.5 rounded-md hover:bg-white/[0.08] text-gray-400 hover:text-white"
+                    className="bndz-tagmgr-icon-btn"
                     onClick={() => { setEditingId(tag.name); setEditLabel(tag.label); setEditKey(tag.name); }}
+                    title="Edit"
                   >
                     <Icons8Icon id="pencil_ui" size={12} />
                   </button>
                   <button
                     type="button"
-                    className="p-1.5 rounded-md hover:bg-red-950/50 text-gray-400 hover:text-red-400"
+                    className="bndz-tagmgr-icon-btn bndz-tagmgr-icon-btn--danger"
                     onClick={() => removeTag(tag.name)}
+                    title="Delete tag"
                   >
                     <Icons8Icon id="trash_ui" size={12} />
                   </button>
@@ -248,53 +254,68 @@ export function TagManagerDialog({
               </div>
             ))}
             {tags.length === 0 && (
-              <div className="bndz-plugin-card text-center text-gray-500 text-xs py-8">
-                <Icons8Icon id="sparkles_ui" size={20} className="mx-auto mb-2 opacity-40" />
-                Create your first tag above
+              <div className="bndz-tagmgr-empty">
+                <Icons8Icon id="sparkles_ui" size={22} className="opacity-40 mb-2" />
+                <div className="text-sm text-white/60">Create your first tag above</div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="px-4 py-3 border-b border-white/[0.06] shrink-0 space-y-2">
-            <div className="bndz-plugin-section-title">
-              {activeFilter ? `Tagged “${tags.find(t => t.name === activeFilter)?.label || activeFilter}”` : 'Library tagged items'}
+        <div className="bndz-tagmgr-library flex-1 flex flex-col min-h-0">
+          <div className="px-4 pt-4 pb-3 shrink-0 space-y-2.5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300/70 font-semibold truncate">
+                {activeFilter
+                  ? `Tagged “${tags.find(t => t.name === activeFilter)?.label || activeFilter}”`
+                  : 'Library tagged items'}
+              </div>
+              <button type="button" className="bndz-tagmgr-btn bndz-tagmgr-btn--ghost text-[11px]" onClick={onClose}>
+                Close
+              </button>
             </div>
             <div className="relative">
-              <Icons8Icon id="search" size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50" />
+              <Icons8Icon id="search" size={13} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-45" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search paths, names, tags…"
-                className="bndz-native-input w-full !pl-8 !py-1.5 !text-[11px]"
+                className="bndz-native-input w-full !pl-9 !py-2 !text-sm"
               />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto bndz-scrollbar p-2">
+          <div className="flex-1 overflow-y-auto bndz-scrollbar p-2.5">
             {loadingTagged && (
-              <div className="text-center text-gray-500 text-xs py-10">Loading tagged library…</div>
+              <div className="text-center text-white/40 text-sm py-12">Loading tagged library…</div>
             )}
             {!loadingTagged && filteredItems.length === 0 && (
-              <div className="text-center text-gray-500 text-xs py-10 px-4 leading-relaxed">
-                No tagged files in the library sidecar yet. Tag items from the list, Properties, or Tag Assignment Mode.
+              <div className="bndz-tagmgr-empty">
+                <div className="text-sm text-white/55">No tagged files in the library yet</div>
+                <div className="text-[12px] text-white/35 mt-1.5 max-w-[280px] leading-relaxed">
+                  Tag items from the list, Properties, or Tag Assignment Mode.
+                </div>
               </div>
             )}
             {filteredItems.map(item => (
               <button
                 key={item.path}
                 type="button"
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/[0.04] text-[11px] font-mono text-left"
+                className="bndz-tagmgr-item"
                 onClick={() => onOpenPath?.(item.path)}
                 title={item.path}
               >
-                <ShellNativeIcon path={item.path} isDir={item.isDir} size={12} eager />
-                <span className="flex-1 truncate text-gray-300">{item.name}</span>
+                <ShellNativeIcon path={item.path} isDir={item.isDir} size={14} eager />
+                <span className="flex-1 truncate text-sm text-white/85 text-left">{item.name}</span>
                 <div className="flex gap-1 shrink-0">
                   {item.tags.map(t => {
                     const meta = tags.find(x => tagKeysMatch(x.name, t));
                     return (
-                      <span key={t} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: meta?.color || '#666' }} title={meta?.label || t} />
+                      <span
+                        key={t}
+                        className="w-2.5 h-2.5 rounded-full ring-1 ring-black/30"
+                        style={{ backgroundColor: meta?.color || '#666' }}
+                        title={meta?.label || t}
+                      />
                     );
                   })}
                 </div>

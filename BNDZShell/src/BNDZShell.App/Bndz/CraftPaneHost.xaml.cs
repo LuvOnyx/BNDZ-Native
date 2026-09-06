@@ -1275,6 +1275,17 @@ public sealed partial class CraftPaneHost : UserControl
 				// Forward to headless backend so PushDrivesUpdate / warm paths run (not pane-local only).
 				_ = ForwardUiReadyToBackendAsync(raw);
 				TryRunOleSmokeArmDeferred();
+				// Focus + OLE reclaim — sidebar LMB / inbound drops need a live client target.
+				try
+				{
+					PaneWebView.Focus(FocusState.Programmatic);
+					TryRegisterOleDropTarget();
+					ScheduleOleDropReassert();
+				}
+				catch (Exception focusEx)
+				{
+					Debug.WriteLine($"[CraftPaneHost] UI_READY focus/OLE: {focusEx.Message}");
+				}
 				return;
 			}
 			if (type is "BNDZ_UI_CRASH")

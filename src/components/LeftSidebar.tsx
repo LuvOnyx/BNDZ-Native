@@ -158,6 +158,7 @@ export function LeftSidebar({
                 if (!w.__bndzSidebarRegionNudgeAt || now - w.__bndzSidebarRegionNudgeAt > 2000) {
                   w.__bndzSidebarRegionNudgeAt = now;
                   IPC.windowChrome('refreshInputRegions');
+                  IPC.forceNativeAppRegionRecompute();
                 }
               } catch { /* ignore */ }
               try {

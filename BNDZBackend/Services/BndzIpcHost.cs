@@ -2546,6 +2546,12 @@ namespace BNDZ.Services
                 },
             };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            try
+            {
+                WebView2DropTargetService.AppendOleDndLogPublic(
+                    $"Post EXTERNAL_FILES_DROPPED paths={paths.Length} effect={effect} coord={coordSource} wv=({webViewX:F0},{webViewY:F0}) push={(_pushWebMessage != null)}");
+            }
+            catch { /* never break drop on log */ }
             PostToUi(() => DeliverIpcJson(json));
         }
 

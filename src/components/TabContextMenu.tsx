@@ -27,7 +27,10 @@ interface TabContextMenuProps {
 }
 
 const itemClass =
-  'bndz-context-menu-item w-full flex items-center gap-2.5 text-[12px] text-left disabled:opacity-40 disabled:pointer-events-none';
+  'bndz-context-menu-item w-full flex items-center gap-2.5 text-sm text-left disabled:opacity-40 disabled:pointer-events-none';
+const itemDanger = `${itemClass} bndz-context-menu-item--danger`;
+const itemPositive = `${itemClass} bndz-context-menu-item--positive`;
+const itemAccent = `${itemClass} bndz-context-menu-item--accent`;
 
 export type TabHostContextMenuOpts = {
   clientX: number;
@@ -164,31 +167,31 @@ export function TabContextMenu({
           <Icons8Icon id={isLocked ? 'unlock_ui' : 'lock_ui'} size={14} className="shrink-0 opacity-80" />
           {isLocked ? 'Unlock Tab' : 'Lock Tab'}
         </button>
-        <button type="button" className={itemClass} disabled={!canClose} onMouseDown={act(onClose)}>
+        <button type="button" className={itemDanger} disabled={!canClose} onMouseDown={act(onClose)}>
           <Icons8Icon id="close" size={14} className="shrink-0 opacity-80" />
           Close
         </button>
-        <button type="button" className={itemClass} disabled={!canCloseOthers} onMouseDown={act(onCloseOthers)}>
+        <button type="button" className={itemDanger} disabled={!canCloseOthers} onMouseDown={act(onCloseOthers)}>
           <Icons8Icon id="dropstack" size={14} className="shrink-0 opacity-80" />
           Close Others
         </button>
         {onCloseRight && (
-          <button type="button" className={itemClass} disabled={!canCloseRight} onMouseDown={act(onCloseRight)}>
+          <button type="button" className={itemDanger} disabled={!canCloseRight} onMouseDown={act(onCloseRight)}>
             <Icons8Icon id="nav_forward" size={14} className="shrink-0 opacity-80" />
             Close Tabs to the Right
           </button>
         )}
-        <button type="button" className={itemClass} onMouseDown={act(onCloseAll)}>
+        <button type="button" className={itemDanger} onMouseDown={act(onCloseAll)}>
           <Icons8Icon id="close" size={14} className="shrink-0 opacity-80" />
           Close All
         </button>
         <div className="bndz-context-menu-sep" />
-        <button type="button" className={itemClass} onMouseDown={act(onDuplicate)}>
+        <button type="button" className={itemPositive} onMouseDown={act(onDuplicate)}>
           <Icons8Icon id="copy" size={14} className="shrink-0 opacity-80" />
           Duplicate Tab
         </button>
         {onTearOff && (
-          <button type="button" className={itemClass} onMouseDown={act(onTearOff)}>
+          <button type="button" className={itemAccent} onMouseDown={act(onTearOff)}>
             <Icons8Icon id="external_link" size={14} className="shrink-0 opacity-80" />
             Tear Off to New Stage
           </button>

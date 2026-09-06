@@ -74,6 +74,7 @@ import {
   hitTestTabAtPoint,
   hitTestListBodyAtPoint,
   hitTestWorkspaceSurfaceAtPoint,
+  hitTestExclusiveWorkspaceDropSurface,
   beginFileDragSession,
   endFileDragSession,
   stashOleDragSession,
@@ -8562,8 +8563,20 @@ export default function BNDZUI() {
         : typeof detail.clientY === 'number' ? detail.clientY
         : (recordExternalDragHover.last.valid ? recordExternalDragHover.last.clientY : window.innerHeight / 2);
 
-      // Spatial / Automation canvas owns its own drop surface.
-      if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) return;
+      // Spatial / Automation own inbound drops — never let preview loupe swallow list drops.
+      if (hitTestExclusiveWorkspaceDropSurface(clientX, clientY)) return;
+
+      try {
+        IPC.postOleDndDebug({
+          kind: 'inbound-drop',
+          paths: paths.length,
+          effect: detail.preferredEffect || 'copy',
+          fromBndzOle: !!detail.fromBndzOle,
+          coord: detail.coordSource || '?',
+          x: clientX,
+          y: clientY,
+        });
+      } catch { /* ignore */ }
 
       setExternalDragPaths(paths);
       void commitExternalOleDrop({
@@ -8601,7 +8614,7 @@ export default function BNDZUI() {
 
       const clientX = typeof detail.clientX === 'number' ? detail.clientX : window.innerWidth / 2;
       const clientY = typeof detail.clientY === 'number' ? detail.clientY : window.innerHeight / 2;
-      if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) return;
+      if (hitTestExclusiveWorkspaceDropSurface(clientX, clientY)) return;
 
       commitArchiveInternalDrop({
         paths,
@@ -8655,11 +8668,15 @@ export default function BNDZUI() {
         const cur = typeof tab?.path === 'string' ? normalizePanePath(tab.path) : '';
         if (cur) requestFilesHostDirListing(cur);
       }
-      // Dense FE nudges — WinUIEx often wipes Passthrough after first paint.
+      // Dense FE nudges — WinUIEx / NonClientRegionSupport settle late; list select
+      // used to be the only thing that forced the app-region bitmap to include sidebar.
       if (IPC.isNative) {
-        for (const ms of [80, 250, 600, 1400, 2600]) {
+        for (const ms of [40, 120, 280, 600, 1100, 2000, 3500]) {
           window.setTimeout(() => {
-            try { IPC.windowChrome('refreshInputRegions'); } catch { /* ignore */ }
+            try {
+              IPC.forceNativeAppRegionRecompute();
+              IPC.windowChrome('refreshInputRegions');
+            } catch { /* ignore */ }
           }, ms);
         }
       }

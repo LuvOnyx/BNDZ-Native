@@ -4,7 +4,16 @@ import { ContextMenuIcon } from './ContextMenuIcon';
 import { Icons8Icon } from './Icons8Icon';
 
 export const menuItemClass =
-  'bndz-context-menu-item flex items-center gap-2.5 cursor-default text-[12px] select-none leading-[22px]';
+  'bndz-context-menu-item flex items-center gap-2.5 cursor-default text-sm select-none leading-[24px]';
+
+export type ContextMenuTone = 'danger' | 'positive' | 'accent';
+
+export function contextMenuToneClass(tone?: ContextMenuTone): string {
+  if (tone === 'danger') return 'bndz-context-menu-item--danger';
+  if (tone === 'positive') return 'bndz-context-menu-item--positive';
+  if (tone === 'accent') return 'bndz-context-menu-item--accent';
+  return '';
+}
 
 export const submenuPanelClass =
   'bndz-context-submenu absolute top-0 min-w-[200px] z-[500] max-h-[calc(100vh-24px)] overflow-visible';
@@ -130,6 +139,8 @@ interface ContextMenuItemProps {
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
   disabled?: boolean;
+  /** Semantic accent — red close/delete, green add/new, blue open/primary. */
+  tone?: ContextMenuTone;
 }
 
 export const ContextMenuItem = React.memo(function ContextMenuItem({
@@ -143,6 +154,7 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
   onClick,
   className = '',
   disabled,
+  tone,
 }: ContextMenuItemProps) {
   const resolvedIcon = iconNode
     ?? (iconSrc
@@ -153,12 +165,12 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
   return (
     <div
       role="menuitem"
-      className={`${menuItemClass} ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}
+      className={`${menuItemClass} ${contextMenuToneClass(tone)} ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}
       onClick={disabled || !onClick ? undefined : runMenuAction(onClick)}
     >
       {resolvedIcon}
       <span className="flex-1">{label}</span>
-      {trailing ? <span className="text-[#99c9f0]/80 text-[10px] shrink-0">{trailing}</span> : null}
+      {trailing ? <span className="text-[#99c9f0]/80 text-[11px] shrink-0">{trailing}</span> : null}
     </div>
   );
 });

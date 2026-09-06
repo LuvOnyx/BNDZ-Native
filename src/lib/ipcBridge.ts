@@ -448,6 +448,25 @@ export const IPC = {
     });
     // WinUI caption Passthrough often settles after first paint — nudge from FE too.
     try { this.windowChrome('refreshInputRegions'); } catch { /* ignore */ }
+    // Force WebView2 NonClientRegionSupport to recompute app-region bitmap (sidebar LMB).
+    try { this.forceNativeAppRegionRecompute(); } catch { /* ignore */ }
+  },
+
+  /** Toggle NC epoch + re-stamp no-drag so async app-region bitmap includes the sidebar. */
+  forceNativeAppRegionRecompute() {
+    if (!this.isNative || typeof document === 'undefined') return;
+    try {
+      const root = document.documentElement;
+      const next = String((Number(root.getAttribute('data-bndz-nc-epoch') || '0') || 0) + 1);
+      root.setAttribute('data-bndz-nc-epoch', next);
+      // Brief style flush — WebView2 watches app-region / class mutations.
+      const prev = root.style.getPropertyValue('-webkit-app-region');
+      root.style.setProperty('-webkit-app-region', 'no-drag');
+      void root.offsetHeight;
+      if (prev) root.style.setProperty('-webkit-app-region', prev);
+      else root.style.removeProperty('-webkit-app-region');
+      this.windowChrome('refreshInputRegions');
+    } catch { /* ignore */ }
   },
 
   /** Open a path in the main FM list (works from plugin pop-outs). */
