@@ -6824,6 +6824,42 @@ export default function BNDZUI() {
         if (isBndzRamPath(s)) return (await resolvePanePathForFs(s)) || toWindowsPath(s);
         return toWindowsPath(s);
       }));
+      const destPane = normalizePanePath(destCanon);
+      // Optimistic dest rows — wallpaper→list must show items before FS notify/ soft-refresh.
+      if (destPane && isFsDropTargetPath(destPane)) {
+        const provisional = resolvedSources.map((win, i) => {
+          const name = (win.split(/[/\\]/).pop() || canonSources[i]?.split(/[/\\]/).pop() || 'item');
+          const paneChild = normalizePanePath(`${destPane.replace(/\/$/, '')}/${name}`);
+          const looksDir = !/\.[^./\\]+$/.test(name) && (
+            !!findEntityInCache(pathContentsCacheRef.current, normalizePanePath(canonSources[i] || ''))?.isDirectory
+            || findEntityInCache(pathContentsCacheRef.current, normalizePanePath(canonSources[i] || ''))?.type === 'directory'
+          );
+          return {
+            id: paneChild,
+            name,
+            path: paneChild,
+            type: looksDir ? 'directory' : 'file',
+            isDirectory: looksDir,
+            size: 0,
+            dateModified: Date.now(),
+            __optimisticDrop: true,
+          };
+        });
+        setPathContentsCache(prev => {
+          const existing = prev[destPane] || [];
+          const names = new Set(provisional.map(p => String(p.name).toLowerCase()));
+          const kept = existing.filter((e: any) => !names.has(String(e.name || '').toLowerCase()));
+          const merged = config.addNewItemsAtTheEndOfTheList
+            ? [...kept, ...provisional]
+            : [...provisional, ...kept];
+          return setPathCacheEntry(prev, destPane, merged);
+        });
+        window.setTimeout(() => {
+          try {
+            window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: destPane } }));
+          } catch { /* ignore */ }
+        }, 350);
+      }
       if (op === 'move') {
         const names = canonSources.map(s => s.split(/[/\\]/).pop() || '').filter(Boolean);
         const sourceParents = [...new Set(
@@ -6853,6 +6889,11 @@ export default function BNDZUI() {
           reinjectFsTombstone(opId);
           clearFsTombstone(opId);
           pushToast({ kind: 'error', title: 'Move failed', message: res.error || label });
+        }
+        if (!isQueuedIpcResult(res) && !res.ok && destPane) {
+          try {
+            window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: destPane } }));
+          } catch { /* ignore */ }
         }
       });
       // Tombstones keep source rows hidden — avoid 200ms RAM refresh fighting optimistic UI.

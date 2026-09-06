@@ -82,7 +82,8 @@ Reported after wallpaper OLE verify. Fix in this pass; re-verify before claiming
 - [x] Outbound desktop drop copies instead of MOVE on same volume; list does not refresh after folder change — escalate strip + tombstones + delayed sourcesGone
 - [ ] No drag ghost outside app border (only finger cursor) — **RegisterClassW+WNDCLASSEX → err=87; fixed RegisterClassExW**
 - [ ] Tree drag ghosts ugly — clone real `.nav-tree-row` with computed paint
-- [x] Left sidebar unclickable after init until repeated clicks — full-client Passthrough + FE refresh nudges
+- [x] Left sidebar unclickable after init until list selection — GPU `translate3d` on `.bndz-chrome-sidebar` stole LMB (removed)
+- [x] Desktop → list inbound: optimistic dest rows + Created/Deleted FS events + same-volume MOVE default + SHChangeNotify
 - [x] Details tab (next to Workspace) does not scroll — content cut off at bottom
 - [x] LENS `IPC timeout: LENS STAGE RESULT` (recovered after retry) — budget hash + longer IPC + quiet retry
 - [x] Desktop icon appears very late after wallpaper drop — FLUSHNOWAIT + actual dest path + deferred pulse

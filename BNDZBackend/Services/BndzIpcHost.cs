@@ -2568,6 +2568,9 @@ namespace BNDZ.Services
                     return "move";
                 if (_bndzOleDragActive && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
                     return "move";
+                // Same-volume desktop/Explorer drops offer Move — prefer it (Explorer default).
+                if ((e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
+                    return "move";
                 return "copy";
             }
 
@@ -12060,14 +12063,73 @@ namespace BNDZ.Services
                     if (ShouldPostFsOperationResult())
                         await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
 
-                    foreach (var src in sources)
+                    // Precise Created/Deleted so FE can patch the open listing immediately.
+                    // "Changed" on wrong paths left wallpaper→list drops invisible until F5.
+                    if (action == "delete" || action == "move")
                     {
-                        string dir = Directory.Exists(src) ? src : (Path.GetDirectoryName(src) ?? src);
-                        if (!string.IsNullOrEmpty(dir))
-                            QueueFsEvent(action == "delete" ? "Deleted" : "Changed", dir, Path.GetFileName(src) ?? "");
+                        foreach (var src in sources)
+                        {
+                            if (string.IsNullOrWhiteSpace(src)) continue;
+                            var parent = Path.GetDirectoryName(src);
+                            var name = Path.GetFileName(src.TrimEnd('\\', '/'));
+                            if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(name))
+                                QueueFsEvent("Deleted", parent, name);
+                            try
+                            {
+                                // Desktop DefView needs an explicit DELETE pulse (Explorer may keep the icon).
+                                var srcPtr = Marshal.StringToHGlobalUni(src);
+                                try
+                                {
+                                    NativeShellService.SHChangeNotify(
+                                        0x00000004 | 0x00002000, /* SHCNE_DELETE | SHCNE_UPDATEITEM */
+                                        0x0005 | 0x2000, /* SHCNF_PATHW | SHCNF_FLUSHNOWAIT */
+                                        srcPtr, IntPtr.Zero);
+                                }
+                                finally { Marshal.FreeHGlobal(srcPtr); }
+                            }
+                            catch { /* ignore */ }
+                        }
                     }
-                    if (!string.IsNullOrEmpty(target) && (action == "copy" || action == "move"))
-                        QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
+                    if ((action == "copy" || action == "move") && !string.IsNullOrWhiteSpace(target))
+                    {
+                        var created = plannedTargets;
+                        if (created == null || created.Count == 0)
+                        {
+                            try
+                            {
+                                created = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
+                            }
+                            catch { created = null; }
+                        }
+                        if (created != null)
+                        {
+                            foreach (var pt in created)
+                            {
+                                if (string.IsNullOrWhiteSpace(pt.Dest)) continue;
+                                var parent = Path.GetDirectoryName(pt.Dest);
+                                var name = Path.GetFileName(pt.Dest.TrimEnd('\\', '/'));
+                                if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(name))
+                                    QueueFsEvent("Created", parent, name);
+                                try
+                                {
+                                    var destPtr = Marshal.StringToHGlobalUni(pt.Dest);
+                                    try
+                                    {
+                                        NativeShellService.SHChangeNotify(
+                                            0x00000002 | 0x00002000, /* SHCNE_CREATE | SHCNE_UPDATEITEM */
+                                            0x0005 | 0x2000, /* SHCNF_PATHW | SHCNF_FLUSHNOWAIT */
+                                            destPtr, IntPtr.Zero);
+                                    }
+                                    finally { Marshal.FreeHGlobal(destPtr); }
+                                }
+                                catch { /* ignore */ }
+                            }
+                        }
+                        else
+                        {
+                            QueueFsEvent("Changed", target, "");
+                        }
+                    }
                     FlushFsEvents();
                     try
                     {

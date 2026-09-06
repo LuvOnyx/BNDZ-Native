@@ -2998,7 +2998,9 @@ html.theme-light .bndz-files-address-strip input::placeholder {
 }
 
 /* GPU promotion for static chrome only — never promote the menubar OR sidebar
-   (WebView2 app-region / first-click races steal LMB on Drives / Rapid Access). */
+   (WebView2 app-region / first-click races steal LMB on Drives / Rapid Access).
+   Selecting a list row "unlocks" the sidebar only because that interaction
+   re-composites layers — remove the root cause instead. */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
 .bndz-chrome-toolbar,
@@ -3008,6 +3010,12 @@ html.theme-light .bndz-files-address-strip input::placeholder {
 .bndz-quick-actions-bar {
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
+}
+
+.bndz-chrome-sidebar {
+  transform: none !important;
+  backface-visibility: visible;
+  will-change: auto;
 }
 .bndz-quick-actions-bar > div {
   background: linear-gradient(165deg, rgba(28, 32, 40, 0.96), rgba(18, 20, 26, 0.98));
@@ -3073,7 +3081,6 @@ html[data-list-font-aa="greyscale"] .bndz-file-list-scroll {
   /* No will-change / translate3d — those break WebView2 non-client hit testing on File/Edit. */
 }
 
-.bndz-chrome-sidebar,
 .bndz-chrome-preview {
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;

@@ -2652,6 +2652,12 @@ internal static class WebView2DropTargetService
             // BNDZ internal OLE drag re-entering the window — honour move intent.
             if (_isBndzOleDragActive() && (proposedEffect & DROPEFFECT_MOVE) != 0)
                 return DROPEFFECT_MOVE;
+            // Explorer model: when MOVE is offered (same volume), prefer MOVE over COPY.
+            // Desktop → BNDZ same-volume drops were stuck on COPY and left wallpaper icons behind.
+            if ((proposedEffect & DROPEFFECT_MOVE) != 0)
+                return DROPEFFECT_MOVE;
+            if ((proposedEffect & DROPEFFECT_COPY) != 0)
+                return DROPEFFECT_COPY;
             return DROPEFFECT_COPY;
         }
 
