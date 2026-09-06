@@ -1189,6 +1189,22 @@ export function applySettingsRuntime(config: AppConfig): void {
     applyStatusNeonAndPluginHeroVars(config, root);
   }
 
+  // Selection highlight must stay magenta/purple even when the color pack is off —
+  // otherwise list CSS falls through to :root --accent (#0078d4 Explorer blue).
+  {
+    const listSel = typeof config.listSelectionHighlightColor === 'string'
+      ? config.listSelectionHighlightColor.trim()
+      : '';
+    const solid = listSel
+      ? (listSel.startsWith('#') ? listSel : `#${listSel}`)
+      : '#a855f7';
+    root.style.setProperty('--list-selected-bg', solid);
+    root.style.setProperty('--list-focused-bg', solid);
+    root.style.setProperty('--highlight-bg', solid);
+    root.style.setProperty('--bndz-files-selected', `${solid}57`);
+    root.style.setProperty('--bndz-files-selected-hover', `${solid}66`);
+  }
+
   // Light themes keep dark top/bottom chrome. Color packs often overwrite those
   // tokens with pale/dark-theme leftovers — re-lock contrast-critical vars.
   lockLightThemeChromeContrast(root);

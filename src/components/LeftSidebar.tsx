@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { dropSideFromPointer, computeReorderInsertIndex, reorderArrayMove } from '../lib/reorderOnDrop';
+import { IPC } from '../lib/ipcBridge';
 
 const SECTION_KEY_MAP: Record<string, string> = {
     storage: 'drives',
@@ -140,7 +141,13 @@ export function LeftSidebar({
     return (
         <div
             className="w-full h-full min-h-0 flex flex-col py-2 select-none z-10 bg-inherit text-inherit overflow-y-auto overflow-x-hidden styled-scrollbar"
-            onClick={onBackgroundClick}
+            onClick={(e) => {
+              const t = e.target as HTMLElement | null;
+              if (t?.closest?.('[data-sidebar-nav], [data-favorite-path], .bndz-sidebar-nav-hit, .bndz-drive-card, .sidebar-pin-row, .nav-tree-row, [data-nav-path]')) {
+                return;
+              }
+              onBackgroundClick?.(e);
+            }}
             onContextMenu={e => e.preventDefault()}
             onPointerDownCapture={(e) => {
               // Stuck list/OLE pointer-capture steals left-clicks while hover/RMB still work.
@@ -149,7 +156,9 @@ export function LeftSidebar({
                 document.getElementById('bndz-ole-veil')?.remove();
               } catch { /* ignore */ }
               try {
-                document.querySelectorAll('[data-list-body], [data-entity-id], .bndz-fluid-drag-stack').forEach(node => {
+                document.querySelectorAll(
+                  '[data-list-body], [data-entity-id], .bndz-fluid-drag-stack, .bndz-drive-card, .bndz-sidebar-nav-hit, .sidebar-pin-row, .nav-tree-row',
+                ).forEach(node => {
                   const el = node as Element & {
                     hasPointerCapture?: (id: number) => boolean;
                     releasePointerCapture?: (id: number) => void;
@@ -161,10 +170,13 @@ export function LeftSidebar({
                   }
                 });
               } catch { /* ignore */ }
+              try {
+                IPC.windowChrome('releaseCapture');
+              } catch { /* ignore */ }
               // Ensure WinUI/WebView2 app-region never treats sidebar as caption drag.
               try {
                 const t = e.target as HTMLElement | null;
-                if (t?.closest?.('.bndz-chrome-sidebar, [data-sidebar-nav], .sidebar-pin-row, .bndz-drive-card')) {
+                if (t?.closest?.('.bndz-chrome-sidebar, [data-sidebar-nav], .sidebar-pin-row, .bndz-drive-card, .bndz-sidebar-nav-hit')) {
                   t.style.setProperty('-webkit-app-region', 'no-drag');
                 }
               } catch { /* ignore */ }

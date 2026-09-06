@@ -749,6 +749,7 @@ namespace BNDZ.Services
             var effectBits = dragResult.EffectBits;
             var effectLabel = DropEffectLabel(effectBits);
             string[]? sourceDirs = null;
+            var sourcesGone = false;
             if (paths is { Length: > 0 })
             {
                 sourceDirs = paths
@@ -757,6 +758,16 @@ namespace BNDZ.Services
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Cast<string>()
                     .ToArray();
+                sourcesGone = paths.All(p =>
+                    !string.IsNullOrWhiteSpace(p)
+                    && !System.IO.File.Exists(p)
+                    && !System.IO.Directory.Exists(p));
+                // Wallpaper recover often lands as MOVE on disk while OLE latch still says COPY/NONE.
+                if (sourcesGone && effectBits != 1u)
+                {
+                    effectBits = 2;
+                    effectLabel = "MOVE";
+                }
             }
 
             void DeliverEnded()
@@ -766,8 +777,8 @@ namespace BNDZ.Services
                 try
                 {
                     object payload = ok
-                        ? new { ok = true, effect = effectLabel, paths, sourceDirs }
-                        : new { ok = false, error = error ?? "unknown", effect = effectLabel, paths, sourceDirs };
+                        ? new { ok = true, effect = effectLabel, paths, sourceDirs, sourcesGone }
+                        : new { ok = false, error = error ?? "unknown", effect = effectLabel, paths, sourceDirs, sourcesGone };
                     DeliverIpcJson(JsonSerializer.Serialize(new
                     {
                         type = "OLE_DRAG_ENDED",
@@ -777,7 +788,7 @@ namespace BNDZ.Services
                 catch { /* ignore */ }
                 try { PostFileTransferQueueChanged(); }
                 catch { /* ignore */ }
-                OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={effectLabel}");
+                OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={effectLabel} sourcesGone={sourcesGone}");
 
                 // Always reconcile listing when sources vanish (MOVE or recover with poisoned COPY latch).
                 if (paths is { Length: > 0 })
@@ -789,6 +800,52 @@ namespace BNDZ.Services
                         try { NotifyOutboundOleListingSync(syncPaths, syncEffect); }
                         catch (Exception ex) { OleDndLog($"outbound-ole listing-sync error {ex.Message}"); }
                     });
+
+                    // Wallpaper MOVE can finish a beat after OLE returns COPY/NONE — re-check disk.
+                    if (!sourcesGone)
+                    {
+                        var delayedPaths = paths;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                for (var i = 0; i < 5; i++)
+                                {
+                                    await Task.Delay(100).ConfigureAwait(false);
+                                    var gone = delayedPaths.All(p =>
+                                        !string.IsNullOrWhiteSpace(p)
+                                        && !System.IO.File.Exists(p)
+                                        && !System.IO.Directory.Exists(p));
+                                    if (!gone) continue;
+                                    OleDndLog($"outbound-ole delayed sourcesGone=true after {(i + 1) * 100}ms");
+                                    try { NotifyOutboundOleListingSync(delayedPaths, 2); }
+                                    catch (Exception ex) { OleDndLog($"outbound-ole delayed listing-sync error {ex.Message}"); }
+                                    try
+                                    {
+                                        object payload = new
+                                        {
+                                            ok = true,
+                                            effect = "MOVE",
+                                            paths = delayedPaths,
+                                            sourcesGone = true,
+                                            recover = "move",
+                                        };
+                                        DeliverIpcJson(JsonSerializer.Serialize(new
+                                        {
+                                            type = "OLE_DRAG_ENDED",
+                                            payload,
+                                        }));
+                                    }
+                                    catch { /* ignore */ }
+                                    return;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                OleDndLog($"outbound-ole delayed sourcesGone poll error {ex.Message}");
+                            }
+                        });
+                    }
                 }
             }
 

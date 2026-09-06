@@ -253,9 +253,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
         <PluginPanelShell
             title="Fast Search"
             icon="find"
-            iconColor="#0078d4"
+            iconColor="#a855f7"
             variant="embedded"
-            subtitle={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced / multi-root' : `Scope: ${scopePath}`}
+            subtitle={mode === 'global' ? 'Everything · all drives' : mode === 'advanced' ? 'Boolean · multi-root · content' : mode === 'duplicates' ? 'Hash duplicates in scope' : `Scoped · ${formatUiPath(scopePath)}`}
             status={!IPC.isNative ? (
                 <span className="text-amber-300/90 text-[11px]">Native host required for indexed search</span>
             ) : undefined}
@@ -268,10 +268,10 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
                 <PluginHeroStrip
                     icon={<Icons8Icon id="find" size={52} className="opacity-90" />}
-                    name={query.trim() || 'Fast search'}
-                    typeLabel={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced find' : mode === 'duplicates' ? 'Duplicate finder' : 'Local folder'}
+                    name={query.trim() || 'Fast Search'}
+                    typeLabel={mode === 'global' ? 'Global' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
                     path={mode === 'local' ? scopePath : undefined}
-                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Enter a query and press Search')}</span>}
+                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy chips · Everything global · advanced boolean')}</span>}
                     actions={
                         <PluginHeroActionButton
                             icon={searching ? 'loading' : 'play_ui'}
@@ -283,13 +283,35 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         </PluginHeroActionButton>
                     }
                 />
+                <div className="px-4 pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
+                    {([
+                        { id: 'local' as const, label: 'Easy', hint: 'This folder + chips', icon: 'find', tone: 'from-violet-500/18 border-violet-400/30' },
+                        { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network', tone: 'from-sky-500/18 border-sky-400/30' },
+                        { id: 'advanced' as const, label: 'Advanced', hint: 'Boolean · multi-root', icon: 'code_ui', tone: 'from-amber-500/18 border-amber-400/30' },
+                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Hash groups in scope', icon: 'copy', tone: 'from-emerald-500/18 border-emerald-400/30' },
+                    ]).map(card => (
+                        <button
+                            key={card.id}
+                            type="button"
+                            onClick={() => setMode(card.id)}
+                            className={`text-left rounded-2xl border bg-gradient-to-br to-transparent px-3 py-2.5 transition-all ${card.tone} ${
+                                mode === card.id ? 'ring-1 ring-white/25 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]' : 'opacity-85 hover:opacity-100'
+                            }`}
+                        >
+                            <div className="flex items-center gap-1.5 text-[12px] font-semibold text-white/95">
+                                <Icons8Icon id={card.icon} size={13} /> {card.label}
+                            </div>
+                            <p className="text-[10px] bndz-panel-muted mt-0.5 leading-snug">{card.hint}</p>
+                        </button>
+                    ))}
+                </div>
             <div className="flex w-full flex-1 min-h-0">
                 <PluginSidebar>
                     <PluginSectionTitle icon="filters">Mode</PluginSectionTitle>
                     <div className="flex flex-col gap-1">
                         {([
-                            { id: 'local' as const, label: 'Local folder', icon: 'find' },
-                            { id: 'global' as const, label: 'Global (Everything)', icon: 'go_network' },
+                            { id: 'local' as const, label: 'Easy (local)', icon: 'find' },
+                            { id: 'global' as const, label: 'Everything', icon: 'go_network' },
                             { id: 'advanced' as const, label: 'Advanced find', icon: 'code_ui' },
                             { id: 'duplicates' as const, label: 'Duplicate finder', icon: 'copy' },
                         ]).map(m => (
@@ -298,7 +320,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 type="button"
                                 onClick={() => setMode(m.id)}
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left ${
-                                    mode === m.id ? 'bg-[#094771]/50 text-[#cce4f7] border border-[#0078d4]/40' : 'text-gray-400 hover:bg-[#1a1a1a]'
+                                    mode === m.id ? 'bg-violet-500/20 text-violet-100 border border-violet-400/35' : 'text-gray-400 hover:bg-[#1a1a1a]'
                                 }`}
                             >
                                 <Icons8Icon id={m.icon} size={12} /> {m.label}

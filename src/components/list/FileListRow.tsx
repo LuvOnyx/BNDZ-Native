@@ -273,14 +273,14 @@ function FileListRow(props: FileListRowProps) {
       data-id={entity.id}
       data-peer-label={peerLabel || undefined}
       className={`fs-item-wrapper ${isGridMode ? `fs-grid-item${isDrive ? '' : ' bndz-view-grid'}${gridDenseHideCaption ? ' bndz-tile--dense' : ''}` : isListMode ? `fs-list-item${isDrive ? '' : ' bndz-view-list'}${listDenseChrome ? ' bndz-tile--dense' : ''}` : `fs-list-item bndz-view-details flex items-center ${isDrive ? 'mb-1 p-1' : ''}`} ${isGridMode ? 'flex flex-col items-stretch justify-start w-full' : isListMode ? 'flex items-center w-full min-w-0' : ''} border border-transparent cursor-pointer
-        ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected || !!config.underlineSelectedRows ? 'underline decoration-[#007acc]' : ''}` : (mouseRt.highlightHovered || config.highlightHoveredItems !== false) ? ((isGridMode || isListMode) && !isDrive ? 'bndz-tile--hoverable' : (isDetailsMode ? 'bndz-tile--hoverable' : (!isDrive ? 'hover:bg-[#2a2d2e]' : ''))) : ''}
+        ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected || !!config.underlineSelectedRows ? 'underline decoration-[color:var(--list-selected-bg,#a855f7)]' : ''}` : (mouseRt.highlightHovered || config.highlightHoveredItems !== false) ? ((isGridMode || isListMode) && !isDrive ? 'bndz-tile--hoverable' : (isDetailsMode ? 'bndz-tile--hoverable' : (!isDrive ? 'hover:bg-[#2a2d2e]' : ''))) : ''}
         ${isFocused && !showSelectionChrome ? 'bndz-grid-focus-ring' : ''}
         ${peerLabel ? 'fs-item-wrapper--peer-share' : ''}
-        ${isDragTarget && isDir ? 'ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30' : ''}
+        ${isDragTarget && isDir ? 'ring-2 ring-inset ring-[color:var(--list-selected-bg,#a855f7)] bg-[color-mix(in_srgb,var(--list-selected-bg,#a855f7)_22%,transparent)]' : ''}
         ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
         ${config.coloredLines && clipboardMark ? 'fs-item-clipboard-colored-line' : ''}
         ${colorFilterResult?.className || ''}
-        ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[#0078d4]/50' : ''}
+        ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[color:var(--list-selected-bg,#a855f7)]/50' : ''}
         ${syncOpacity ? 'opacity-50' : ''}
         ${realityMissing ? 'bndz-reality-missing' : ''}
         ${folderPrefetching ? 'bndz-prefetch-warm' : ''}`}
@@ -318,13 +318,10 @@ function FileListRow(props: FileListRowProps) {
         } : {}),
         ...(showSelectionChrome
           && (config.listSelectionChrome || 'fullRow') === 'fullRow'
-          && config.listSelectionHighlightColor
-          ? { background: config.listSelectionHighlightColor }
-          : showSelectionChrome
-            && (config.listSelectionChrome || 'fullRow') === 'fullRow'
-            && config.applyColors
-            ? { background: 'var(--list-selected-bg)' }
-            : {}),
+          ? {
+              background: config.listSelectionHighlightColor || 'var(--list-selected-bg, #a855f7)',
+            }
+          : {}),
         ...(zebraAlt && !showSelectionChrome && !filterResult?.rowTint && !filterColor && !colorFilterResult?.inlineStyle
           ? { background: 'var(--list-alt-bg, rgba(255,255,255,0.045))' }
           : {}),

@@ -331,8 +331,9 @@ public sealed partial class MainWindow : Window
 
             // Full-height left sidebar band must stay client hit-testable — WinUI caption
             // races with WebView2 were eating LMB on Drives / Rapid Access / Cloud.
+            // Cover a generous band (sidebar can be wider than the default 12%).
             var winH = _appWindow.Size.Height;
-            var sidebarW = Math.Clamp((int)Math.Round(winW * 0.14), (int)Math.Round(160 * scale), (int)Math.Round(280 * scale));
+            var sidebarW = Math.Clamp((int)Math.Round(winW * 0.22), (int)Math.Round(180 * scale), (int)Math.Round(360 * scale));
             if (winH > menuH && sidebarW > 0)
                 passthrough.Add(new RectInt32(0, menuH, sidebarW, winH - menuH));
 

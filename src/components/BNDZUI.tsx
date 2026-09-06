@@ -2081,6 +2081,8 @@ export default function BNDZUI() {
   const [streamingPaths, setStreamingPaths] = useState<Set<string>>(new Set());
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
   const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => Promise<void> | undefined>(() => undefined);
+  /** Always-current navigate — sidebar modules must not close over a stale setCurrentPath. */
+  const setCurrentPathRef = useRef<(path: string, paneId?: string, updateHistory?: boolean) => void>(() => {});
   /** Paths seeded by Files ShellViewModel (`BNDZ_DIR_LISTING`) — prefer over GET_DIR_CONTENTS. */
   const filesFedPathsRef = useRef(new Set<string>());
   /** Cancelable Files-feed wait per path — listing handler clears; never falls back to GET_DIR_CONTENTS. */
@@ -3101,67 +3103,86 @@ export default function BNDZUI() {
   const lastDragHoverStateRef = useRef<{ x: number; y: number; state: import('../lib/fileDragHover').FileDragHoverState } | null>(null);
   const nativeOleDragRef = useRef(false);
   useEffect(() => {
+    const applyOleMoveRemove = (winPaths: string[]) => {
+      if (!winPaths.length) return;
+      const label = winPaths.length === 1
+        ? (winPaths[0].split(/[/\\]/).pop() || 'item')
+        : `${winPaths.length} items`;
+      const names = winPaths.map(p => (p.split(/[/\\]/).pop() || '')).filter(Boolean);
+      const nameSet = new Set(names);
+      const sourceParents = [...new Set(winPaths.map(wp => {
+        const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
+        if (slash <= 0) return '';
+        return normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
+      }).filter(Boolean))];
+      // Instant list remove — register tombstones for EVERY source parent before any soft-refresh.
+      try {
+        window.dispatchEvent(new CustomEvent('bndz-optimistic-fs-op', {
+          detail: {
+            opId: `ole-move-${Date.now()}`,
+            kind: 'move',
+            winPaths,
+            label,
+            sourceParents,
+          },
+        }));
+      } catch { /* ignore */ }
+      setPathContentsCache(prev => {
+        let changed = false;
+        const next = { ...prev };
+        for (const key of Object.keys(next)) {
+          if (!sourceParents.some(p => panePathsEqual(p, key))) continue;
+          const listing = next[key];
+          if (!Array.isArray(listing) || !listing.length) continue;
+          const filtered = listing.filter((e: any) => !nameSet.has(e?.name));
+          if (filtered.length !== listing.length) {
+            next[key] = filtered;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      // Soft-refresh after a beat so tombstones win the race against the first GET_DIR.
+      window.setTimeout(() => {
+        for (const parentPane of sourceParents) {
+          try {
+            window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
+          } catch { /* ignore */ }
+        }
+      }, 80);
+    };
+
     const onOleEnded = (ev: Event) => {
       const detail = (ev as CustomEvent<{
         ok?: boolean;
         error?: string;
         effect?: string;
         paths?: string[];
+        sourcesGone?: boolean;
+        recover?: string;
       }>).detail;
-      if (detail?.ok === false && detail.error) {
+      if (detail?.ok === false && detail.error && detail.error !== 'cancelled') {
         setToastMessage(`Drag failed: ${detail.error}`);
       }
-      if (detail?.ok && Array.isArray(detail.paths) && detail.paths.length > 0) {
-        const effect = String(detail.effect || '').toUpperCase();
-        const isMove = effect === 'MOVE' || effect === '2' || effect.includes('MOVE');
+      const rawPaths = Array.isArray(detail?.paths) ? detail!.paths! : [];
+      const winPaths = rawPaths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
+      if (winPaths.length > 0) {
+        const effect = String(detail?.effect || '').toUpperCase();
+        const sourcesGone = detail?.sourcesGone === true
+          || String(detail?.recover || '').toLowerCase() === 'move';
+        const isMove = effect === 'MOVE' || effect === '2' || effect.includes('MOVE') || sourcesGone;
         if (isMove) {
-          const winPaths = detail.paths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
-          if (winPaths.length > 0) {
-            const label = winPaths.length === 1
-              ? (winPaths[0].split(/[/\\]/).pop() || 'item')
-              : `${winPaths.length} items`;
-            const names = new Set(winPaths.map(p => (p.split(/[/\\]/).pop() || '')).filter(Boolean));
-            // Instant list remove — do not wait for FS notify / soft-refresh races.
-            setPathContentsCache(prev => {
-              let changed = false;
-              const next = { ...prev };
-              for (const wp of winPaths) {
-                const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
-                if (slash <= 0) continue;
-                const parentPane = normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
-                const keys = [parentPane, parentPane.replace(/\/$/, ''), `/${parentPane}`.replace(/^\/\//, '/')];
-                for (const key of Object.keys(next)) {
-                  if (!keys.some(k => panePathsEqual(k, key)) && key !== parentPane) continue;
-                  const listing = next[key];
-                  if (!Array.isArray(listing) || !listing.length) continue;
-                  const filtered = listing.filter((e: any) => !names.has(e?.name));
-                  if (filtered.length !== listing.length) {
-                    next[key] = filtered;
-                    changed = true;
-                  }
-                }
-              }
-              return changed ? next : prev;
-            });
-            try {
-              window.dispatchEvent(new CustomEvent('bndz-optimistic-fs-op', {
-                detail: {
-                  opId: `ole-move-${Date.now()}`,
-                  kind: 'move',
-                  winPaths,
-                  label,
-                },
-              }));
-            } catch { /* ignore */ }
-            for (const wp of winPaths) {
-              const slash = Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'));
-              if (slash <= 0) continue;
-              const parentPane = normalizePanePath('/' + wp.slice(0, slash).replace(/\\/g, '/'));
-              try {
-                window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
-              } catch { /* ignore */ }
-            }
-          }
+          applyOleMoveRemove(winPaths);
+        } else {
+          // Wallpaper recover can finish after OLE latch (COPY/NONE) — verify disk twice.
+          const verifyGone = () => {
+            void Promise.all(winPaths.map(p => IPC.checkPathExists(p).then(ex => !ex).catch(() => false)))
+              .then(goneFlags => {
+                if (goneFlags.length && goneFlags.every(Boolean)) applyOleMoveRemove(winPaths);
+              });
+          };
+          window.setTimeout(verifyGone, 120);
+          window.setTimeout(verifyGone, 450);
         }
       }
       nativeOleDragRef.current = false;
@@ -3977,7 +3998,7 @@ export default function BNDZUI() {
   const lastSidebarNavAtRef = React.useRef(0);
   const releaseStuckPointerCaptures = React.useCallback(() => {
     try {
-      document.querySelectorAll('[data-list-body], [data-entity-id], [data-nav-path], [data-favorite-path], .bndz-fluid-drag-stack, .sidebar-pin-row, .nav-tree-row').forEach(node => {
+      document.querySelectorAll('[data-list-body], [data-entity-id], [data-nav-path], [data-favorite-path], .bndz-fluid-drag-stack, .sidebar-pin-row, .nav-tree-row, .bndz-drive-card, .bndz-sidebar-nav-hit').forEach(node => {
         const el = node as Element & {
           hasPointerCapture?: (id: number) => boolean;
           releasePointerCapture?: (id: number) => void;
@@ -3996,11 +4017,14 @@ export default function BNDZUI() {
     suppressNavClickUntilRef.current = 0;
   }, []);
 
-  /** Sidebar left-click can lose the synthetic click after OLE/pointer-capture — navigate on pointerdown. */
-  const sidebarNavigateFromPointer = React.useCallback((path: string, e?: React.PointerEvent | React.MouseEvent | { button?: number }) => {
+  // NOTE: must NOT be useCallback with thin deps — that froze the first render's
+  // setCurrentPath (stale activePaneId/shortcuts) while the tree kept a fresh inline
+  // onNavigate. Drives / Rapid Access / Cloud looked dead; Navigation Tree worked.
+  // Always route through setCurrentPathRef so we never call a TDZ / stale binding.
+  const sidebarNavigateFromPointer = (path: string, e?: React.PointerEvent | React.MouseEvent | { button?: number }) => {
     if (e && 'button' in e && typeof e.button === 'number' && e.button !== 0) return;
     if (!path) return;
-    if (Date.now() - lastSidebarNavAtRef.current < 180) return;
+    if (Date.now() - lastSidebarNavAtRef.current < 120) return;
     lastSidebarNavAtRef.current = Date.now();
     suppressNavClickUntilRef.current = 0;
     releaseStuckPointerCaptures();
@@ -4008,8 +4032,14 @@ export default function BNDZUI() {
       IPC.notifyFileDragActive(false);
       IPC.windowChrome('releaseCapture');
     } catch { /* ignore */ }
-    setCurrentPath(path);
-  }, [releaseStuckPointerCaptures]);
+    try {
+      if (e && 'preventDefault' in e && typeof (e as React.PointerEvent).preventDefault === 'function') {
+        (e as React.PointerEvent).preventDefault();
+      }
+    } catch { /* ignore */ }
+    const target = toPanePath(path);
+    setCurrentPathRef.current(target);
+  };
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const dragTargetIdRef = useRef<string | null>(null);
   const setDragTargetHighlight = (id: string | null) => {
@@ -4288,24 +4318,47 @@ export default function BNDZUI() {
         kind?: 'delete' | 'move' | 'rename';
         winPaths?: string[];
         label?: string;
+        sourceParents?: string[];
       }>).detail;
       if (!detail?.opId || !detail.kind || !detail.winPaths?.length) return;
       const winPaths = detail.winPaths.map(p => String(p || '').replace(/\//g, '\\')).filter(Boolean);
       if (!winPaths.length) return;
       const names = winPaths.map(p => p.split(/[/\\]/).pop() || '').filter(Boolean);
-      const sourceParents = [...new Set(winPaths.map(p => {
-        const slash = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'));
-        if (slash <= 0) return '';
-        return normalizePanePath('/' + p.slice(0, slash).replace(/\\/g, '/'));
-      }).filter(Boolean))];
+      const sourceParents = (detail.sourceParents?.length
+        ? detail.sourceParents.map(p => normalizePanePath(p))
+        : [...new Set(winPaths.map(p => {
+            const slash = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'));
+            if (slash <= 0) return '';
+            return normalizePanePath('/' + p.slice(0, slash).replace(/\\/g, '/'));
+          }).filter(Boolean))]);
       const snapEntities: any[] = [];
       for (const parent of sourceParents) {
-        const listing = pathContentsCacheRef.current[parent] ?? [];
-        for (const e of listing) {
-          if (names.includes(e.name)) snapEntities.push(e);
+        for (const [key, listing] of Object.entries(pathContentsCacheRef.current)) {
+          if (!panePathsEqual(parent, key) || !Array.isArray(listing)) continue;
+          for (const e of listing) {
+            if (names.includes(e.name) && !snapEntities.some(s => s.name === e.name && s.id === e.id)) {
+              snapEntities.push(e);
+            }
+          }
         }
       }
-      registerFsTombstone(detail.opId, detail.kind, sourceParents[0] || null, names, winPaths, snapEntities);
+      // Register tombstone against every source parent so soft-refresh cannot resurrect rows.
+      for (const parent of sourceParents) {
+        registerFsTombstone(
+          `${detail.opId}:${parent}`,
+          detail.kind,
+          parent,
+          names,
+          winPaths,
+          snapEntities.filter(e => {
+            for (const [key, listing] of Object.entries(pathContentsCacheRef.current)) {
+              if (!panePathsEqual(parent, key) || !Array.isArray(listing)) continue;
+              if (listing.some((x: any) => x.name === e.name)) return true;
+            }
+            return false;
+          }),
+        );
+      }
       if (detail.kind === 'move' || detail.kind === 'delete') {
         xferMetaRef.current.set(detail.opId, {
           op: detail.kind === 'delete' ? 'delete' : 'move',
@@ -4314,9 +4367,12 @@ export default function BNDZUI() {
         setPathContentsCache(prev => {
           let next = prev;
           for (const parent of sourceParents) {
-            const existing = next[parent];
-            if (!existing) continue;
-            next = setPathCacheEntry(next, parent, existing.filter((e: any) => !names.includes(e.name)));
+            for (const key of Object.keys(next)) {
+              if (!panePathsEqual(parent, key)) continue;
+              const existing = next[key];
+              if (!existing) continue;
+              next = setPathCacheEntry(next, key, existing.filter((e: any) => !names.includes(e.name)));
+            }
           }
           return next;
         });
@@ -7926,6 +7982,7 @@ export default function BNDZUI() {
       notifyNativeShellNavigate(norm);
     }
   };
+  setCurrentPathRef.current = setCurrentPath;
 
   // FilesMerge tabs → BNDZ cwd (avoid echo loops via normalized compare).
   useEffect(() => {
@@ -14621,21 +14678,21 @@ export default function BNDZUI() {
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
                           e.stopPropagation();
-                          sidebarNavigateFromPointer(drive.name, e);
+                          sidebarNavigateFromPointer(drive.path || drive.name, e);
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          sidebarNavigateFromPointer(drive.name, e);
+                          sidebarNavigateFromPointer(drive.path || drive.name, e);
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            sidebarNavigateFromPointer(drive.name, { button: 0 });
+                            sidebarNavigateFromPointer(drive.path || drive.name, { button: 0 });
                           }
                         }}
                         onContextMenu={(e) => handleContextMenuRequest(e, drive.name, drive.name, true, drive.label, undefined, 'sidebar-item')}
                      >
-                        <DriveCard drive={{ ...drive, path: drive.name }} layout="compact" selected={isSidebarDriveActive(drive.name)} />
+                        <DriveCard drive={{ ...drive, path: drive.path || drive.name }} layout="compact" selected={isSidebarDriveActive(drive.name)} />
                      </div>
                       ))
                     ) : (
