@@ -2997,12 +2997,12 @@ html.theme-light .bndz-files-address-strip input::placeholder {
   overflow: hidden !important;
 }
 
-/* GPU promotion for static chrome only — never promote the menubar (WebView2 app-region / first-click races). */
+/* GPU promotion for static chrome only — never promote the menubar OR sidebar
+   (WebView2 app-region / first-click races steal LMB on Drives / Rapid Access). */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
 .bndz-chrome-toolbar,
 .bndz-chrome-bottom,
-.bndz-chrome-sidebar,
 .bndz-chrome-preview,
 .bndz-chrome-tabstrip,
 .bndz-quick-actions-bar {
@@ -5674,8 +5674,8 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
 }
 
 .bndz-view-list .bndz-list-tile-inner {
-  gap: 8px;
-  padding: 0 6px 0 4px;
+  gap: 6px;
+  padding: 0 4px 0 2px;
   border-radius: 2px;
   min-width: 0;
   flex: 1 1 auto;
@@ -5694,11 +5694,25 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
 
 .bndz-view-list .bndz-list-caption {
   padding-left: 0;
-  font-size: var(--bndz-font-list-size, 12px);
+  font-size: max(11px, var(--bndz-font-list-size, 12px));
   font-family: var(--bndz-font-list-family, var(--bndz-font-family));
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0;
   color: var(--list-text, rgba(236, 242, 250, 0.92));
+  min-width: 64px;
+}
+
+/* List mode: tiny trail only — wide flex trail was clearing selection on every name click. */
+.bndz-view-list .bndz-list-marquee-lead {
+  flex: 0 0 6px;
+  width: 6px;
+  min-width: 6px;
+}
+.bndz-view-list .bndz-list-marquee-trail {
+  flex: 0 0 8px;
+  width: 8px;
+  min-width: 8px;
+  max-width: 12px;
 }
 
 .bndz-view-list.bndz-tile--hoverable:hover:not(.fs-item-selected) {
@@ -5942,7 +5956,7 @@ html.theme-light[data-tile-cards="on"] .bndz-view-grid:not(.bndz-tile--dense) {
     0 1px 3px rgba(15, 30, 50, 0.08) !important;
 }
 
-html.theme-light[data-tile-cards="on"] .bndz-view-list:not(.bndz-tile--dense) {
+html.theme-light[data-tile-cards="on"] .bndz-view-list:not(.bndz-tile--dense):not(.fs-item-selected) {
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.75), rgba(244, 248, 252, 0.45)) !important;
   border-color: rgba(15, 30, 50, 0.1) !important;
@@ -15773,11 +15787,13 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   min-height: 40px;
   background:
     linear-gradient(180deg, rgba(22, 28, 40, 0.98) 0%, rgba(14, 16, 24, 0.94) 100%);
-  border-bottom: 1px solid rgba(125, 211, 252, 0.18);
+  border-bottom: 1px solid color-mix(in srgb, var(--list-selected-bg, #a855f7) 28%, rgba(125, 211, 252, 0.18));
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04) inset,
     0 12px 28px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(12px);
+  app-region: drag;
+  -webkit-app-region: drag;
 }
 .bndz-plugin-popout-chrome-brand {
   display: flex;
@@ -15785,7 +15801,7 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   gap: 8px;
   padding: 0 12px 0 10px;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(56, 189, 248, 0.03));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--list-selected-bg, #a855f7) 18%, transparent), rgba(56, 189, 248, 0.03));
   pointer-events: none;
   flex-shrink: 0;
 }
@@ -15819,6 +15835,11 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   height: 40px !important;
   background: transparent !important;
   border-bottom: none !important;
+}
+.bndz-plugin-popout-chrome [data-window-btn],
+.bndz-plugin-popout-chrome button {
+  app-region: no-drag !important;
+  -webkit-app-region: no-drag !important;
 }
 .bndz-plugin-popout-body {
   position: relative;

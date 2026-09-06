@@ -790,6 +790,64 @@ namespace BNDZ.Services
                 catch { /* ignore */ }
                 OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={effectLabel} sourcesGone={sourcesGone}");
 
+                // Surface shell-handled MOVE in the transfer queue (Windows owns the dialog).
+                if (ok && paths is { Length: > 0 } && (effectBits == 2 || sourcesGone))
+                {
+                    try
+                    {
+                        var opId = $"shell-move-{Environment.TickCount64}";
+                        var label = paths.Length == 1
+                            ? (System.IO.Path.GetFileName(paths[0]) ?? "item")
+                            : $"{paths.Length} items";
+                        var job = _fileTransferQueue.RegisterJob(
+                            opId, "move", label, "shell", paths.Length, "fs", FileTransferPriority.High);
+                        job.Status = FileTransferJobStatus.Running;
+                        job.StartedUtc = DateTime.UtcNow;
+                        job.CurrentFile = paths[0];
+                        if (sourcesGone)
+                        {
+                            _fileTransferQueue.MarkCompleted(opId);
+                        }
+                        else
+                        {
+                            var watchPaths = paths;
+                            var watchOp = opId;
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    for (var i = 0; i < 40; i++)
+                                    {
+                                        await Task.Delay(150).ConfigureAwait(false);
+                                        var gone = watchPaths.All(p =>
+                                            !string.IsNullOrWhiteSpace(p)
+                                            && !System.IO.File.Exists(p)
+                                            && !System.IO.Directory.Exists(p));
+                                        _fileTransferQueue.UpdateProgress(
+                                            watchOp,
+                                            Math.Min(95, 10 + i * 2),
+                                            watchPaths[0],
+                                            gone ? watchPaths.Length : 0,
+                                            watchPaths.Length);
+                                        if (!gone) continue;
+                                        _fileTransferQueue.MarkCompleted(watchOp);
+                                        try { NotifyOutboundOleListingSync(watchPaths, 2); } catch { /* ignore */ }
+                                        return;
+                                    }
+                                    // Timed out watching — still mark complete so the UI settles.
+                                    _fileTransferQueue.MarkCompleted(watchOp);
+                                }
+                                catch { try { _fileTransferQueue.MarkCompleted(watchOp); } catch { /* ignore */ } }
+                            });
+                        }
+                        PostFileTransferQueueChanged();
+                    }
+                    catch (Exception ex)
+                    {
+                        OleDndLog($"shell-move queue error {ex.Message}");
+                    }
+                }
+
                 // Always reconcile listing when sources vanish (MOVE or recover with poisoned COPY latch).
                 if (paths is { Length: > 0 })
                 {
@@ -809,15 +867,15 @@ namespace BNDZ.Services
                         {
                             try
                             {
-                                for (var i = 0; i < 5; i++)
+                                for (var i = 0; i < 12; i++)
                                 {
-                                    await Task.Delay(100).ConfigureAwait(false);
+                                    await Task.Delay(150).ConfigureAwait(false);
                                     var gone = delayedPaths.All(p =>
                                         !string.IsNullOrWhiteSpace(p)
                                         && !System.IO.File.Exists(p)
                                         && !System.IO.Directory.Exists(p));
                                     if (!gone) continue;
-                                    OleDndLog($"outbound-ole delayed sourcesGone=true after {(i + 1) * 100}ms");
+                                    OleDndLog($"outbound-ole delayed sourcesGone=true after {(i + 1) * 150}ms");
                                     try { NotifyOutboundOleListingSync(delayedPaths, 2); }
                                     catch (Exception ex) { OleDndLog($"outbound-ole delayed listing-sync error {ex.Message}"); }
                                     try

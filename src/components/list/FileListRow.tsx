@@ -583,8 +583,7 @@ function FileListRow(props: FileListRowProps) {
           ) : computedViewMode === 'list' ? (
             <>
               <div className="bndz-list-tile-row flex items-center min-w-0 flex-1">
-                <div className="bndz-list-marquee-lead shrink-0" aria-hidden />
-                <div className="bndz-list-select-cell bndz-list-tile-inner flex items-center min-w-0 shrink max-w-full">
+                <div className="bndz-list-select-cell bndz-list-tile-inner flex items-center min-w-0 flex-1 max-w-full">
                   <div
                     className={`bndz-list-icon-well bndz-clipboard-icon-slot flex items-center justify-center shrink-0 ${iconDimClass}`}
                     style={{ width: listMetrics.iconSlot, height: listMetrics.iconSlot }}
@@ -609,7 +608,6 @@ function FileListRow(props: FileListRowProps) {
                     {displayLabel}
                   </div>
                 </div>
-                <div className="bndz-list-marquee-trail" aria-hidden />
               </div>
               {cloudBadge && (
                 <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>

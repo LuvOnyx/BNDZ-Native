@@ -587,6 +587,8 @@ export default function BNDZUI() {
     baseSelection: string[],
     selectMeta?: MarqueeSelectMeta,
     capturePointerId?: number,
+    /** When zero-move marquee starts on a row chrome (lead/trail), select that row instead of clearing. */
+    hitRowId?: string | null,
   ) => {
     // Cache list geometry ΓÇö avoid getBoundingClientRect every move.
     let listRect = listEl.getBoundingClientRect();
@@ -754,11 +756,20 @@ export default function BNDZUI() {
         else ops.setFocusedItemId(null);
         ops.scheduleQuickActionsBar(latestSelected.length > 0, true);
       } else if (!additive) {
-        // Plain click on empty canvas / marquee gutter ΓÇö clear selection (Explorer-class).
-        marqueeLiveSelectionRef.current = null;
-        syncMountedSelectionChrome(new Set());
-        ops.setSelectedItems([], paneId);
-        ops.scheduleQuickActionsBar(false, true);
+        // Plain click on empty canvas / marquee gutter — clear selection (Explorer-class).
+        // Exception: list/details lead-trail hit on a row must SELECT that row, not clear.
+        if (hitRowId) {
+          latestSelected = [hitRowId];
+          syncMountedSelectionChrome(new Set(latestSelected));
+          ops.setSelectedItems(latestSelected, paneId);
+          ops.setFocusedItemId(hitRowId);
+          ops.scheduleQuickActionsBar(true, true);
+        } else {
+          marqueeLiveSelectionRef.current = null;
+          syncMountedSelectionChrome(new Set());
+          ops.setSelectedItems([], paneId);
+          ops.scheduleQuickActionsBar(false, true);
+        }
       }
       // Suppress the trailing click so row handlers do not re-select after a gutter hit.
       setMarqueeDragOccurred(true);
@@ -3103,7 +3114,7 @@ export default function BNDZUI() {
   const lastDragHoverStateRef = useRef<{ x: number; y: number; state: import('../lib/fileDragHover').FileDragHoverState } | null>(null);
   const nativeOleDragRef = useRef(false);
   useEffect(() => {
-    const applyOleMoveRemove = (winPaths: string[]) => {
+    const applyOleMoveRemove = (winPaths: string[], opts?: { invalidate?: boolean }) => {
       if (!winPaths.length) return;
       const label = winPaths.length === 1
         ? (winPaths[0].split(/[/\\]/).pop() || 'item')
@@ -3142,14 +3153,17 @@ export default function BNDZUI() {
         }
         return changed ? next : prev;
       });
-      // Soft-refresh after a beat so tombstones win the race against the first GET_DIR.
-      window.setTimeout(() => {
-        for (const parentPane of sourceParents) {
-          try {
-            window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
-          } catch { /* ignore */ }
-        }
-      }, 80);
+      // Soft-refresh only after shell settle — early GET_DIR while Windows still holds
+      // the file resurrects rows despite tombstones if path keys diverge.
+      if (opts?.invalidate !== false) {
+        window.setTimeout(() => {
+          for (const parentPane of sourceParents) {
+            try {
+              window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: parentPane } }));
+            } catch { /* ignore */ }
+          }
+        }, 400);
+      }
     };
 
     const onOleEnded = (ev: Event) => {
@@ -3171,18 +3185,28 @@ export default function BNDZUI() {
         const sourcesGone = detail?.sourcesGone === true
           || String(detail?.recover || '').toLowerCase() === 'move';
         const isMove = effect === 'MOVE' || effect === '2' || effect.includes('MOVE') || sourcesGone;
-        if (isMove) {
-          applyOleMoveRemove(winPaths);
-        } else {
-          // Wallpaper recover can finish after OLE latch (COPY/NONE) — verify disk twice.
-          const verifyGone = () => {
+        // Windows/shell-handled MOVE: remove from list immediately; poll until gone then refresh.
+        if (isMove || effect === 'NONE' || effect === '0' || effect === 'COPY' || effect === '1') {
+          if (isMove) {
+            applyOleMoveRemove(winPaths, { invalidate: sourcesGone });
+          }
+          const verifyGone = (pass: number) => {
             void Promise.all(winPaths.map(p => IPC.checkPathExists(p).then(ex => !ex).catch(() => false)))
               .then(goneFlags => {
-                if (goneFlags.length && goneFlags.every(Boolean)) applyOleMoveRemove(winPaths);
+                if (goneFlags.length && goneFlags.every(Boolean)) {
+                  applyOleMoveRemove(winPaths, { invalidate: true });
+                  return;
+                }
+                if (pass < 8) window.setTimeout(() => verifyGone(pass + 1), 200 + pass * 80);
+                else if (isMove) {
+                  // Final soft refresh even if some sources linger (locked/in-use).
+                  applyOleMoveRemove(winPaths, { invalidate: true });
+                }
               });
           };
-          window.setTimeout(verifyGone, 120);
-          window.setTimeout(verifyGone, 450);
+          if (!sourcesGone) {
+            window.setTimeout(() => verifyGone(0), 80);
+          }
         }
       }
       nativeOleDragRef.current = false;
@@ -4030,7 +4054,9 @@ export default function BNDZUI() {
     releaseStuckPointerCaptures();
     try {
       IPC.notifyFileDragActive(false);
-      IPC.windowChrome('releaseCapture');
+      if (document.documentElement.classList.contains('bndz-ole-drag-handoff')) {
+        IPC.windowChrome('releaseCapture');
+      }
     } catch { /* ignore */ }
     try {
       if (e && 'preventDefault' in e && typeof (e as React.PointerEvent).preventDefault === 'function') {
@@ -11025,11 +11051,13 @@ export default function BNDZUI() {
                   scheduleQuickActionsBar(false);
                   return;
                 }
+                const hitRowId = rowEl?.getAttribute('data-id') || null;
                 beginMarqueeGesture(
                   pane.id, listEl, e.clientX, e.clientY,
                   ctrlKey || shiftKey, (ctrlKey || shiftKey) ? [...currentTab.selectedItems] : [],
                   buildSelectMeta(),
                   e.pointerId,
+                  hitRowId,
                 );
                 return;
               }

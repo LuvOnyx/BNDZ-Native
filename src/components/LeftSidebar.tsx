@@ -171,7 +171,11 @@ export function LeftSidebar({
                 });
               } catch { /* ignore */ }
               try {
-                IPC.windowChrome('releaseCapture');
+                // Only release Win32 capture when OLE handoff left it stuck — every-click
+                // releaseCapture synthesizes button-up and fights first sidebar LMB after boot.
+                if (document.documentElement.classList.contains('bndz-ole-drag-handoff')) {
+                  IPC.windowChrome('releaseCapture');
+                }
               } catch { /* ignore */ }
               // Ensure WinUI/WebView2 app-region never treats sidebar as caption drag.
               try {

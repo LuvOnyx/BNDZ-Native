@@ -137,7 +137,7 @@ export default function PluginPopoutShell({ initial }: Props) {
             <span className="bndz-plugin-popout-chrome-word">BNDZ</span>
           </div>
           <div className="bndz-plugin-popout-chrome-title min-w-0 flex-1">
-            <WindowTitleBar title={title} />
+            <WindowTitleBar title={title} nativeCaptionDrag />
           </div>
         </div>
       )}

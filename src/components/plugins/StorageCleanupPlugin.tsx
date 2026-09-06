@@ -256,7 +256,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     <Icons8Icon id="zap_ui" size={16} /> Deep Clean
                   </div>
                   <p className="text-[11px] bndz-panel-muted leading-relaxed">
-                    Choose temp, caches, recycle, thumbnails, large files — scan, review, then clean. Safe by default.
+                    Pre-select temp, caches, recycle, browsers, large files — scan, review checkboxes, then clean or cancel.
                   </p>
                 </button>
                 <button

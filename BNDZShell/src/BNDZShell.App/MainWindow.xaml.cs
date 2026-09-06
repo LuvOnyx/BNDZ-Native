@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 using BNDZ.Services;
 using BNDZShell.Bndz;
 using Microsoft.UI;
@@ -73,8 +74,11 @@ public sealed partial class MainWindow : Window
         ChromeHost.WebViewInitialized += (_, _) =>
         {
             WireHostLifecycle();
-            ChromeHost.HostWindowHandle = _hwnd;
-            ChromeHost.TryRegisterOleDropTarget();
+            // Plugin pop-outs must not overwrite the main FM host HWND (OLE / drag use it).
+            if (!_launch.IsPlugin)
+                ChromeHost.HostWindowHandle = _hwnd;
+            if (!_launch.IsPlugin)
+                ChromeHost.TryRegisterOleDropTarget();
             _ = BootstrapAsync();
         };
 
@@ -84,12 +88,16 @@ public sealed partial class MainWindow : Window
             DisposeTray();
             try
             {
-                BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
-                ChromeHost.StopOutboundDragCleanup();
+                // Plugin pop-outs share the main process OLE target — never revoke it on close
+                // (that hitch/freezes the main FM while the singleton drop target is torn down).
                 if (!_launch.IsPlugin)
+                {
+                    BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
+                    ChromeHost.StopOutboundDragCleanup();
                     BndzEmbeddedBackendHost.Shutdown();
+                }
             }
-            catch { /* ignore */ }
+              catch { /* ignore */ }
             if (_launch.IsPlugin) return;
             try { BndzEmbeddedBackendHost.SetHostCloseAction(() => { }); } catch { /* ignore */ }
         };
@@ -175,7 +183,8 @@ public sealed partial class MainWindow : Window
         try
         {
             _hwnd = WindowNative.GetWindowHandle(this);
-            ChromeHost.HostWindowHandle = _hwnd;
+            if (!_launch.IsPlugin)
+                ChromeHost.HostWindowHandle = _hwnd;
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
 
@@ -284,7 +293,21 @@ public sealed partial class MainWindow : Window
             _appWindow.Changed += (_, args) =>
             {
                 if (args.DidPresenterChange || args.DidSizeChange)
+                {
                     BroadcastWindowState();
+                    // Passthrough must re-apply after WinUIEx restore / DPI settle — otherwise
+                    // Drives / Rapid Access / Cloud stay unclickable until a later layout pass.
+                    if (args.DidSizeChange)
+                    {
+                        try
+                        {
+                            DispatcherQueue?.TryEnqueue(
+                                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                                ApplyMenubarInputRegions);
+                        }
+                        catch { ApplyMenubarInputRegions(); }
+                    }
+                }
             };
         }
         catch (Exception ex)
@@ -303,13 +326,13 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ApplyMenubarInputRegions()
     {
-        if (_launch.IsSticky || _appWindow is null) return;
+        if (_launch.IsSticky || _appWindow is null || _closing) return;
         try
         {
             var source = InputNonClientPointerSource.GetForWindowId(_appWindow.Id);
             var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
             if (scale < 0.5) scale = 1.0;
-            var menuH = (int)Math.Round(36 * scale);
+            var menuH = (int)Math.Round((_launch.IsPlugin ? 40 : 36) * scale);
             var winW = _appWindow.Size.Width;
             if (winW <= 0 || menuH <= 0) return;
 
@@ -317,13 +340,27 @@ public sealed partial class MainWindow : Window
             var capW = Math.Clamp(captionReserve, (int)Math.Round(96 * scale), winW);
             var passW = Math.Max(0, winW - capW);
 
+            source.ClearRegionRects(NonClientRegionKind.Passthrough);
+            source.ClearRegionRects(NonClientRegionKind.Caption);
+
+            // Plugin pop-outs: whole top chrome is native Caption (press-drag-release).
+            // IPC WM_NCLBUTTONDOWN under Passthrough caused click-to-arm / second-click release.
+            if (_launch.IsPlugin)
+            {
+                var captionRects = new List<RectInt32>();
+                if (passW > 0)
+                    captionRects.Add(new RectInt32(0, 0, passW, menuH));
+                if (capW > 0)
+                    captionRects.Add(new RectInt32(passW, 0, capW, menuH));
+                if (captionRects.Count > 0)
+                    source.SetRegionRects(NonClientRegionKind.Caption, captionRects.ToArray());
+                return;
+            }
+
             // Logo + menu triggers stay passthrough; drag strip + system buttons are native caption.
             var menuPassW = Math.Clamp((int)Math.Round(560 * scale), (int)Math.Round(220 * scale), passW);
             var dragX = menuPassW;
             var dragW = Math.Max(0, passW - menuPassW);
-
-            source.ClearRegionRects(NonClientRegionKind.Passthrough);
-            source.ClearRegionRects(NonClientRegionKind.Caption);
 
             var passthrough = new List<RectInt32>();
             if (menuPassW > 0)
@@ -340,13 +377,13 @@ public sealed partial class MainWindow : Window
             if (passthrough.Count > 0)
                 source.SetRegionRects(NonClientRegionKind.Passthrough, passthrough.ToArray());
 
-            var captionRects = new List<RectInt32>();
+            var captionRectsMain = new List<RectInt32>();
             if (dragW > 0)
-                captionRects.Add(new RectInt32(dragX, 0, dragW, menuH));
+                captionRectsMain.Add(new RectInt32(dragX, 0, dragW, menuH));
             if (capW > 0)
-                captionRects.Add(new RectInt32(passW, 0, capW, menuH));
-            if (captionRects.Count > 0)
-                source.SetRegionRects(NonClientRegionKind.Caption, captionRects.ToArray());
+                captionRectsMain.Add(new RectInt32(passW, 0, capW, menuH));
+            if (captionRectsMain.Count > 0)
+                source.SetRegionRects(NonClientRegionKind.Caption, captionRectsMain.ToArray());
         }
         catch (Exception ex)
         {
@@ -641,6 +678,31 @@ public sealed partial class MainWindow : Window
 
         if (type is "BNDZ_NATIVE_LIST_BOUNDS" or "BNDZ_PANE_NAVIGATE" or "BNDZ_REQUEST_DIR_LISTING")
             return;
+
+        if (type is "BNDZ_UI_READY")
+        {
+            // React painted — re-apply sidebar Passthrough now that layout is real.
+            try
+            {
+                DispatcherQueue?.TryEnqueue(
+                    Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                    ApplyMenubarInputRegions);
+            }
+            catch { ApplyMenubarInputRegions(); }
+            // Second pass after WinUIEx / DPI settle (first-click races on upper sidebar).
+            try
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(250).ConfigureAwait(false);
+                    DispatcherQueue?.TryEnqueue(ApplyMenubarInputRegions);
+                    await Task.Delay(750).ConfigureAwait(false);
+                    DispatcherQueue?.TryEnqueue(ApplyMenubarInputRegions);
+                });
+            }
+            catch { /* ignore */ }
+            return;
+        }
     }
 
     private void HandleSetSystemBackdrop(JsonElement root)
