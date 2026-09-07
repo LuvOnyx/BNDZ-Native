@@ -19,24 +19,36 @@ import {
 import { type MeshSyncRule, type MeshHost, normalizeMeshHost } from '../../lib/meshTypes';
 import type { BottomPluginLaunchContext } from '../BottomPluginPanel';
 
+function decodeTerminalB64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
 function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null; active: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef(sessionId);
-  const pendingOutputRef = useRef<string[]>([]);
+  /** ConPTY/SSH can emit before React commits sessionId — buffer by id. */
+  const orphanBySessionRef = useRef<Map<string, string[]>>(new Map());
   sessionIdRef.current = sessionId;
 
-  const writeTerminalOutput = useCallback((b64: string) => {
+  const writeBytes = useCallback((bytes: Uint8Array) => {
+    termRef.current?.write(bytes);
+  }, []);
+
+  const flushOrphans = useCallback((sid: string) => {
+    const chunks = orphanBySessionRef.current.get(sid);
+    if (!chunks?.length) return;
+    orphanBySessionRef.current.delete(sid);
     const term = termRef.current;
     if (!term) {
-      pendingOutputRef.current.push(b64);
+      orphanBySessionRef.current.set(sid, chunks);
       return;
     }
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    term.write(bytes);
+    for (const b64 of chunks) term.write(decodeTerminalB64(b64));
   }, []);
 
   useEffect(() => {
@@ -51,6 +63,7 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
       fontFamily: 'JetBrains Mono, Cascadia Mono, Consolas, monospace',
       fontSize: 12,
       cursorBlink: true,
+      convertEol: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -58,18 +71,18 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
     fit.fit();
     termRef.current = term;
     fitRef.current = fit;
-    for (const chunk of pendingOutputRef.current) writeTerminalOutput(chunk);
-    pendingOutputRef.current = [];
+    const sid = sessionIdRef.current;
+    if (sid) flushOrphans(sid);
     term.onData(data => {
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-      IPC.meshTerminalInput(sid, btoa(unescape(encodeURIComponent(data))));
+      const current = sessionIdRef.current;
+      if (!current) return;
+      IPC.meshTerminalInput(current, btoa(unescape(encodeURIComponent(data))));
     });
     const ro = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(() => {
           fit.fit();
-          const sid = sessionIdRef.current;
-          if (sid) IPC.meshTerminalResize(sid, term.cols, term.rows);
+          const current = sessionIdRef.current;
+          if (current) IPC.meshTerminalResize(current, term.cols, term.rows);
         })
       : null;
     ro?.observe(containerRef.current);
@@ -78,113 +91,74 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
       term.dispose();
       termRef.current = null;
     };
-  }, [writeTerminalOutput]);
+  }, [flushOrphans]);
 
   useEffect(() => {
     if (!active || !sessionId) return;
-    requestAnimationFrame(() => {
+    let cancelled = false;
+    const fitNow = () => {
+      if (cancelled) return;
       fitRef.current?.fit();
       const term = termRef.current;
       if (term) IPC.meshTerminalResize(sessionId, term.cols, term.rows);
-    });
+    };
+    requestAnimationFrame(() => requestAnimationFrame(fitNow));
+    const t = window.setTimeout(fitNow, 80);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, [active, sessionId]);
 
   useEffect(() => {
     return IPC.onMeshTerminalOutput(({ sessionId: sid, data }) => {
-      if (!sessionId || sid !== sessionId) return;
-      writeTerminalOutput(data);
+      if (!sid) return;
+      if (sid !== sessionIdRef.current) {
+        const map = orphanBySessionRef.current;
+        const list = map.get(sid) ?? [];
+        list.push(data);
+        if (list.length > 400) list.splice(0, list.length - 400);
+        map.set(sid, list);
+        return;
+      }
+      const term = termRef.current;
+      if (!term) {
+        const map = orphanBySessionRef.current;
+        const list = map.get(sid) ?? [];
+        list.push(data);
+        map.set(sid, list);
+        return;
+      }
+      writeBytes(decodeTerminalB64(data));
     });
-  }, [sessionId, writeTerminalOutput]);
-
-  return <div ref={containerRef} className="w-full h-full min-h-[200px] bndz-mesh-terminal" />;
-}
-
-/** Real Windows console (conhost) embedded by the WinUI host — not xterm/ConPTY. */
-function MeshOsTerminalHost({ sessionId, active }: { sessionId: string | null; active: boolean }) {
-  const hostRef = useRef<HTMLDivElement>(null);
+  }, [writeBytes]);
 
   useEffect(() => {
-    const sid = sessionId;
-    const pushLayout = () => {
-      const el = hostRef.current;
-      if (!sid || !el) return;
-      const r = el.getBoundingClientRect();
-      const visible = active && r.width > 48 && r.height > 48;
-      IPC.meshTerminalLayout({
-        sessionId: sid,
-        screenX: window.screenX + r.left,
-        screenY: window.screenY + r.top,
-        width: r.width,
-        height: r.height,
-        visible,
-      });
-    };
-
-    if (!sid || !active) {
-      if (sid) {
-        IPC.meshTerminalLayout({
-          sessionId: sid,
-          screenX: 0,
-          screenY: 0,
-          width: 0,
-          height: 0,
-          visible: false,
-        });
-      }
-      return;
+    const term = termRef.current;
+    if (!term) return;
+    term.reset();
+    if (sessionId) {
+      flushOrphans(sessionId);
+      term.focus();
     }
+  }, [sessionId, flushOrphans]);
 
-    pushLayout();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(pushLayout) : null;
-    if (hostRef.current) ro?.observe(hostRef.current);
-    window.addEventListener('resize', pushLayout);
-    window.addEventListener('scroll', pushLayout, true);
-    const tick = window.setInterval(pushLayout, 500);
-
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener('resize', pushLayout);
-      window.removeEventListener('scroll', pushLayout, true);
-      window.clearInterval(tick);
-      IPC.meshTerminalLayout({
-        sessionId: sid,
-        screenX: 0,
-        screenY: 0,
-        width: 0,
-        height: 0,
-        visible: false,
-      });
-    };
-  }, [sessionId, active]);
-
-  return (
-    <div
-      ref={hostRef}
-      className="w-full h-full min-h-[200px] bndz-mesh-terminal bndz-mesh-os-terminal-host bg-[#0c0c0c]"
-      data-bndz-os-terminal-host
-      tabIndex={-1}
-    />
-  );
+  return <div ref={containerRef} className="absolute inset-0 w-full h-full bndz-mesh-terminal" />;
 }
 
 function MeshTerminalPanel({
   sessionId,
   active,
-  embedded,
 }: {
   sessionId: string | null;
   active: boolean;
-  embedded: boolean;
 }) {
-  if (embedded) {
-    return <MeshOsTerminalHost sessionId={sessionId} active={active} />;
-  }
   return <MeshSshTerminalPanel sessionId={sessionId} active={active} />;
 }
 
 export const MeshPluginDef = {
   id: 'remote-mesh',
-  name: 'Remote Mesh',
+  name: 'Remote',
   icon: 'cloud_ui',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
@@ -204,7 +178,6 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionEmbedded, setSessionEmbedded] = useState(false);
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const [liveShareOn, setLiveShareOn] = useState(false);
   const [livePeers, setLivePeers] = useState<any[]>([]);
@@ -300,9 +273,8 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
         return;
       }
       setSessionId(session.id || session.Id);
-      setSessionEmbedded(!!(session.embedded ?? session.Embedded));
       setTab('terminal');
-      setStatus(local ? 'Local PowerShell' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
+      setStatus(local ? 'Local PowerShell (ConPTY)' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
     } catch (e: any) {
       setStatus(e?.message || 'Terminal failed to open');
     } finally { setBusy(false); }
@@ -340,7 +312,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   return (
     <PluginPanelShell
-      title="Remote Mesh"
+      title="Remote"
       icon="cloud_ui"
       iconColor="#38bdf8"
       subtitle="Hosts SSH/SFTP · Mesh Drop P2P · Mesh VPS (local temp) · mirrors · Shell Here"
@@ -386,7 +358,47 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           ))}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar p-3">
+        <div className={`flex-1 min-h-0 p-3 ${tab === 'terminal' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto bndz-scrollbar'}`}>
+          {tab === 'terminal' ? (
+            <div className="flex flex-col flex-1 min-h-0 gap-2 h-full">
+              <div className="flex gap-2 shrink-0 flex-wrap">
+                <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
+                  Local PowerShell
+                </PluginToolbarButton>
+                {hosts.filter(h => h.provider === 0).map(h => (
+                  <PluginToolbarButton key={h.id} onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }} disabled={busy}>
+                    SSH · {h.alias}
+                  </PluginToolbarButton>
+                ))}
+                {meshBrowseHint && (
+                  <PluginToolbarButton onClick={() => void openTerminal()} disabled={busy}>
+                    Shell Here · {meshBrowseHint}
+                  </PluginToolbarButton>
+                )}
+                {sessionId && (
+                  <PluginToolbarButton onClick={() => {
+                    IPC.meshTerminalClose(sessionId);
+                    setSessionId(null);
+                  }}>
+                    Close session
+                  </PluginToolbarButton>
+                )}
+              </div>
+              <div className="relative flex-1 min-h-0 border border-sky-400/15 rounded-[18px] overflow-hidden bg-[#07090e] bndz-mesh-terminal-frame">
+                {sessionId ? (
+                  <MeshTerminalPanel
+                    sessionId={sessionId}
+                    active={tab === 'terminal'}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-xs text-gray-500 p-6 text-center">
+                    Open a local PowerShell or SSH session. Browse a /mesh folder and use Shell Here to land in that remote path.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
           {tab === 'buckets' && (
             <MeshBucketsSharesPanel
               onNavigate={onNavigate}
@@ -479,40 +491,6 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
             </div>
           )}
 
-          {tab === 'terminal' && (
-            <div className="flex flex-col h-full min-h-[280px] gap-2">
-              <div className="flex gap-2 shrink-0 flex-wrap">
-                <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
-                  Local PowerShell
-                </PluginToolbarButton>
-                {hosts.filter(h => h.provider === 0).map(h => (
-                  <PluginToolbarButton key={h.id} onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }} disabled={busy}>
-                    SSH · {h.alias}
-                  </PluginToolbarButton>
-                ))}
-                {meshBrowseHint && (
-                  <PluginToolbarButton onClick={() => void openTerminal()} disabled={busy}>
-                    Shell Here · {meshBrowseHint}
-                  </PluginToolbarButton>
-                )}
-                {sessionId && (
-                  <PluginToolbarButton onClick={() => { IPC.meshTerminalClose(sessionId); setSessionId(null); setSessionEmbedded(false); }}>
-                    Close session
-                  </PluginToolbarButton>
-                )}
-              </div>
-              <div className="flex-1 min-h-0 border border-sky-400/15 rounded-[18px] overflow-hidden bg-[#07090e] bndz-mesh-terminal-frame">
-                {sessionId ? (
-                  <MeshTerminalPanel sessionId={sessionId} active={tab === 'terminal'} embedded={sessionEmbedded} />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-xs text-gray-500 p-6 text-center">
-                    Open a local PowerShell or SSH session. Browse a /mesh folder and use Shell Here to land in that remote path.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {tab === 'liveshare' && (
             <div className="space-y-3">
               <PluginCard className="!p-4 bndz-mesh-liveshare-card">
@@ -549,6 +527,8 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                 </div>
               )}
             </div>
+          )}
+            </>
           )}
         </div>
       </div>

@@ -11,6 +11,14 @@ import { IPC } from '../lib/ipcBridge';
 export type ToastKind = 'success' | 'error' | 'info' | 'warning' | 'progress';
 export type ToastDelivery = 'inApp' | 'windows' | 'both';
 export type ToastPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+export type ToastNotifyCategory =
+  | 'transfers'
+  | 'errors'
+  | 'filesystem'
+  | 'plugins'
+  | 'mesh'
+  | 'system'
+  | 'progress';
 
 export interface ToastPayload {
   id?: string;
@@ -22,6 +30,8 @@ export interface ToastPayload {
   sticky?: boolean;
   /** Mirror to Windows Action Center when native notifications are enabled */
   native?: boolean;
+  /** Windows category gate (Settings → Notifications). */
+  category?: ToastNotifyCategory;
 }
 
 interface ToastItem extends Required<Pick<ToastPayload, 'message'>> {
@@ -32,6 +42,31 @@ interface ToastItem extends Required<Pick<ToastPayload, 'message'>> {
   duration: number;
   sticky: boolean;
   native?: boolean;
+  category: ToastNotifyCategory;
+}
+
+const DEFAULT_WINDOWS_CATS: Record<ToastNotifyCategory, boolean> = {
+  transfers: true,
+  errors: true,
+  filesystem: true,
+  plugins: false,
+  mesh: true,
+  system: true,
+  progress: false,
+};
+
+function inferToastCategory(kind: ToastKind, explicit?: ToastNotifyCategory): ToastNotifyCategory {
+  if (explicit) return explicit;
+  if (kind === 'error') return 'errors';
+  if (kind === 'progress') return 'progress';
+  if (kind === 'warning') return 'errors';
+  return 'system';
+}
+
+function windowsCategoryAllowed(config: Record<string, unknown>, category: ToastNotifyCategory): boolean {
+  const raw = (config.windowsNotificationCategories || {}) as Partial<Record<ToastNotifyCategory, boolean>>;
+  const merged = { ...DEFAULT_WINDOWS_CATS, ...raw };
+  return merged[category] !== false;
 }
 
 /** Push a toast from anywhere — no React context required */
@@ -134,9 +169,11 @@ export default function ToastHost() {
         duration: d.duration ?? (d.kind === 'error' ? 6000 : 4000),
         sticky: !!d.sticky || d.kind === 'progress',
         native: d.native,
+        category: inferToastCategory(d.kind || 'success', d.category),
       };
 
-      const wantWindows = delivery === 'windows' || delivery === 'both' || item.native === true;
+      const wantWindows = (delivery === 'windows' || delivery === 'both' || item.native === true)
+        && windowsCategoryAllowed(config as Record<string, unknown>, item.category);
       const wantInApp = delivery === 'inApp' || delivery === 'both';
 
       if (wantWindows) {
@@ -166,8 +203,10 @@ export default function ToastHost() {
         message: d.message,
         duration: 6000,
         sticky: false,
+        category: 'system',
       };
-      if (delivery === 'windows' || delivery === 'both') {
+      if ((delivery === 'windows' || delivery === 'both')
+        && windowsCategoryAllowed(config as Record<string, unknown>, 'system')) {
         postWindowsNotification(item);
       }
       if (delivery === 'windows') return;
@@ -179,7 +218,7 @@ export default function ToastHost() {
       window.removeEventListener('bndz-toast-dismiss', onDismissEvt);
       window.removeEventListener('bndz-native-alert', onNativeAlert);
     };
-  }, [dismiss, delivery]);
+  }, [dismiss, delivery, config]);
 
   return (
     <>

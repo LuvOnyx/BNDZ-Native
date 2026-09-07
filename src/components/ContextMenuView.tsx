@@ -10,11 +10,13 @@ import {
   resolveContextTargetPanePaths,
   filterSupplementalNativeItems,
   takeShellCascadeByLabel,
+  partitionShellMergeItems,
   isContextMenuBackground,
   isRecycleBinLocationMenu,
   contextMenuRefreshLabel,
   resolveNativeItemVerb,
   type NativeContextMenuItem,
+  type ShellMergeSlot,
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
 import { isMeshPath } from '../lib/meshPaths';
@@ -27,6 +29,7 @@ import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites, collapseKnownFolderShadowPath } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { isOptionalStockContextEnabled, type OptionalStockContextId } from '../lib/shellMenuPresets';
+import { isStockContextInstalled } from '../workstation/command-deck/contextToolRegistry';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { getContextBehavior } from '../lib/settingsBehavior';
@@ -111,6 +114,9 @@ interface ContextMenuViewProps {
   onGoForward?: () => void;
   /** Open targets inside BNDZ (folders navigate; files open Quick Preview). */
   onOpenInBndz?: (panePaths: string[], opts: { isDirectory: boolean; entityId?: string }) => void;
+  onItemCreated?: (panePath: string, kind: 'dir' | 'file', result: { fullPath?: string; finalName?: string }) => void;
+  /** True while native shell extension verbs are still loading (menu should reserve space). */
+  shellExtensionsPending?: boolean;
 }
 
 function ContextMenuView({
@@ -122,14 +128,31 @@ function ContextMenuView({
   onRestoreRecycleItems, onPurgeRecycleItems, onSelectAll, onInvertSelection,
   onOpenFind, onNavigateUp, onGoBack, onGoForward,
   onOpenInBndz,
+  onItemCreated,
+  shellExtensionsPending = false,
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
   const ctxBeh = getContextBehavior(config);
-  const stockOn = (id: OptionalStockContextId) => isOptionalStockContextEnabled(config, id);
+  const installedPlugins = Array.isArray(config.installedPlugins) ? config.installedPlugins : [];
+  const meshPluginInstalled = isStockContextInstalled('mesh-drop', installedPlugins);
+  /** Optional stock row + Command Deck install gate (plugin-backed rows need install). */
+  const stockOn = (id: OptionalStockContextId) =>
+    isOptionalStockContextEnabled(config, id) && isStockContextInstalled(id, installedPlugins);
   const targetPaths = resolveContextTargetPaths(menu);
   const isBackground = isContextMenuBackground(menu);
   const isRecycleLocation = isRecycleBinLocationMenu(menu);
   const refreshLabel = contextMenuRefreshLabel(menu.surface);
+
+  const afterCreate = (kind: 'dir' | 'file', r: { ok: boolean; error?: string; fullPath?: string; finalName?: string }) => {
+    if (!r.ok) return;
+    if (onItemCreated) {
+      onItemCreated(menu.path, kind, { fullPath: r.fullPath, finalName: r.finalName });
+    } else {
+      runRefresh();
+      window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+    }
+  };
+
   const runRefresh = () => {
     const surface = menu.surface;
     if (surface === 'tree-background' || surface === 'tree-item') onRefreshTree?.();
@@ -159,6 +182,11 @@ function ContextMenuView({
   const { cascade: shellNewCascade, rest: supplementalNative } = isBackground
     ? takeShellCascadeByLabel(supplementalNativeAll, 'New')
     : { cascade: null as NativeContextMenuItem | null, rest: supplementalNativeAll };
+  const shellMergeEnabled = !!(config.useNativeOSContextMenu || config.nativeContextMenu) && !config.hideShellExtensionsFromShellContextMenu;
+  const shellSlots = shellMergeEnabled
+    ? partitionShellMergeItems(supplementalNative)
+    : { open: [], clipboard: [], cascades: [], tools: [], footer: [] };
+  const shellPending = shellMergeEnabled && shellExtensionsPending && supplementalNative.length === 0;
   const [iconLibs, setIconLibs] = useState<any[]>(config.iconLibraries || []);
   const [iconLibsLoaded, setIconLibsLoaded] = useState(false);
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
@@ -430,6 +458,27 @@ function ContextMenuView({
     );
   };
 
+  /** Weave a shell bucket into the BNDZ menu at Explorer-like positions — never a dump folder. */
+  const renderShellSlot = (slot: ShellMergeSlot, opts?: { pending?: boolean; withSep?: boolean }) => {
+    if (!shellMergeEnabled) return null;
+    const items = shellSlots[slot];
+    const showPending = !!opts?.pending && shellPending && slot === 'tools';
+    if (!showPending && !items.length) return null;
+    return (
+      <>
+        {(opts?.withSep !== false) && <div className="bndz-context-menu-sep" />}
+        {showPending ? (
+          <div className="bndz-context-menu-shell-skeleton" aria-hidden>
+            <div className="bndz-context-menu-shell-skeleton-row" />
+            <div className="bndz-context-menu-shell-skeleton-row" />
+          </div>
+        ) : (
+          items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))
+        )}
+      </>
+    );
+  };
+
   const fullEntityPath = () => {
     if (menu.entityId && menu.entityName) {
       return joinPanePath(menu.path, { name: menu.entityName });
@@ -463,11 +512,11 @@ function ContextMenuView({
           onMouseDown={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
         >
-          <ContextMenuItem label="Open" iconVerb="open" className="font-semibold" tone="accent" onClick={() => { addTab(activePaneId, RECYCLE_BIN_PATH); onClose(); }} />
+          <ContextMenuItem label="Open" iconVerb="open" className="font-semibold" onClick={() => { addTab(activePaneId, RECYCLE_BIN_PATH); onClose(); }} />
           <ContextMenuItem
             label="Empty Recycle Bin"
             iconVerb="delete"
-            tone="danger"
+            className="text-red-300"
             onClick={() => { onEmptyRecycleBin?.(); onClose(); }}
           />
           <div className="bndz-context-menu-sep" />
@@ -573,15 +622,15 @@ function ContextMenuView({
             <ContextMenuItem
               label="Folder"
               iconVerb="folder"
-              tone="positive"
               onClick={async e => {
                 e.stopPropagation();
                 const r = await createItemInPane(menu.path, 'New folder', 'dir');
-                setToastMessage(r.ok ? 'Folder created.' : (r.error || 'Failed to create folder.'));
-                if (r.ok) {
-                  runRefresh();
-                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                if (!r.ok) {
+                  setToastMessage(r.error || 'Failed to create folder.');
+                  onClose();
+                  return;
                 }
+                afterCreate('dir', r);
                 onClose();
               }}
             />
@@ -589,15 +638,15 @@ function ContextMenuView({
             <ContextMenuItem
               label="Text Document"
               iconVerb="filetext"
-              tone="positive"
               onClick={async e => {
                 e.stopPropagation();
                 const r = await createItemInPane(menu.path, 'New Text Document.txt', 'file');
-                setToastMessage(r.ok ? 'Text document created.' : (r.error || 'Failed to create file.'));
-                if (r.ok) {
-                  runRefresh();
-                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                if (!r.ok) {
+                  setToastMessage(r.error || 'Failed to create file.');
+                  onClose();
+                  return;
                 }
+                afterCreate('file', r);
                 onClose();
               }}
             />
@@ -607,11 +656,12 @@ function ContextMenuView({
               onClick={async e => {
                 e.stopPropagation();
                 const r = await createItemInPane(menu.path, 'New Document.md', 'file');
-                setToastMessage(r.ok ? 'Markdown document created.' : (r.error || 'Failed to create file.'));
-                if (r.ok) {
-                  runRefresh();
-                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                if (!r.ok) {
+                  setToastMessage(r.error || 'Failed to create file.');
+                  onClose();
+                  return;
                 }
+                afterCreate('file', r);
                 onClose();
               }}
             />
@@ -751,13 +801,13 @@ function ContextMenuView({
             {onGoForward && <ContextMenuItem label="Forward" iconVerb="forward" onClick={() => { onGoForward(); onClose(); }} />}
           </>
         )}
+        {renderShellSlot('open')}
+        {renderShellSlot('cascades')}
+        {renderShellSlot('tools', { pending: true })}
+        {renderShellSlot('clipboard', { withSep: false })}
+        {renderShellSlot('footer')}
+        <div className="bndz-context-menu-sep" />
         <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
-        {supplementalNative.length > 0 && (
-          <>
-            <div className="bndz-context-menu-sep" />
-            {supplementalNative.map((item, i) => renderNativeItem(item, i))}
-          </>
-        )}
       </ClampedFixedMenu>
     );
   }
@@ -827,6 +877,7 @@ function ContextMenuView({
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const isArchive = targetPaths.length === 1 && isArchiveExt(ext);
   const isInRecycleBin = isRecycleBinPath(menu.path);
+  const isFolder = itemKind === 'folder' || menu.isDirectory;
 
   const extractHere = async () => {
     const panePaths = resolveContextTargetPanePaths(menu);
@@ -985,6 +1036,8 @@ function ContextMenuView({
         <ContextMenuItem label="Open With..." iconVerb="openas" onClick={() => handleVerb('openas')} />
       )}
 
+      {renderShellSlot('open', { withSep: false })}
+
       <div className="bndz-context-menu-sep" />
 
       {!isBackground && targetPaths.length > 0 && stockOn('ask-agent') && (
@@ -1029,13 +1082,16 @@ function ContextMenuView({
         />
       )}
       {isInRecycleBin ? (
-        <ContextMenuItem label="Delete permanently" iconVerb="delete" tone="danger" onClick={() => handleVerb('delete')} />
+        <ContextMenuItem label="Delete permanently" iconVerb="delete" onClick={() => handleVerb('delete')} />
       ) : (
         <>
-          <ContextMenuItem label="Delete" iconVerb="delete" tone="danger" onClick={() => handleVerb('delete')} />
+          <ContextMenuItem label="Delete" iconVerb="delete" onClick={() => handleVerb('delete')} />
           <ContextMenuItem label="Rename" iconVerb="rename" onClick={() => handleVerb('rename')} />
         </>
       )}
+
+      {renderShellSlot('clipboard')}
+      {renderShellSlot('cascades')}
 
       {!isBackground && showShareMenu && (
         <ContextSubmenu label="Share" iconVerb="share" onOpen={() => setShareRequested(true)}>
@@ -1324,6 +1380,16 @@ function ContextMenuView({
 
       {!isBackground && targetPaths.length > 0 && IPC.isNative && (
         <>
+          {isFolder && !isBndzVirtualPath(entityPath) && stockOn('mesh-drop') && (
+            <ContextMenuItem
+              label="Launch Ephemeral Mesh host…"
+              iconVerb="cloud_ui"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-ephemeral' } }));
+                onClose();
+              }}
+            />
+          )}
           {stockOn('mesh-drop') && (
           <ContextMenuItem
             label="Mesh Drop…"
@@ -1331,10 +1397,10 @@ function ContextMenuView({
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
           )}
-          {targetPaths.some(p => isMeshPath(p)) && (
+          {meshPluginInstalled && targetPaths.some(p => isMeshPath(p)) && (
             <>
               <ContextMenuItem
-                label="Shell Here (Remote Mesh)"
+                label="Shell Here (Remote)"
                 iconVerb="terminal"
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-shell-here' } }));
@@ -1361,6 +1427,7 @@ function ContextMenuView({
               )}
             </>
           )}
+          {meshPluginInstalled && (
           <ContextMenuItem
             label="Add to Shared Libraries"
             iconVerb="emblem-shared"
@@ -1374,6 +1441,7 @@ function ContextMenuView({
               onClose();
             }}
           />
+          )}
           {stockOn('ghost-link') && (
           <ContextMenuItem
             label="Ghost-Link offload…"
@@ -1625,6 +1693,9 @@ function ContextMenuView({
         }}
       />
 
+      {renderShellSlot('tools', { pending: true })}
+      {renderShellSlot('footer')}
+
       <div className="bndz-context-menu-sep" />
       <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
 
@@ -1679,13 +1750,6 @@ function ContextMenuView({
             </ContextNestedSubmenu>
           ))}
         </ContextNestedSubmenu>
-      )}
-
-      {supplementalNative.length > 0 && (
-        <>
-          <div className="bndz-context-menu-sep" />
-          {supplementalNative.map((item, i) => renderNativeItem(item, i))}
-        </>
       )}
     </ClampedFixedMenu>
   );

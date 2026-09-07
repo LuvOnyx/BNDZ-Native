@@ -3542,13 +3542,15 @@ namespace BNDZ
                     var hostId = payload.TryGetProperty("hostId", out var hEl) ? hEl.GetString() : null;
                     var cwd = payload.TryGetProperty("cwd", out var cEl) ? cEl.GetString() : null;
                     var local = payload.TryGetProperty("local", out var lEl) && lEl.GetBoolean();
+                    var cols = payload.TryGetProperty("cols", out var colsEl) ? (uint)Math.Clamp(colsEl.GetInt32(), 20, 400) : 120u;
+                    var rows = payload.TryGetProperty("rows", out var rowsEl) ? (uint)Math.Clamp(rowsEl.GetInt32(), 8, 200) : 32u;
                     _ = Task.Run(() =>
                     {
                         try
                         {
                             var session = local || string.IsNullOrEmpty(hostId)
-                                ? _meshOrchestrator.Terminal.OpenLocal(cwd)
-                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd);
+                                ? _meshOrchestrator.Terminal.OpenLocal(cwd, cols, rows)
+                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd, cols, rows);
                             PostMeshIpcResult(idProp, "MESH_TERMINAL_OPEN_RESULT", session);
                         }
                         catch (Exception ex)

@@ -2001,6 +2001,26 @@ export default function BNDZUI() {
       if (existing?.length && (!filtered || filtered.length === 0)) {
         return prev;
       }
+      // Keep inbound/outbound optimistic rows until the server listing catches up —
+      // early soft-refresh used to wipe them and leave a blank until manual F5.
+      const mergeOptimistic = (server: any[]): any[] => {
+        if (!existing?.length) return server;
+        const serverNames = new Set(server.map((e: any) => String(e.name || '').toLowerCase()));
+        const pending = existing.filter((e: any) =>
+          (e?.__optimisticDrop || e?.__provisionalFs)
+          && !serverNames.has(String(e.name || '').toLowerCase()),
+        );
+        if (!pending.length) {
+          return server.map((e: any) => {
+            if (!e?.__optimisticDrop && !e?.__provisionalFs) return e;
+            const { __optimisticDrop, __provisionalFs, ...rest } = e;
+            return rest;
+          });
+        }
+        return config.addNewItemsAtTheEndOfTheList
+          ? [...server, ...pending]
+          : [...pending, ...server];
+      };
       // Progressive first-page RESULT must not shrink a fuller warm/streamed listing —
       // but MUST drop tombstoned / gone names (OLE MOVE soft-refresh used to re-merge them).
       if (
@@ -2015,21 +2035,30 @@ export default function BNDZUI() {
         if (looksLikeFirstPage) {
           return setPathCacheEntry(prev, path, mergeDirEntryChunks(existingClean, filtered));
         }
-        // Full/soft refresh shrunk the folder — trust the server (deletes/moves).
-        return setPathCacheEntry(prev, path, filtered);
+        // Full/soft refresh shrunk the folder — trust the server (deletes/moves), keep optimistic.
+        return setPathCacheEntry(prev, path, mergeOptimistic(filtered));
       }
       if (config.addNewItemsAtTheEndOfTheList && existing?.length && filtered?.length) {
         const existingIds = new Set(existing.map((e: any) => e.id || e.name));
         const existingNames = new Set(existing.map((e: any) => e.name));
         const kept = existing.filter((e: any) =>
-          filtered.some((n: any) => (n.id && n.id === e.id) || n.name === e.name),
+          filtered.some((n: any) => (n.id && n.id === e.id) || n.name === e.name)
+          || e?.__optimisticDrop
+          || e?.__provisionalFs,
         );
         const added = filtered.filter((n: any) =>
           !(existingIds.has(n.id) || existingNames.has(n.name)),
         );
-        return setPathCacheEntry(prev, path, [...kept, ...added]);
+        const pendingOnly = kept.filter((e: any) =>
+          (e?.__optimisticDrop || e?.__provisionalFs)
+          && !filtered.some((n: any) => n.name === e.name),
+        );
+        const confirmed = kept.filter((e: any) =>
+          filtered.some((n: any) => (n.id && n.id === e.id) || n.name === e.name),
+        );
+        return setPathCacheEntry(prev, path, [...confirmed, ...added, ...pendingOnly]);
       }
-      return setPathCacheEntry(prev, path, filtered);
+      return setPathCacheEntry(prev, path, mergeOptimistic(filtered || []));
     });
   }, [config.addNewItemsAtTheEndOfTheList, filterTombstonedEntries]);
 
@@ -4364,9 +4393,15 @@ export default function BNDZUI() {
     const { createItemInPane } = await import('../lib/ramStagingPaths');
     const r = await createItemInPane(cPath, name, kind);
     if (!r.ok) {
-      pushToast({ kind: 'error', title: kind === 'dir' ? 'New folder failed' : 'New file failed', message: r.error || 'Unknown error' });
+      pushToast({ kind: 'error', title: kind === 'dir' ? 'New folder failed' : 'New file failed', message: r.error || 'Unknown error', category: 'filesystem' });
       return;
     }
+    pushToast({
+      kind: 'success',
+      title: kind === 'dir' ? 'Folder created' : 'File created',
+      message: r.finalName || name,
+      category: 'filesystem',
+    });
     await finishCreateAndRename({
       paneId: activePaneId,
       panePath: cPath,
@@ -5278,13 +5313,13 @@ export default function BNDZUI() {
   useEffect(() => {
     let unsubscribe: () => void;
     const softRefreshTimers = new Map<string, number>();
-    const scheduleSoftRefresh = (panePath: string) => {
+    const scheduleSoftRefresh = (panePath: string, delayMs = 80) => {
       const prev = softRefreshTimers.get(panePath);
       if (prev) window.clearTimeout(prev);
       softRefreshTimers.set(panePath, window.setTimeout(() => {
         softRefreshTimers.delete(panePath);
         invalidatePath(panePath);
-      }, 400));
+      }, delayMs));
     };
     import('../lib/ipcBridge').then(({ IPC }) => {
       unsubscribe = IPC.onFsEvents((events) => {
@@ -6190,7 +6225,7 @@ export default function BNDZUI() {
       ...(config.meshShowInNavTree !== false && meshHosts.some(h => h.showInNavTree !== false) ? [{
         treeKey: 'remote-mesh',
         draggable: true,
-        label: 'Remote Mesh',
+        label: 'Remote',
         path: MESH_ROOT,
         icon: 'cloud_ui',
         iconColor: '#38bdf8',
@@ -6857,11 +6892,12 @@ export default function BNDZUI() {
             : [...provisional, ...kept];
           return setPathCacheEntry(prev, destPane, merged);
         });
+        // Refresh after disk settle — mid-flight 350ms wipe was racing optimistic rows.
         window.setTimeout(() => {
           try {
             window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: destPane } }));
           } catch { /* ignore */ }
-        }, 350);
+        }, 50);
       }
       if (op === 'move') {
         const names = canonSources.map(s => s.split(/[/\\]/).pop() || '').filter(Boolean);
@@ -8441,7 +8477,7 @@ export default function BNDZUI() {
       }
       updateConfig({ sharedLibraries: next });
       openBottomPlugin('remote-mesh');
-      setToastMessage(next.length > prev.length ? 'Added to Shared Libraries (Remote Mesh → Buckets & Shares).' : 'Already in Shared Libraries.');
+      setToastMessage(next.length > prev.length ? 'Added to Shared Libraries (Remote → Buckets & Shares).' : 'Already in Shared Libraries.');
     };
     window.addEventListener('bndz-add-shared-libraries', onAddShared);
     return () => window.removeEventListener('bndz-add-shared-libraries', onAddShared);
@@ -8550,6 +8586,53 @@ export default function BNDZUI() {
       },
     });
   }, [applyFileDragHoverAtPoint, addTab, bottomPluginTab]);
+
+  // Host-side inbound commit fallback — paint dest rows + hard refresh (no manual F5).
+  useEffect(() => {
+    const onHostCommitted = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const destPane = normalizePanePath(String(detail.dest || ''));
+      const paths = (detail.paths as string[] | undefined)?.filter(Boolean) || [];
+      if (!destPane || !paths.length) return;
+      const provisional = paths.map((win) => {
+        const name = win.split(/[/\\]/).pop() || 'item';
+        const paneChild = normalizePanePath(`${destPane.replace(/\/$/, '')}/${name}`);
+        const looksFile = /\.[^./\\]+$/.test(name);
+        return {
+          id: paneChild,
+          name,
+          path: paneChild,
+          type: looksFile ? 'file' : 'directory',
+          isDirectory: !looksFile,
+          size: 0,
+          dateModified: Date.now(),
+          __optimisticDrop: true,
+        };
+      });
+      setPathContentsCache(prev => {
+        const existing = prev[destPane] || [];
+        const names = new Set(provisional.map(p => String(p.name).toLowerCase()));
+        const kept = existing.filter((e: any) => !names.has(String(e.name || '').toLowerCase()));
+        const merged = config.addNewItemsAtTheEndOfTheList
+          ? [...kept, ...provisional]
+          : [...provisional, ...kept];
+        return setPathCacheEntry(prev, destPane, merged);
+      });
+      try {
+        window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: destPane } }));
+      } catch { /* ignore */ }
+      try {
+        IPC.postOleDndDebug({
+          kind: 'inbound-host-committed-fe',
+          dest: destPane,
+          paths: paths.length,
+          effect: detail.effect || '?',
+        });
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('bndz-inbound-host-committed', onHostCommitted);
+    return () => window.removeEventListener('bndz-inbound-host-committed', onHostCommitted);
+  }, [config.addNewItemsAtTheEndOfTheList]);
 
   // Host: AllowExternalDrop=true (except BNDZ OLE) — Path A file: nav + Path B WPF PreviewDrop + forceCommit.
   useEffect(() => {
@@ -12946,7 +13029,7 @@ export default function BNDZUI() {
         const pane = currentTab.path;
         const probe = (paths[0] && isMeshPath(paths[0])) ? paths[0] : pane;
         if (!isMeshPath(probe)) {
-          setToastMessage('Shell Here works inside a Remote Mesh folder.', 'warning');
+          setToastMessage('Shell Here works inside a Remote folder.', 'warning');
           break;
         }
         const { hostId, remotePath } = parseMeshPath(probe);
@@ -13005,7 +13088,7 @@ export default function BNDZUI() {
       }
       case 'mesh-ephemeral':
         openBottomPlugin('remote-mesh', { tab: 'ephemeral' });
-        setToastMessage('Remote Mesh · Ephemeral (Incus)', 'info');
+        setToastMessage('Remote · Ephemeral (Incus)', 'info');
         break;
       case 'archive-extract': {
         const archivePath = bottomSelectionTargets.paths[0];
@@ -13890,13 +13973,13 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => focusAddressBar())}>Breadcrumb / Address Bar</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(BNDZ_HOME))}>
-                       <Icons8Icon id="home" size={14} /> Home
+                       <Icons8Icon id="home" size={14} /> Continuum
                     </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       openWorkspaceToolTab(BNDZ_CANVAS);
                       window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
                     })}>
-                       <Icons8Icon id="view_grid" size={14} /> Continuum
+                       <Icons8Icon id="layers_ui" size={14} /> Pillar Board
                     </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
                        <Icons8Icon id="home" size={14} /> {(windowsUsername && windowsUsername !== 'Public') ? windowsUsername : 'Profile'}

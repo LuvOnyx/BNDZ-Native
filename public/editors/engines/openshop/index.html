@@ -622,9 +622,9 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 
 /* Layers */
 .layers-list-shell{position:relative;min-height:2px}
-#layers-list{position:absolute;inset:0;z-index:2;overflow:hidden;pointer-events:none}
+#layers-list{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;opacity:0}
 #layers-list:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#layers-list-visual{max-height:none;overflow:visible;display:flex;flex-direction:column;gap:6px;padding:2px 1px 8px}
+#layers-list-visual{position:relative;z-index:1;max-height:none;overflow:visible;display:flex;flex-direction:column;gap:6px;padding:2px 1px 8px;pointer-events:auto}
 .bndz-layer-opacity{display:flex!important;align-items:center;gap:8px;padding:8px 8px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.12));border:1px solid color-mix(in srgb,var(--border) 80%,transparent)}
 .bndz-layer-opacity label{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);min-width:74px}
 .bndz-layer-opacity input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;border:0;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 75%,#10141c),#2a3344);box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
@@ -6326,7 +6326,7 @@ const OS = {
     ]),
     _lastPreferenceMigrationReport: null,
     _preferenceExtras: {},
-    _prefs: { gridSize: 20, historyStates: 120, defaultW: 1920, defaultH: 1080, theme: 'dark', snapTolerance: 5, maxHistory: 120, stackNewObjects: false, vectorStrokes: false, rulersVisible: true, pixelZoomSnap: false, accent: null, toolOptions: {}, panelSizes: [], panelDock: 'right' },
+    _prefs: { gridSize: 20, historyStates: 120, defaultW: 1920, defaultH: 1080, theme: 'dark', snapTolerance: 5, maxHistory: 120, stackNewObjects: true, vectorStrokes: false, rulersVisible: true, pixelZoomSnap: false, accent: null, toolOptions: {}, panelSizes: [], panelDock: 'right' },
     _canvasCeilingStorageKey: 'openshop.canvas-ceiling.v1',
     _canvasCeilingProbeVersion: 1,
     _canvasCeiling: null,
@@ -18797,8 +18797,11 @@ self.onmessage = function(event) {
             ['tool.shape.rectangle','Shape','Rectangle Tool','U','shape layer or path','document-mutation','rect'],
             ['tool.shape.rounded-rectangle','Shape','Rounded Rectangle Tool','U','shape layer or path','document-mutation','rounded-rect'],
             ['tool.shape.ellipse','Shape','Ellipse Tool','U','shape layer or path','document-mutation','circle'],
+            ['tool.shape.triangle','Shape','Triangle Tool','U','shape layer or path','document-mutation','triangle'],
             ['tool.shape.polygon','Shape','Polygon Tool','U','shape layer or path','document-mutation','polygon'],
             ['tool.shape.line','Shape','Line Tool','U','shape layer or path','document-mutation','line'],
+            ['tool.shape.arrow','Shape','Arrow Tool','U','shape layer or path','document-mutation','arrow'],
+            ['tool.shape.star','Shape','Star Tool','U','shape layer or path','document-mutation','star'],
             ['tool.shape.custom','Shape','Custom Shape Tool','U','shape layer or path','document-mutation','custom-shape'],
             ['tool.navigation.hand','Navigation','Hand Tool','H','viewport','viewport-state','pan'],
             ['tool.navigation.rotate','Navigation','Rotate View Tool','R','viewport','viewport-state','rotate-view'],
@@ -26447,6 +26450,17 @@ self.onmessage = async function(event) {
         if (bestIdx < 0 || !bestCmd) {
             cmds.push(['L', local.x, local.y]);
         } else {
+            // Insert midpoint as cubic with independent handles along the segment.
+            const prev = cmds[bestIdx - 1] || cmds[0];
+            const pt = String(prev[0]).toUpperCase();
+            const px = Number(prev[pt === 'C' ? 5 : pt === 'Q' ? 3 : 1]) || 0;
+            const py = Number(prev[pt === 'C' ? 6 : pt === 'Q' ? 4 : 2]) || 0;
+            const nx = local.x, ny = local.y;
+            const c1x = px + (nx - px) / 3;
+            const c1y = py + (ny - py) / 3;
+            const c2x = nx - (nx - px) / 3;
+            const c2y = ny - (ny - py) / 3;
+            bestCmd = ['C', c1x, c1y, c2x, c2y, nx, ny];
             cmds.splice(bestIdx, 0, bestCmd);
         }
         pathObj.path = cmds;
@@ -26504,8 +26518,12 @@ self.onmessage = async function(event) {
         const py = Number(prev[pt === 'C' ? 6 : pt === 'Q' ? 4 : 2]) || 0;
         if (t === 'L') {
             const x = Number(cmd[1]) || 0, y = Number(cmd[2]) || 0;
-            const mx = (px + x) / 2, my = (py + y) / 2 - 24;
-            cmds[bestIdx] = ['C', mx, my, mx, my, x, y];
+            const ox = 0, oy = -Math.max(18, Math.hypot(x - px, y - py) * 0.2);
+            const c1x = px + (x - px) / 3 + ox;
+            const c1y = py + (y - py) / 3 + oy;
+            const c2x = x - (x - px) / 3 + ox;
+            const c2y = y - (y - py) / 3 + oy;
+            cmds[bestIdx] = ['C', c1x, c1y, c2x, c2y, x, y];
             this.toast('Corner → smooth', 'success');
         } else {
             const x = Number(cmd[t === 'C' ? 5 : 3]) || 0;
@@ -26781,7 +26799,7 @@ self.onmessage = async function(event) {
     _preferenceDefaults() {
         return {
             defaultW:1920, defaultH:1080, gridSize:20, snapTolerance:5, maxHistory:120,
-            stackNewObjects:false, vectorStrokes:false, rulersVisible:true, pixelZoomSnap:false,
+            stackNewObjects:true, vectorStrokes:false, rulersVisible:true, pixelZoomSnap:false,
             toolOptions:{}, panelSizes:[], panelDock:'right'
         };
     },

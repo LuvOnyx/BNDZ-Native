@@ -25,25 +25,54 @@ export default function TransferActivityToast() {
 
   useEffect(() => {
     IPC.init();
+    let pollMs = 700;
+    let poll = 0;
+
+    function pull() {
+      void IPC.getFileTransferQueue().then((state) => {
+        if (!state) return;
+        setQueue(state);
+        if (isTransferActive(state)) {
+          setOptimistic(null);
+          bumpHot();
+        } else {
+          bumpIdle();
+        }
+      }).catch(() => {});
+    }
+
+    function bumpHot() {
+      if (pollMs === 160) return;
+      pollMs = 160;
+      window.clearInterval(poll);
+      poll = window.setInterval(pull, pollMs);
+    }
+
+    function bumpIdle() {
+      if (pollMs === 700) return;
+      pollMs = 700;
+      window.clearInterval(poll);
+      poll = window.setInterval(pull, pollMs);
+    }
+
     const unsub = IPC.onFileTransferQueueChanged((state: FileTransferQueueState) => {
       setQueue(state);
-      if (isTransferActive(state)) setOptimistic(null);
+      if (isTransferActive(state)) {
+        setOptimistic(null);
+        bumpHot();
+      } else {
+        bumpIdle();
+      }
     });
-    const pull = () => {
-      void IPC.getFileTransferQueue().then((state) => {
-        if (state) setQueue(state);
-      }).catch(() => {});
-    };
     pull();
-    // Always poll — do not gate on isTransferActive (that hid fast paste jobs forever
-    // when a push was coalesced or dropped before the first paint).
-    const poll = window.setInterval(pull, 450);
+    poll = window.setInterval(pull, pollMs);
     const onOptimistic = (e: Event) => {
       const d = (e as CustomEvent<{ label?: string }>).detail;
       setOptimistic({
         label: d?.label || 'Transfer',
         until: Date.now() + 12_000,
       });
+      bumpHot();
       pull();
     };
     window.addEventListener('bndz-transfer-started', onOptimistic as EventListener);

@@ -531,11 +531,11 @@ export default function BndzHomeView({
           </div>
           <div className="bndz-ws-launch-grid">
             <WorkspaceLaunchCard
-              title="Continuum"
-              desc="One Spatial board where Sandbox, Health, Inbound, RAM, Capacity, and Automation cohere — live pillars in under 30 seconds."
+              title="Pillar Board"
+              desc="Spatial preset that pins Sandbox, Health, Inbound, RAM, Capacity, and Automation — live pillars in under 30 seconds."
               icon="view_grid"
               accent="#34d399"
-              badge="Compose"
+              badge="Spatial"
               badgeVariant="gold"
               features={['Live badges', 'Pillar pins', 'One-click open']}
               onClick={() => {

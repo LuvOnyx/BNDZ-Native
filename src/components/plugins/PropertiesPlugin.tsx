@@ -24,7 +24,7 @@ import { isBndzHomePath, isBndzVirtualPath } from '../../lib/bndzVirtualViews';
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
 import { isAudioExt, isVideoExt } from '../../lib/mediaTypes';
 
-type PropTab = 'general' | 'security' | 'hashes';
+type PropTab = 'general' | 'customize' | 'security' | 'hashes';
 
 export default function PropertiesPlugin({
     entity,
@@ -55,6 +55,10 @@ export default function PropertiesPlugin({
     const [hashCopied, setHashCopied] = useState<'md5' | 'sha256' | null>(null);
     const [folderByteSize, setFolderByteSize] = useState<number | null>(null);
     const [folderSizeLoading, setFolderSizeLoading] = useState(false);
+    const [detailsOpen, setDetailsOpen] = useState(true);
+    const [attrsOpen, setAttrsOpen] = useState(false);
+    const [iconBusy, setIconBusy] = useState(false);
+    const [iconStatus, setIconStatus] = useState<string | null>(null);
 
     const selectionCount = selectedItems.length;
     const isMulti = selectionCount > 1;
@@ -289,6 +293,53 @@ export default function PropertiesPlugin({
         runIpc(IPC => IPC.executeContextMenuVerb(shellPath, 'properties'));
     };
 
+    const canCustomizeIcon = !isMulti && !driveInfo && !!(
+        isDir || /\.lnk$/i.test(targetPath || '') || /\.lnk$/i.test(entity?.path || '')
+    );
+
+    const applyCustomIcon = (mode: 'pick' | 'restore') => {
+        if (!targetPath || !canCustomizeIcon) return;
+        setIconBusy(true);
+        setIconStatus(null);
+        runIpc(async (IPC) => {
+            try {
+                const { toWindowsPath } = await import('../../lib/pathUtils');
+                const { prepareIconForApply } = await import('../../lib/iconPathUtils');
+                const winPath = toWindowsPath(targetPath);
+                const targetType = /\.lnk$/i.test(winPath) ? 'shortcut' : isDir ? 'folder' : 'file';
+                if (mode === 'restore') {
+                    const result = await IPC.setSystemIcon(winPath, targetType, '', !!config?.allowGlobalIconOverwrite);
+                    await IPC.clearIconCache();
+                    setIconStatus(result.success ? 'Default icon restored' : (result.error || 'Restore failed'));
+                    return;
+                }
+                const picked = await IPC.openFileDialog(
+                    'Icons (*.ico;*.png)|*.ico;*.png|Icon files (*.ico)|*.ico|All files (*.*)|*.*',
+                );
+                const rawIcon = Array.isArray(picked) ? picked[0] : '';
+                if (!rawIcon) {
+                    setIconStatus(null);
+                    return;
+                }
+                const icoPath = await prepareIconForApply(rawIcon);
+                if (!icoPath) {
+                    setIconStatus('Could not prepare that icon file');
+                    return;
+                }
+                const result = await IPC.setSystemIcon(winPath, targetType, icoPath, !!config?.allowGlobalIconOverwrite);
+                await IPC.clearIconCache();
+                setIconStatus(result.success ? 'Custom icon applied' : (result.error || 'Apply failed'));
+                if (result.success) {
+                    window.dispatchEvent(new CustomEvent('bndz-refresh-icons', { detail: { path: winPath } }));
+                }
+            } catch (err: any) {
+                setIconStatus(err?.message || 'Icon change failed');
+            } finally {
+                setIconBusy(false);
+            }
+        });
+    };
+
     const openWindowsSecurity = () => {
         if (!targetPath) return;
         runIpc(IPC => IPC.shellExecute('properties', targetPath));
@@ -374,6 +425,7 @@ export default function PropertiesPlugin({
 
     const tabs: { id: PropTab; label: string; show: boolean }[] = [
         { id: 'general', label: 'General', show: true },
+        { id: 'customize', label: 'Customize', show: canCustomizeIcon },
         { id: 'security', label: 'Security', show: !isMulti && !driveInfo },
         { id: 'hashes', label: 'Hashes', show: !isMulti && !driveInfo && entity?.type === 'file' },
     ];
@@ -446,68 +498,187 @@ export default function PropertiesPlugin({
                 )}
 
                 {activeTab === 'general' && (
-                    <div className="flex flex-col gap-4 max-w-2xl">
+                    <div className="flex flex-col gap-3 max-w-2xl bndz-props-files">
                         {isMulti ? (
-                            <PluginCard>
+                            <PluginCard className="bndz-props-overview">
                                 <PluginSectionTitle icon="layers_ui">Bulk selection</PluginSectionTitle>
                                 <PluginFieldGrid>
                                     <PluginFieldRow label="Items">{selectionCount}</PluginFieldRow>
                                     <PluginFieldRow label="Primary" mono>{targetPath}</PluginFieldRow>
                                 </PluginFieldGrid>
-                                <div className="mt-3 max-h-[160px] overflow-y-auto bndz-scrollbar border border-white/[0.08] rounded-lg">
+                                <div className="mt-3 max-h-[160px] overflow-y-auto bndz-scrollbar border border-white/[0.08] rounded-xl">
                                     {selectedItems.map((p, i) => (
                                         <div key={i} className="px-3 py-1.5 text-xs bndz-mono bndz-panel-muted border-b border-white/[0.04] last:border-0 truncate">{formatUiPath(p)}</div>
                                     ))}
                                 </div>
                                 <p className="bndz-panel-muted mt-3 text-xs leading-relaxed">Use the context menu for bulk copy, move, delete, or compress operations.</p>
                             </PluginCard>
-                        ) : driveInfo ? (
-                            <PluginCard>
-                                <PluginFieldGrid>
-                                    <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
-                                    <PluginFieldRow label="Capacity" mono>{formatSize(driveInfo.totalSpace)}</PluginFieldRow>
-                                    <PluginFieldRow label="Free space" mono><span className="text-emerald-400">{formatSize(driveInfo.freeSpace)}</span></PluginFieldRow>
-                                    <PluginFieldRow label="Used" mono><span className="text-sky-300">{formatSize(driveInfo.totalSpace - driveInfo.freeSpace)}</span></PluginFieldRow>
-                                    <PluginFieldRow label="Format">{driveInfo.format || 'NTFS'}</PluginFieldRow>
-                                </PluginFieldGrid>
-                            </PluginCard>
                         ) : (
-                            <PluginCard>
-                                <PluginFieldGrid>
-                                    <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
-                                    <PluginFieldRow label="Size" mono>
-                                        {isDir && !config?.showFolderSizeOnPropertiesTab
-                                          ? <span className="bndz-panel-muted">—</span>
-                                          : isDir && folderSizeLoading
-                                            ? <span className="bndz-panel-muted">Calculating…</span>
-                                            : isDir && folderByteSize != null
-                                              ? (
-                                                <>
-                                                  {formatSize(folderByteSize)}
-                                                  <span className="bndz-panel-muted ml-2">({folderByteSize.toLocaleString()} bytes)</span>
-                                                </>
-                                              )
-                                              : (
-                                                <>
-                                                  {fileDetails ? formatSize(fileDetails.exactSize) : '--'}
-                                                  {fileDetails?.exactSize != null && (
-                                                      <span className="bndz-panel-muted ml-2">({fileDetails.exactSize.toLocaleString()} bytes)</span>
-                                                  )}
-                                                </>
-                                              )}
-                                    </PluginFieldRow>
-                                    <PluginFieldRow label="Created" mono>
-                                        {fileDetails?.creation ? new Date(fileDetails.creation).toLocaleString() : '--'}
-                                    </PluginFieldRow>
-                                    <PluginFieldRow label="Modified" mono>
-                                        {fileDetails?.modification ? new Date(fileDetails.modification).toLocaleString() : '--'}
-                                    </PluginFieldRow>
-                                    {fileDetails?.accessed && (
-                                        <PluginFieldRow label="Accessed" mono>{new Date(fileDetails.accessed).toLocaleString()}</PluginFieldRow>
-                                    )}
-                                    <PluginFieldRow label="Owner" mono>{fileDetails?.owner || 'Loading...'}</PluginFieldRow>
-                                </PluginFieldGrid>
-                            </PluginCard>
+                            <>
+                                <PluginCard className="bndz-props-overview">
+                                    <div className="bndz-props-overview-row">
+                                        <div className="bndz-props-icon-tile">
+                                            {config?.showEmbeddedIconsOnPropertiesTab !== false ? (
+                                                <PreviewHeroIcon
+                                                    path={heroIconPath}
+                                                    isDir={isDir}
+                                                    isDrive={!!driveInfo}
+                                                    size={56}
+                                                    extension={ext}
+                                                    preferThumbnail={!isDir && !isMulti}
+                                                />
+                                            ) : (
+                                                <PreviewHeroIcon
+                                                    path={heroIconPath}
+                                                    isDir={isDir}
+                                                    isDrive={!!driveInfo}
+                                                    size={56}
+                                                    extension={ext}
+                                                    preferThumbnail={false}
+                                                />
+                                            )}
+                                        </div>
+                                        <div className="bndz-props-overview-meta min-w-0 flex-1">
+                                            <div className="bndz-props-overview-name truncate" title={displayName}>{displayName}</div>
+                                            <div className="bndz-props-overview-type">{typeLabel}</div>
+                                            {canCustomizeIcon && (
+                                                <button
+                                                    type="button"
+                                                    className="bndz-props-linkbtn"
+                                                    onClick={() => setActiveTab('customize')}
+                                                >
+                                                    Change icon…
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </PluginCard>
+
+                                {driveInfo && (
+                                    <PluginCard className="bndz-props-disk">
+                                        <PluginSectionTitle icon="hdd">Disk details</PluginSectionTitle>
+                                        {(() => {
+                                            const total = Number(driveInfo.totalSpace) || 0;
+                                            const free = Number(driveInfo.freeSpace) || 0;
+                                            const used = Math.max(0, total - free);
+                                            const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+                                            const r = 34;
+                                            const c = 2 * Math.PI * r;
+                                            const dash = (pct / 100) * c;
+                                            return (
+                                                <div className="bndz-props-disk-row">
+                                                    <div className="bndz-props-ring" aria-label={`${pct}% used`}>
+                                                        <svg viewBox="0 0 80 80" width="80" height="80">
+                                                            <circle cx="40" cy="40" r={r} className="bndz-props-ring-track" />
+                                                            <circle
+                                                                cx="40" cy="40" r={r}
+                                                                className="bndz-props-ring-fill"
+                                                                strokeDasharray={`${dash} ${c}`}
+                                                                transform="rotate(-90 40 40)"
+                                                            />
+                                                        </svg>
+                                                        <span className="bndz-props-ring-label">{pct}%</span>
+                                                    </div>
+                                                    <PluginFieldGrid className="flex-1">
+                                                        <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
+                                                        <PluginFieldRow label="Capacity" mono>{formatSize(total)}</PluginFieldRow>
+                                                        <PluginFieldRow label="Used" mono><span className="text-sky-300">{formatSize(used)}</span></PluginFieldRow>
+                                                        <PluginFieldRow label="Free" mono><span className="text-emerald-400">{formatSize(free)}</span></PluginFieldRow>
+                                                        <PluginFieldRow label="Format">{driveInfo.format || 'NTFS'}</PluginFieldRow>
+                                                    </PluginFieldGrid>
+                                                </div>
+                                            );
+                                        })()}
+                                    </PluginCard>
+                                )}
+
+                                {!driveInfo && (
+                                    <div className={`bndz-props-expander ${detailsOpen ? 'is-open' : ''}`}>
+                                        <button
+                                            type="button"
+                                            className="bndz-props-expander-head"
+                                            onClick={() => setDetailsOpen(v => !v)}
+                                            aria-expanded={detailsOpen}
+                                        >
+                                            <span>More details</span>
+                                            <Icons8Icon id={detailsOpen ? 'chevron_down' : 'chevron_right'} size={14} />
+                                        </button>
+                                        {detailsOpen && (
+                                            <div className="bndz-props-expander-body">
+                                                <PluginFieldGrid>
+                                                    <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
+                                                    <PluginFieldRow label="Size" mono>
+                                                        {isDir && !config?.showFolderSizeOnPropertiesTab
+                                                          ? <span className="bndz-panel-muted">—</span>
+                                                          : isDir && folderSizeLoading
+                                                            ? <span className="bndz-panel-muted">Calculating…</span>
+                                                            : isDir && folderByteSize != null
+                                                              ? (
+                                                                <>
+                                                                  {formatSize(folderByteSize)}
+                                                                  <span className="bndz-panel-muted ml-2">({folderByteSize.toLocaleString()} bytes)</span>
+                                                                </>
+                                                              )
+                                                              : (
+                                                                <>
+                                                                  {fileDetails ? formatSize(fileDetails.exactSize) : '--'}
+                                                                  {fileDetails?.exactSize != null && (
+                                                                      <span className="bndz-panel-muted ml-2">({fileDetails.exactSize.toLocaleString()} bytes)</span>
+                                                                  )}
+                                                                </>
+                                                              )}
+                                                    </PluginFieldRow>
+                                                    <PluginFieldRow label="Created" mono>
+                                                        {fileDetails?.creation ? new Date(fileDetails.creation).toLocaleString() : '--'}
+                                                    </PluginFieldRow>
+                                                    <PluginFieldRow label="Modified" mono>
+                                                        {fileDetails?.modification ? new Date(fileDetails.modification).toLocaleString() : '--'}
+                                                    </PluginFieldRow>
+                                                    {fileDetails?.accessed && (
+                                                        <PluginFieldRow label="Accessed" mono>{new Date(fileDetails.accessed).toLocaleString()}</PluginFieldRow>
+                                                    )}
+                                                    <PluginFieldRow label="Owner" mono>{fileDetails?.owner || 'Loading...'}</PluginFieldRow>
+                                                </PluginFieldGrid>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {!driveInfo && (
+                                    <div className={`bndz-props-expander ${attrsOpen ? 'is-open' : ''}`}>
+                                        <button
+                                            type="button"
+                                            className="bndz-props-expander-head"
+                                            onClick={() => setAttrsOpen(v => !v)}
+                                            aria-expanded={attrsOpen}
+                                        >
+                                            <span>Attributes</span>
+                                            <Icons8Icon id={attrsOpen ? 'chevron_down' : 'chevron_right'} size={14} />
+                                        </button>
+                                        {attrsOpen && (
+                                            <div className="bndz-props-expander-body">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {['Archive', 'Hidden', 'System', 'ReadOnly'].map(attr => (
+                                                        <button
+                                                            key={attr}
+                                                            type="button"
+                                                            onClick={() => toggleAttribute(attr)}
+                                                            className="flex items-center gap-2.5 p-2.5 rounded-xl border border-white/[0.08] bg-black/20 hover:bg-white/[0.04] transition-colors group text-left"
+                                                        >
+                                                            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                                                                fileDetails?.attributes?.[attr] ? 'bg-sky-500 border-sky-500' : 'border-white/20 group-hover:border-sky-400/45'
+                                                            }`}>
+                                                                {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={9} />}
+                                                            </div>
+                                                            <span className="text-xs text-slate-300">{attr === 'ReadOnly' ? 'Read-only' : attr}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {!isMulti && !driveInfo && targetPath && (
@@ -582,6 +753,43 @@ export default function PropertiesPlugin({
                     </div>
                 )}
 
+                {activeTab === 'customize' && canCustomizeIcon && (
+                    <div className="flex flex-col gap-4 max-w-xl bndz-props-files">
+                        <PluginCard className="bndz-props-overview">
+                            <PluginSectionTitle icon="icon_studio">Folder / shortcut icon</PluginSectionTitle>
+                            <p className="text-xs bndz-panel-muted leading-relaxed mb-4">
+                                Pick a modern .ico or .png — BNDZ writes it through Icon Studio the same way Files Customization does, with restore-default when you want Explorer stock back.
+                            </p>
+                            <div className="bndz-props-overview-row mb-4">
+                                <div className="bndz-props-icon-tile bndz-props-icon-tile--lg">
+                                    <PreviewHeroIcon
+                                        path={heroIconPath}
+                                        isDir={isDir}
+                                        size={72}
+                                        extension={ext}
+                                        preferThumbnail={false}
+                                    />
+                                </div>
+                                <div className="min-w-0 flex-1 flex flex-col gap-2">
+                                    <div className="bndz-props-overview-name truncate">{displayName}</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <PluginHeroActionButton icon="folder_open_ui" variant="primary" onClick={() => applyCustomIcon('pick')} disabled={iconBusy}>
+                                            {iconBusy ? 'Working…' : 'Choose icon'}
+                                        </PluginHeroActionButton>
+                                        <PluginHeroActionButton icon="refresh" onClick={() => applyCustomIcon('restore')} disabled={iconBusy}>
+                                            Restore default
+                                        </PluginHeroActionButton>
+                                        <PluginHeroActionButton icon="icon_studio" onClick={() => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'icon-studio' } }))}>
+                                            Icon Studio
+                                        </PluginHeroActionButton>
+                                    </div>
+                                    {iconStatus && <div className="text-xs text-sky-300">{iconStatus}</div>}
+                                </div>
+                            </div>
+                        </PluginCard>
+                    </div>
+                )}
+
                 {activeTab === 'security' && !isMulti && (
                     <div className="flex flex-col gap-4 max-w-xl">
                         <PluginCard>
@@ -637,26 +845,6 @@ export default function PropertiesPlugin({
                                     description="Effective rule details were not returned for this item. Use Windows Security to inspect or edit permissions."
                                 />
                             )}
-                        </PluginCard>
-                        <PluginCard>
-                            <PluginSectionTitle>NTFS attributes</PluginSectionTitle>
-                            <div className="grid grid-cols-2 gap-2">
-                                {['Archive', 'Hidden', 'System', 'ReadOnly'].map(attr => (
-                                    <button
-                                        key={attr}
-                                        type="button"
-                                        onClick={() => toggleAttribute(attr)}
-                                        className="flex items-center gap-2.5 p-2.5 rounded-lg border border-white/[0.08] bg-black/20 hover:bg-white/[0.04] transition-colors group text-left"
-                                    >
-                                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                            fileDetails?.attributes?.[attr] ? 'bg-sky-500 border-sky-500' : 'border-white/20 group-hover:border-sky-400/45'
-                                        }`}>
-                                            {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={9} />}
-                                        </div>
-                                        <span className="text-xs text-slate-300">{attr}</span>
-                                    </button>
-                                ))}
-                            </div>
                         </PluginCard>
                     </div>
                 )}

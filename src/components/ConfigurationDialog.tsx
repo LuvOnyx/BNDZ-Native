@@ -29,6 +29,7 @@ import { mergeUserCommands } from '../lib/userCommands';
 import BndzIndexManagerPanel from './settings/BndzIndexManagerPanel';
 import WorkspaceToolsTabContent from './settings/WorkspaceToolsTabContent';
 import CustomColumnsTabContent from './settings/CustomColumnsTabContent';
+import NotificationsTabContent from './settings/NotificationsTabContent';
 import FieldPickerDialog from './settings/FieldPickerDialog';
 import {
   STANDARD_FILE_INFO_FIELDS,
@@ -448,7 +449,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   };
 
   const categories = [
-    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Keyboard Shortcuts", "Controls & More", "Safety Belts, Network", "Startup & Exit"] },
+    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Keyboard Shortcuts", "Controls & More", "Notifications", "Safety Belts, Network", "Startup & Exit"] },
     { name: "Automation", items: ["Workspace Tools", "Custom Event Actions", "User Commands"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
@@ -1016,6 +1017,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
             </TabsContent>
 
+            <TabsContent value="Notifications" className="m-0 border-0 p-0 outline-none">
+              <NotificationsTabContent localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
+            </TabsContent>
+
             <TabsContent value="Controls & More" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Controls & More</h1>
               
@@ -1348,74 +1353,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <div className="bndz-settings-section-header">
                   <h2 className="text-[13px] font-bold text-white">Notifications</h2>
                 </div>
-                <div className="p-4 space-y-3">
-                <div className="flex flex-col gap-2">
-                  <span className="text-[12px] text-gray-300">Toast delivery</span>
-                  <div className="flex flex-wrap gap-3">
-                    {([
-                      { id: 'inApp', label: 'In-app only' },
-                      { id: 'windows', label: 'Windows only' },
-                      { id: 'both', label: 'Both' },
-                    ] as const).map(opt => (
-                      <label key={opt.id} className="flex items-center gap-1.5 text-[12px] text-gray-200 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="toastDelivery"
-                          checked={(localConfig.toastDelivery || (localConfig.useNativeWindowsNotifications === false ? 'inApp' : 'both')) === opt.id}
-                          onChange={() => updateLocalConfig({
-                            toastDelivery: opt.id,
-                            useNativeWindowsNotifications: opt.id !== 'inApp',
-                            nativeActionCenterToasts: opt.id !== 'inApp',
-                          })}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-[12px] text-gray-300">In-app toast corner</span>
-                  <div className="flex flex-wrap gap-3">
-                    {([
-                      { id: 'top-right', label: 'Top right' },
-                      { id: 'top-left', label: 'Top left' },
-                      { id: 'bottom-right', label: 'Bottom right' },
-                      { id: 'bottom-left', label: 'Bottom left' },
-                    ] as const).map(opt => (
-                      <label key={opt.id} className="flex items-center gap-1.5 text-[12px] text-gray-200 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="toastPosition"
-                          checked={(localConfig.toastPosition || 'top-right') === opt.id}
-                          onChange={() => updateLocalConfig({ toastPosition: opt.id })}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <Checkbox label="Show Windows toast notifications (Action Center)" checked={(localConfig.toastDelivery || 'both') !== 'inApp' && localConfig.useNativeWindowsNotifications !== false} onChange={e => updateLocalConfig({
-                  useNativeWindowsNotifications: e.target.checked,
-                  nativeActionCenterToasts: e.target.checked,
-                  toastDelivery: e.target.checked
-                    ? (localConfig.toastDelivery === 'windows' ? 'windows' : 'both')
-                    : 'inApp',
-                })} />
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[12px] text-gray-300">Folder size toast cooldown</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={600}
-                    value={localConfig.folderSizeToastCooldownSeconds ?? 90}
-                    onChange={e => updateLocalConfig({ folderSizeToastCooldownSeconds: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                    className="w-[72px] h-7 bg-[#111] border border-[#555] rounded px-2 text-[12px] text-white"
-                  />
-                  <span className="text-[11px] text-gray-500">seconds (auto-scan only)</span>
-                </div>
-                <div className="mt-2">
-                  <Checkbox label="Only notify when sizes are freshly calculated (not from cache)" checked={localConfig.folderSizeToastOnlyWhenFetched !== false} onChange={e => updateLocalConfig({ folderSizeToastOnlyWhenFetched: e.target.checked })} />
-                </div>
+                <div className="p-4 space-y-2">
+                  <p className="text-[12px] text-gray-400">
+                    Toast delivery, Windows Action Center categories, and folder-size notify options live under{' '}
+                    <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Notifications')}>
+                      General → Notifications
+                    </button>
+                    .
+                  </p>
                 </div>
               </div>
               
@@ -1955,7 +1900,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        useCustomContextMenu: true,
                      })} 
                  />
-                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu with icons. Enable only if you want Windows shell extensions merged in.</p>
+                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. Shell verbs weave into Open / clipboard / tools sections — never a dump folder. Shift+right-click still opens the full Windows menu.</p>
               </div>
 
               <SectionHeader title="Shell Succession" />
@@ -2764,7 +2709,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </p>
               <div className="bndz-native-dialog-panel p-4 max-w-[520px] space-y-2">
                 <p className="text-[12px] text-gray-300">Default installed: System Properties, Fast Search, Visual Filters.</p>
-                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Extension Hub to add Remote Mesh, Ghost-Link, RAM Staging, and selling-pillar tools.</p>
+                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Extension Hub to add Remote, Ghost-Link, RAM Staging, and selling-pillar tools.</p>
               </div>
 
               <SectionHeader title="Right Sidebar Preview Engine" />
@@ -3233,7 +3178,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <ContextMenuConfiguratorTab />
             </TabsContent>
 
-            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts"].includes(item)).map(item => (
+            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Notifications", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts", "Workspace Tools"].includes(item)).map(item => (
                <TabsContent key={item} value={item} className="m-0 border-0 p-0 outline-none">
                   <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">{item}</h1>
                   <p className="text-[#a0a0a0] text-[13px]">Configuration options for this section are disabled in the current preview.</p>

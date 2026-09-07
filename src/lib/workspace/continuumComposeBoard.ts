@@ -19,7 +19,8 @@ import {
 } from '../spatialCanvasStore';
 
 export const CONTINUUM_BOARD_ID = 'continuum-home';
-export const CONTINUUM_BOARD_NAME = 'Continuum';
+/** User-facing Spatial preset name — Continuum is Home, not this board. */
+export const CONTINUUM_BOARD_NAME = 'Pillar Board';
 
 type PillarPin = {
   path: string;
@@ -69,8 +70,8 @@ const CONTINUUM_PILLARS: PillarPin[] = [
   {
     path: BNDZ_AUTOMATION,
     name: 'Automation',
-    note: 'Reactive pipelines · Continuum sync',
-    sticky: 'Wire Continuum sync recipe here.',
+    note: 'Reactive pipelines · pillar sync',
+    sticky: 'Wire pillar sync recipe here.',
   },
 ];
 
@@ -131,7 +132,11 @@ export function buildContinuumBoardDoc(): SpatialCanvasDoc {
  */
 export async function openOrRefreshContinuumBoard(): Promise<SpatialCanvasDoc> {
   const boards = await listSpatialBoards();
-  const existing = boards.find(b => b.id === CONTINUUM_BOARD_ID || b.name === CONTINUUM_BOARD_NAME);
+  const existing = boards.find(
+    b => b.id === CONTINUUM_BOARD_ID
+      || b.name === CONTINUUM_BOARD_NAME
+      || b.name === 'Continuum',
+  );
 
   if (existing) {
     let doc = await switchSpatialBoard(existing.id);
@@ -148,6 +153,9 @@ export async function openOrRefreshContinuumBoard(): Promise<SpatialCanvasDoc> {
         zoom: 0.92,
         updatedAt: Date.now(),
       };
+      await saveSpatialCanvasNow(doc);
+    } else if (doc.name === 'Continuum') {
+      doc = { ...doc, name: CONTINUUM_BOARD_NAME, updatedAt: Date.now() };
       await saveSpatialCanvasNow(doc);
     }
     return doc;

@@ -194,7 +194,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
         tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
         tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
-        tool('continuum-compose', 'Continuum', 'view_grid', undefined, 'host'),
+        tool('continuum-compose', 'Pillar Board', 'layers_ui', undefined, 'host'),
         tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
         tool('catalog', 'Catalog', 'catalog', 'catalog'),
       ];

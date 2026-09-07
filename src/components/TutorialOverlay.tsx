@@ -41,7 +41,7 @@ const TUTORIAL_STEPS = [
     iconId: 'puzzle_ui',
     color: '#c084fc',
     title: 'Plugins & Continuum',
-    body: 'Bottom plugins (Properties, Fast Search, Visual Filters) stay docked. Open Continuum from Go → Continuum or Home for the live rail.',
+    body: 'Bottom plugins (Properties, Fast Search, Visual Filters) stay docked. Continuum is Home — Go → Continuum opens the live rail. Spatial Canvas has a separate Pillar Board preset for Sandbox / Health / RAM pins.',
     anchor: 'toolbar',
   },
   {

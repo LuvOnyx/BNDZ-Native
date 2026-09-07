@@ -90,10 +90,43 @@ Reported after wallpaper OLE verify. Fix in this pass; re-verify before claiming
 
 ## Launch-ready polish (this thread)
 
-Shipped in prior commits / this pass — not a separate plan file:
+Goal: every UI surface, plugin, menu, and feature feels shippable — keep expanding this list and closing items.
 
+### Context menus
+- [x] Weave Windows shell verbs into BNDZ menu by Explorer-like slots (open / clipboard / cascades / tools / footer)
+- [x] Remove dump "Shell extensions" folder / end-of-menu bucket
+- [x] Dedupe shell labels/verbs against BNDZ built-ins; keep named cascades (7-Zip, Send to, …)
+- [x] Re-enable shell merge by default (polish migration v2)
+- [ ] Shift+RMB full OS menu still works; verify no duplicate Open/Properties/Share rows
+
+### Fast Search
+- [x] Folder scope via path field + … (not duplicate Browse/Add buttons)
+- [ ] Result list keyboard nav + Enter open feels Explorer-snappy
+- [ ] Empty / no-Everything engine fallback messaging
+
+### Toolbar / chrome
+- [x] Remove macOS traffic-light dots from Toolbar Designer preview
+- [ ] Toolbar Designer preview matches live toolbar density/spacing
+
+### Transfers / feel
+- [x] Adaptive hot poll while jobs run
+- [ ] Copy/move toast + list refresh feel instantaneous on small ops
+
+### Remote / terminal
+- [x] Local ConPTY → in-panel xterm (not HWND / not detached wt)
+- [x] Terminal frame fills panel so prompt isn’t clipped under chrome
+- [ ] Verify Local PowerShell prompt paints on first open
+
+### Plugins / surfaces (continue sweeping)
+- [x] Notifications tab uses BNDZ Checkbox (not raw accent inputs)
+- [ ] Visual Filters empty/default state craft
+- [ ] Tag Manager / Action History spot-check regressions
+- [ ] Bottom plugin panel empty state + install gating still correct
+- [ ] Menubar / context hover colors consistent after menu merge
+- [ ] Configuration dialog Shell Integration copy matches weave behavior
+
+Shipped earlier:
 - Action History + Tag Manager BNDZ theme redesign
-- Context menus: menubar font/size, `#007acc` hover, red/green/blue tones
-- Sidebar LMB (NC support disabled; WinUI Caption drag strip)
-- Desktop → wallpaper outbound MOVE
-- Desktop → list inbound delivery (this pass — verify after relaunch)
+- Context menus: menubar font/size, `#007acc` hover tones
+- Sidebar LMB / Caption strip
+- Desktop outbound MOVE + inbound delivery

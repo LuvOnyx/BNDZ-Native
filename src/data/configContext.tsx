@@ -166,6 +166,15 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     nativeActionCenterToasts: true,
     toastDelivery: 'both',
     toastPosition: 'top-right',
+    windowsNotificationCategories: {
+        transfers: true,
+        errors: true,
+        filesystem: true,
+        plugins: false,
+        mesh: true,
+        system: true,
+        progress: false,
+    },
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
@@ -250,6 +259,15 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
             merged.colorConfig14 = '#a855f7';
         }
         merged.selectionColorMigrationVersion = 1;
+    }
+    // v1 wrongly forced shell merge OFF. v2 re-enables merge and weaves verbs into
+    // the BNDZ menu (no dump "Shell extensions" folder).
+    if ((merged.shellMenuPolishVersion ?? 0) < 2) {
+        merged.useNativeOSContextMenu = true;
+        merged.nativeContextMenu = true;
+        merged.hideShellExtensionsFromShellContextMenu = false;
+        merged.useCustomContextMenu = true;
+        merged.shellMenuPolishVersion = 2;
     }
     if ((merged.xCloseActionVersion ?? 0) < 1) {
         // Reset silent tray-on-X so the close dialog asks again; choice is remembered after.

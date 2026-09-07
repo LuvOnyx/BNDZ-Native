@@ -15,7 +15,8 @@ type GoItem = { label: string; path?: string; workspace?: 'automation' | 'canvas
 const GO_ITEMS: GoItem[] = [
   { label: 'This PC', path: '/', icon: 'this_pc' },
   { label: 'Home', path: BNDZ_HOME, workspace: 'home', icon: 'home' },
-  { label: 'Continuum', path: '/bndz/continuum', workspace: 'canvas', icon: 'view_grid' },
+  { label: 'Continuum', path: BNDZ_HOME, workspace: 'home', icon: 'view_grid' },
+  { label: 'Pillar Board', path: BNDZ_CANVAS, workspace: 'canvas', icon: 'layers_ui' },
   { label: 'Spatial Canvas', path: BNDZ_CANVAS, workspace: 'canvas', icon: 'view_grid' },
   { label: 'Automation', path: BNDZ_AUTOMATION, workspace: 'automation', icon: 'zap_ui' },
   { label: 'Desktop', path: '/shell:Desktop', icon: 'monitor_ui' },
@@ -48,9 +49,17 @@ export default function NativeShellChrome({ currentPath, onNavigate, onOpenWorks
 
   const go = useCallback((item: GoItem) => {
     setMenuOpen(null);
-    if (item.workspace === 'home' || item.label === 'Home') {
+    if (item.workspace === 'home' || item.label === 'Home' || item.label === 'Continuum') {
       onOpenWorkspace?.('home');
       onNavigate(BNDZ_HOME);
+      return;
+    }
+    if (item.label === 'Pillar Board') {
+      onOpenWorkspace?.('canvas');
+      onNavigate(BNDZ_CANVAS);
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
+      }, 120);
       return;
     }
     if (item.path) onNavigate(item.path);

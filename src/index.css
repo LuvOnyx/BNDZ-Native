@@ -4438,6 +4438,111 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
     0 16px 36px rgba(0, 0, 0, 0.4);
 }
 
+/* Files-style Properties — overview / expanders / drive ring */
+.bndz-props-files { gap: 10px; }
+.bndz-props-overview-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.bndz-props-icon-tile {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(165deg, rgba(255,255,255,.06), rgba(0,0,0,.28));
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  flex-shrink: 0;
+}
+.bndz-props-icon-tile--lg {
+  width: 88px;
+  height: 88px;
+  border-radius: 18px;
+}
+.bndz-props-overview-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: rgba(248, 250, 252, 0.96);
+}
+.bndz-props-overview-type {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.85);
+}
+.bndz-props-linkbtn {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bndz-props-linkbtn:hover { color: #bae6fd; text-decoration: underline; }
+.bndz-props-expander {
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: linear-gradient(165deg, rgba(42,48,64,.4), rgba(14,16,22,.92));
+  overflow: hidden;
+}
+.bndz-props-expander-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 0;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.bndz-props-expander-head:hover { background: rgba(255,255,255,.03); }
+.bndz-props-expander-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.bndz-props-disk-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.bndz-props-ring {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+.bndz-props-ring-track {
+  fill: none;
+  stroke: rgba(255,255,255,.08);
+  stroke-width: 7;
+}
+.bndz-props-ring-fill {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.35s ease;
+}
+.bndz-props-ring-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 700 13px/1 'DM Sans', system-ui, sans-serif;
+  color: rgba(248,250,252,.95);
+}
+
 /* Capacity Solver ? what-if scrubbers + budget */
 .bndz-capacity-scrubber {
   display: flex;
@@ -12209,7 +12314,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   border-style: dashed;
 }
 
-/* Remote Mesh dashboard (Settings ? Workspace Tools) */
+/* Remote dashboard (Settings ? Workspace Tools) */
 .bndz-mesh-dashboard {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -12284,7 +12389,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   flex-shrink: 0;
 }
 
-/* FileSSH-inspired Remote Mesh craft */
+/* FileSSH-inspired Remote craft */
 .bndz-mesh-surface {
   background:
     radial-gradient(120% 80% at 0% 0%, rgba(56,189,248,0.07), transparent 55%),
@@ -12322,9 +12427,19 @@ html[data-theme] .nav-tree-row:focus-visible {
   50% { opacity: 1; }
 }
 .bndz-mesh-terminal-frame {
+  position: relative;
+  min-height: 0;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.04),
     0 18px 40px rgba(0,0,0,0.35);
+}
+.bndz-mesh-terminal,
+.bndz-mesh-terminal .xterm,
+.bndz-mesh-terminal .xterm-viewport {
+  height: 100% !important;
+}
+.bndz-mesh-terminal .xterm-screen {
+  height: 100% !important;
 }
 .bndz-mesh-mirror-card,
 .bndz-mesh-liveshare-card {

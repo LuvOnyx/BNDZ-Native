@@ -36,52 +36,82 @@ public sealed class MeshTerminalService : IDisposable
         };
         _sessions[id] = session;
         OnOutput?.Invoke(id, Convert.ToBase64String(Encoding.UTF8.GetBytes($"\r\nBNDZ SSH — {host.Alias ?? host.Hostname ?? hostId}\r\n\r\n")));
-        return new MeshTerminalSessionInfo { Id = id, HostId = hostId, RemoteCwd = cwd, IsLocal = false, Embedded = false };
+        return new MeshTerminalSessionInfo { Id = id, HostId = hostId, RemoteCwd = cwd, IsLocal = false, Embedded = false, ExternalOs = false };
     }
 
-    /// <summary>Local shell — real OS console embedded by the WinUI host on layout.</summary>
+    /// <summary>
+    /// Local PowerShell via ConPTY → same xterm.js surface as SSH.
+    /// This is the Windows Terminal model — not HWND SetParent, not a detached OS window.
+    /// </summary>
     public MeshTerminalSessionInfo OpenLocal(string? cwd, uint cols = 120, uint rows = 32)
     {
-        _ = cols;
-        _ = rows;
         var id = Guid.NewGuid().ToString("N")[..12];
         var workDir = ResolveLocalWorkingDirectory(cwd);
+        BndzConPtyTerminal? pty = null;
+        try
+        {
+            pty = BndzConPtyTerminal.Start(
+                workDir,
+                cols,
+                rows,
+                onData: data =>
+                {
+                    try { OnOutput?.Invoke(id, Convert.ToBase64String(data)); }
+                    catch { /* ignore */ }
+                },
+                onExit: code =>
+                {
+                    try { OnExit?.Invoke(id, code); }
+                    catch { /* ignore */ }
+                });
+        }
+        catch
+        {
+            pty?.Dispose();
+            throw;
+        }
+
         var session = new TerminalSession
         {
             Id = id,
             HostId = "",
             IsLocal = true,
             PendingCwd = workDir,
+            LocalPty = pty,
         };
         _sessions[id] = session;
-        return new MeshTerminalSessionInfo { Id = id, HostId = "", RemoteCwd = workDir, IsLocal = true, Embedded = true };
+        return new MeshTerminalSessionInfo
+        {
+            Id = id,
+            HostId = "",
+            RemoteCwd = workDir,
+            IsLocal = true,
+            Embedded = false,
+            ExternalOs = false,
+        };
     }
 
+    /// <summary>Legacy HWND layout — permanently no-op (WebView SetParent blacks out the FM).</summary>
     public void AttachOrLayoutEmbedded(string sessionId, IntPtr parentHwnd, int x, int y, int width, int height, bool visible)
     {
-        if (!_sessions.TryGetValue(sessionId, out var s) || !s.IsLocal) return;
-
-        if (!visible)
-        {
-            s.Embedded?.Layout(parentHwnd, x, y, width, height, visible: false);
-            return;
-        }
-
-        if (s.Embedded == null)
-        {
-            if (parentHwnd == IntPtr.Zero || width < 40 || height < 40) return;
-            s.Embedded = BndzEmbeddedOsTerminal.Start(s.PendingCwd ?? ResolveLocalWorkingDirectory(null), parentHwnd, x, y, width, height);
-            return;
-        }
-
-        s.Embedded.Layout(parentHwnd, x, y, width, height, visible: true);
+        _ = sessionId;
+        _ = parentHwnd;
+        _ = x;
+        _ = y;
+        _ = width;
+        _ = height;
+        _ = visible;
     }
 
     public void SendInput(string sessionId, string base64)
     {
         if (!_sessions.TryGetValue(sessionId, out var s)) return;
-        if (s.IsLocal) return; // OS console owns keyboard focus
         var bytes = Convert.FromBase64String(base64);
+        if (s.LocalPty != null)
+        {
+            s.LocalPty.Write(bytes);
+            return;
+        }
         if (s.Shell != null)
             s.Shell.Write(Encoding.UTF8.GetString(bytes));
     }
@@ -89,7 +119,11 @@ public sealed class MeshTerminalService : IDisposable
     public void Resize(string sessionId, uint cols, uint rows)
     {
         if (!_sessions.TryGetValue(sessionId, out var s)) return;
-        if (s.IsLocal) return;
+        if (s.LocalPty != null)
+        {
+            s.LocalPty.Resize(cols, rows);
+            return;
+        }
         if (s.Shell == null) return;
         try
         {
@@ -103,7 +137,7 @@ public sealed class MeshTerminalService : IDisposable
     {
         if (!_sessions.TryRemove(sessionId, out var s)) return;
         try { s.Shell?.Close(); } catch { }
-        try { s.Embedded?.Dispose(); } catch { }
+        try { s.LocalPty?.Dispose(); } catch { }
     }
 
     public void Dispose()
@@ -135,6 +169,6 @@ public sealed class MeshTerminalService : IDisposable
         public bool IsLocal { get; set; }
         public string? PendingCwd { get; set; }
         public ShellStream? Shell { get; set; }
-        public BndzEmbeddedOsTerminal? Embedded { get; set; }
+        public BndzConPtyTerminal? LocalPty { get; set; }
     }
 }

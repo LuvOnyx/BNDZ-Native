@@ -191,6 +191,8 @@ export const IPC = {
           this._drivesListeners.forEach(cb => cb(drives));
         } else if (data.type === 'EXTERNAL_FILES_DROPPED') {
           window.dispatchEvent(new CustomEvent('bndz-external-drop', { detail: data.payload }));
+        } else if (data.type === 'INBOUND_HOST_COMMITTED') {
+          window.dispatchEvent(new CustomEvent('bndz-inbound-host-committed', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DROP_FAILED') {
           window.dispatchEvent(new CustomEvent('bndz-external-drop-failed', { detail: data.payload }));
         } else if (data.type === 'OLE_DRAG_ESCALATED') {
@@ -622,7 +624,7 @@ export const IPC = {
     return _nativeCall<any>('MESH_SYNC_RUN', 'MESH_SYNC_RUN_RESULT', id, { ruleId }, 600000);
   },
 
-  meshTerminalOpen(opts: { hostId?: string; cwd?: string; local?: boolean }): Promise<any> {
+  meshTerminalOpen(opts: { hostId?: string; cwd?: string; local?: boolean; cols?: number; rows?: number }): Promise<any> {
     if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
     const id = `${Date.now()}_meshTerm`;
     return _nativeCall<any>('MESH_TERMINAL_OPEN', 'MESH_TERMINAL_OPEN_RESULT', id, opts, 60000);
@@ -646,8 +648,8 @@ export const IPC = {
     });
   },
 
-  /** Position real OS console HWND in the Remote Mesh local terminal panel. */
-  meshTerminalLayout(opts: {
+  /** Legacy no-op — local shell is ConPTY→xterm, never HWND SetParent. */
+  meshTerminalLayout(_opts: {
     sessionId: string;
     screenX: number;
     screenY: number;
@@ -655,13 +657,7 @@ export const IPC = {
     height: number;
     visible: boolean;
   }): void {
-    if (!this.isNative || !opts.sessionId) return;
-    try {
-      (window as any).chrome.webview.postMessage({
-        type: 'MESH_TERMINAL_LAYOUT',
-        payload: opts,
-      });
-    } catch { /* ignore */ }
+    /* intentionally empty */
   },
 
   meshStat(path: string): Promise<any> {

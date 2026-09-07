@@ -855,7 +855,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     setShowBoardPicker(false);
     await refreshBoards();
     requestAnimationFrame(() => fitBoard());
-    setStatus('Continuum board live — Sandbox · Health · Inbound · RAM · Capacity · Automation');
+    setStatus('Pillar Board live — Sandbox · Health · Inbound · RAM · Capacity · Automation');
   }, [engine, flushAutosave, seedAutosave, refreshBoards, fitBoard]);
 
   useEffect(() => {
@@ -1893,7 +1893,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                     className="bndz-spatial-board-picker-action bndz-spatial-board-picker-action--emerald"
                     onClick={() => void openContinuumBoard()}
                   >
-                    Open Continuum
+                    Open Pillar Board
                   </button>
                   <button
                     type="button"

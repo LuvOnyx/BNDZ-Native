@@ -251,7 +251,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
           return changed ? nextMap : prev;
         });
       });
-      pollId = window.setInterval(() => { void refresh(); }, 500);
+      pollId = window.setInterval(() => { void refresh(); }, 200);
       unsubProgress = IPC.onProgress((payload: {
         percentage?: number;
         operationId?: string;

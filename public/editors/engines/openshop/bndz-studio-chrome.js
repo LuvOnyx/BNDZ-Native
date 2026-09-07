@@ -1138,14 +1138,13 @@ input[type="color"].bndz-hidden-native{position:absolute!important;opacity:0!imp
       } catch { /* ignore */ }
     }
 
-    // Prefer localStorage — OS._prefs.panelDock defaults to 'right' before init restores prefs.
+    // BNDZ Photo Studio: inspector always starts pinned on the right.
+    // Sticky left/bottom from older sessions confused the embed layout.
     function restoreDockSide() {
       try {
-        const ls = localStorage.getItem('os_panel_dock');
-        const fromPrefs = OS._prefs?.panelDock;
-        const saved = (ls && DOCKS.includes(ls)) ? ls
-          : (fromPrefs && DOCKS.includes(fromPrefs) ? fromPrefs : null);
-        if (saved) applyDock(saved, { silent: true });
+        applyDock('right', { silent: true });
+        try { localStorage.setItem('os_panel_dock', 'right'); } catch { /* ignore */ }
+        if (OS._prefs) OS._prefs.panelDock = 'right';
       } catch { /* ignore */ }
     }
 

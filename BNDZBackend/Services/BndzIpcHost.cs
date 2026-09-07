@@ -829,9 +829,9 @@ namespace BNDZ.Services
                                         try { NotifyOutboundOleListingSync(watchPaths, 2); } catch { /* ignore */ }
                                         return;
                                     }
-                                    _fileTransferQueue.MarkCompleted(watchOp);
+                                    _fileTransferQueue.MarkFailed(watchOp, "Move did not finish — sources still on disk.");
                                 }
-                                catch { try { _fileTransferQueue.MarkCompleted(watchOp); } catch { /* ignore */ } }
+                                catch { try { _fileTransferQueue.MarkFailed(watchOp, "Move watch failed."); } catch { /* ignore */ } }
                             });
                         }
                         PostFileTransferQueueChanged();
@@ -1075,6 +1075,10 @@ namespace BNDZ.Services
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool GetCursorPos(out POINT_S pt);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ScreenToClient(IntPtr hWnd, ref POINT_S lpPoint);
 
         [DllImport("user32.dll", EntryPoint = "GetAsyncKeyState")]
         private static extern short GetAsyncKeyStateShort(int vKey);
@@ -1790,6 +1794,7 @@ namespace BNDZ.Services
             "MESH_TERMINAL_INPUT",
             "MESH_TERMINAL_CLOSE",
             "MESH_TERMINAL_RESIZE",
+            "MESH_TERMINAL_LAYOUT",
             "MESH_DROP_SET_CONFIG",
             "MESH_DROP_CANCEL",
             "AI_GENERATE_STREAM",
@@ -2602,7 +2607,7 @@ namespace BNDZ.Services
             {
                 try
                 {
-                    await Task.Delay(750).ConfigureAwait(false);
+                    await Task.Delay(450).ConfigureAwait(false);
                     if (seq != Volatile.Read(ref _inboundHostFallbackSeq)) return;
 
                     var dest = _lastBrowserFolderWinPath;
@@ -2692,6 +2697,28 @@ namespace BNDZ.Services
                         var fsJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
                         PostToUi(() => DeliverIpcJson(fsJson));
                     }
+
+                    // Explicit FE nudge — guarantees list refresh even if FS watcher debounce lags.
+                    try
+                    {
+                        var destPane = dest.Replace("\\", "/");
+                        if (destPane.Length >= 2 && char.IsLetter(destPane[0]) && destPane[1] == ':' && !destPane.StartsWith('/'))
+                            destPane = "/" + destPane;
+                        var commitMsg = new
+                        {
+                            type = "INBOUND_HOST_COMMITTED",
+                            payload = new
+                            {
+                                dest = destPane,
+                                destWin = dest,
+                                paths = stillThere.ToArray(),
+                                effect = move ? "move" : "copy",
+                            },
+                        };
+                        var commitJson = JsonSerializer.Serialize(commitMsg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                        PostToUi(() => DeliverIpcJson(commitJson));
+                    }
+                    catch { /* ignore */ }
 
                     try
                     {
@@ -5130,13 +5157,15 @@ namespace BNDZ.Services
                     var hostId = payload.TryGetProperty("hostId", out var hEl) ? hEl.GetString() : null;
                     var cwd = payload.TryGetProperty("cwd", out var cEl) ? cEl.GetString() : null;
                     var local = payload.TryGetProperty("local", out var lEl) && lEl.GetBoolean();
+                    var cols = payload.TryGetProperty("cols", out var colsEl) ? (uint)Math.Clamp(colsEl.GetInt32(), 20, 400) : 120u;
+                    var rows = payload.TryGetProperty("rows", out var rowsEl) ? (uint)Math.Clamp(rowsEl.GetInt32(), 8, 200) : 32u;
                     _ = Task.Run(() =>
                     {
                         try
                         {
                             var session = local || string.IsNullOrEmpty(hostId)
-                                ? _meshOrchestrator.Terminal.OpenLocal(cwd)
-                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd);
+                                ? _meshOrchestrator.Terminal.OpenLocal(cwd, cols, rows)
+                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd, cols, rows);
                             PostMeshIpcResult(idProp, "MESH_TERMINAL_OPEN_RESULT", session);
                         }
                         catch (Exception ex)
@@ -5164,6 +5193,10 @@ namespace BNDZ.Services
                     var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
                     var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
                     _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_TERMINAL_LAYOUT")
+                {
+                    // No-op: never SetParent into WebView2. Local shell is ConPTY → xterm.js.
                 }
                 else if (type == "MESH_STAT")
                 {
@@ -11995,10 +12028,17 @@ namespace BNDZ.Services
             if (prefs.DefaultRepeatOnCollision && (action == "copy" || action == "move"))
                 _conflictBatchResolution[operationId] = "replace";
 
+            var isInstantCreateOp = action is "create-dir" or "create-file";
+            string? fsOpCreatedPath = isInstantCreateOp
+                ? (!string.IsNullOrWhiteSpace(target) ? target : sources.FirstOrDefault())
+                : null;
+
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 void OnProgress(string opId, int percentage, string currentFile, long bytesTransferred, long totalBytes, double speedBytesPerSecond, int itemsCompleted, int totalItems)
                 {
+                    if (isInstantCreateOp && !string.IsNullOrEmpty(currentFile))
+                        fsOpCreatedPath = currentFile;
                     _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems, bytesTransferred, totalBytes, speedBytesPerSecond);
                     var evt = new
                     {
@@ -12250,9 +12290,56 @@ namespace BNDZ.Services
                     catch { }
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
+
+                    // Verify create/copy landed before declaring success (false "Transfer done" fix).
+                    if (isInstantCreateOp)
+                    {
+                        var created = fsOpCreatedPath;
+                        if (string.IsNullOrEmpty(created))
+                        {
+                            created = !string.IsNullOrWhiteSpace(target) ? target : sources.FirstOrDefault();
+                        }
+                        if (string.IsNullOrEmpty(created)
+                            || (!Directory.Exists(created) && !File.Exists(created)))
+                        {
+                            var miss = "Create did not produce a path on disk.";
+                            _fileTransferQueue.MarkFailed(operationId, miss);
+                            if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                                await PostFsOperationResultAsync(idProp, false, miss, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
+                            return;
+                        }
+                        fsOpCreatedPath = created;
+                    }
+                    else if ((action is "copy" or "move") && plannedTargets is { Count: > 0 })
+                    {
+                        var missing = plannedTargets.Count(pt =>
+                            !string.IsNullOrWhiteSpace(pt.Dest)
+                            && !File.Exists(pt.Dest)
+                            && !Directory.Exists(pt.Dest));
+                        if (missing == plannedTargets.Count)
+                        {
+                            var miss = action == "move" ? "Move did not land on disk." : "Copy did not land on disk.";
+                            _fileTransferQueue.MarkFailed(operationId, miss);
+                            if (ShouldPostFsOperationResult())
+                                await PostFsOperationResultAsync(idProp, false, miss).ConfigureAwait(false);
+                            return;
+                        }
+                    }
+
                     _fileTransferQueue.MarkCompleted(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                    {
+                        var createdName = string.IsNullOrEmpty(fsOpCreatedPath)
+                            ? null
+                            : Path.GetFileName(fsOpCreatedPath.TrimEnd('\\', '/'));
+                        await PostFsOperationResultAsync(
+                            idProp,
+                            true,
+                            null,
+                            finalPath: fsOpCreatedPath,
+                            finalName: createdName,
+                            callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
+                    }
 
                     // Precise Created/Deleted so FE can patch the open listing immediately.
                     // "Changed" on wrong paths left wallpaper→list drops invisible until F5.
@@ -12334,8 +12421,8 @@ namespace BNDZ.Services
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkCancelled(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, "Cancelled", callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
@@ -12358,21 +12445,46 @@ namespace BNDZ.Services
                         try { DeliverIpcJson(JsonSerializer.Serialize(failEvt)); }
                         catch { }
                     });
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, ex.Message, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
             }
 
             // Deletes go to the fast-lane so they are never blocked by an in-progress copy/move.
+            // Instant create-dir/create-file wait for a real result (finalPath) — background ack
+            // left New Folder looking successful while nothing landed on disk.
             var isDeleteOp = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase);
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, priority, idProp, "FS_OPERATION_RESULT", deleteLane: isDeleteOp).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                operationId,
+                ExecuteCoreAsync,
+                priority,
+                idProp,
+                "FS_OPERATION_RESULT",
+                deleteLane: isDeleteOp,
+                forceWaitForIpcResult: isInstantCreateOp).ConfigureAwait(false);
         }
 
-        private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
+        private Task PostFsOperationResultAsync(
+            string? idProp,
+            bool ok,
+            string? error,
+            bool background = false,
+            string? finalPath = null,
+            string? finalName = null,
+            bool callerWaitsForResult = false)
         {
-            if (!background && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
-            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new { ok, error, background, queued = background });
+            if (!background && !callerWaitsForResult && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
+            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new
+            {
+                ok,
+                error,
+                background,
+                queued = background,
+                finalPath,
+                finalName,
+                created = ok && !string.IsNullOrEmpty(finalPath),
+            });
         }
 
         private async Task HandleFolderSyncRunAsync(string? idProp, string jobId)
