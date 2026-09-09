@@ -16668,7 +16668,7 @@ self.onmessage = function(event) {
             else {
                 if (!this._guardActiveLayerEdit()) return;
                 const rect=new fabric.Rect({left:0,top:0,width:this.canvasW,height:this.canvasH,fill:this.state.fgColor,selectable:true,name:'Fill'});
-                this.canvas.add(rect);this.layers[this.activeLayerIdx].objects.push(rect);this.saveHistory('Fill Canvas');this.updateLayersPanel(); }
+                this._addObjectAsLayer(rect,'Fill');this.saveHistory('Fill Canvas');this.updateLayersPanel(); }
             return;
         }
         if (tool==='eyedropper') {
@@ -17907,7 +17907,7 @@ self.onmessage = function(event) {
             grad = new fabric.Gradient({ type:'radial', coords:{x1:w/2,y1:h/2,r1:0,x2:w/2,y2:h/2,r2:Math.max(w,h)/2}, colorStops:stops });
         }
         const rect = new fabric.Rect({left,top,width:w,height:h,fill:grad,selectable:true,stroke:'transparent',strokeWidth:0});
-        this.canvas.add(rect); this.layers[this.activeLayerIdx].objects.push(rect);
+        this._addObjectAsLayer(rect, 'Gradient');
         this.saveHistory('Gradient'); this.updateLayersPanel();
         return true;
     },
@@ -24439,7 +24439,8 @@ self.onmessage = async function(event) {
         const snap = this._magneticLassoSnapshot;
         if (!snap?.data) return point;
         const x = Math.round(Number(point.x) || 0), y = Math.round(Number(point.y) || 0);
-        const radius = 7;
+        const zoom = this.canvas?.getZoom?.() || 1;
+        const radius = Math.max(2, Math.round(7 / zoom));
         const luminance = (px, py) => {
             if (px < 0 || py < 0 || px >= snap.width || py >= snap.height) return null;
             const index = (py * snap.width + px) * 4;

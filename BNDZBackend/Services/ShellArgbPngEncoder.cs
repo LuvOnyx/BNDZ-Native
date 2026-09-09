@@ -61,14 +61,14 @@ internal static class ShellArgbPngEncoder
             if (width <= 0 || height <= 0)
                 return "";
 
-            // 32bpp DIBSECTION with bits pointer — Files-style scan0 path.
+            // 32bpp DIBSECTION with bits pointer — Files always flips scanlines for GDI+.
+            // Do not gate on bmHeight sign: Vanara/shell HBITMAPs often report positive height
+            // even when bits are already top-down (or the opposite), which inverted every
+            // list/grid shell glyph after the conditional-flip change.
             if (bm.bmBitsPixel == 32 && bm.bmBits != IntPtr.Zero && bm.bmWidthBytes > 0)
             {
                 int stride = bm.bmWidthBytes;
                 int byteCount = checked(stride * height);
-                // Positive bmHeight = bottom-up DIB (flip for GDI+). Negative = already top-down;
-                // flipping again vertically mirrors/inverts shell icons in the grid.
-                bool bottomUp = bm.bmHeight > 0;
                 IntPtr pixels = Marshal.AllocHGlobal(byteCount);
                 try
                 {
@@ -76,7 +76,7 @@ internal static class ShellArgbPngEncoder
                     for (int y = 0; y < height; y++)
                     {
                         IntPtr src = IntPtr.Add(bm.bmBits, y * stride);
-                        IntPtr dst = IntPtr.Add(pixels, (bottomUp ? (height - y - 1) : y) * stride);
+                        IntPtr dst = IntPtr.Add(pixels, (height - y - 1) * stride);
                         Marshal.Copy(src, row, 0, stride);
                         Marshal.Copy(row, 0, dst, stride);
                     }

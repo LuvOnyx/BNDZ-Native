@@ -2216,12 +2216,10 @@ html.theme-light .bndz-panel-muted {
   color: rgba(0, 0, 0, 0.58) !important;
 }
 
-/* Light theme: dark top chrome keeps white type (menubar / tabs / toolbar / omnibar / address) */
+/* Light theme: menubar/toolbar/omnibar + breadcrumb stay dark; file tabstrip goes light. */
 html.theme-light .bndz-chrome-menubar,
 html.theme-light .bndz-chrome-toolbar,
 html.theme-light .bndz-chrome-omnibar,
-html.theme-light .bndz-chrome-tabstrip,
-html.theme-light .bndz-chrome-tabs,
 html.theme-light .bndz-files-address-strip,
 html.theme-light .bndz-quick-actions-bar {
   color: var(--chrome-dark-text, rgba(255, 255, 255, 0.88)) !important;
@@ -2238,13 +2236,16 @@ html.theme-light .bndz-chrome-omnibar {
   border-bottom-color: rgba(255, 255, 255, 0.08) !important;
 }
 
+/* Tab row (pink accent line sits here) — light surface in light themes */
 html.theme-light .bndz-chrome-tabstrip,
 html.theme-light .bndz-chrome-tabs {
+  color: rgba(15, 23, 42, 0.88) !important;
   background:
-    linear-gradient(180deg, rgba(40, 44, 52, 0.55) 0%, rgba(22, 24, 28, 0.92) 100%) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+    linear-gradient(180deg, #f4f6fa 0%, #e8ecf2 100%) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.12) !important;
 }
 
+/* Breadcrumb / address strip stays dark */
 html.theme-light .bndz-files-address-strip {
   background:
     linear-gradient(180deg, rgba(36, 40, 48, 0.75) 0%, rgba(24, 26, 32, 0.95) 100%) !important;
@@ -2268,10 +2269,6 @@ html.theme-light .bndz-chrome-omnibar .text-gray-200,
 html.theme-light .bndz-chrome-omnibar .text-gray-300,
 html.theme-light .bndz-chrome-omnibar .text-gray-400,
 html.theme-light .bndz-chrome-omnibar .text-gray-500,
-html.theme-light .bndz-chrome-tabstrip .text-gray-200,
-html.theme-light .bndz-chrome-tabstrip .text-gray-300,
-html.theme-light .bndz-chrome-tabstrip .text-gray-400,
-html.theme-light .bndz-chrome-tabstrip .text-gray-500,
 html.theme-light .bndz-files-address-strip .text-gray-200,
 html.theme-light .bndz-files-address-strip .text-gray-300,
 html.theme-light .bndz-files-address-strip .text-gray-400,
@@ -2281,13 +2278,31 @@ html.theme-light .bndz-breadcrumb-slot .text-gray-500 {
   color: var(--chrome-dark-muted, rgba(255, 255, 255, 0.55)) !important;
 }
 
+html.theme-light .bndz-chrome-tabstrip .text-gray-200,
+html.theme-light .bndz-chrome-tabstrip .text-gray-300,
+html.theme-light .bndz-chrome-tabs .text-gray-200,
+html.theme-light .bndz-chrome-tabs .text-gray-300 {
+  color: rgba(15, 23, 42, 0.78) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .text-gray-400,
+html.theme-light .bndz-chrome-tabstrip .text-gray-500,
+html.theme-light .bndz-chrome-tabs .text-gray-400,
+html.theme-light .bndz-chrome-tabs .text-gray-500 {
+  color: rgba(15, 23, 42, 0.48) !important;
+}
+
 html.theme-light .bndz-chrome-menubar .text-white,
 html.theme-light .bndz-chrome-toolbar .text-white,
 html.theme-light .bndz-chrome-omnibar .text-white,
-html.theme-light .bndz-chrome-tabstrip .text-white,
 html.theme-light .bndz-files-address-strip .text-white,
 html.theme-light .bndz-breadcrumb-slot .text-white {
   color: rgba(255, 255, 255, 0.92) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .text-white,
+html.theme-light .bndz-chrome-tabs .text-white {
+  color: rgba(15, 23, 42, 0.92) !important;
 }
 
 html.theme-light .bndz-chrome-menubar .bndz-menubar-trigger,
@@ -2306,11 +2321,11 @@ html.theme-light .bndz-chrome-omnibar input::placeholder {
 }
 
 html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
-  color: var(--chrome-dark-muted, rgba(255, 255, 255, 0.55)) !important;
+  color: rgba(15, 23, 42, 0.55) !important;
 }
 
 html.theme-light .bndz-tab-item.bndz-tab-active {
-  color: rgba(255, 255, 255, 0.92) !important;
+  color: rgba(15, 23, 42, 0.92) !important;
 }
 
 html.theme-light[data-theme] .nav-tree-row:hover:not(.nav-tree-row-selected) {
@@ -2935,16 +2950,38 @@ html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-sky-300 {
   color: #7dd3fc !important;
 }
 
-/* Address / tab chrome — reinforce white ink on dark strips (beat later remaps) */
+/* Light theme tabstrip: dark ink on pale tabs (address strip stays white-on-dark below) */
 html.theme-light .bndz-chrome-tabstrip .bndz-tab-item,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item,
-html.theme-light .bndz-tab-item.bndz-tab-active,
-html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
-  color: rgba(255, 255, 255, 0.88) !important;
+html.theme-light .bndz-chrome-tabs .bndz-tab-item {
+  color: rgba(15, 23, 42, 0.72) !important;
+  border-color: transparent !important;
 }
 
-html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
-  color: rgba(255, 255, 255, 0.55) !important;
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):hover,
+html.theme-light .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):hover {
+  color: rgba(15, 23, 42, 0.92) !important;
+  background: rgba(15, 23, 42, 0.06) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active {
+  color: rgba(15, 23, 42, 0.95) !important;
+  background: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 75%, transparent);
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-close,
+html.theme-light .bndz-chrome-tabs .bndz-tab-close {
+  color: rgba(15, 23, 42, 0.45);
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-close:hover,
+html.theme-light .bndz-chrome-tabs .bndz-tab-close:hover {
+  color: #fff;
+  background: rgba(232, 17, 35, 0.85);
 }
 
 html.theme-light .bndz-files-address-strip,
@@ -6560,6 +6597,8 @@ html[data-darkness-level] #root {
 .bndz-list-filter-chip[data-kind="images"] { --chip-accent: #c084fc; }
 .bndz-list-filter-chip[data-kind="videos"] { --chip-accent: #fb7185; }
 .bndz-list-filter-chip[data-kind="documents"] { --chip-accent: #38bdf8; }
+.bndz-list-filter-chip[data-kind="models"] { --chip-accent: #a78bfa; }
+.bndz-list-filter-chip[data-kind="archives"] { --chip-accent: #f59e0b; }
 .bndz-list-filter-chip[data-kind="large"] { --chip-accent: #34d399; }
 
 .bndz-list-filter-chip:hover {
@@ -6574,6 +6613,45 @@ html[data-darkness-level] #root {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 0 0 1px color-mix(in srgb, var(--chip-accent) 12%, transparent);
+}
+
+/* Light themes: black ink on kind chips (All / Folders / Images / …) */
+html.theme-light .bndz-list-filter-chip {
+  color: rgba(15, 23, 42, 0.82) !important;
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+html.theme-light .bndz-list-filter-chip:hover {
+  color: rgba(15, 23, 42, 0.95) !important;
+  background: color-mix(in srgb, var(--chip-accent) 14%, rgba(255, 255, 255, 0.7));
+  border-color: color-mix(in srgb, var(--chip-accent) 40%, rgba(15, 23, 42, 0.18));
+}
+html.theme-light .bndz-list-filter-chip--active {
+  color: rgba(15, 23, 42, 0.98) !important;
+  background: color-mix(in srgb, var(--chip-accent) 22%, rgba(255, 255, 255, 0.75));
+  border-color: color-mix(in srgb, var(--chip-accent) 55%, rgba(15, 23, 42, 0.2));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 0 0 1px color-mix(in srgb, var(--chip-accent) 18%, transparent);
+}
+
+html.theme-light .bndz-list-filter-bar {
+  background: rgba(248, 250, 252, 0.92);
+  border-bottom-color: rgba(15, 23, 42, 0.1);
+}
+
+html.theme-light .bndz-list-filter-info {
+  color: rgba(15, 23, 42, 0.82) !important;
+  background: color-mix(in srgb, #38bdf8 10%, rgba(255, 255, 255, 0.85)) !important;
+  border-bottom-color: color-mix(in srgb, #38bdf8 22%, rgba(15, 23, 42, 0.1)) !important;
+}
+
+html.theme-light .bndz-list-filter-info button {
+  color: rgba(15, 23, 42, 0.65) !important;
+}
+
+html.theme-light .bndz-list-filter-info button:hover {
+  color: rgba(15, 23, 42, 0.95) !important;
 }
 
 .bndz-col-resize-handle {
@@ -7589,33 +7667,48 @@ html[data-density="spacious"] .nav-tree-row {
   transition: transform 70ms cubic-bezier(0.2, 0, 0, 1) !important;
 }
 
-.bndz-tab-item:active:not(.bndz-tab-active) {
+.bndz-tab-item:active:not(.bndz-tab-active):not([data-tab-accent]) {
   background: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Classic Explorer ? rectangular, Fluent-like strip */
+/* Classic Explorer — rectangular, Fluent-like strip */
 html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
   border-bottom-color: rgba(255, 255, 255, 0.08);
+  gap: 1px;
 }
 
-html[data-tab-style="explorer"] .bndz-tab-item {
-  border-radius: 4px 4px 0 0 !important;
+html[data-tab-style="explorer"] .bndz-tab-item:not([data-tab-accent]) {
+  border-radius: 6px 6px 0 0 !important;
   padding-top: 5px !important;
   padding-bottom: 5px !important;
   border-color: transparent !important;
   background: transparent !important;
 }
 
-html[data-tab-style="explorer"] .bndz-tab-item:hover:not(.bndz-tab-active) {
-  background: rgba(255, 255, 255, 0.06) !important;
+html[data-tab-style="explorer"] .bndz-tab-item[data-tab-accent] {
+  border-radius: 6px 6px 0 0 !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
 }
 
-html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active {
+html[data-tab-style="explorer"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
+  background: rgba(255, 255, 255, 0.055) !important;
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
   background: var(--bndz-surface-raised, #1e1e1e) !important;
   color: #f3f3f3 !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   border-bottom-color: transparent !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 70%, transparent);
+}
+
+html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-bottom-color: transparent !important;
 }
 
 html[data-tab-style="explorer"] .bndz-tab-close:hover {
@@ -7623,28 +7716,42 @@ html[data-tab-style="explorer"] .bndz-tab-close:hover {
   color: #ffb4b4;
 }
 
-/* Soft Modern ? calm squircle tabs (Card-2x language) */
-html[data-tab-style="soft"] .bndz-tab-item {
-  border-radius: 10px 10px 4px 4px !important;
+/* Soft Modern — calm squircle tabs (Card-2x language) */
+html[data-tab-style="soft"] .bndz-tab-item:not([data-tab-accent]) {
+  border-radius: 11px 11px 5px 5px !important;
   margin-bottom: 2px;
-  border-color: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
   background:
-    linear-gradient(180deg, rgba(42, 42, 42, 0.55) 0%, rgba(24, 24, 24, 0.4) 100%) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-html[data-tab-style="soft"] .bndz-tab-item:hover:not(.bndz-tab-active) {
-  filter: brightness(1.08);
-}
-
-html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active {
-  background:
-    linear-gradient(180deg, rgba(48, 48, 48, 0.98) 0%, rgba(28, 28, 28, 0.96) 100%) !important;
-  border-color: rgba(190, 190, 190, 0.28) !important;
-  color: #f5f5f5 !important;
+    linear-gradient(180deg, rgba(48, 48, 56, 0.5) 0%, rgba(22, 22, 28, 0.42) 100%) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 0 1px rgba(0, 0, 0, 0.2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 0 rgba(0, 0, 0, 0.18);
+}
+
+html[data-tab-style="soft"] .bndz-tab-item[data-tab-accent] {
+  border-radius: 11px 11px 5px 5px !important;
+  margin-bottom: 2px;
+}
+
+html[data-tab-style="soft"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
+  filter: brightness(1.07);
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+  background:
+    linear-gradient(180deg, rgba(54, 54, 64, 0.98) 0%, rgba(30, 30, 38, 0.96) 100%) !important;
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(190, 190, 190, 0.22)) !important;
+  color: #f8fafc !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 55%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.28);
+}
+
+html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(190, 190, 190, 0.22)) !important;
+  color: #f8fafc !important;
 }
 
 html[data-tab-style="underline"] .bndz-tab-item.bndz-tab-active {
@@ -7654,7 +7761,7 @@ html[data-tab-style="underline"] .bndz-tab-item.bndz-tab-active {
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent, #0078d4) 35%, transparent);
 }
 
-html[data-tab-style="segment"] .bndz-tab-item.bndz-tab-active {
+html[data-tab-style="segment"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
   background: var(--bndz-surface-raised) !important;
   border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 12%, transparent);
@@ -7669,8 +7776,12 @@ html[data-tab-style="flat"] .bndz-tab-item {
   border-radius: var(--bndz-radius-sm);
 }
 
-html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active {
+html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
   background: color-mix(in srgb, var(--accent, #0078d4) 14%, transparent) !important;
+  color: #e8f4fc !important;
+}
+
+html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
   color: #e8f4fc !important;
 }
 
@@ -7921,6 +8032,21 @@ html[data-theme] .bndz-destination-picker-footer {
   background: var(--list-hover, rgba(255, 255, 255, 0.06));
 }
 
+.bndz-settings-nav {
+  --bndz-settings-nav-rail: #0078d4;
+  --bndz-settings-nav-tint: rgba(0, 120, 212, 0.22);
+  --bndz-settings-nav-edge: rgba(0, 120, 212, 0.38);
+  background:
+    linear-gradient(180deg, rgba(22, 22, 28, 0.98) 0%, rgba(14, 14, 18, 0.99) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.35);
+}
+
+.bndz-settings-nav-search {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+}
+
 .bndz-settings-nav [data-slot="tabs-list"] {
   display: flex !important;
   flex-direction: column !important;
@@ -7934,7 +8060,7 @@ html[data-theme] .bndz-destination-picker-footer {
   flex: 0 0 auto !important;
   flex-grow: 0 !important;
   height: auto !important;
-  min-height: 26px !important;
+  min-height: 28px !important;
   width: 100% !important;
   max-width: 100% !important;
   white-space: normal !important;
@@ -7943,22 +8069,113 @@ html[data-theme] .bndz-destination-picker-footer {
   position: relative;
 }
 
-/* Settings left-nav selection ? Base UI uses data-active (not data-state=active).
-   Line-variant tabs default to transparent active bg; force a clear highlight. */
+.bndz-settings-nav-item {
+  color: rgba(210, 214, 220, 0.78) !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 100ms ease !important;
+}
+
+.bndz-settings-nav-item:hover:not([data-active]):not([aria-selected="true"]) {
+  color: #f1f5f9 !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.bndz-settings-nav-item:active:not([data-active]):not([aria-selected="true"]) {
+  transform: translateY(0.5px);
+}
+
+/* Soft selected chip — category tint via --bndz-settings-nav-* */
 .bndz-settings-nav [data-slot="tabs-trigger"].bndz-settings-nav-item[data-active],
 .bndz-settings-nav [data-slot="tabs-trigger"].bndz-settings-nav-item[aria-selected="true"] {
-  background: linear-gradient(
-    90deg,
-    rgba(0, 120, 212, 0.28) 0%,
-    rgba(0, 120, 212, 0.12) 55%,
-    rgba(0, 120, 212, 0.04) 100%
-  ) !important;
-  border-color: rgba(0, 120, 212, 0.4) !important;
-  color: #e8f4fc !important;
+  color: #f8fafc !important;
   font-weight: 600 !important;
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--bndz-settings-nav-tint) 100%, transparent) 0%,
+    rgba(255, 255, 255, 0.03) 72%,
+    transparent 100%
+  ) !important;
+  border-color: var(--bndz-settings-nav-edge) !important;
   box-shadow:
-    inset 3px 0 0 #0078d4,
-    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    inset 3px 0 0 var(--bndz-settings-nav-rail),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 1px 0 rgba(0, 0, 0, 0.25) !important;
+}
+
+.bndz-settings-nav-group[data-settings-cat="General"],
+.bndz-settings-nav-item[data-settings-cat="General"] {
+  --bndz-settings-nav-rail: #0078d4;
+  --bndz-settings-nav-tint: rgba(0, 120, 212, 0.24);
+  --bndz-settings-nav-edge: rgba(0, 120, 212, 0.4);
+}
+.bndz-settings-nav-group[data-settings-cat="Automation"],
+.bndz-settings-nav-item[data-settings-cat="Automation"] {
+  --bndz-settings-nav-rail: #f97316;
+  --bndz-settings-nav-tint: rgba(249, 115, 22, 0.22);
+  --bndz-settings-nav-edge: rgba(249, 115, 22, 0.38);
+}
+.bndz-settings-nav-group[data-settings-cat="Colors and Styles"],
+.bndz-settings-nav-item[data-settings-cat="Colors and Styles"] {
+  --bndz-settings-nav-rail: #8b5cf6;
+  --bndz-settings-nav-tint: rgba(139, 92, 246, 0.24);
+  --bndz-settings-nav-edge: rgba(139, 92, 246, 0.4);
+}
+.bndz-settings-nav-group[data-settings-cat="Information"],
+.bndz-settings-nav-item[data-settings-cat="Information"] {
+  --bndz-settings-nav-rail: #10b981;
+  --bndz-settings-nav-tint: rgba(16, 185, 129, 0.22);
+  --bndz-settings-nav-edge: rgba(16, 185, 129, 0.38);
+}
+.bndz-settings-nav-group[data-settings-cat="File Operations"],
+.bndz-settings-nav-item[data-settings-cat="File Operations"] {
+  --bndz-settings-nav-rail: #f59e0b;
+  --bndz-settings-nav-tint: rgba(245, 158, 11, 0.22);
+  --bndz-settings-nav-edge: rgba(245, 158, 11, 0.38);
+}
+.bndz-settings-nav-group[data-settings-cat="Find and Filter"],
+.bndz-settings-nav-item[data-settings-cat="Find and Filter"] {
+  --bndz-settings-nav-rail: #06b6d4;
+  --bndz-settings-nav-tint: rgba(6, 182, 212, 0.22);
+  --bndz-settings-nav-edge: rgba(6, 182, 212, 0.38);
+}
+.bndz-settings-nav-group[data-settings-cat="Preview"],
+.bndz-settings-nav-item[data-settings-cat="Preview"] {
+  --bndz-settings-nav-rail: #ec4899;
+  --bndz-settings-nav-tint: rgba(236, 72, 153, 0.22);
+  --bndz-settings-nav-edge: rgba(236, 72, 153, 0.38);
+}
+.bndz-settings-nav-group[data-settings-cat="Tabs and Panes"],
+.bndz-settings-nav-item[data-settings-cat="Tabs and Panes"] {
+  --bndz-settings-nav-rail: #6366f1;
+  --bndz-settings-nav-tint: rgba(99, 102, 241, 0.22);
+  --bndz-settings-nav-edge: rgba(99, 102, 241, 0.38);
+}
+.bndz-settings-nav-group[data-settings-cat="Shell & Access"],
+.bndz-settings-nav-item[data-settings-cat="Shell & Access"],
+.bndz-settings-nav-group[data-settings-cat="Other"],
+.bndz-settings-nav-item[data-settings-cat="Other"] {
+  --bndz-settings-nav-rail: #94a3b8;
+  --bndz-settings-nav-tint: rgba(148, 163, 184, 0.18);
+  --bndz-settings-nav-edge: rgba(148, 163, 184, 0.34);
+}
+
+.bndz-settings-cat-count {
+  font-family: var(--bndz-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: rgba(203, 213, 225, 0.65);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .bndz-settings-content h1.text-\[20px\] {
@@ -8532,173 +8749,426 @@ html.bndz-panel-resizing .bndz-resize-handle {
   color: var(--text, #fff);
 }
 
-/* Extension Hub (Plugin Marketplace) */
+/* ═══════════════════════════════════════════════════════════════
+   Extension Hub — BNDZ craft (glass/squircle, motion, depth)
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes bndz-hub-glow-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%       { opacity: 0.9;  transform: scale(1.12); }
+}
+@keyframes bndz-hub-shimmer {
+  0%   { transform: translateX(-100%) skewX(-12deg); }
+  100% { transform: translateX(220%)  skewX(-12deg); }
+}
+@keyframes bndz-hub-installed-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.35); }
+  50%       { box-shadow: 0 0 0 5px rgba(56, 189, 248, 0); }
+}
+@keyframes bndz-hub-row-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Root surface — deep space with aurora nebula */
 .bndz-hub {
+  position: relative;
+  isolation: isolate;
   background:
-    radial-gradient(1200px 420px at 12% -10%, rgba(56, 189, 248, 0.07), transparent 55%),
-    radial-gradient(900px 380px at 100% 0%, rgba(0, 120, 212, 0.05), transparent 50%),
-    #22242a;
+    radial-gradient(ellipse 900px 500px at 0% -10%,  rgba(120, 40, 200, 0.09) 0%, transparent 60%),
+    radial-gradient(ellipse 700px 380px at 100% 5%,   rgba(14, 165, 233, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 500px 300px at 55% 100%,  rgba(236, 72, 153, 0.05) 0%, transparent 55%),
+    #16181f;
 }
+/* Noise grain overlay for depth */
+.bndz-hub::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+.bndz-hub > * { position: relative; z-index: 1; }
 
+/* Command strip — paper glass */
 .bndz-hub-command {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%), rgba(0, 0, 0, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
+    rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(4px);
 }
 
+/* Stats band */
 .bndz-hub-stats {
-  background: rgba(0, 0, 0, 0.16);
+  background: rgba(0, 0, 0, 0.20);
 }
 
+/* ── Stat orbs ── */
+.bndz-hub-stat-orb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.bndz-hub-stat-orb--total {
+  color: rgba(226, 232, 240, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.bndz-hub-stat-orb--installed {
+  color: #7dd3fc;
+  background: rgba(9, 71, 113, 0.40);
+  border: 1px solid rgba(56, 189, 248, 0.30);
+}
+.bndz-hub-stat-orb--available {
+  color: rgba(203, 213, 225, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Filter chips — squircle pills with spring transition ── */
 .bndz-hub-chip {
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 5px 11px;
+  letter-spacing: 0.025em;
+  padding: 4px 11px;
   border-radius: 8px;
-  color: rgba(226, 232, 240, 0.55);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  color: rgba(203, 213, 225, 0.52);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition:
+    color 0.14s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.14s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 0.14s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.14s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
 .bndz-hub-chip:hover {
-  color: rgba(248, 250, 252, 0.9);
-  background: rgba(56, 189, 248, 0.08);
-  border-color: rgba(56, 189, 248, 0.28);
+  color: rgba(248, 250, 252, 0.88);
+  background: rgba(56, 189, 248, 0.07);
+  border-color: rgba(56, 189, 248, 0.22);
+  transform: translateY(-1px);
 }
-
 .bndz-hub-chip--active {
-  color: #e0f2fe !important;
-  background: rgba(14, 165, 233, 0.18) !important;
-  border-color: rgba(56, 189, 248, 0.45) !important;
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #bae6fd !important;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.22) 0%, rgba(56, 189, 248, 0.12) 100%) !important;
+  border-color: rgba(56, 189, 248, 0.50) !important;
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 8px rgba(14, 165, 233, 0.15);
+  transform: translateY(-1px) !important;
 }
-
 .bndz-hub-chip--static {
   pointer-events: none;
   cursor: default;
-  padding: 3px 8px;
+  padding: 2px 8px;
   font-size: 10px;
+  transform: none !important;
 }
 
+/* ── Active badge / installed pill ── */
 .bndz-hub-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #7dd3fc;
-  background: rgba(9, 71, 113, 0.45);
-  border: 1px solid rgba(0, 120, 212, 0.35);
-  border-radius: 4px;
-  padding: 1px 6px;
+  background: rgba(9, 71, 113, 0.50);
+  border: 1px solid rgba(56, 189, 248, 0.38);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+/* Pulsing dot before installed pills */
+.bndz-hub-pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #38bdf8;
+  flex-shrink: 0;
+  animation: bndz-hub-glow-pulse 2.4s ease-in-out infinite;
 }
 
+/* ── Catalog row cards ── */
 .bndz-hub-row {
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid transparent;
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  position: relative;
+  overflow: hidden;
+  animation: bndz-hub-row-in 0.18s ease both;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
 .bndz-hub-row:hover {
-  background: rgba(255, 255, 255, 0.035);
-  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.07);
+  transform: translateX(2px);
 }
-
 .bndz-hub-row--active {
-  background: linear-gradient(90deg, rgba(9, 71, 113, 0.45) 0%, rgba(14, 165, 233, 0.08) 100%) !important;
-  border-color: rgba(56, 189, 248, 0.35) !important;
-  box-shadow: inset 3px 0 0 #38bdf8;
-}
-
-.bndz-hub-row-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.bndz-hub-row-icon--on {
-  background: rgba(9, 71, 113, 0.35);
-  border-color: rgba(56, 189, 248, 0.28);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.bndz-hub-hero {
-  background:
-    linear-gradient(115deg, rgba(14, 165, 233, 0.1) 0%, transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%),
-    #1a1c22;
-  box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.08);
-}
-
-.bndz-hub-hero-icon {
-  width: 88px;
-  height: 88px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(160deg, rgba(30, 41, 59, 0.95) 0%, rgba(8, 12, 20, 0.95) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 12px 28px rgba(0, 0, 0, 0.35);
-}
-
-.bndz-hub-hero-icon--on {
-  border-color: rgba(56, 189, 248, 0.4);
+  background: linear-gradient(100deg, rgba(9, 71, 113, 0.38) 0%, rgba(14, 165, 233, 0.06) 100%) !important;
+  border-color: rgba(56, 189, 248, 0.38) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(56, 189, 248, 0.12),
-    0 14px 32px rgba(0, 0, 0, 0.4);
+    inset 3px 0 0 #38bdf8,
+    inset 0 0 0 1px rgba(56, 189, 248, 0.08),
+    0 4px 16px rgba(14, 165, 233, 0.08);
+  transform: translateX(2px) !important;
 }
 
+/* ── Catalog row icon squircle ── */
+.bndz-hub-row-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(155deg, rgba(30, 32, 42, 0.95) 0%, rgba(10, 12, 18, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.28);
+  flex-shrink: 0;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.bndz-hub-row-icon--on {
+  background: linear-gradient(155deg, rgba(7, 40, 70, 0.92) 0%, rgba(3, 15, 28, 0.95) 100%);
+  border-color: rgba(56, 189, 248, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(56, 189, 248, 0.08),
+    0 0 12px rgba(14, 165, 233, 0.12),
+    0 4px 14px rgba(0, 0, 0, 0.32);
+  animation: bndz-hub-installed-ring 3.5s ease-in-out infinite;
+}
+
+/* ── Section label (catalog group headers) ── */
+.bndz-hub-section-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.38);
+  padding: 10px 12px 4px;
+  user-select: none;
+}
+
+/* ── Hero section — glass paper card ── */
+.bndz-hub-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(125deg, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+    linear-gradient(225deg, rgba(139, 92, 246, 0.05) 0%, transparent 45%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, transparent 100%),
+    #1a1c24;
+  box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.10);
+}
+/* Decorative aurora blob behind hero */
+.bndz-hub-hero::after {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -80px;
+  width: 340px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.bndz-hub-hero > * { position: relative; z-index: 1; }
+
+/* ── Hero icon — deep glass squircle ── */
+.bndz-hub-hero-icon {
+  width: 92px;
+  height: 92px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(155deg, rgba(26, 34, 52, 0.98) 0%, rgba(6, 10, 18, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 16px 40px rgba(0, 0, 0, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.bndz-hub-hero-icon--on {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(56, 189, 248, 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.40),
+    0 0 0 1px rgba(56, 189, 248, 0.14),
+    0 0 28px rgba(14, 165, 233, 0.18),
+    0 18px 44px rgba(0, 0, 0, 0.50);
+}
+
+/* ── Primary CTA — BNDZ signature gradient with shimmer ── */
 .bndz-hub-btn-primary {
+  position: relative;
+  overflow: hidden;
   color: #fff;
-  background: linear-gradient(180deg, #1a8ad8 0%, #0078d4 100%);
-  border: 1px solid rgba(0, 120, 212, 0.85);
-  border-radius: 7px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 16px rgba(0, 120, 212, 0.25);
-  transition: filter 0.12s ease, transform 0.12s ease;
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 50%, #7c3aed 100%);
+  border: 1px solid rgba(99, 179, 245, 0.55);
+  border-radius: 9px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    0 8px 20px rgba(14, 165, 233, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: filter 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
 }
-
+/* Shimmer sweep */
+.bndz-hub-btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 0;
+  width: 50%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.14) 50%, transparent 100%);
+  transform: translateX(-100%) skewX(-12deg);
+  transition: none;
+}
+.bndz-hub-btn-primary:hover::before {
+  animation: bndz-hub-shimmer 0.55s ease forwards;
+}
 .bndz-hub-btn-primary:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 12px 28px rgba(14, 165, 233, 0.36),
+    0 3px 8px rgba(0, 0, 0, 0.28);
 }
-
 .bndz-hub-btn-primary:active {
-  transform: translateY(1px);
+  transform: translateY(0px);
+  filter: brightness(0.96);
 }
 
+/* ── Ghost button ── */
 .bndz-hub-btn-ghost {
-  color: rgba(226, 232, 240, 0.85);
+  color: rgba(203, 213, 225, 0.80);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 7px;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
 .bndz-hub-btn-ghost:hover {
-  color: #fff;
+  color: #f1f5f9;
   background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
+/* ── Danger / uninstall button ── */
 .bndz-hub-btn-danger {
-  color: #fecaca;
-  background: linear-gradient(180deg, rgba(232, 17, 35, 0.28) 0%, rgba(185, 28, 28, 0.22) 100%);
-  border: 1px solid rgba(248, 113, 113, 0.45);
-  border-radius: 7px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: filter 0.12s ease, background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  position: relative;
+  overflow: hidden;
+  color: #fca5a5;
+  background: linear-gradient(135deg, rgba(153, 27, 27, 0.38) 0%, rgba(127, 29, 29, 0.28) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.38);
+  border-radius: 9px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: filter 0.14s ease, background 0.14s ease, border-color 0.14s ease, color 0.14s ease, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bndz-hub-btn-danger:hover {
+  color: #fee2e2;
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.48) 0%, rgba(153, 27, 27, 0.40) 100%);
+  border-color: rgba(248, 113, 113, 0.55);
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+.bndz-hub-btn-danger:active {
+  transform: translateY(0px);
 }
 
-.bndz-hub-btn-danger:hover {
-  color: #fff;
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.45) 0%, rgba(185, 28, 28, 0.38) 100%);
-  border-color: rgba(252, 165, 165, 0.55);
-  filter: brightness(1.04);
+/* ── Capability check item ── */
+.bndz-hub-cap-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bndz-hub-cap-item:hover {
+  background: rgba(56, 189, 248, 0.04);
+  border-color: rgba(56, 189, 248, 0.12);
+  transform: translateX(3px);
+}
+.bndz-hub-cap-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+  flex-shrink: 0;
+  margin-top: 4px;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+}
+
+/* ── Detail pane empty state ── */
+.bndz-hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(148, 163, 184, 0.35);
+  padding: 24px;
+}
+
+/* ── Catalog panel background ── */
+.bndz-hub-catalog-panel {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.08) 100%),
+    rgba(0, 0, 0, 0.12);
+}
+
+/* ── Detail panel background ── */
+.bndz-hub-detail-panel {
+  background: #18191f;
+}
+
+/* ── Version timeline card ── */
+.bndz-hub-version-card {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+.bndz-hub-version-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #38bdf8 0%, #818cf8 100%);
+  border-radius: 3px 0 0 3px;
+}
+
+/* ── Search input accent focus ── */
+.bndz-hub .bndz-native-input:focus {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .bndz-native-input {
@@ -8938,6 +9408,10 @@ html.bndz-panel-resizing .bndz-resize-handle {
 .bndz-settings-nav .bndz-settings-category {
   border-width: 1px;
   border-style: solid;
+  border-radius: 9px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .bndz-settings-category-accent {
@@ -12426,20 +12900,35 @@ html[data-theme] .nav-tree-row:focus-visible {
   0%, 100% { opacity: 0.75; }
   50% { opacity: 1; }
 }
+.bndz-mesh-surface--terminal {
+  /* Terminal owns the body hole — no extra padding fighting FitAddon. */
+  min-height: 0;
+}
 .bndz-mesh-terminal-frame {
   position: relative;
   min-height: 0;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    0 18px 40px rgba(0,0,0,0.35);
+  flex: 1 1 auto;
+  border: none;
+  border-radius: 0;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
-.bndz-mesh-terminal,
-.bndz-mesh-terminal .xterm,
+.bndz-mesh-terminal {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.bndz-mesh-terminal .xterm {
+  height: 100%;
+  width: 100%;
+  /* Keep prompt line clear of residual bottom chrome / scrollbar gutter */
+  padding: 6px 8px 14px;
+  box-sizing: border-box;
+}
 .bndz-mesh-terminal .xterm-viewport {
-  height: 100% !important;
-}
-.bndz-mesh-terminal .xterm-screen {
-  height: 100% !important;
+  /* Let FitAddon size rows — do not force screen under chrome. */
+  overflow-y: auto !important;
 }
 .bndz-mesh-mirror-card,
 .bndz-mesh-liveshare-card {
@@ -17165,12 +17654,18 @@ html[data-bndz-shell="native-host"] .bndz-tab-item {
   margin-right: 2px !important;
   font-size: 12px !important;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active,
-html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active {
+html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
   background: color-mix(in srgb, var(--bndz-surface-raised, #1e222a) 92%, var(--accent, #0078d4) 8%) !important;
   border: 1px solid rgba(255, 255, 255, 0.10) !important;
   border-bottom-color: transparent !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  font-weight: 600;
+}
+html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-bottom-color: transparent !important;
   font-weight: 600;
 }
 html[data-bndz-shell="files-host"] .bndz-files-address-strip,
@@ -17802,12 +18297,6 @@ html.theme-light .bndz-chrome-menubar,
 html.theme-light .bndz-chrome-menubar *,
 html.theme-light .bndz-chrome-toolbar,
 html.theme-light .bndz-chrome-toolbar *:not(svg):not(path):not(img),
-html.theme-light .bndz-chrome-tabstrip,
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item,
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item *,
-html.theme-light .bndz-tab-item,
-html.theme-light .bndz-tab-item.bndz-tab-active,
-html.theme-light .bndz-tab-item:not(.bndz-tab-active),
 html.theme-light .bndz-files-address-strip,
 html.theme-light .bndz-files-address-strip *,
 html.theme-light .bndz-files-address-well,
@@ -17821,21 +18310,65 @@ html.theme-light .bndz-chrome-omnibar input {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
+/* File tabstrip is pale in light themes — dark ink (address strip above stays white-on-dark). */
+html.theme-light .bndz-chrome-tabstrip,
+html.theme-light .bndz-chrome-tabs {
+  color: rgba(15, 23, 42, 0.88) !important;
+  background:
+    linear-gradient(180deg, #f4f6fa 0%, #e8ecf2 100%) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item,
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item *,
+html.theme-light .bndz-chrome-tabs .bndz-tab-item,
+html.theme-light .bndz-chrome-tabs .bndz-tab-item *,
+html.theme-light .bndz-tab-item,
+html.theme-light .bndz-tab-item.bndz-tab-active,
 html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
-  color: rgba(255, 255, 255, 0.58) !important;
+  color: rgba(15, 23, 42, 0.78) !important;
 }
 
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active,
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active {
-  background: #2a2e36 !important;
-  color: rgba(255, 255, 255, 0.95) !important;
+html.theme-light .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+  color: rgba(15, 23, 42, 0.55) !important;
+  background: transparent !important;
 }
 
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active),
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active) {
-  background: rgba(18, 20, 26, 0.85) !important;
-  color: rgba(255, 255, 255, 0.58) !important;
+html.theme-light .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
+  /* Keep user tab color visible when inactive — do not wipe backgroundImage / tint. */
+  background-color: transparent;
+  color: rgba(15, 23, 42, 0.78) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+  background: #ffffff !important;
+  color: rgba(15, 23, 42, 0.95) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 75%, transparent);
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+  color: rgba(15, 23, 42, 0.95) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
+html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+  background: transparent !important;
+  color: rgba(15, 23, 42, 0.55) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
+html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
+  color: rgba(15, 23, 42, 0.78) !important;
 }
 
 /*
@@ -17857,13 +18390,13 @@ html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab {
     transparent 78%
   ),
   linear-gradient(180deg, #2a2d36 0%, #1a1d24 100%) !important;
-  color: var(--status-text, #c8cdd6) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
   border-top: 1px solid color-mix(in srgb, var(--status-neon, var(--accent, #0078d4)) 28%, transparent) !important;
 }
 
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab,
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab * {
-  color: var(--status-text, #c8cdd6) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
 }
 
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab),

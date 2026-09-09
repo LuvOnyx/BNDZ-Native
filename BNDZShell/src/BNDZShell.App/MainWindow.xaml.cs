@@ -32,6 +32,12 @@ public sealed partial class MainWindow : Window
     private BndzTrayIcon? _trayIcon;
     private SubclassProc? _subclassProc;
     private readonly PluginLaunch _launch;
+    /// <summary>
+    /// CSS/DIP width of logo + menu triggers that must stay WebView Passthrough.
+    /// Hardcoding ~560 left Scripting/Panes/Tabsets/Window/Help under WinUI Caption
+    /// (clicks started window-drag). FE measures the real edge and updates this.
+    /// </summary>
+    private double _menubarPassDip = 1180;
 
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, nuint uIdSubclass, nuint dwRefData);
 
@@ -366,7 +372,13 @@ public sealed partial class MainWindow : Window
             }
 
             // Logo + menu triggers stay passthrough; drag strip + system buttons are native caption.
-            var menuPassW = Math.Clamp((int)Math.Round(560 * scale), (int)Math.Round(220 * scale), passW);
+            // Keep a minimum drag strip so the window stays movable when the menu row is long.
+            var minDragDip = 64.0;
+            var passDip = Math.Max(220.0, _menubarPassDip);
+            var menuPassW = Math.Clamp((int)Math.Round(passDip * scale), (int)Math.Round(220 * scale), passW);
+            var minDragPx = (int)Math.Round(minDragDip * scale);
+            if (passW - menuPassW < minDragPx && passW > minDragPx)
+                menuPassW = passW - minDragPx;
             var dragX = menuPassW;
             var dragW = Math.Max(0, passW - menuPassW);
 
@@ -922,6 +934,19 @@ public sealed partial class MainWindow : Window
                 case "refreshinputregions":
                 case "refresh_input_regions":
                     ScheduleMenubarInputRegionRefresh("fe-request");
+                    break;
+                case "setmenubarpasswidth":
+                case "set_menubar_pass_width":
+                    // CSS px from FE (getBoundingClientRect) — multiply by scale in ApplyMenubarInputRegions.
+                    if (payload.TryGetProperty("width", out var passWEl)
+                        && passWEl.TryGetDouble(out var passWCss)
+                        && passWCss >= 180
+                        && passWCss <= 4000)
+                    {
+                        // Small pad past the last trigger so hit-tests don't clip glyph edges.
+                        _menubarPassDip = passWCss + 10;
+                        ScheduleMenubarInputRegionRefresh("fe-menu-width");
+                    }
                     break;
             }
         }

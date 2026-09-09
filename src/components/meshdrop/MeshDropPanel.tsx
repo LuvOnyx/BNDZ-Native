@@ -13,7 +13,7 @@ type Props = {
 };
 
 /**
- * Remote Mesh · Mesh Drop — P2P send/receive (separate from SSH hosts and Mesh VPS).
+ * Remote · Mesh Drop — P2P send/receive (separate from SSH hosts and Mesh VPS).
  */
 export default function MeshDropPanel({ selectionPaths = [], onStatus }: Props) {
   const [open, setOpen] = useState(false);

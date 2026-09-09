@@ -8,6 +8,11 @@ public sealed class LinkService
 {
     private const int SYMBOLIC_LINK_FLAG_FILE = 0x0;
     private const int SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1;
+    /// <summary>Windows 10 Creators Update (1703) Developer Mode — allows symlinks without elevation.</summary>
+    private const int SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE = 0x2;
+
+    /// <summary>True when the process can create symlinks without elevation (SeCreateSymbolicLinkPrivilege or Dev Mode).</summary>
+    private static readonly bool _canSymlinkUnprivileged = ProbeSymlinkPrivilege();
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool CreateSymbolicLink(string lpSymlinkFileName, string lpTargetFileName, int dwFlags);
@@ -42,8 +47,14 @@ public sealed class LinkService
                 case "symbolic":
                 {
                     bool isDir = Directory.Exists(targetPath);
-                    if (!CreateSymbolicLink(linkPath, targetPath, isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : SYMBOLIC_LINK_FLAG_FILE))
-                        return new LinkResult { Success = false, Error = $"CreateSymbolicLink failed: {Marshal.GetLastWin32Error()}" };
+                    int flags = isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : SYMBOLIC_LINK_FLAG_FILE;
+                    // Try with ALLOW_UNPRIVILEGED_CREATE first (Dev Mode / Creators Update+).
+                    // Fall back to plain flag if the OS rejects it (pre-1703 or group policy off).
+                    if (!CreateSymbolicLink(linkPath, targetPath, flags | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE))
+                    {
+                        if (!CreateSymbolicLink(linkPath, targetPath, flags))
+                            return new LinkResult { Success = false, Error = $"CreateSymbolicLink failed: {Marshal.GetLastWin32Error()} (try enabling Developer Mode)" };
+                    }
                     return new LinkResult { Success = true, LinkType = "symlink" };
                 }
                 case "hardlink":
@@ -217,6 +228,27 @@ public sealed class LinkService
         catch (Exception ex)
         {
             return new ShortcutResolveResult { Success = false, Error = ex.Message };
+        }
+    }
+
+    /// <summary>
+    /// Probe whether unprivileged symlinks are allowed by attempting a dry-run with a null pointer
+    /// (which causes CreateSymbolicLink to fail with ERROR_INVALID_PARAMETER rather than
+    /// ERROR_PRIVILEGE_NOT_HELD when the flag is accepted by the OS).
+    /// </summary>
+    private static bool ProbeSymlinkPrivilege()
+    {
+        try
+        {
+            // ERROR_INVALID_PARAMETER (87) means the OS accepted the flags but rejected null paths — Dev Mode OK.
+            // ERROR_PRIVILEGE_NOT_HELD (1314) means the flag was rejected — no Dev Mode.
+            CreateSymbolicLink("", "", SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+            var err = Marshal.GetLastWin32Error();
+            return err == 87; // ERROR_INVALID_PARAMETER
+        }
+        catch
+        {
+            return false;
         }
     }
 

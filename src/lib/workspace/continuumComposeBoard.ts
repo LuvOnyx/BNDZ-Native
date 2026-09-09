@@ -11,6 +11,8 @@ import {
   createSticky,
   defaultCanvas,
   listSpatialBoards,
+  PILLAR_BOARD_ID,
+  PILLAR_BOARD_NAME,
   saveSpatialCanvasNow,
   switchSpatialBoard,
   type CanvasItem,
@@ -18,9 +20,10 @@ import {
   type SpatialSticky,
 } from '../spatialCanvasStore';
 
-export const CONTINUUM_BOARD_ID = 'continuum-home';
+/** @deprecated Prefer PILLAR_BOARD_ID — Continuum is Home, not Spatial. */
+export const CONTINUUM_BOARD_ID = PILLAR_BOARD_ID;
 /** User-facing Spatial preset name — Continuum is Home, not this board. */
-export const CONTINUUM_BOARD_NAME = 'Pillar Board';
+export const CONTINUUM_BOARD_NAME = PILLAR_BOARD_NAME;
 
 type PillarPin = {
   path: string;
@@ -52,51 +55,54 @@ const CONTINUUM_PILLARS: PillarPin[] = [
   {
     path: BNDZ_RAM_ROOT,
     name: 'RAM Staging',
-    note: 'ImDisk / AIM zones · flush from deck',
-    sticky: 'Stage hot projects into RAM zones.',
+    note: 'ImDisk / AIM ramdisk · zero install chrome',
+    sticky: 'Stage hot files in RAM, then commit out.',
   },
   {
     path: BNDZ_LARGE,
-    name: 'Capacity pressure',
-    note: 'Large files · feeds Capacity Solver',
-    sticky: 'Pressure → Capacity what-if plan.',
-  },
-  {
-    path: BNDZ_RECENT,
-    name: 'Branch / recent',
-    note: 'Recent activity · Branching Time tips',
-    sticky: 'History → Branch scrub / restore.',
+    name: 'Capacity',
+    note: 'Space pressure · largest folders',
+    sticky: 'Reclaim space from Capacity Solver.',
   },
   {
     path: BNDZ_AUTOMATION,
     name: 'Automation',
-    note: 'Reactive pipelines · pillar sync',
-    sticky: 'Wire pillar sync recipe here.',
+    note: 'Visual pipelines · watch / move / deploy',
+    sticky: 'Drop pins into Automation nodes.',
+  },
+  {
+    path: BNDZ_RECENT,
+    name: 'Recent',
+    note: 'Pulse · last touched paths',
+    sticky: 'Quick jump from Recent heat.',
   },
 ];
 
-function layoutPillars(pins: PillarPin[]): { items: CanvasItem[]; stickies: SpatialSticky[] } {
-  const cols = 4;
-  const gapX = 260;
-  const gapY = 220;
-  const originX = 48;
-  const originY = 56;
+const CARD_W = 168;
+const CARD_H = 120;
+const COLS = 3;
+const GAP_X = 36;
+const GAP_Y = 48;
+const ORIGIN_X = 80;
+const ORIGIN_Y = 80;
+
+function layoutPillars(pillars: PillarPin[]): { items: CanvasItem[]; stickies: SpatialSticky[] } {
   const items: CanvasItem[] = [];
   const stickies: SpatialSticky[] = [];
-
-  pins.forEach((p, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+  pillars.forEach((p, i) => {
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const x = ORIGIN_X + col * (CARD_W + GAP_X);
+    const y = ORIGIN_Y + row * (CARD_H + GAP_Y);
     const id = `continuum_${p.path.replace(/\W+/g, '_')}`;
-    const x = originX + col * gapX;
-    const y = originY + row * gapY;
     items.push({
       id,
       path: p.path,
       name: p.name,
+      note: p.note,
       x,
       y,
-      note: p.note,
+      tags: ['pillar'],
     });
     stickies.push(createSticky({
       id: `sticky_${id}`,
@@ -114,7 +120,7 @@ function layoutPillars(pins: PillarPin[]): { items: CanvasItem[]; stickies: Spat
 
 export function buildContinuumBoardDoc(): SpatialCanvasDoc {
   const { items, stickies } = layoutPillars(CONTINUUM_PILLARS);
-  const base = defaultCanvas(CONTINUUM_BOARD_ID, CONTINUUM_BOARD_NAME);
+  const base = defaultCanvas(PILLAR_BOARD_ID, PILLAR_BOARD_NAME);
   return {
     ...base,
     items,
@@ -126,26 +132,39 @@ export function buildContinuumBoardDoc(): SpatialCanvasDoc {
   };
 }
 
+function needsPillarSeed(doc: SpatialCanvasDoc): boolean {
+  if (!doc.items.length) return true;
+  const pillarTags = doc.items.filter(it => (it.tags || []).includes('pillar')).length;
+  return pillarTags < 3;
+}
+
 /**
- * Ensure Continuum board exists, refresh pillar pins if empty, activate it.
- * Returns the active Continuum doc.
+ * Ensure Pillar Board exists (Spatial preset), refresh pillar pins if empty, activate it.
+ * Never steals a freeform board that was wrongly titled "Continuum".
  */
 export async function openOrRefreshContinuumBoard(): Promise<SpatialCanvasDoc> {
   const boards = await listSpatialBoards();
   const existing = boards.find(
-    b => b.id === CONTINUUM_BOARD_ID
-      || b.name === CONTINUUM_BOARD_NAME
-      || b.name === 'Continuum',
+    b => b.id === PILLAR_BOARD_ID || b.name === PILLAR_BOARD_NAME,
   );
 
   if (existing) {
     let doc = await switchSpatialBoard(existing.id);
-    if (!doc.items.length) {
+    let dirty = false;
+    if (doc.id !== PILLAR_BOARD_ID) {
+      doc = { ...doc, id: PILLAR_BOARD_ID };
+      dirty = true;
+    }
+    if (doc.name !== PILLAR_BOARD_NAME) {
+      doc = { ...doc, name: PILLAR_BOARD_NAME };
+      dirty = true;
+    }
+    if (needsPillarSeed(doc)) {
       const fresh = buildContinuumBoardDoc();
       doc = {
         ...doc,
-        id: CONTINUUM_BOARD_ID,
-        name: CONTINUUM_BOARD_NAME,
+        id: PILLAR_BOARD_ID,
+        name: PILLAR_BOARD_NAME,
         items: fresh.items,
         stickies: fresh.stickies,
         panX: 0,
@@ -153,11 +172,11 @@ export async function openOrRefreshContinuumBoard(): Promise<SpatialCanvasDoc> {
         zoom: 0.92,
         updatedAt: Date.now(),
       };
-      await saveSpatialCanvasNow(doc);
-    } else if (doc.name === 'Continuum') {
-      doc = { ...doc, name: CONTINUUM_BOARD_NAME, updatedAt: Date.now() };
-      await saveSpatialCanvasNow(doc);
+      dirty = true;
+    } else if (dirty) {
+      doc = { ...doc, updatedAt: Date.now() };
     }
+    if (dirty) await saveSpatialCanvasNow(doc);
     return doc;
   }
 
@@ -165,3 +184,4 @@ export async function openOrRefreshContinuumBoard(): Promise<SpatialCanvasDoc> {
   await saveSpatialCanvasNow(continuum);
   return continuum;
 }
+

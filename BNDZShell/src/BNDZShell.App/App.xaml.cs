@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Security.Principal;
+using BNDZ.Services;
 using BNDZShell.Bndz;
 using Microsoft.UI.Xaml;
 
@@ -41,8 +44,44 @@ public partial class App : Application
 
 	protected override void OnLaunched(LaunchActivatedEventArgs args)
 	{
+		TryApplyShellIntegrationFromElevatedRelaunch();
 		PluginWindowBoot.Parse(Environment.GetCommandLineArgs());
 		_mainWindow = new MainWindow();
 		_mainWindow.Activate();
+	}
+
+	/// <summary>
+	/// UAC relaunch from Shell Integration passes <c>--apply-shell</c> so HKLM/HKCU
+	/// writes run with admin rights before the WebView fingerprint path boots.
+	/// </summary>
+	private static void TryApplyShellIntegrationFromElevatedRelaunch()
+	{
+		var argv = Environment.GetCommandLineArgs();
+		var apply = argv.Any(a => string.Equals(a, "--apply-shell", StringComparison.OrdinalIgnoreCase));
+		if (!apply || !IsProcessElevated()) return;
+		try
+		{
+			var json = new SettingsManager().LoadSettings();
+			if (!string.IsNullOrWhiteSpace(json))
+				new ShellIntegrationService().ApplySettingsFromConfig(json);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[BNDZShell --apply-shell] {ex.Message}");
+		}
+	}
+
+	private static bool IsProcessElevated()
+	{
+		try
+		{
+			using var id = WindowsIdentity.GetCurrent();
+			var principal = new WindowsPrincipal(id);
+			return principal.IsInRole(WindowsBuiltInRole.Administrator);
+		}
+		catch
+		{
+			return false;
+		}
 	}
 }

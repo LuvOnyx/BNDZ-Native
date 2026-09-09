@@ -32,7 +32,7 @@ function toastMeshVps(message: string, kind: 'success' | 'warning' | 'info' | 'e
   pushToast({
     message,
     kind,
-    title: kind === 'success' ? 'Mesh VPS' : kind === 'warning' || kind === 'error' ? 'Mesh VPS' : 'Remote Mesh',
+    title: kind === 'success' ? 'Mesh VPS' : kind === 'warning' || kind === 'error' ? 'Mesh VPS' : 'Remote',
   });
 }
 

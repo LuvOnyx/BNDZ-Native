@@ -141,7 +141,7 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
       {showHero && (
         <PluginHeroStrip
           icon={<Icons8Icon id="cloud_ui" size={40} />}
-          name="Remote Mesh Hosts"
+          name="Remote Hosts"
           typeLabel="SSH · SFTP · S3"
           meta={<span className="text-[10px] text-gray-500">Browse, mirror, terminal</span>}
           actions={

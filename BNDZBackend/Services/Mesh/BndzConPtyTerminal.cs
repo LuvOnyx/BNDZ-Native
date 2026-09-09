@@ -118,10 +118,21 @@ internal sealed class BndzConPtyTerminal : IDisposable
 
     private void StartCore(string workingDirectory)
     {
-        if (!CreatePipe(out var inputRead, out var inputWrite, IntPtr.Zero, 0))
+        // ConPTY requires inheritable pipe ends (Windows Terminal / MiniTerm pattern).
+        var sa = new SECURITY_ATTRIBUTES
+        {
+            nLength = Marshal.SizeOf<SECURITY_ATTRIBUTES>(),
+            lpSecurityDescriptor = IntPtr.Zero,
+            bInheritHandle = true,
+        };
+        if (!CreatePipe(out var inputRead, out var inputWrite, ref sa, 0))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "ConPTY input pipe failed");
-        if (!CreatePipe(out var outputRead, out var outputWrite, IntPtr.Zero, 0))
+        if (!CreatePipe(out var outputRead, out var outputWrite, ref sa, 0))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "ConPTY output pipe failed");
+
+        // Keep our ends non-inheritable; only ConPTY's duplicated ends stay inheritable.
+        _ = SetHandleInformation(inputWrite, HandleFlagInherit, 0);
+        _ = SetHandleInformation(outputRead, HandleFlagInherit, 0);
 
         _inputRead = inputRead;
         _inputWrite = inputWrite;
@@ -165,6 +176,7 @@ internal sealed class BndzConPtyTerminal : IDisposable
         if (!InitializeProcThreadAttributeList(_attrList, 1, 0, ref size))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "InitializeProcThreadAttributeList failed");
 
+        // Cascadia/MiniTerm: pass HPCON handle value as lpValue with cbSize = IntPtr.Size.
         if (!UpdateProcThreadAttribute(
                 _attrList,
                 0,
@@ -180,6 +192,8 @@ internal sealed class BndzConPtyTerminal : IDisposable
             StartupInfo = new StartupInfo
             {
                 cb = Marshal.SizeOf<StartupInfoEx>(),
+                dwFlags = 0x00000001, // STARTF_USESHOWWINDOW
+                wShowWindow = 0, // SW_HIDE — avoid a flash of a real console
             },
             lpAttributeList = _attrList,
         };
@@ -223,13 +237,22 @@ internal sealed class BndzConPtyTerminal : IDisposable
         var read = _outputRead;
         if (read == null || read.IsInvalid) return;
         _outputRead = null; // FileStream owns the handle for the pump lifetime
-        await using var stream = new FileStream(read, FileAccess.Read, 4096, isAsync: true);
+        // Anonymous ConPTY pipes do not reliably support overlapped I/O — sync Read on a worker.
+        await using var stream = new FileStream(read, FileAccess.Read, 4096, isAsync: false);
         var buf = new byte[4096];
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                var n = await stream.ReadAsync(buf.AsMemory(0, buf.Length), ct).ConfigureAwait(false);
+                int n;
+                try
+                {
+                    n = await Task.Run(() => stream.Read(buf, 0, buf.Length), ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
                 if (n <= 0) break;
                 var chunk = new byte[n];
                 Buffer.BlockCopy(buf, 0, chunk, 0, n);
@@ -318,8 +341,27 @@ internal sealed class BndzConPtyTerminal : IDisposable
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern void ClosePseudoConsole(IntPtr hPC);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SECURITY_ATTRIBUTES
+    {
+        public int nLength;
+        public IntPtr lpSecurityDescriptor;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool bInheritHandle;
+    }
+
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool CreatePipe(out SafeFileHandle hReadPipe, out SafeFileHandle hWritePipe, IntPtr lpPipeAttributes, int nSize);
+    private static extern bool CreatePipe(
+        out SafeFileHandle hReadPipe,
+        out SafeFileHandle hWritePipe,
+        ref SECURITY_ATTRIBUTES lpPipeAttributes,
+        int nSize);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetHandleInformation(SafeFileHandle hObject, uint dwMask, uint dwFlags);
+
+    private const uint HandleFlagInherit = 0x00000001;
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -14,6 +14,7 @@ import {
   listSpatialBoards, switchSpatialBoard, createSpatialBoard, deleteSpatialBoard, renameSpatialBoard,
   duplicateSpatialBoard,
   createSticky, SPATIAL_STICKY_COLORS, SPATIAL_STICKY_W, SPATIAL_STICKY_H,
+  PILLAR_BOARD_ID, PILLAR_BOARD_NAME,
   type CanvasItem, type SpatialCanvasDoc, type SpatialSticky,
 } from '../../lib/spatialCanvasStore';
 import { toWindowsPath } from '../../lib/pathUtils';
@@ -652,7 +653,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const contentH = Math.max(1, maxY - minY);
     const bw = contentW + pad * 2;
     const bh = contentH + pad * 2;
-    const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
+    // Fit never zooms past 100% — small boards were opening at maxZoom (e.g. 2.5×).
+    const fitCap = Math.min(1, maxZoom);
+    const zoom = Math.min(fitCap, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
     // Center the content bounding box in the viewport (world ↔ screen via pan + scale).
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
@@ -861,7 +864,19 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   useEffect(() => {
     const onOpen = () => { void openContinuumBoard(); };
     window.addEventListener('bndz-open-continuum', onOpen);
-    return () => window.removeEventListener('bndz-open-continuum', onOpen);
+    // Home fires the event ~120ms after navigate — catch late listeners / race.
+    const t = window.setTimeout(() => {
+      try {
+        if (sessionStorage.getItem('bndz-pending-pillar-board') === '1') {
+          sessionStorage.removeItem('bndz-pending-pillar-board');
+          void openContinuumBoard();
+        }
+      } catch { /* ignore */ }
+    }, 80);
+    return () => {
+      window.removeEventListener('bndz-open-continuum', onOpen);
+      window.clearTimeout(t);
+    };
   }, [openContinuumBoard]);
 
   /** Zoom = 100% while keeping the current world point under the board center. */
@@ -1088,7 +1103,8 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const contentH = Math.max(1, maxY - minY);
     const bw = contentW + pad * 2;
     const bh = contentH + pad * 2;
-    const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
+    const fitCap = Math.min(1, maxZoom);
+    const zoom = Math.min(fitCap, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
     const panX = rect.width / 2 - cx * zoom;
@@ -1837,9 +1853,20 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
               <input
                 className="bndz-ws-pipeline-name"
                 value={doc.name}
-                onChange={e => commitDoc({ ...doc, name: e.target.value })}
+                onChange={e => {
+                  const raw = e.target.value;
+                  // Continuum is Home branding — never a Spatial board title while typing.
+                  const name = /^continuum$/i.test(raw.trim())
+                    ? (doc.id === PILLAR_BOARD_ID ? PILLAR_BOARD_NAME : 'Spatial Canvas')
+                    : raw;
+                  commitDoc({ ...doc, name });
+                }}
                 onBlur={() => {
-                  const name = doc.name.trim() || 'Untitled board';
+                  let name = doc.name.trim() || 'Untitled board';
+                  if (/^continuum$/i.test(name)) {
+                    name = doc.id === PILLAR_BOARD_ID ? PILLAR_BOARD_NAME : 'Spatial Canvas';
+                  }
+                  if (doc.id === PILLAR_BOARD_ID) name = PILLAR_BOARD_NAME;
                   if (name !== doc.name) commitDoc({ ...doc, name });
                   void renameSpatialBoard(doc.id, name).then(() => void refreshBoards());
                 }}

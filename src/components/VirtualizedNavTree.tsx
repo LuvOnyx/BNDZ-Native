@@ -101,6 +101,7 @@ async function loadDirectoryChildren(
   showHidden: boolean,
   skipInvisible: boolean,
   config?: AppConfig,
+  showSystem: boolean = false,
 ): Promise<NavTreeSourceNode[]> {
   try {
     const isShellish = /^\/?shell:/i.test(path || '') || path === '/' || path === '';
@@ -109,10 +110,10 @@ async function loadDirectoryChildren(
       try {
         items = await IPC.getDirContents(path);
       } catch {
-        items = await IPC.getSubDirectories(path, showHidden);
+        items = await IPC.getSubDirectories(path, showHidden, showSystem);
       }
     } else {
-      items = await IPC.getSubDirectories(path, showHidden);
+      items = await IPC.getSubDirectories(path, showHidden, showSystem);
     }
     let dirs = (items || []).filter((item: { type?: string; isDirectory?: boolean }) => item.type === 'directory' || item.isDirectory);
     if (skipInvisible) {
@@ -566,7 +567,7 @@ export function VirtualizedNavTree({
     });
     let cancelled = false;
     remembered.forEach(p => {
-      loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config).then(children => {
+      loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config, rt.tree.showSystem).then(children => {
         if (cancelled) return;
         setDynamicState(inner => ({
           ...inner,
@@ -577,6 +578,38 @@ export function VirtualizedNavTree({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rt.tree.rememberState]);
+
+  // Re-fetch expanded branches when View → Hidden/System (or tree toggle) changes.
+  const visibilityReloadSkipRef = useRef(true);
+  useEffect(() => {
+    if (visibilityReloadSkipRef.current) {
+      visibilityReloadSkipRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    setDynamicState(prev => {
+      const next = { ...prev };
+      const toReload: string[] = [];
+      for (const [p, state] of Object.entries(prev)) {
+        if (!state.expanded) continue;
+        toReload.push(p);
+        next[p] = { ...state, loading: true };
+      }
+      if (toReload.length === 0) return prev;
+      toReload.forEach(p => {
+        loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config, rt.tree.showSystem).then(children => {
+          if (cancelled) return;
+          setDynamicState(inner => ({
+            ...inner,
+            [p]: { expanded: true, children, loading: false },
+          }));
+        });
+      });
+      return next;
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rt.tree.showHidden, rt.tree.showSystem, config?.skipInvisibleSubfolders]);
 
   // Auto-optimize: collapse branches that are not ancestors of the current path.
   useEffect(() => {
@@ -919,7 +952,7 @@ export function VirtualizedNavTree({
         if (prev[p]?.expanded && (prev[p]?.children || prev[p]?.loading)) return prev;
         const needsLoad = !prev[p]?.children;
         if (needsLoad) {
-          loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config).then(children => {
+          loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config, rt.tree.showSystem).then(children => {
             setDynamicState(inner => ({
               ...inner,
               [p]: { expanded: true, children, loading: false },
@@ -932,7 +965,7 @@ export function VirtualizedNavTree({
         };
       });
     });
-  }, [currentPath, nodes, rt.tree.lockState, rt.tree.expandOnBrowse, rt.tree.showHidden, config?.skipInvisibleSubfolders]);
+  }, [currentPath, nodes, rt.tree.lockState, rt.tree.expandOnBrowse, rt.tree.showHidden, rt.tree.showSystem, config?.skipInvisibleSubfolders]);
 
   const handleToggle = useCallback(
     async (row: FlatNavRow) => {
@@ -972,16 +1005,17 @@ export function VirtualizedNavTree({
 
       const children = await loadDirectoryChildren(
         path,
-        !!config?.showHiddenSystemFoldersInTree,
+        rt.tree.showHidden,
         !!config?.skipInvisibleSubfolders,
         config,
+        rt.tree.showSystem,
       );
       setDynamicState(prev => ({
         ...prev,
         [path]: { expanded: true, children, loading: false },
       }));
     },
-    [dynamicState, config?.showHiddenSystemFoldersInTree, config?.skipInvisibleSubfolders],
+    [dynamicState, rt.tree.showHidden, rt.tree.showSystem, config?.skipInvisibleSubfolders, config],
   );
 
   toggleRowRef.current = handleToggle;

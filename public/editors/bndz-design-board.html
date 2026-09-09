@@ -1423,6 +1423,21 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
               </div>
             </div>
           </div>
+          <div class="effect-row" data-fx="strokeGlow">
+            <button type="button" class="toggle" id="fx-stroke-glow" title="Stroke / border glow"></button>
+            <span class="fx-label">Stroke glow</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="strokeGlow">
+              <div class="fx-pop-title">Stroke / border glow</div>
+              <div class="prop-grid">
+                <div class="field"><label>Blur</label><input class="fx-p-blur" type="number" min="0" max="80" value="12" /></div>
+                <div class="field"><label>X</label><input class="fx-p-ox" type="number" value="0" /></div>
+                <div class="field"><label>Y</label><input class="fx-p-oy" type="number" value="0" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="60" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#38bdf8" title="Color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
         </div>
         <div class="prop-grid" id="fx-params" style="display:none;margin-top:8px">
           <div class="field"><label>Blur</label><input id="fx-blur-n" type="number" min="0" max="80" value="18" /></div>
@@ -1907,6 +1922,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   let pages = [{ id: 1, name: 'Page 1', data: null }];
   let currentPageId = 1;
   let penPoints = [], penTemp = null, penAnchors = [], penHandles = [];
+  let continueOriginPath = null; // stashed path being extended via continueFromHoverNode
   let pathEdit = null; // { path, handles: [], pts: [] }
   let protoMode = false;
   let activeComment = null;
@@ -2125,13 +2141,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       delete o._bndzFxRender;
       delete o._bndzOrigRender;
     }
-    if (o._bndzInnerFx) {
-      o._bndzInnerFx = false;
-      if (o._bndzPrevStroke !== undefined) o.set('stroke', o._bndzPrevStroke);
-      if (o._bndzPrevStrokeWidth !== undefined) o.set('strokeWidth', o._bndzPrevStrokeWidth);
-      delete o._bndzPrevStroke;
-      delete o._bndzPrevStrokeWidth;
-    }
+    // _bndzInnerFx (old stroke-swap inner shadow) fully removed — handled via source-atop now.
   }
   function applyEffectsToObject(o) {
     if (!o) return;
@@ -2142,21 +2152,23 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     const blur = list.find((f) => f.type === 'layerBlur');
     const innerShadow = list.find((f) => f.type === 'innerShadow');
     const innerGlow = list.find((f) => f.type === 'innerGlow');
+    const strokeGlow = list.find((f) => f.type === 'strokeGlow');
 
     // Drop shadow uses Fabric's native shadow (exports + selection correctly).
+    // affectStroke:true ensures stroke-only objects (no fill) cast a visible shadow.
     if (drop) {
       o.set('shadow', new fabric.Shadow({
         color: fxRgba(drop.color, drop.opacity != null ? drop.opacity : 0.35),
         blur: drop.blur || 18,
         offsetX: drop.offsetX || 0,
         offsetY: drop.offsetY || 0,
-        affectStroke: false,
+        affectStroke: true,
       }));
     } else {
       o.set('shadow', null);
     }
 
-    const needPass = !!(glow || blur || innerShadow || innerGlow);
+    const needPass = !!(glow || blur || innerShadow || innerGlow || strokeGlow);
     if (!needPass) {
       o.dirty = true;
       return;
@@ -2167,6 +2179,22 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     o._render = function bndzFxRender(ctx) {
       const self = this;
       const drawBase = self._bndzOrigRender;
+
+      // Stroke glow — draw the object again with a blurred shadow matching the stroke color,
+      // placed BEFORE the main body so the glow sits under the stroke.
+      if (strokeGlow) {
+        ctx.save();
+        const prevShadow = self.shadow;
+        self.shadow = null;
+        const glowCol = fxRgba(strokeGlow.color || self.stroke || '#ffffff', strokeGlow.opacity != null ? strokeGlow.opacity : 0.6);
+        ctx.shadowColor = glowCol;
+        ctx.shadowBlur = Math.max(1, strokeGlow.blur || 12);
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        drawBase.call(self, ctx);
+        self.shadow = prevShadow;
+        ctx.restore();
+      }
 
       // Outer glow — zero-offset canvas shadow pass behind the object (stacks with drop).
       if (glow) {
@@ -2194,35 +2222,40 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         drawBase.call(self, ctx);
       }
 
-      // Inner shadow / glow — source-atop inset pass (real clip, not stroke swap).
+      // Inner shadow / glow — source-atop inset pass using external offset rect technique.
+      // We paint a transparent-fill rect OUTSIDE the shape bounds; canvas2d renders its
+      // shadow (via ctx.shadowColor) offset inward — source-atop clips to existing shape pixels.
+      // drawBase is NOT called again inside source-atop to avoid overpainting.
       if (innerShadow || innerGlow) {
         const inn = innerShadow || innerGlow;
-        ctx.save();
-        ctx.globalCompositeOperation = 'source-atop';
-        ctx.shadowColor = fxRgba(
-          inn.color || (innerGlow ? '#ffffff' : '#000000'),
+        const isGlow = !innerShadow && !!innerGlow;
+        const ox = isGlow ? 0 : (inn.offsetX || 0);
+        const oy = isGlow ? 0 : (inn.offsetY || 4);
+        const innerBlur = Math.max(1, inn.blur || 14);
+        const shadowCol = fxRgba(
+          inn.color || (isGlow ? '#ffffff' : '#000000'),
           inn.opacity != null ? inn.opacity : 0.4
         );
-        ctx.shadowBlur = Math.max(1, inn.blur || 14);
-        if (innerShadow) {
-          ctx.shadowOffsetX = inn.offsetX || 0;
-          ctx.shadowOffsetY = inn.offsetY || 4;
-        } else {
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = 0;
-        }
+        ctx.save();
         const prevShadow2 = self.shadow;
         self.shadow = null;
-        // Fill a slightly expanded rect in object space so the inset shadow has coverage.
-        try {
-          const w = (self.width || 0) + 4;
-          const h = (self.height || 0) + 4;
-          ctx.fillStyle = fxRgba(inn.color || '#000000', 0.01);
-          ctx.fillRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4);
-          drawBase.call(self, ctx);
-        } catch (e) {
-          drawBase.call(self, ctx);
-        }
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.shadowColor = shadowCol;
+        ctx.shadowBlur = innerBlur;
+        // Shadow is cast from a transparent rect expanded well beyond the shape.
+        // source-atop keeps only the shadow pixels that fall inside the existing shape.
+        const hw = (self.width || 64) / 2;
+        const hh = (self.height || 64) / 2;
+        const expand = innerBlur * 3 + 20;
+        // fillStyle transparent so only the shadow contributes (canvas2d renders shadow
+        // regardless of fill opacity as long as shadowColor alpha > 0).
+        ctx.fillStyle = 'rgba(0,0,0,0)';
+        ctx.shadowOffsetX = ox;
+        ctx.shadowOffsetY = oy;
+        // Large expanded rect with transparent fill: canvas2d still renders its shadow.
+        // The expanded rect ensures the shadow covers the full interior; source-atop
+        // clips it to only the existing shape pixels. Works for both inner shadow and glow.
+        ctx.fillRect(-(hw + expand), -(hh + expand), (hw + expand) * 2, (hh + expand) * 2);
         self.shadow = prevShadow2;
         ctx.restore();
       }
@@ -2801,7 +2834,10 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
   /* ---------------- Tools ---------------- */
   function setTool(tool) {
-    if (tool !== 'pen' && penPoints.length) {
+    if (tool === 'pen' && penPoints.length) {
+      // Re-entering pen (e.g. clicking pen button while already in pen): clear stale session.
+      clearPen();
+    } else if (tool !== 'pen' && penPoints.length) {
       finishPen(false, { enterEdit: tool === 'select' });
     }
     if (tool !== 'select') clearPathEdit();
@@ -3284,7 +3320,10 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (penTemp) { canvas.remove(penTemp); penTemp = null; }
     penAnchors.forEach((a) => canvas.remove(a)); penAnchors = [];
     penHandles.forEach((a) => canvas.remove(a)); penHandles = [];
-    penPoints = []; canvas.requestRenderAll();
+    penPoints = [];
+    // Restore origin path on cancel (was temporarily removed; finishPen nulls this before calling clearPen).
+    if (continueOriginPath) { canvas.add(continueOriginPath); continueOriginPath = null; }
+    canvas.requestRenderAll();
   }
   function clonePathPt(p) {
     return {
@@ -3549,6 +3588,9 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         strokeUniform: true, strokeLineJoin: 'round', strokeLineCap: 'round',
         pathEditPts: clonePathPts(pts), pathClosed: !!closed, objectCaching: false,
       });
+      // Null origin ref BEFORE clearPen so clearPen doesn't re-add the stashed path.
+      // (continueOriginPath was already removed from canvas in continueFromHoverNode.)
+      continueOriginPath = null;
       clearPen();
       canvas.add(path);
       finalizeNew(path, 'path');
@@ -3871,25 +3913,36 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       canvas.add(h); canvas.bringToFront(h);
       handles.push(h);
     };
+    // For pen/line tools only show endpoint handles (no midpoints, no interior nodes).
+    const penLineTool = state.tool === 'pen' || state.tool === 'line';
     if (obj.type === 'line' || obj.isBoardLine) {
       const abs = getLineAbsPoints(obj);
       if (!abs) return;
       mk(abs.p1.x, abs.p1.y, { endpoint: true, which: 1, idx: 0 });
       mk(abs.p2.x, abs.p2.y, { endpoint: true, which: 2, idx: 1 });
-      mk((abs.p1.x + abs.p2.x) / 2, (abs.p1.y + abs.p2.y) / 2, { mid: true, seg: 0 });
+      if (!penLineTool) {
+        mk((abs.p1.x + abs.p2.x) / 2, (abs.p1.y + abs.p2.y) / 2, { mid: true, seg: 0 });
+      }
     } else if (obj.type === 'path') {
       let pts = obj.pathEditPts;
       if (!pts || !pts.length) return;
-      pts.forEach((p, i) => mk(p.x, p.y, { endpoint: i === 0 || i === pts.length - 1, idx: i }));
-      for (let i = 1; i < pts.length; i++) {
-        const a = pts[i - 1], b = pts[i];
-        const mx = (a.outX != null && b.inX != null)
-          ? (a.outX + b.inX) / 2
-          : (a.x + b.x) / 2;
-        const my = (a.outY != null && b.inY != null)
-          ? (a.outY + b.inY) / 2
-          : (a.y + b.y) / 2;
-        mk(mx, my, { mid: true, seg: i });
+      pts.forEach((p, i) => {
+        const isEndpoint = i === 0 || i === pts.length - 1;
+        // Pen/line tools: skip interior nodes — only expose endpoints for continue flow.
+        if (penLineTool && !isEndpoint) return;
+        mk(p.x, p.y, { endpoint: isEndpoint, idx: i });
+      });
+      if (!penLineTool) {
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i];
+          const mx = (a.outX != null && b.inX != null)
+            ? (a.outX + b.inX) / 2
+            : (a.x + b.x) / 2;
+          const my = (a.outY != null && b.inY != null)
+            ? (a.outY + b.inY) / 2
+            : (a.y + b.y) / 2;
+          mk(mx, my, { mid: true, seg: i });
+        }
       }
     } else return;
     hoverNodePreview = { target: obj, handles };
@@ -3940,23 +3993,30 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (obj.type === 'path' && !obj.pathClosed && meta.endpoint) {
       const pts = (obj.pathEditPts || []).map((p) => ({ ...p }));
       if (!pts.length) return;
-      // Resume from that endpoint: if first, reverse so we append
+      // Resume from that endpoint: if first, reverse so we append from the end
       if (meta.idx === 0) pts.reverse();
+      // Clear any stale pen state first (also restores any previous continueOriginPath if present).
+      clearPen();
       clearHoverNodes();
+      // Stash origin path and remove it temporarily; clearPen will restore it on cancel,
+      // finishPen nulls it before clearPen so the merged result stays.
+      continueOriginPath = obj;
       canvas.remove(obj);
-      clearPathEdit();
+      // Set tool BEFORE populating penPoints so the re-entry clearPen guard sees empty state.
+      setTool('pen');
       penPoints = pts.map((p) => ({
         x: p.x, y: p.y, cx: p.cx, cy: p.cy, inX: p.inX, inY: p.inY, outX: p.outX, outY: p.outY,
       }));
       penAnchors = [];
-      penPoints.forEach((pt) => {
+      // Only draw ONE anchor for the endpoint we're continuing from (last point after potential reverse).
+      const contPt = penPoints[penPoints.length - 1];
+      if (contPt) {
         const a = new fabric.Circle({
-          left: pt.x, top: pt.y, originX: 'center', originY: 'center', radius: 4.5,
-          fill: '#fff', stroke: '#0d99ff', strokeWidth: 1.5, selectable: false, evented: false, isGuide: true,
+          left: contPt.x, top: contPt.y, originX: 'center', originY: 'center', radius: 5.5,
+          fill: '#fff', stroke: '#0d99ff', strokeWidth: 2, selectable: false, evented: false, isGuide: true,
         });
         penAnchors.push(a); canvas.add(a);
-      });
-      setTool('pen');
+      }
       drawPenTemp(null);
       nodeEditHint = 'Continue from endpoint';
       updateStatus();
@@ -4471,9 +4531,21 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     syncInspectorLight(); updateStatus();
   });
   canvas.on('object:scaling', (opt) => {
+    const t = opt && opt.target;
+    if (t) {
+      if (lineEnds && lineEnds.line === t) syncLineEndpointHandles();
+      if (pathEdit && pathEdit.path === t) syncPathEditHandles();
+    }
     syncInspectorLight(); updateStatus();
   });
-  canvas.on('object:rotating', syncInspectorLight);
+  canvas.on('object:rotating', (opt) => {
+    const t = opt && opt.target;
+    if (t) {
+      if (lineEnds && lineEnds.line === t) syncLineEndpointHandles();
+      if (pathEdit && pathEdit.path === t) syncPathEditHandles();
+    }
+    syncInspectorLight();
+  });
   canvas.on('object:modified', (opt) => {
     const t = opt && opt.target;
     if (t) {
@@ -4858,6 +4930,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
   /* ---------------- Object ops ---------------- */
   function deleteSelected() {
+    clearPen();
     clearHoverNodes();
     clearLineEndpoints();
     clearPathEdit();
@@ -5672,7 +5745,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   $('#p-opacity-n').addEventListener('change', (e) => { $('#p-opacity').value = e.target.value; applyProp('opacity', (+e.target.value) / 100); });
 
   $('#shadow-toggle').addEventListener('click', () => toggleEffect('dropShadow'));
-  const _fxMap = { 'fx-drop': 'dropShadow', 'fx-inner': 'innerShadow', 'fx-glow': 'outerGlow', 'fx-iglow': 'innerGlow', 'fx-blur': 'layerBlur' };
+  const _fxMap = { 'fx-drop': 'dropShadow', 'fx-inner': 'innerShadow', 'fx-glow': 'outerGlow', 'fx-iglow': 'innerGlow', 'fx-blur': 'layerBlur', 'fx-stroke-glow': 'strokeGlow' };
   Object.keys(_fxMap).forEach((id) => {
     const el = $('#' + id);
     if (el) el.addEventListener('click', (e) => { e.stopPropagation(); toggleEffect(_fxMap[id]); });
@@ -5896,7 +5969,13 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if ((e.ctrlKey || e.metaKey) && (key === '\\' || e.code === 'Backslash')) {
       e.preventDefault(); bendSelectedPoint(); return;
     }
-    if (key === 'Delete' || key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
+    if (key === 'Delete' || key === 'Backspace') {
+      e.preventDefault();
+      // While drawing with pen, Delete/Backspace cancels the pen session rather than deleting objects.
+      if (state.tool === 'pen' && penPoints.length) { clearPen(); return; }
+      deleteSelected();
+      return;
+    }
 
     if (mod) {
       if (lower === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }

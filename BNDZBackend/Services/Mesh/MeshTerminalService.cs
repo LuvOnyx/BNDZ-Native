@@ -80,6 +80,8 @@ public sealed class MeshTerminalService : IDisposable
             LocalPty = pty,
         };
         _sessions[id] = session;
+        OnOutput?.Invoke(id, Convert.ToBase64String(Encoding.UTF8.GetBytes(
+            $"\r\nBNDZ Local PowerShell (ConPTY)\r\n{workDir}\r\n\r\n")));
         return new MeshTerminalSessionInfo
         {
             Id = id,

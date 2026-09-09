@@ -55,11 +55,12 @@ export default function NativeShellChrome({ currentPath, onNavigate, onOpenWorks
       return;
     }
     if (item.label === 'Pillar Board') {
+      try { sessionStorage.setItem('bndz-pending-pillar-board', '1'); } catch { /* ignore */ }
       onOpenWorkspace?.('canvas');
       onNavigate(BNDZ_CANVAS);
       window.setTimeout(() => {
         window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
-      }, 120);
+      }, 180);
       return;
     }
     if (item.path) onNavigate(item.path);

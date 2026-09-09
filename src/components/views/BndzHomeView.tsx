@@ -532,23 +532,24 @@ export default function BndzHomeView({
           <div className="bndz-ws-launch-grid">
             <WorkspaceLaunchCard
               title="Pillar Board"
-              desc="Spatial preset that pins Sandbox, Health, Inbound, RAM, Capacity, and Automation — live pillars in under 30 seconds."
+              desc="Open Spatial with Sandbox, Health, Inbound, RAM, Capacity, and Automation pinned — live pillars in under 30 seconds."
               icon="view_grid"
               accent="#34d399"
-              badge="Spatial"
+              badge="Selling pillars"
               badgeVariant="gold"
               features={['Live badges', 'Pillar pins', 'One-click open']}
               onClick={() => {
+                try { sessionStorage.setItem('bndz-pending-pillar-board', '1'); } catch { /* ignore */ }
                 onNavigate(BNDZ_CANVAS);
                 window.setTimeout(() => {
                   window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
-                }, 120);
+                }, 180);
               }}
               className="is-canvas"
             />
             <WorkspaceLaunchCard
               title="Spatial Canvas"
-              desc="Premium freeform board — organize references across every folder without moving files on disk."
+              desc="Blank freeform board — organize references across folders without moving files on disk."
               icon="view_grid"
               accent="#c4a35a"
               features={['Drop from panes', 'Sticky notes', 'Pan & zoom']}

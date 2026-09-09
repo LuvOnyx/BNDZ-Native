@@ -38,12 +38,12 @@ export default function PluginPanelShell({
     return (
       <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[var(--panel-bottom-bg,var(--bndz-surface-panel,#0c0e14))] text-[var(--panel-bottom-text,var(--text-main,#e2e8f0))]">
         {toolbar && (
-          <div className="bndz-plugin-toolbar shrink-0 px-3 py-2 flex items-center justify-end gap-2">
+          <div className="bndz-plugin-toolbar shrink-0 px-2 py-1 flex items-center justify-end gap-1.5 min-h-0">
             {toolbar}
           </div>
         )}
         {status && (
-          <div className="shrink-0 px-4 py-2 border-b border-[var(--border-subtle,rgba(255,255,255,0.06))] bndz-panel-muted">{status}</div>
+          <div className="shrink-0 px-3 py-1 border-b border-[var(--border-subtle,rgba(255,255,255,0.06))] bndz-panel-muted text-[11px] leading-tight">{status}</div>
         )}
         <div className={bodyClass}>{children}</div>
         {footer && (

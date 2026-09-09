@@ -1,4 +1,4 @@
-/** Shared Remote Mesh types — mirrors BNDZBackend MeshModels.cs */
+/** Shared Remote types — mirrors BNDZBackend MeshModels.cs */
 
 export type MeshProviderKind = 0 | 1; // Ssh | S3
 export type MeshConnectionState = 0 | 1 | 2 | 3 | 4;

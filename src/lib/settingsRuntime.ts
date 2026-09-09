@@ -47,6 +47,7 @@ export interface SettingsRuntimeContext {
     useGenericIcons: boolean;
     applyColorFilters: boolean;
     showHiddenInList: boolean;
+    showSystemInList: boolean;
     zebraRows: boolean;
     /** 1 = subtle, 2 = stronger alternate rows */
     zebraIntensity: 1 | 2;
@@ -65,6 +66,7 @@ export interface SettingsRuntimeContext {
   };
   tree: {
     showHidden: boolean;
+    showSystem: boolean;
     expandOnBrowse: boolean;
     expandOnSingleClick: boolean;
     rememberState: boolean;
@@ -146,7 +148,8 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       autoSelectFirst: !!config.autoSelectFirstItem,
       useGenericIcons: !!config.useGenericIconsForSuperFastBrowsing,
       applyColorFilters: config.applyColorFiltersToTheList !== false && config.enableColorFilters !== false,
-    showHiddenInList: !!config.showHiddenSystemFoldersInTree,
+    showHiddenInList: !!(config.showHiddenFiles ?? config.showHiddenSystemFoldersInTree),
+    showSystemInList: !!(config.showSystemFiles ?? config.showHiddenSystemFoldersInTree),
     zebraRows: !!config.listZebraStyle && config.listZebraStyle !== 'Solid Color' && config.listZebraStyle !== false,
     zebraIntensity: String(config.listZebraStyle || '').includes('(2)') ? 2 : 1,
     selectionChrome: (config.listSelectionChrome === 'nameOnly' || config.listSelectionChrome === 'throughSecondColumn')
@@ -172,7 +175,8 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       scrollToTopAfterResort: !!config.scrollToTopAfterResorting,
     },
     tree: {
-      showHidden: !!config.showHiddenSystemFoldersInTree,
+      showHidden: !!(config.showHiddenSystemFoldersInTree || config.showHiddenFiles),
+      showSystem: !!(config.showHiddenSystemFoldersInTree || config.showSystemFiles),
       expandOnBrowse: !!config.expandTreeNodesOnBrowse,
       expandOnSingleClick: !!config.expandTreeNodesOnSingleClick,
       rememberState: !!config.rememberStateOfTree,

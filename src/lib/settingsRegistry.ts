@@ -23,6 +23,7 @@ const LIST_KEYS = new Set([
   'highlightHoveredItems', 'selectListItemsOnMouseHover', 'fullNameColumnSelect',
   'alsoOnFullRowSelect', 'drawHiddenIconsGhosted', 'showMessageWhenListIsEmpty',
   'useGenericIconsForSuperFastBrowsing', 'ignoreDiacritics', 'showHiddenSystemFoldersInTree',
+  'showHiddenFiles', 'showSystemFiles',
   'showImplicitSecondarySortOrderArrow', 'listShowSelectionHighlight', 'listShowSelectionCheckboxes',
   'stickyGroupHeaders', 'listZebraStyle', 'listSelectionBorderStyle', 'listSelectionChromeStyle',
   'listSelectionFillStyle', 'listHoverFadeSteps', 'listHoverFadeMs', 'listSelectionOpacity',

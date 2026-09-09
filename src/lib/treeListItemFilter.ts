@@ -71,16 +71,29 @@ export function isTreeListItemVisible(
   entity: FsEntity,
   config: {
     treeListVisibleItemTypes?: TreeListItemType[];
+    /** Legacy combined toggle (tree). Use showHiddenFiles / showSystemFiles for finer control. */
     showHiddenSystemFoldersInTree?: boolean;
+    /** Show hidden-attributed files/folders in the list. Defaults to showHiddenSystemFoldersInTree. */
+    showHiddenFiles?: boolean;
+    /** Show system-attributed files/folders in the list. Defaults to showHiddenSystemFoldersInTree. */
+    showSystemFiles?: boolean;
   },
 ): boolean {
   const name = String(entity.name || '');
   const attrs = entity.attributes || [];
-  const showHidden = !!config.showHiddenSystemFoldersInTree;
+  const legacyShow = !!config.showHiddenSystemFoldersInTree;
+  const showHidden = config.showHiddenFiles != null ? !!config.showHiddenFiles : legacyShow;
+  const showSystem = config.showSystemFiles != null ? !!config.showSystemFiles : legacyShow;
 
   if (!showHidden) {
-    if (attrs.includes('hidden') || attrs.includes('system')) return false;
-    if (name.startsWith('.') && name !== '..') return false;
+    // Explorer parity: "Show protected operating system files" reveals Hidden+System
+    // even when ordinary hidden items stay concealed.
+    const isSystem = attrs.includes('system') || (name.startsWith('$') && name.length > 1);
+    if (attrs.includes('hidden') && !(showSystem && isSystem)) return false;
+    if (name.startsWith('.') && name !== '..' && !(showSystem && isSystem)) return false;
+  }
+  if (!showSystem) {
+    if (attrs.includes('system')) return false;
   }
 
   const allowed = new Set(resolveTreeListVisibleTypes(config));

@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -322,6 +319,7 @@ internal static class ShellContextMenuEnumerator
 
     /// <summary>
     /// Pull the shell-provided menu bitmap (Git / Cursor / etc.) into a data-URL for the WebView menu.
+    /// Uses ShellArgbPngEncoder to preserve alpha and avoid black-square halos on 32bpp DIBSECTIONs.
     /// Stock HBMMENU_* values are skipped — they are not real HBITMAPs.
     /// </summary>
     private static string? TryExtractMenuItemIconBase64(HMENU hMenu, int index)
@@ -344,19 +342,13 @@ internal static class ShellContextMenuEnumerator
             if (hbmp == HBITMAP.NULL || IsStockMenuBitmap(hbmp))
                 return null;
 
-            using var src = Image.FromHbitmap((IntPtr)hbmp);
-            using var scaled = new Bitmap(16, 16, PixelFormat.Format32bppArgb);
-            using (var g = Graphics.FromImage(scaled))
-            {
-                g.Clear(Color.Transparent);
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                g.DrawImage(src, new Rectangle(0, 0, 16, 16));
-            }
+            // Use ShellArgbPngEncoder — preserves 32bpp alpha via GetObject scan-line copy
+            // instead of Image.FromHbitmap which flattens alpha into an opaque/black plate.
+            var raw = ShellArgbPngEncoder.EncodeHBitmapPngBase64((IntPtr)hbmp);
+            if (string.IsNullOrEmpty(raw))
+                return null;
 
-            using var ms = BndzHostCaches.Streams.GetStream("shell-menu-icon");
-            scaled.Save(ms, ImageFormat.Png);
-            return "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
+            return "data:image/png;base64," + raw;
         }
         catch (Exception ex)
         {

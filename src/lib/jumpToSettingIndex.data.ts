@@ -11,6 +11,18 @@ export const JUMP_SETTING_INDEX: Array<{
 }> = [
   {
     "tab": "Tree and List",
+    "label": "Show hidden files in list",
+    "key": "showHiddenFiles",
+    "keywords": ["show", "hidden", "files", "list", "invisible", "dotfiles"]
+  },
+  {
+    "tab": "Tree and List",
+    "label": "Show system files in list",
+    "key": "showSystemFiles",
+    "keywords": ["show", "system", "files", "list", "pagefile", "system volume"]
+  },
+  {
+    "tab": "Tree and List",
     "label": "Show hidden system folders in tree",
     "key": "showHiddenSystemFoldersInTree",
     "keywords": [

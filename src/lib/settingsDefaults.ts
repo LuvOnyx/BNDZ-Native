@@ -494,6 +494,8 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   showFolderSizeOnPropertiesTab: true,
   showFolderThumbnails: false,
   showHiddenSystemFoldersInTree: false,
+  showHiddenFiles: false,
+  showSystemFiles: false,
   showHoverBox: false,
   showIconOverlays: false,
   showIcons: false,

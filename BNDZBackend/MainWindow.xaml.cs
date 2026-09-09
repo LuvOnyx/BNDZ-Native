@@ -3016,6 +3016,7 @@ namespace BNDZ
                     string path = BNDZ.Services.ShellPathResolver.ResolveForShell(rawTreePath);
                     if (string.IsNullOrEmpty(path)) path = BNDZ.Services.ShellPathResolver.NormalizeIncoming(rawTreePath);
                     bool showHidden = payload.TryGetProperty("showHidden", out var shElement) && shElement.GetBoolean();
+                    bool showSystem = payload.TryGetProperty("showSystem", out var ssElement) && ssElement.GetBoolean();
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
 
                     _ = Task.Run(() => 
@@ -3037,7 +3038,11 @@ namespace BNDZ
                                 foreach (var dir in Directory.GetDirectories(path))
                                 {
                                     var di = new DirectoryInfo(dir);
-                                    if (!showHidden && (di.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden) continue;
+                                    var attrs = di.Attributes;
+                                    var hidden = (attrs & FileAttributes.Hidden) == FileAttributes.Hidden;
+                                    var system = (attrs & FileAttributes.System) == FileAttributes.System;
+                                    if (!showHidden && hidden && !(showSystem && system)) continue;
+                                    if (!showSystem && system) continue;
 
                                     results.Add(new {
                                         id = Guid.NewGuid().ToString(),
@@ -3045,7 +3050,8 @@ namespace BNDZ
                                         type = "directory",
                                         path = dir.Replace("\\", "/"),
                                         size = 0,
-                                        modified = di.LastWriteTime.ToString("O")
+                                        modified = di.LastWriteTime.ToString("O"),
+                                        attributes = DirListingSharedBuffer.AttrNamesFrom(DirListingSharedBuffer.AttrBitsFrom(attrs)),
                                     });
                                 }
                             }
@@ -7290,6 +7296,8 @@ namespace BNDZ
                     // Copy values before Task.Run — JsonDocument is disposed when this handler returns.
                     bool enable = payload.TryGetProperty("enable", out var enableEl)
                         && enableEl.ValueKind == JsonValueKind.True;
+                    bool allUsers = payload.TryGetProperty("allUsers", out var allUsersEl)
+                        && allUsersEl.ValueKind == JsonValueKind.True;
                     string? extraArgs = null;
                     if (payload.TryGetProperty("extraArgs", out var extraArgsProp)
                         && extraArgsProp.ValueKind == JsonValueKind.String)
@@ -7303,13 +7311,16 @@ namespace BNDZ
                             switch (action)
                             {
                                 case "setContextMenu":
-                                    resultPayload = _shellIntegrationService.SetInContextMenu(enable);
+                                    resultPayload = _shellIntegrationService.SetInContextMenu(enable, allUsers);
                                     break;
                                 case "setDefault":
                                     resultPayload = _shellIntegrationService.SetAsDefaultFileManager(enable);
                                     break;
                                 case "setWin11MoreOptions":
                                     resultPayload = _shellIntegrationService.SetWin11MoreOptions(enable);
+                                    break;
+                                case "setIconStudioShell":
+                                    resultPayload = _shellIntegrationService.SetIconStudioShellMenu(enable);
                                     break;
                                 case "relaunchAdmin":
                                     resultPayload = _shellIntegrationService.RelaunchAsAdministrator(extraArgs);

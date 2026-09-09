@@ -1154,6 +1154,217 @@ input[type="color"].bndz-hidden-native{position:absolute!important;opacity:0!imp
     restoreDockSide();
   }
 
+  // ====================== MASK INSPECTOR ======================
+  // Injects a live "Layer Mask" section into the right properties panel
+  // that surfaces feather + density sliders whenever the active canvas object
+  // carries an _openShopLayerMask.  Hidden automatically on deselect.
+
+  function injectMaskInspectorSection(OS) {
+    const SECTION_ID = 'bndz-mask-inspector';
+    if (document.getElementById(SECTION_ID)) return; // idempotent
+
+    // --- CSS ---
+    const style = document.createElement('style');
+    style.id = 'bndz-mask-inspector-css';
+    style.textContent = `
+#${SECTION_ID}{
+  display:none;flex-direction:column;gap:0;
+  border-radius:12px;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--border-active,rgba(255,255,255,.18)) 65%,transparent);
+  background:linear-gradient(180deg,var(--bg-depth-2,#1c2538),var(--bg-depth-1,#141a26));
+  box-shadow:0 14px 34px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.04);
+  margin:0 0 8px;
+}
+#${SECTION_ID}.bndz-mask-visible{display:flex}
+#${SECTION_ID} .bndz-mask-header{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;cursor:pointer;user-select:none;
+  border-bottom:1px solid color-mix(in srgb,var(--border,rgba(255,255,255,.1)) 60%,transparent);
+}
+#${SECTION_ID} .bndz-mask-header svg{
+  width:14px;height:14px;flex:0 0 14px;color:color-mix(in srgb,var(--accent,#4da3ff) 85%,#fff);
+}
+#${SECTION_ID} .bndz-mask-title{
+  flex:1;font:700 11px/1.3 system-ui;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text-primary,#e8f1ff);
+}
+#${SECTION_ID} .bndz-mask-badge{
+  font:700 9px/1 'JetBrains Mono',monospace;padding:3px 6px;border-radius:5px;
+  background:color-mix(in srgb,var(--accent,#4da3ff) 22%,transparent);
+  color:var(--accent,#4da3ff);letter-spacing:.03em;
+}
+#${SECTION_ID} .bndz-mask-body{
+  display:flex;flex-direction:column;gap:0;padding:10px 12px;
+}
+#${SECTION_ID} .bndz-mask-row{
+  display:flex;align-items:center;gap:8px;padding:5px 0;
+}
+#${SECTION_ID} .bndz-mask-row label{
+  flex:0 0 62px;font:700 10px/1.3 system-ui;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--text-muted,rgba(255,255,255,.5));
+}
+#${SECTION_ID} .bndz-mask-row input[type="range"]{
+  flex:1 1 auto;min-width:60px;
+}
+#${SECTION_ID} .bndz-mask-val{
+  flex:0 0 32px;text-align:right;font:600 11px/1 'JetBrains Mono',monospace;
+  color:var(--text-secondary,rgba(255,255,255,.75));
+}
+#${SECTION_ID} .bndz-mask-actions{
+  display:flex;gap:6px;padding:6px 12px 10px;
+}
+#${SECTION_ID} .bndz-mask-actions button{
+  flex:1;font:700 10px/1 system-ui;letter-spacing:.03em;padding:7px 8px;
+  border-radius:8px;border:1px solid color-mix(in srgb,var(--border,rgba(255,255,255,.12)) 80%,transparent);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),transparent);
+  color:var(--text-secondary,rgba(255,255,255,.7));cursor:pointer;transition:background .1s,border-color .1s;
+}
+#${SECTION_ID} .bndz-mask-actions button:hover{
+  background:color-mix(in srgb,var(--accent,#4da3ff) 14%,transparent);
+  border-color:color-mix(in srgb,var(--accent,#4da3ff) 35%,transparent);
+  color:var(--text-primary,#e8f1ff);
+}
+#${SECTION_ID} .bndz-mask-actions button.bndz-mask-remove{
+  color:rgba(255,100,100,.8);border-color:rgba(255,100,100,.2);
+}
+#${SECTION_ID} .bndz-mask-actions button.bndz-mask-remove:hover{
+  background:rgba(255,80,80,.12);border-color:rgba(255,100,100,.45);color:#ff6464;
+}
+`;
+    document.head.appendChild(style);
+
+    // --- DOM ---
+    const section = document.createElement('div');
+    section.id = SECTION_ID;
+    section.setAttribute('aria-label', 'Layer Mask');
+    section.innerHTML = `
+<div class="bndz-mask-header" title="Layer Mask properties">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <circle cx="12" cy="12" r="5"/>
+  </svg>
+  <span class="bndz-mask-title">Layer Mask</span>
+  <span class="bndz-mask-badge">ACTIVE</span>
+</div>
+<div class="bndz-mask-body">
+  <div class="bndz-mask-row">
+    <label for="bndz-mask-feather">Feather</label>
+    <input id="bndz-mask-feather" type="range" min="0" max="100" value="0"/>
+    <span class="bndz-mask-val" id="bndz-mask-feather-val">0%</span>
+  </div>
+  <div class="bndz-mask-row">
+    <label for="bndz-mask-density">Density</label>
+    <input id="bndz-mask-density" type="range" min="0" max="100" value="100"/>
+    <span class="bndz-mask-val" id="bndz-mask-density-val">100%</span>
+  </div>
+</div>
+<div class="bndz-mask-actions">
+  <button class="bndz-mask-apply" title="Apply feather and density to mask">Apply</button>
+  <button class="bndz-mask-remove" title="Remove mask from this layer">Remove</button>
+</div>
+`;
+
+    // Wire sliders → live value labels
+    const featherInput = section.querySelector('#bndz-mask-feather');
+    const featherVal   = section.querySelector('#bndz-mask-feather-val');
+    const densityInput = section.querySelector('#bndz-mask-density');
+    const densityVal   = section.querySelector('#bndz-mask-density-val');
+
+    featherInput.addEventListener('input', () => { featherVal.textContent = `${featherInput.value}%`; });
+    densityInput.addEventListener('input', () => { densityVal.textContent = `${densityInput.value}%`; });
+
+    // Apply button — calls OS.updateLayerMask
+    section.querySelector('.bndz-mask-apply').addEventListener('click', () => {
+      OS.updateLayerMask?.({
+        feather: Number(featherInput.value),
+        density: Number(densityInput.value),
+      });
+    });
+
+    // Remove button
+    section.querySelector('.bndz-mask-remove').addEventListener('click', () => {
+      OS.removeLayerMask?.();
+    });
+
+    // Insert before the first panel-tab-group in #panels, or append as fallback
+    const panels = document.getElementById('panels');
+    if (panels) {
+      const firstGroup = panels.querySelector('.panel-tab-group');
+      panels.insertBefore(section, firstGroup || null);
+    } else {
+      document.body.appendChild(section);
+    }
+
+    // --- Sync helper: read mask state → populate & show/hide ---
+    function syncMaskSection() {
+      const active = OS.canvas?.getActiveObject?.();
+      const mask = active?._openShopLayerMask;
+      if (!active || !mask) {
+        section.classList.remove('bndz-mask-visible');
+        return;
+      }
+      const normalized = OS._normalizeLayerMask?.(mask) || mask;
+      const feather = Number(normalized?.feather ?? 0);
+      const density = Number(normalized?.density ?? 100);
+      featherInput.value = String(feather);
+      featherVal.textContent = `${feather}%`;
+      densityInput.value = String(density);
+      densityVal.textContent = `${density}%`;
+      section.classList.add('bndz-mask-visible');
+    }
+
+    // --- Wire canvas selection events ---
+    function bindCanvasEvents() {
+      const cv = OS.canvas;
+      if (!cv || cv.__bndzMaskInspectorBound) return;
+      cv.__bndzMaskInspectorBound = true;
+      cv.on('selection:created', syncMaskSection);
+      cv.on('selection:updated', syncMaskSection);
+      cv.on('selection:cleared', () => section.classList.remove('bndz-mask-visible'));
+      // Also resync after mask operations that don't change the selection
+      const origUpdate = OS.updateLayerMask?.bind(OS);
+      if (origUpdate) {
+        OS.updateLayerMask = async function (params) {
+          const result = await origUpdate(params);
+          syncMaskSection();
+          return result;
+        };
+      }
+      const origAdd = OS.addLayerMask?.bind(OS);
+      if (origAdd) {
+        OS.addLayerMask = async function (...args) {
+          const result = await origAdd(...args);
+          syncMaskSection();
+          return result;
+        };
+      }
+      const origRemove = OS.removeLayerMask?.bind(OS);
+      if (origRemove) {
+        OS.removeLayerMask = async function (...args) {
+          const result = await origRemove(...args);
+          section.classList.remove('bndz-mask-visible');
+          return result;
+        };
+      }
+    }
+
+    // canvas may not exist yet at install time — defer until OS.init fires
+    if (OS.canvas) {
+      bindCanvasEvents();
+    } else {
+      const origInit = OS.init?.bind(OS);
+      if (origInit) {
+        OS.init = async function (...args) {
+          const r = await origInit(...args);
+          bindCanvasEvents();
+          return r;
+        };
+      }
+    }
+
+    OS._bndzSyncMaskInspector = syncMaskSection;
+  }
+
   function install(OS) {
     if (!OS || OS.__bndzChromeInstalled) return;
     OS.__bndzChromeInstalled = true;
@@ -1163,6 +1374,7 @@ input[type="color"].bndz-hidden-native{position:absolute!important;opacity:0!imp
     installHsvPopover(OS);
     installPanelDock(OS);
     skipServiceWorkerInEmbed(OS);
+    injectMaskInspectorSection(OS);
     restoreInspectorPanels();
 
     const origBuild = OS._buildToolboxFromRegistry?.bind(OS);

@@ -2672,10 +2672,10 @@ export const IPC = {
     return Promise.resolve([]);
   },
 
-  getSubDirectories(path: string, showHidden: boolean = false): Promise<any[]> {
+  getSubDirectories(path: string, showHidden: boolean = false, showSystem: boolean = false): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_subDirs`;
-      return _nativeCall<any[]>('GET_SUB_DIRECTORIES', 'SUBDIR_RESULT', id, { path, showHidden });
+      return _nativeCall<any[]>('GET_SUB_DIRECTORIES', 'SUBDIR_RESULT', id, { path, showHidden, showSystem });
     }
     return Promise.resolve([]);
   },
@@ -3217,10 +3217,19 @@ export const IPC = {
     return Promise.resolve({ ok: false, output: 'Script runner requires native host' });
   },
 
-  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag' | 'releaseCapture' | 'refreshInputRegions'): void {
+  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag' | 'releaseCapture' | 'refreshInputRegions' | 'setMenubarPassWidth', extra?: Record<string, unknown>): void {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action } });
+      (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action, ...(extra || {}) } });
     }
+  },
+
+  /**
+   * Tell the native shell how wide the clickable menubar (logo + triggers) is in CSS px
+   * so WinUI Caption does not steal Scripting/Panes/Tabsets/… clicks as window-drag.
+   */
+  setMenubarPassWidth(cssPx: number): void {
+    if (!Number.isFinite(cssPx) || cssPx < 180) return;
+    this.windowChrome('setMenubarPassWidth', { width: Math.round(cssPx) });
   },
 
   setAlwaysOnTop(enabled: boolean): void {
