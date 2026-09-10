@@ -92,12 +92,12 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     'action-log': [
       'Reversible copy / move / rename history',
       'Undo and redo across sessions',
-      'XYplorer-style operation journal',
+      'Browse and restore past file operations',
     ],
     compare: [
       'Binary file compare',
       'Recursive folder diff',
-      'Branch-compare parity for dual pane',
+      'Side-by-side differences for dual pane',
     ],
     'remote-mesh': [
       'SSH/SFTP browse, terminal, sync, and LAN drop',

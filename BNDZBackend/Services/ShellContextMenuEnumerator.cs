@@ -21,7 +21,7 @@ internal static class ShellContextMenuEnumerator
 {
     private const uint CmdFirst = 1;
     private const uint CmdLast = 0x7FFF;
-    private const int MaxPopupDepth = 4;
+    private const int MaxPopupDepth = 2;
 
     public sealed class EnumeratedItem
     {
@@ -51,16 +51,16 @@ internal static class ShellContextMenuEnumerator
         {
             return WithContextMenu(normalized, (cm, hMenu) =>
             {
-                // EXPLORE + CANRENAME match Explorer; EXTENDEDVERBS picks up shift-key / advanced verbs when present.
+                // Fast path for merge menus: NORMAL only (no EXTENDEDVERBS) and no
+                // InitAllPopups — cascading children are filled lazily in WalkMenu.
+                // Full Explorer parity remains on Shift+right-click (live shell popup).
                 var hr = cm.QueryContextMenu(hMenu, 0, CmdFirst, CmdLast,
-                    CMF.CMF_NORMAL | CMF.CMF_EXPLORE | CMF.CMF_CANRENAME | CMF.CMF_EXTENDEDVERBS);
+                    CMF.CMF_NORMAL | CMF.CMF_EXPLORE | CMF.CMF_CANRENAME);
                 if (hr.Failed) return new List<EnumeratedItem>();
 
                 var cm2 = cm as IContextMenu2;
                 var cm3 = cm as IContextMenu3;
-                InitAllPopups(cm2, cm3, hMenu, 0);
-
-                var items = WalkMenu(cm, cm2, cm3, hMenu, depth: 0);
+                var items = WalkMenu(cm, cm2, cm3, hMenu, depth: 0, extractIcons: false);
                 return CompactSeparators(items);
             });
         }
@@ -110,7 +110,8 @@ internal static class ShellContextMenuEnumerator
         IContextMenu2? cm2,
         IContextMenu3? cm3,
         HMENU hMenu,
-        int depth)
+        int depth,
+        bool extractIcons = true)
     {
         var items = new List<EnumeratedItem>();
         var count = GetMenuItemCount(hMenu);
@@ -134,9 +135,14 @@ internal static class ShellContextMenuEnumerator
                 var sub = GetSubMenu(hMenu, i);
                 if (sub == HMENU.NULL) continue;
 
-                // Some extensions only fill children after (another) WM_INITMENUPOPUP.
-                TryInitPopup(cm2, cm3, sub, i);
-                var children = WalkMenu(cm, cm2, cm3, sub, depth + 1);
+                // Some extensions only fill children after WM_INITMENUPOPUP.
+                // Fast merge path: init only the first cascade level to keep open snappy.
+                if (extractIcons || depth == 0) {
+                    TryInitPopup(cm2, cm3, sub, i);
+                }
+                var children = (extractIcons || depth == 0)
+                    ? WalkMenu(cm, cm2, cm3, sub, depth + 1, extractIcons)
+                    : new List<EnumeratedItem>();
                 children = CompactSeparators(children);
                 if (children.Count == 0)
                 {
@@ -155,7 +161,7 @@ internal static class ShellContextMenuEnumerator
                             Verb = string.IsNullOrEmpty(verb) ? id : verb,
                             CommandId = offset,
                             Kind = kind,
-                            IconBase64 = TryExtractMenuItemIconBase64(hMenu, i),
+                            IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
                         });
                     }
                     continue;
@@ -166,7 +172,7 @@ internal static class ShellContextMenuEnumerator
                     Id = $"submenu:{label.ToLowerInvariant()}",
                     Label = label,
                     Kind = "shell",
-                    IconBase64 = TryExtractMenuItemIconBase64(hMenu, i),
+                    IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
                     Children = children,
                 });
                 continue;
@@ -195,7 +201,7 @@ internal static class ShellContextMenuEnumerator
                 CommandId = leafOffset,
                 IsPrimary = string.Equals(leafVerb, "open", StringComparison.OrdinalIgnoreCase),
                 Kind = leafKind,
-                IconBase64 = TryExtractMenuItemIconBase64(hMenu, i),
+                IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
             });
         }
 

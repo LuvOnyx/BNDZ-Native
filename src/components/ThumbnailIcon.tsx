@@ -210,9 +210,10 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path, requestPx);
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail, requestPx);
 
-  // SVG: CAS PNG first; else inline blob: — never bndz-stream (404s poison previews).
+  // SVG: prefer crisp inline blob (browser paint = correct orientation). Skia CAS
+  // rasters have been shipping vertically flipped vs Quick Look / SvgVectorPreview.
   useEffect(() => {
-    if (!isVisible || !path || dirFlag || ext !== 'svg' || (thumbSrc && !thumbBroken)) {
+    if (!isVisible || !path || dirFlag || (ext !== 'svg' && ext !== 'svgz')) {
       setSvgInline(null);
       return;
     }
@@ -221,12 +222,19 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
       if (active) setSvgInline(url);
     });
     return () => { active = false; };
-  }, [isVisible, path, dirFlag, ext, thumbSrc, thumbBroken]);
+  }, [isVisible, path, dirFlag, ext]);
 
   const usableThumb = useThumbnail && thumbSrc && !thumbBroken ? thumbSrc : null;
   const usableShell = shellSrc && !shellBroken ? shellSrc : null;
-  // Shell-first paint; upgrade to CAS thumb when ready (Explorer imagelist → preview).
-  const nativeSrc = usableThumb || svgInline || usableShell || entity.iconBase64 || null;
+  const isSvgFile = ext === 'svg' || ext === 'svgz';
+  // Shell-first paint; upgrade to CAS thumb when ready — except SVG, which stays
+  // on inline vector so we never show upside-down Skia PNGs in the list.
+  const nativeSrc = (isSvgFile && svgInline)
+    || usableThumb
+    || svgInline
+    || usableShell
+    || entity.iconBase64
+    || null;
 
   useEffect(() => {
     if (nativeSrc) {

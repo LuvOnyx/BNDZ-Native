@@ -8,6 +8,7 @@ import { VirtualDirectory, FSEntity, DriveInfo, ShortcutInfo } from '../types';
 import { useModal } from './ModalProvider';
 import { isArchiveExt } from '../lib/archiveTypes';
 import { useClipboard } from '../data/ClipboardContext';
+import { ALL_THEME_PRESETS, themeNameForOsColorScheme, themeToColorConfig } from '../data/themePresets';
 import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
@@ -134,7 +135,7 @@ import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
 import MeshDropDialog from './meshdrop/MeshDropDialog';
 import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
-import { TabContextMenu, showTabHostContextMenu } from './TabContextMenu';
+import { TabContextMenu } from './TabContextMenu';
 import { requestNativePrompt } from '../lib/nativeDialog';
 import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals, listingPrefetchFromConfig, virtualMediaPrefetchOptions, setRuntimeThumbPresets } from '../lib/nativeIconService';
 import { isRealityCheckActive, isRealityCheckMissing, subscribeRealityCheck } from '../lib/realityCheckState';
@@ -3836,18 +3837,41 @@ export default function BNDZUI() {
     }
   }, [config.startupPane, isDualPane, panes.length, updateConfig]);
 
-  // Match OS light/dark once at startup when enabled
+  // Match OS light/dark — startup one-shot and/or continuous follow
   const appliedOsThemeRef = useRef(false);
   useEffect(() => {
-    if (appliedOsThemeRef.current) return;
-    if (!config.adjustToOsLightDarkModeAtStartup) return;
-    appliedOsThemeRef.current = true;
+    const follow = !!config.followOsColorScheme;
+    const startupOnly = !!config.adjustToOsLightDarkModeAtStartup && !follow;
+    if (!follow && !startupOnly) return;
+    if (startupOnly && appliedOsThemeRef.current) return;
+
+    let mq: MediaQueryList | null = null;
     try {
-      const dark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches;
-      const nextTheme = dark ? 'Dark' : 'Light';
-      if (config.theme !== nextTheme) updateConfig({ theme: nextTheme });
-    } catch { /* ignore */ }
-  }, [config.adjustToOsLightDarkModeAtStartup, config.theme, updateConfig]);
+      mq = window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
+    } catch {
+      return;
+    }
+    if (!mq) return;
+
+    const applyOsTheme = (prefersDark: boolean) => {
+      const nextTheme = themeNameForOsColorScheme(prefersDark);
+      if (config.theme === nextTheme) {
+        appliedOsThemeRef.current = true;
+        return;
+      }
+      const preset = ALL_THEME_PRESETS.find(t => t.name === nextTheme);
+      const colorPatch = preset ? themeToColorConfig(preset) : { theme: nextTheme, applyColors: true };
+      updateConfig({ ...colorPatch, theme: nextTheme, applyColors: true } as Partial<AppConfig>);
+      appliedOsThemeRef.current = true;
+    };
+
+    applyOsTheme(mq.matches);
+
+    if (!follow) return;
+    const onChange = (e: MediaQueryListEvent) => applyOsTheme(e.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => { mq?.removeEventListener?.('change', onChange); };
+  }, [config.followOsColorScheme, config.adjustToOsLightDarkModeAtStartup, config.theme, updateConfig]);
 
   // Restore dual pane when no tabset was loaded but user had it open last session
   useEffect(() => {
@@ -4083,6 +4107,8 @@ export default function BNDZUI() {
   const menubarOpenedByHoverRef = useRef(false);
   const [fileMenuShellNewItems, setFileMenuShellNewItems] = useState<NativeContextMenuItem[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, entityExtension?: string | null, isDirectory: boolean, isGhostLink?: boolean, surface?: ContextMenuSurface, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
+  /** True while shell verbs are loading for the open custom context menu (skeleton + no late-shift clicks). */
+  const [shellExtensionsPending, setShellExtensionsPending] = useState(false);
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; paneId: string; tabIndex: number } | null>(null);
 
   useContextMenuDismissOnLeave(!!contextMenu, () => setContextMenu(null));
@@ -4165,6 +4191,7 @@ export default function BNDZUI() {
 
       // Always use the BNDZ context menu. Native shell verbs are merged when enabled (default on).
       // Shift+right-click opens the live Windows shell popup (Vanara IContextMenu) for full extension parity.
+      setShellExtensionsPending(false);
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
@@ -4199,41 +4226,36 @@ export default function BNDZUI() {
       const mergeShellVerbs = !!(config.useNativeOSContextMenu || config.nativeContextMenu);
       if (!mergeShellVerbs) return;
 
-      void import('../lib/nativeContextMenuCache').then(({ getCachedNativeContextMenu, setCachedNativeContextMenu }) => {
-        if (requestId !== contextMenuRequestRef.current) return;
-        const cacheKey = shellPaths.length === 1 ? shellPaths[0] : shellPaths.slice().sort().join('|');
-        const cachedNative = getCachedNativeContextMenu(cacheKey) as any[] | null;
-        if (cachedNative?.length) {
-          setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
-            ? { ...prev, nativeContextItems: cachedNative }
-            : prev);
-        }
-      });
-
-      // Fetch live shell extensions for the supplemental block (IContextMenu / multi-select).
-      const runFetch = () => {
-        void (async () => {
-          try {
-            const { IPC } = await import('../lib/ipcBridge');
-            const { setCachedNativeContextMenu } = await import('../lib/nativeContextMenuCache');
-            const nativeItems = await IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
-            if (requestId !== contextMenuRequestRef.current) return;
-            const cacheKey = shellPaths.length === 1 ? shellPaths[0] : shellPaths.slice().sort().join('|');
-            if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
+      const cacheKey = shellPaths.length === 1 ? shellPaths[0] : shellPaths.slice().sort().join('|');
+      // Start shell fetch immediately (no idle delay) — list menus must feel as snappy as sidebar.
+      void (async () => {
+        try {
+          const { getCachedNativeContextMenu, setCachedNativeContextMenu } = await import('../lib/nativeContextMenuCache');
+          if (requestId !== contextMenuRequestRef.current) return;
+          const cachedNative = getCachedNativeContextMenu(cacheKey) as any[] | null;
+          if (cachedNative?.length) {
+            setShellExtensionsPending(false);
             setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
-              && nativeContextSignature(prev.nativeContextItems) !== nativeContextSignature(nativeItems)
-              ? { ...prev, nativeContextItems: nativeItems }
+              ? { ...prev, nativeContextItems: cachedNative }
               : prev);
-          } catch (err) {
-            console.warn('Native context menu fetch failed', err);
+            // Still refresh in background so verbs stay current, without blocking the open.
+          } else {
+            setShellExtensionsPending(true);
           }
-        })();
-      };
-      if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(runFetch, { timeout: 80 });
-      } else {
-        setTimeout(runFetch, 0);
-      }
+          const { IPC } = await import('../lib/ipcBridge');
+          const nativeItems = await IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
+          if (requestId !== contextMenuRequestRef.current) return;
+          if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
+          setShellExtensionsPending(false);
+          setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+            && nativeContextSignature(prev.nativeContextItems) !== nativeContextSignature(nativeItems)
+            ? { ...prev, nativeContextItems: nativeItems }
+            : prev);
+        } catch (err) {
+          if (requestId === contextMenuRequestRef.current) setShellExtensionsPending(false);
+          console.warn('Native context menu fetch failed', err);
+        }
+      })();
   };
 
   const guardedSetCurrentPath = (p: string) => {
@@ -4790,11 +4812,13 @@ export default function BNDZUI() {
       const target = e.target as Element | null;
       if (target?.closest?.('[data-bndz-context-menu], [data-bndz-submenu-flyout], [data-bndz-tab-context-menu], [data-bndz-menubar-menu], [data-menu-trigger]')) return;
       if (menubarRef.current?.contains(e.target as Node)) return;
+      menubarOpenedByHoverRef.current = false;
       setOpenMenuId(null);
       setColumnPicker(null);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        menubarOpenedByHoverRef.current = false;
         setOpenMenuId(null);
         setColumnPicker(null);
       }
@@ -4888,9 +4912,30 @@ export default function BNDZUI() {
   useEffect(() => {
     const panel = bottomPanelRef.current;
     if (!panel) return;
-    if (layoutBottomOpen) panel.expand();
-    else panel.collapse();
-  }, [layoutBottomOpen, bottomPanelRef]);
+    if (layoutBottomOpen) {
+      if (typeof panel.isCollapsed === 'function' ? panel.isCollapsed() : true) {
+        panel.expand();
+      }
+      return;
+    }
+    // Home / Spatial / Automation must force the dock shut — CSS is belt-and-suspenders;
+    // also zero the group layout so RRP flexGrow cannot leave a leftover strip.
+    const forceClosed = () => {
+      try {
+        bottomPanelRef.current?.collapse?.();
+        innerGroupRef.current?.setLayout?.({ main: 100, bottom: 0 });
+      } catch { /* ignore */ }
+    };
+    forceClosed();
+    const raf = requestAnimationFrame(forceClosed);
+    const t1 = window.setTimeout(forceClosed, 50);
+    const t2 = window.setTimeout(forceClosed, 200);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [layoutBottomOpen, workspaceToolActive, bottomPanelRef, innerGroupRef]);
 
   useEffect(() => {
     if (workspaceToolActive && bottomImmersive) exitBottomImmersive();
@@ -4902,7 +4947,7 @@ export default function BNDZUI() {
     setMarqueeActive(false);
   }, [workspaceToolActive]);
 
-  // Warm native shell context menu verbs for the active folder (repeat opens feel instant).
+  // Warm native shell context menu verbs for the active folder + current selection (list open feels instant).
   useEffect(() => {
     if (!(config.useNativeOSContextMenu || config.nativeContextMenu)) return;
     const path = normalizePanePath(currentPath);
@@ -4910,15 +4955,37 @@ export default function BNDZUI() {
     const win = toWindowsPath(path);
     if (!win) return;
     let cancelled = false;
+    const contents = pathContentsCache[path] || [];
+    const selWins = (activeTab.selectedItems || [])
+      .map(sid => {
+        const ent = contents.find((c: any) => c.id === sid);
+        return ent ? toWindowsPath(joinPanePath(currentPath, ent)) : '';
+      })
+      .filter(Boolean);
+    const warmPaths = selWins.length > 0 ? selWins.slice(0, 8) : [win];
     void import('../lib/ipcBridge').then(({ IPC }) => {
       if (!IPC.isNative || cancelled) return;
       void import('../lib/nativeContextMenuCache').then(({ prefetchNativeContextMenu }) => {
         if (cancelled) return;
-        prefetchNativeContextMenu(win, p => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>);
+        const fetchOne = (p: string) => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>;
+        if (warmPaths.length === 1) {
+          prefetchNativeContextMenu(warmPaths[0], fetchOne);
+          return;
+        }
+        const multiKey = warmPaths.slice().sort().join('|');
+        prefetchNativeContextMenu(multiKey, () =>
+          IPC.fetchNativeContextMenuItems(warmPaths) as Promise<unknown[]>);
+        // Also warm the focused single path for single-item right-clicks.
+        prefetchNativeContextMenu(warmPaths[0], fetchOne);
       });
     });
     return () => { cancelled = true; };
-  }, [currentPath, config.useNativeOSContextMenu, config.nativeContextMenu]);
+  }, [
+    currentPath,
+    activeTab.selectedItems.join('|'),
+    config.useNativeOSContextMenu,
+    config.nativeContextMenu,
+  ]);
 
   useEffect(() => {
     const unbindChrome = bindGlobalChromeCursorReset();
@@ -6630,6 +6697,10 @@ export default function BNDZUI() {
         find:      () => { if (arg) addFindingTab(activePaneId, arg); else openBottomPlugin('find'); },
         search:    () => { if (arg) addFindingTab(activePaneId, arg); else openBottomPlugin('find'); },
         metadata:  () => openBottomPlugin('metadata'),
+        terminal:  () => openBottomPlugin('remote-mesh', { tab: 'terminal' }),
+        shell:     () => openBottomPlugin('remote-mesh', { tab: 'terminal' }),
+        filters:   () => openBottomPlugin('filters'),
+        hub:       () => setIsPluginStoreOpen(true),
         tabset:    () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
         palette:   () => setIsCommandPaletteOpen(true),
         commands:  () => setIsCommandPaletteOpen(true),
@@ -6642,18 +6713,19 @@ export default function BNDZUI() {
         handler();
         return true;
       }
-      setToastMessage(`Unknown command: '${cmd}'. Try: refresh, dual, preview, settings, rename, find, search, metadata, palette, plugins`);
+      setToastMessage(`Unknown command: '${cmd}'. Try: refresh, dual, preview, settings, find, search, terminal, filters, palette, plugins`);
       return true; // consumed — error toast shown
     }
 
     // --- Path navigation mode (no prefix required) ---
-    // Recognise: %VAR%, drive letters (C:\...), shell:..., \\UNC, bare drive (C:)
+    // Recognise: %VAR%, drive letters (C:\...), shell:..., \\UNC, bare drive (C:), known folders
     const looksLikePath = (s: string) =>
       /^%[A-Za-z_]/.test(s) ||
       /^[A-Za-z]:[\\\/]/.test(s) ||
       /^[A-Za-z]:$/.test(s) ||
       s.toLowerCase().startsWith('shell:') ||
-      s.startsWith('\\\\');
+      s.startsWith('\\\\') ||
+      /^(appdata|localappdata|temp|tmp|userprofile|home|desktop|downloads|documents)$/i.test(s);
 
     if (!looksLikePath(trimmed)) return false;
 
@@ -7990,59 +8062,9 @@ export default function BNDZUI() {
   };
 
 	const openTabContextMenuAt = (paneId: string, tabIndex: number, clientX: number, clientY: number) => {
-    const showReact = () => setTabContextMenu({ x: clientX, y: clientY, paneId, tabIndex });
-    // Both WPF classic and BNDZShell WinUI use host-owned menus; fall back to React if host fails.
-    if (IPC.isNative) {
-      void (async () => {
-        const pane = panes.find(p => p.id === paneId);
-        const tab = pane?.tabs[tabIndex];
-        if (!pane || !tab) return;
-        try {
-          const shown = await showTabHostContextMenu({
-            clientX,
-            clientY,
-            tabLabel: isFindingTab(tab) ? findingTabLabel(tab) : getPaneTabLabel(tab.path),
-            isLocked: !!tab.locked,
-            canClose: pane.tabs.length > 1,
-            canCloseOthers: pane.tabs.length > 1,
-            canCloseRight: tabIndex < pane.tabs.length - 1,
-            showRefresh: true,
-            showTearOff: true,
-            onLock: () => toggleTabLock(paneId, tabIndex),
-            onClose: () => { void closeTabAt(paneId, tabIndex); },
-            onCloseOthers: () => { void closeOtherTabs(paneId, tabIndex); },
-            onCloseRight: () => { void closeTabsToRight(paneId, tabIndex); },
-            onCloseAll: () => { void closeAllTabs(paneId); },
-            onDuplicate: () => duplicateTab(paneId, tabIndex),
-            onTearOff: () => {
-              if (config.openNewInstanceAlways && config.allowMultipleInstances === false) {
-                setToastMessage('Enable “Allow multiple instances” to tear off into a new window.', 'warning');
-                return;
-              }
-              void IPC.openPathInNewWindow(tab.path).then(r => {
-                if (!r.ok) setToastMessage(r.error || 'Could not open Stage window.', 'warning');
-                else setToastMessage(config.openNewInstanceAlways
-                  ? 'Opened in a new BNDZ instance.'
-                  : 'Opened in a new Stage window.');
-              });
-            },
-            onRefresh: () => {
-              if (isFindingTab(tab) && tab.findingQuery) {
-                void refreshFindingTab(paneId, tab.id, tab.findingQuery, tab.findingRoot || tab.path, tab);
-              } else {
-                void refetchPath(tab.path);
-              }
-            },
-            onResetColor: () => setTabColor(paneId, tabIndex, ''),
-          });
-          if (!shown) showReact();
-        } catch {
-          showReact();
-        }
-      })();
-      return;
-    }
-    showReact();
+    // Always use the themed React tab menu. Host WinUI/WPF popup was unthemed (white)
+    // and a void return caused React to open again after dismiss — double menus / flaky clicks.
+    setTabContextMenu({ x: clientX, y: clientY, paneId, tabIndex });
   };
 
   const tabMruRef = useRef<Record<string, string[]>>({});
@@ -14089,7 +14111,11 @@ export default function BNDZUI() {
                       className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${config.showHiddenFiles ? 'text-emerald-300' : 'text-gray-200'}`}
                       onMouseDown={menuAct(() => {
                         const next = !config.showHiddenFiles;
-                        updateConfig({ showHiddenFiles: next });
+                        updateConfig({
+                          showHiddenFiles: next,
+                          // Keep tree legacy toggle in sync so sidebar matches list.
+                          showHiddenSystemFoldersInTree: next || !!config.showSystemFiles,
+                        });
                         setToastMessage(next ? 'Showing hidden files.' : 'Hidden files concealed.');
                         closeMenu();
                       })}
@@ -14103,7 +14129,10 @@ export default function BNDZUI() {
                       className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${config.showSystemFiles ? 'text-emerald-300' : 'text-gray-200'}`}
                       onMouseDown={menuAct(() => {
                         const next = !config.showSystemFiles;
-                        updateConfig({ showSystemFiles: next });
+                        updateConfig({
+                          showSystemFiles: next,
+                          showHiddenSystemFoldersInTree: next || !!config.showHiddenFiles,
+                        });
                         setToastMessage(next ? 'Showing system files.' : 'System files concealed.');
                         closeMenu();
                       })}
@@ -15491,6 +15520,7 @@ export default function BNDZUI() {
                    groupRef={innerGroupRef}
                    direction="vertical"
                    className={`flex-1 min-h-0${workspaceToolActive ? ' bndz-workspace-inner--tools' : ''}`}
+                   data-workspace-tools={workspaceToolActive ? '1' : undefined}
                    defaultLayout={innerDefaultLayout}
                    onLayout={(layout) => {
                      const bottom = Number((layout as Record<string, number>).bottom ?? 0);
@@ -15717,7 +15747,7 @@ export default function BNDZUI() {
                      direction="vertical"
                      disabled={!layoutBottomOpen || bottomImmersive}
                      className={`bndz-resize-handle h-1.5 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-[80] touch-none ${
-                       bottomImmersive ? 'opacity-0 pointer-events-none' : ''
+                       !layoutBottomOpen || bottomImmersive ? 'opacity-0 pointer-events-none h-0 min-h-0 overflow-hidden' : ''
                      }`}
                      title="Drag to resize · Double-click to reset default height"
                      onDoubleClick={(e) => {
@@ -15870,7 +15900,7 @@ export default function BNDZUI() {
           void handleContextMenuRequest(e, tab.path, null, true, null, undefined, 'list-background');
         }}
       >
-         <div className="truncate">
+         <div className="truncate bndz-status-primary">
            {config.useStatusBarTemplate && config.statusBarTemplate ? (
              <span>{renderStatusBarTemplate(String(config.statusBarTemplate), {
                items: activeContents?.length ?? drives.length,
@@ -15928,7 +15958,7 @@ export default function BNDZUI() {
              </button>
            )}
            {layoutBottomOpen && activeBottomPluginLabel && (
-             <span className="ml-2 text-[#888] hidden sm:inline">
+             <span className="ml-2 bndz-status-meta hidden sm:inline">
                Plugin · {activeBottomPluginLabel}
              </span>
            )}
@@ -16281,7 +16311,7 @@ export default function BNDZUI() {
             tabLabel={isFindingTab(tab) ? findingTabLabel(tab) : getPaneTabLabel(tab.path)}
             isLocked={!!tab.locked}
             tabColor={tab.color}
-            canClose={pane.tabs.length > 1}
+            canClose={pane.tabs.length > 1 || isBndzImmersiveWorkspacePath(tab.path)}
             canCloseOthers={pane.tabs.length > 1}
             canCloseRight={tabContextMenu.tabIndex < pane.tabs.length - 1}
             showRefresh
@@ -16425,7 +16455,8 @@ export default function BNDZUI() {
         <div ref={contextMenuRootRef} onMouseDown={e => e.stopPropagation()}>
         <ContextMenuView
           menu={contextMenu}
-          onClose={() => setContextMenu(null)}
+          onClose={() => { setContextMenu(null); setShellExtensionsPending(false); }}
+          shellExtensionsPending={shellExtensionsPending}
           config={config}
           updateConfig={updateConfig}
           activePaneId={activePaneId}

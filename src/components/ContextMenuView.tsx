@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { ContextMenuIcon } from './ContextMenuIcon';
 import { Icons8Icon } from './Icons8Icon';
@@ -187,6 +187,24 @@ function ContextMenuView({
     ? partitionShellMergeItems(supplementalNative)
     : { open: [], clipboard: [], cascades: [], tools: [], footer: [] };
   const shellPending = shellMergeEnabled && shellExtensionsPending && supplementalNative.length === 0;
+  /** After shell verbs merge in, briefly ignore clicks so layout settle doesn't steal a fast click. */
+  const [shellMergeSettling, setShellMergeSettling] = useState(false);
+  const prevShellCountRef = useRef(0);
+  useEffect(() => {
+    const n = supplementalNative.length;
+    if (n > 0 && prevShellCountRef.current === 0 && !shellExtensionsPending) {
+      setShellMergeSettling(true);
+      const t = window.setTimeout(() => setShellMergeSettling(false), 160);
+      prevShellCountRef.current = n;
+      return () => window.clearTimeout(t);
+    }
+    if (n === 0) {
+      prevShellCountRef.current = 0;
+      setShellMergeSettling(false);
+    } else {
+      prevShellCountRef.current = n;
+    }
+  }, [supplementalNative.length, shellExtensionsPending]);
   const [iconLibs, setIconLibs] = useState<any[]>(config.iconLibraries || []);
   const [iconLibsLoaded, setIconLibsLoaded] = useState(false);
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
@@ -469,11 +487,14 @@ function ContextMenuView({
         {(opts?.withSep !== false) && <div className="bndz-context-menu-sep" />}
         {showPending ? (
           <div className="bndz-context-menu-shell-skeleton" aria-hidden>
-            <div className="bndz-context-menu-shell-skeleton-row" />
-            <div className="bndz-context-menu-shell-skeleton-row" />
+            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '72%' }} />
+            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '54%' }} />
+            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '63%' }} />
           </div>
         ) : (
-          items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))
+          <div className={shellMergeSettling ? 'bndz-context-menu-shell-settling' : undefined}>
+            {items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))}
+          </div>
         )}
       </>
     );

@@ -55,10 +55,11 @@ export type TabHostContextMenuOpts = {
 };
 
 /**
- * Host-owned WPF tab context menu (native). Maps selected id → callbacks.
+ * Host-owned WPF/WinUI tab context menu (native). Maps selected id → callbacks.
  * Color presets are omitted in v1 — use Reset Color or the React menu when not native.
+ * @returns true if the host menu was presented (selection or dismiss); false if caller should show React fallback.
  */
-export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Promise<void> {
+export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Promise<boolean> {
   const items: Array<{
     id: string;
     label: string;
@@ -87,12 +88,19 @@ export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Prom
     items.push({ id: 'resetColor', label: 'Reset Color' });
   }
 
-  const id = await IPC.showHostContextMenu({
-    clientX: opts.clientX,
-    clientY: opts.clientY,
-    items,
-  });
-  if (!id) return;
+  let id: string | null;
+  try {
+    id = await IPC.showHostContextMenu({
+      clientX: opts.clientX,
+      clientY: opts.clientY,
+      items,
+    });
+  } catch {
+    return false;
+  }
+
+  // Host presented the menu. null = dismissed — do NOT open a second React menu.
+  if (!id) return true;
 
   switch (id) {
     case 'lock':
@@ -125,6 +133,7 @@ export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Prom
     default:
       break;
   }
+  return true;
 }
 
 export function TabContextMenu({
@@ -151,14 +160,15 @@ export function TabContextMenu({
   const act = (fn: () => void) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    fn();
+    try { fn(); } finally { onCloseMenu(); }
   };
 
   return (
-    <ClampedFixedMenu x={x} y={y} className="min-w-[220px] select-none">
+    <ClampedFixedMenu x={x} y={y} className="min-w-[220px] select-none z-[99990]">
       <div
         data-bndz-tab-context-menu
         onMouseDown={e => e.stopPropagation()}
+        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
       >
         <div className="px-2.5 py-1.5 mb-1 text-[10px] uppercase tracking-wider text-white/40 border-b border-white/[0.08] truncate">
           {tabLabel}
@@ -214,7 +224,7 @@ export function TabContextMenu({
               title={preset.label}
               className={`w-5 h-5 rounded-[5px] border-2 transition-transform hover:scale-105 ${!preset.color ? 'bg-[#333] border-[#555]' : ''} ${tabColor === preset.color ? 'ring-2 ring-white/60 scale-105' : 'border-transparent'}`}
               style={preset.color ? { backgroundColor: preset.color } : undefined}
-              onMouseDown={act(() => { onSetColor(preset.color); onCloseMenu(); })}
+              onMouseDown={act(() => { onSetColor(preset.color); })}
             />
           ))}
         </div>

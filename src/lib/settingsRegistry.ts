@@ -120,6 +120,7 @@ const UI_KEYS = new Set([
   'listFontLcdAa',
   'uiCornerRadius', 'compactToolbar', 'denseMenubar', 'showPanelAccentBorders',
   'animatePanelTransitions', 'interfaceScale', 'lockBrowserZoom', 'applyColors', 'theme',
+  'followOsColorScheme', 'adjustToOsLightDarkModeAtStartup',
   'richTransitionAnimations', 'showFolderSizeOnPropertiesTab',
 ]);
 

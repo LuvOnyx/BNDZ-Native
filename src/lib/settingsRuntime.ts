@@ -1233,7 +1233,19 @@ export function applySettingsRuntime(config: AppConfig): void {
   applyNativeShellBackdrop(config, root);
 
   import('./shellIntegrationRuntime').then(({ scheduleBackendSettings }) => {
-    scheduleBackendSettings(config);
+    let force = false;
+    try {
+      if (localStorage.getItem('bndz-shell-apply-pending') === '1') {
+        force = true;
+        localStorage.removeItem('bndz-shell-apply-pending');
+      }
+    } catch { /* ignore */ }
+    // Also force when launched elevated with --apply-shell (query / hash mirror from host).
+    try {
+      const q = typeof location !== 'undefined' ? `${location.search} ${location.hash}` : '';
+      if (/apply-shell|elevated/i.test(q)) force = true;
+    } catch { /* ignore */ }
+    scheduleBackendSettings(config, force);
   });
 }
 

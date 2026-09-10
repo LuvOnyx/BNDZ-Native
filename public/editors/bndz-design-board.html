@@ -1438,6 +1438,47 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
               <div class="row-flex"><input class="fx-p-color" type="color" value="#38bdf8" title="Color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
             </div>
           </div>
+          <div class="effect-row" data-fx="strokeOutline">
+            <button type="button" class="toggle" id="fx-stroke-outline" title="Outer border — respects stroke width"></button>
+            <span class="fx-label">Outer border</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="strokeOutline">
+              <div class="fx-pop-title">Outer border</div>
+              <div class="prop-grid">
+                <div class="field"><label>Pad</label><input class="fx-p-blur" type="number" min="0" max="40" value="4" title="Extra padding beyond stroke width" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="100" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#0d99ff" title="Border color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
+          <div class="effect-row" data-fx="strokeInset">
+            <button type="button" class="toggle" id="fx-stroke-inset" title="Inner border — stroke-aware inset"></button>
+            <span class="fx-label">Inner border</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="strokeInset">
+              <div class="fx-pop-title">Inner border</div>
+              <div class="prop-grid">
+                <div class="field"><label>Inset</label><input class="fx-p-blur" type="number" min="0" max="40" value="2" title="Inset from outer edge" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="90" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#ffffff" title="Border color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
+          <div class="effect-row" data-fx="strokeShadow">
+            <button type="button" class="toggle" id="fx-stroke-shadow" title="Stroke-only drop shadow"></button>
+            <span class="fx-label">Stroke shadow</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="strokeShadow">
+              <div class="fx-pop-title">Stroke shadow</div>
+              <div class="prop-grid">
+                <div class="field"><label>Blur</label><input class="fx-p-blur" type="number" min="0" max="80" value="10" /></div>
+                <div class="field"><label>X</label><input class="fx-p-ox" type="number" value="2" /></div>
+                <div class="field"><label>Y</label><input class="fx-p-oy" type="number" value="4" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="45" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#000000" title="Color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
         </div>
         <div class="prop-grid" id="fx-params" style="display:none;margin-top:8px">
           <div class="field"><label>Blur</label><input id="fx-blur-n" type="number" min="0" max="80" value="18" /></div>
@@ -1923,6 +1964,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   let currentPageId = 1;
   let penPoints = [], penTemp = null, penAnchors = [], penHandles = [];
   let continueOriginPath = null; // stashed path being extended via continueFromHoverNode
+  let continueOriginLine = null; // line being welded when continuing from an endpoint
+  let continueOriginLineWhich = null; // 1 = extend from p1, 2 = from p2
   let pathEdit = null; // { path, handles: [], pts: [] }
   let protoMode = false;
   let activeComment = null;
@@ -2111,14 +2154,15 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   }
 
   function defaultFx(type) {
+    const glowish = type.indexOf('Glow') >= 0 || type === 'strokeOutline' || type === 'strokeInset';
     return {
       type,
       enabled: true,
-      color: '#000000',
-      blur: type.indexOf('Glow') >= 0 ? 22 : 18,
-      offsetX: type === 'dropShadow' ? 0 : 0,
-      offsetY: type === 'dropShadow' ? 8 : 0,
-      opacity: type.indexOf('Glow') >= 0 ? 0.55 : 0.35,
+      color: type === 'strokeOutline' ? '#0d99ff' : type === 'strokeInset' ? '#ffffff' : type === 'strokeGlow' ? '#38bdf8' : '#000000',
+      blur: type === 'strokeOutline' ? 4 : type === 'strokeInset' ? 2 : type === 'strokeShadow' ? 10 : glowish ? 22 : 18,
+      offsetX: type === 'dropShadow' || type === 'strokeShadow' ? (type === 'strokeShadow' ? 2 : 0) : 0,
+      offsetY: type === 'dropShadow' ? 8 : type === 'strokeShadow' ? 4 : 0,
+      opacity: type === 'strokeOutline' ? 1 : type === 'strokeInset' ? 0.9 : glowish ? 0.55 : 0.35,
     };
   }
   function getBndzEffects(o) {
@@ -2153,6 +2197,9 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     const innerShadow = list.find((f) => f.type === 'innerShadow');
     const innerGlow = list.find((f) => f.type === 'innerGlow');
     const strokeGlow = list.find((f) => f.type === 'strokeGlow');
+    const strokeOutline = list.find((f) => f.type === 'strokeOutline');
+    const strokeInset = list.find((f) => f.type === 'strokeInset');
+    const strokeShadow = list.find((f) => f.type === 'strokeShadow');
 
     // Drop shadow uses Fabric's native shadow (exports + selection correctly).
     // affectStroke:true ensures stroke-only objects (no fill) cast a visible shadow.
@@ -2168,7 +2215,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       o.set('shadow', null);
     }
 
-    const needPass = !!(glow || blur || innerShadow || innerGlow || strokeGlow);
+    const needPass = !!(glow || blur || innerShadow || innerGlow || strokeGlow || strokeOutline || strokeInset || strokeShadow);
     if (!needPass) {
       o.dirty = true;
       return;
@@ -2179,19 +2226,61 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     o._render = function bndzFxRender(ctx) {
       const self = this;
       const drawBase = self._bndzOrigRender;
+      const sw = Math.max(0, Number(self.strokeWidth) || 0);
+      const strokeCol = self.stroke || '#ffffff';
 
-      // Stroke glow — draw the object again with a blurred shadow matching the stroke color,
-      // placed BEFORE the main body so the glow sits under the stroke.
+      // Stroke-only shadow — draw stroke silhouette with offset blur (fill skipped).
+      if (strokeShadow && sw > 0) {
+        ctx.save();
+        const prevFill = self.fill;
+        const prevShadow = self.shadow;
+        self.fill = null;
+        self.shadow = null;
+        ctx.shadowColor = fxRgba(strokeShadow.color || '#000000', strokeShadow.opacity != null ? strokeShadow.opacity : 0.45);
+        ctx.shadowBlur = Math.max(1, strokeShadow.blur || 10);
+        ctx.shadowOffsetX = strokeShadow.offsetX || 2;
+        ctx.shadowOffsetY = strokeShadow.offsetY || 4;
+        drawBase.call(self, ctx);
+        self.fill = prevFill;
+        self.shadow = prevShadow;
+        ctx.restore();
+      }
+
+      // Outer border — expanded stroke pass that scales with strokeWidth (not fill-only).
+      if (strokeOutline && (sw > 0 || self.fill)) {
+        ctx.save();
+        const prevFill = self.fill;
+        const prevStroke = self.stroke;
+        const prevSw = self.strokeWidth;
+        const prevShadow = self.shadow;
+        self.shadow = null;
+        self.fill = null;
+        const pad = Math.max(0, strokeOutline.blur != null ? strokeOutline.blur : 4);
+        self.strokeWidth = Math.max(1, sw + pad * 2 + (sw > 0 ? sw : 2));
+        self.stroke = fxRgba(strokeOutline.color || '#0d99ff', strokeOutline.opacity != null ? strokeOutline.opacity : 1);
+        drawBase.call(self, ctx);
+        self.fill = prevFill;
+        self.stroke = prevStroke;
+        self.strokeWidth = prevSw;
+        self.shadow = prevShadow;
+        ctx.restore();
+      }
+
+      // Stroke glow — blurred halo matching stroke color/width.
       if (strokeGlow) {
         ctx.save();
         const prevShadow = self.shadow;
+        const prevFill = self.fill;
         self.shadow = null;
-        const glowCol = fxRgba(strokeGlow.color || self.stroke || '#ffffff', strokeGlow.opacity != null ? strokeGlow.opacity : 0.6);
+        // Prefer stroke silhouette when a stroke exists.
+        if (sw > 0) self.fill = null;
+        const glowCol = fxRgba(strokeGlow.color || strokeCol, strokeGlow.opacity != null ? strokeGlow.opacity : 0.6);
         ctx.shadowColor = glowCol;
-        ctx.shadowBlur = Math.max(1, strokeGlow.blur || 12);
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
+        ctx.shadowBlur = Math.max(1, (strokeGlow.blur || 12) + sw * 0.5);
+        ctx.shadowOffsetX = strokeGlow.offsetX || 0;
+        ctx.shadowOffsetY = strokeGlow.offsetY || 0;
         drawBase.call(self, ctx);
+        self.fill = prevFill;
         self.shadow = prevShadow;
         ctx.restore();
       }
@@ -2220,6 +2309,27 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         ctx.restore();
       } else {
         drawBase.call(self, ctx);
+      }
+
+      // Inner border — thinner inset stroke clipped to the shape (stroke-aware).
+      if (strokeInset && (sw > 0 || self.fill)) {
+        ctx.save();
+        const prevFill = self.fill;
+        const prevStroke = self.stroke;
+        const prevSw = self.strokeWidth;
+        const prevShadow = self.shadow;
+        self.shadow = null;
+        self.fill = null;
+        const inset = Math.max(0, strokeInset.blur != null ? strokeInset.blur : 2);
+        self.strokeWidth = Math.max(1, Math.max(1, sw || 2) - inset * 0.25);
+        self.stroke = fxRgba(strokeInset.color || '#ffffff', strokeInset.opacity != null ? strokeInset.opacity : 0.9);
+        ctx.globalCompositeOperation = 'source-atop';
+        drawBase.call(self, ctx);
+        self.fill = prevFill;
+        self.stroke = prevStroke;
+        self.strokeWidth = prevSw;
+        self.shadow = prevShadow;
+        ctx.restore();
       }
 
       // Inner shadow / glow — source-atop inset pass using external offset rect technique.
@@ -3485,10 +3595,11 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     const sw = Math.max(1.5, state.strokeWidth);
     penTemp = new fabric.Path(d, {
       stroke: col, strokeWidth: sw,
-      fill: '', selectable: false, evented: false, objectCaching: false, strokeUniform: true, isGuide: true,
-      strokeLineCap: 'round', strokeLineJoin: 'round',
+      fill: 'transparent', selectable: false, evented: false, objectCaching: false, strokeUniform: true, isGuide: true,
+      strokeLineCap: 'round', strokeLineJoin: 'round', opacity: 1,
     });
     canvas.add(penTemp);
+    try { canvas.bringToFront(penTemp); } catch (e) { /* ignore */ }
     // Keep anchors above the preview stroke.
     penAnchors.forEach((a) => canvas.bringToFront(a));
     penHandles.forEach((h) => canvas.bringToFront(h));
@@ -3517,7 +3628,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         return;
       }
     }
-    // Default = sharp corner (letters like B). Curves ONLY when holding Alt and dragging past threshold.
+    // Default = sharp corner. Drag past threshold (or Alt/Meta) creates smooth handles.
     const pt = { x: p.x, y: p.y, inX: null, inY: null, outX: null, outY: null, nodeType: 'corner' };
     penPoints.push(pt);
     const col = state.stroke || '#FFFFFF';
@@ -3532,8 +3643,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (penPoints.length === 2) toast('Stroke preview live · Enter or double-click to commit', 'ok');
     if (e && (e.type === 'mousedown' || e.type === 'pointerdown')) {
       const origin = { x: p.x, y: p.y };
-      const wantCurve = !!(e.altKey || e.metaKey);
-      const bendThresh = Math.max(4 / canvas.getZoom(), Math.min(18 / canvas.getZoom(), 10 / canvas.getZoom()));
+      const bendThresh = 6 / Math.max(0.05, canvas.getZoom());
       const clearCurve = () => {
         pt.outX = pt.outY = pt.inX = pt.inY = null;
         pt.nodeType = 'corner';
@@ -3543,12 +3653,6 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         const q = canvas.getPointer(opt.e);
         const dx = q.x - origin.x, dy = q.y - origin.y;
         const dist = Math.hypot(dx, dy);
-        // Alt/meta OR drag past threshold starts a smooth handle (pressure-free pen).
-        const allowCurve = wantCurve || dist >= bendThresh || !!(opt.e && (opt.e.altKey || opt.e.metaKey));
-        if (!allowCurve) {
-          if (pt.nodeType === 'smooth') { clearCurve(); drawPenTemp(q); }
-          return;
-        }
         if (dist < bendThresh) {
           if (pt.nodeType === 'smooth') { clearCurve(); drawPenTemp(q); }
           return;
@@ -3581,19 +3685,23 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (penPoints.length >= 2) {
       const pts = normalizePathPtsCubic(penPoints);
       const d = pathDataFromPts(pts, !!closed);
+      const sw = Math.max(1.5, Number(state.strokeWidth) || 2);
       const path = new fabric.Path(d, {
-        // Pen never auto-fills — fill optionally after via Fill inspector
-        fill: '',
-        stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1.5, state.strokeWidth),
+        fill: 'transparent',
+        stroke: state.stroke || '#FFFFFF',
+        strokeWidth: sw,
         strokeUniform: true, strokeLineJoin: 'round', strokeLineCap: 'round',
         pathEditPts: clonePathPts(pts), pathClosed: !!closed, objectCaching: false,
+        opacity: 1, selectable: true, evented: true,
       });
       // Null origin ref BEFORE clearPen so clearPen doesn't re-add the stashed path.
-      // (continueOriginPath was already removed from canvas in continueFromHoverNode.)
       continueOriginPath = null;
       clearPen();
       canvas.add(path);
+      try { canvas.bringToFront(path); } catch (e) { /* ignore */ }
       finalizeNew(path, 'path');
+      canvas.setActiveObject(path);
+      canvas.requestRenderAll();
       // Only enter node edit when explicitly requested (RMB / Enter / close-to-start) —
       // sticky pen placement must not litter the canvas with orphan handles.
       if (opts.enterEdit === true) {
@@ -3639,9 +3747,11 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     // ALWAYS recreate from absolute world pts. In-place path.set(absolute cmds) leaves
     // stale left/top/pathOffset and is the root cause of floating nodes after edits/moves.
     const props = {
-      fill: path.fill, stroke: path.stroke, strokeWidth: path.strokeWidth,
+      fill: path.fill || 'transparent',
+      stroke: path.stroke || state.stroke || '#FFFFFF',
+      strokeWidth: Math.max(1.5, Number(path.strokeWidth) || Number(state.strokeWidth) || 2),
       strokeUniform: true, strokeLineJoin: path.strokeLineJoin || 'round', strokeLineCap: path.strokeLineCap || 'round',
-      opacity: path.opacity, shadow: path.shadow, angle: 0, scaleX: 1, scaleY: 1,
+      opacity: path.opacity == null ? 1 : path.opacity, shadow: path.shadow, angle: 0, scaleX: 1, scaleY: 1,
       pathEditPts: clonePathPts(pts),
       pathClosed: !!path.pathClosed, objectCaching: false, bndzEffects: path.bndzEffects,
       name: path.name, id: path.id, selectable: true, evented: true,
@@ -4028,12 +4138,16 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       if (!abs) return;
       const from = meta.which === 1 ? abs.p1 : abs.p2;
       clearHoverNodes();
+      clearLineEndpoints();
+      // Weld into the existing line — stash origin so mouse:up extends it instead of leaving a near-miss duplicate.
+      continueOriginLine = obj;
+      continueOriginLineWhich = meta.which === 1 ? 1 : 2;
       setTool('line');
       drawStart = { x: from.x, y: from.y };
       drawKind = 'line';
       drawingObj = newLine(from.x, from.y);
       canvas.add(drawingObj);
-      toast('Continue from node');
+      toast('Continuing line (weld)');
     }
   }
   function tryContinuePathAt(p) {
@@ -4355,8 +4469,37 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       const tooSmall = (kind === 'line' || kind === 'arrow')
         ? (Math.hypot((obj.x2 - obj.x1), (obj.y2 - obj.y1)) < 3)
         : (obj.getScaledWidth() < 3 && obj.getScaledHeight() < 3);
-      if (tooSmall) { canvas.remove(obj); canvas.requestRenderAll(); return; }
+      if (tooSmall) {
+        canvas.remove(obj);
+        if (continueOriginLine) { continueOriginLine = null; continueOriginLineWhich = null; }
+        canvas.requestRenderAll();
+        return;
+      }
       if (kind === 'line') {
+        // Weld continued line into the origin polyline segment (shared anchor).
+        if (continueOriginLine && continueOriginLineWhich) {
+          const origin = continueOriginLine;
+          const which = continueOriginLineWhich;
+          continueOriginLine = null;
+          continueOriginLineWhich = null;
+          const abs = getLineAbsPoints(origin);
+          const live = getLineAbsPoints(obj);
+          canvas.remove(obj);
+          if (abs && live) {
+            const newEnd = which === 1 ? live.p2 : live.p2;
+            // Continuing from p1 flips that endpoint; from p2 extends p2.
+            if (which === 1) setLineAbsPoints(origin, newEnd, abs.p2);
+            else setLineAbsPoints(origin, abs.p1, newEnd);
+            if (origin.isArrow) ensureArrowHead(origin);
+            try { canvas.setActiveObject(origin); } catch (e) {}
+            attachLineEndpoints(origin);
+            pushHistory();
+            syncInspector();
+            toast('Line welded');
+            canvas.requestRenderAll();
+            return;
+          }
+        }
         finalizeNew(obj, 'line');
         attachLineEndpoints(obj);
         // Sticky line tool — stay armed for rapid placement
@@ -4934,7 +5077,20 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     clearHoverNodes();
     clearLineEndpoints();
     clearPathEdit();
+    continueOriginLine = null;
+    continueOriginLineWhich = null;
     const objs = canvas.getActiveObjects(); if (!objs.length) return;
+    const kill = new Set(objs);
+    // Also strip guide circles / handles that belonged to deleted paths/lines.
+    canvas.getObjects().slice().forEach((g) => {
+      if (!g || !g.isGuide) return;
+      if (g.__hoverNode || g.__lineEnd != null || g.__pathHandle != null || g.__penAnchor) {
+        // orphan path-edit / hover guides always safe to drop on delete
+        canvas.remove(g);
+        return;
+      }
+      if (g.__boundTo && kill.has(g.__boundTo)) canvas.remove(g);
+    });
     objs.forEach((o) => { if (!o.isGuide) canvas.remove(o); });
     canvas.discardActiveObject(); canvas.requestRenderAll();
     updateLayers(); syncInspector(); pushHistory(); toast('Deleted');
@@ -5745,7 +5901,17 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   $('#p-opacity-n').addEventListener('change', (e) => { $('#p-opacity').value = e.target.value; applyProp('opacity', (+e.target.value) / 100); });
 
   $('#shadow-toggle').addEventListener('click', () => toggleEffect('dropShadow'));
-  const _fxMap = { 'fx-drop': 'dropShadow', 'fx-inner': 'innerShadow', 'fx-glow': 'outerGlow', 'fx-iglow': 'innerGlow', 'fx-blur': 'layerBlur', 'fx-stroke-glow': 'strokeGlow' };
+  const _fxMap = {
+    'fx-drop': 'dropShadow',
+    'fx-inner': 'innerShadow',
+    'fx-glow': 'outerGlow',
+    'fx-iglow': 'innerGlow',
+    'fx-blur': 'layerBlur',
+    'fx-stroke-glow': 'strokeGlow',
+    'fx-stroke-outline': 'strokeOutline',
+    'fx-stroke-inset': 'strokeInset',
+    'fx-stroke-shadow': 'strokeShadow',
+  };
   Object.keys(_fxMap).forEach((id) => {
     const el = $('#' + id);
     if (el) el.addEventListener('click', (e) => { e.stopPropagation(); toggleEffect(_fxMap[id]); });
@@ -5951,11 +6117,22 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       e.preventDefault();
       if ($('#export-modal') && $('#export-modal').classList.contains('open')) { closeExportModal(); return; }
       if ($('#proto-link-modal') && $('#proto-link-modal').classList.contains('open')) { closeProtoLinkModal(); return; }
-      // Escape ladder: path-edit → unfinished pen → deselect
+      // Escape ladder: path-edit → unfinished pen → in-flight draw → deselect
       if (pathEdit) { clearPathEdit(); nodeEditHint = ''; updateStatus(); return; }
       if (protoMode) { exitProtoMode(); return; }
       if (state.tool === 'pen' && penPoints.length) { clearPen(); return; }
+      if (drawingObj) {
+        try { canvas.remove(drawingObj); } catch (err) {}
+        drawingObj = null; drawStart = null; drawKind = null;
+        continueOriginLine = null; continueOriginLineWhich = null;
+        clearHoverNodes(); clearLineEndpoints(); clearPathEdit();
+        canvas.requestRenderAll();
+        return;
+      }
       clearHoverNodes();
+      clearLineEndpoints();
+      clearPathEdit();
+      continueOriginLine = null; continueOriginLineWhich = null;
       closeCommentPanel();
       cmenu.style.display = 'none'; canvas.discardActiveObject(); canvas.requestRenderAll(); syncInspector(); updateLayers(); return;
     }

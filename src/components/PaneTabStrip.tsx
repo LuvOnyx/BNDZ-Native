@@ -280,6 +280,8 @@ function SortablePaneTab({
       onContextMenu={e => {
         e.preventDefault();
         e.stopPropagation();
+        // Explorer: right-click activates the tab before the menu appears.
+        onActivate();
         onContextMenu(e);
       }}
     >

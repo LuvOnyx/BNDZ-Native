@@ -22,7 +22,8 @@ import { getLocationIconPath } from '../../lib/virtualLocations';
 import { resolveShellPropertiesPath, toPanePath } from '../../lib/shellPaths';
 import { isBndzHomePath, isBndzVirtualPath } from '../../lib/bndzVirtualViews';
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
-import { isAudioExt, isVideoExt } from '../../lib/mediaTypes';
+import { isAudioExt, isVideoExt, isImageExt } from '../../lib/mediaTypes';
+import { dispatchOpenPhotoStudio } from '../preview/BndzPhotoStudio';
 
 type PropTab = 'general' | 'customize' | 'security' | 'hashes';
 
@@ -293,6 +294,13 @@ export default function PropertiesPlugin({
         runIpc(IPC => IPC.executeContextMenuVerb(shellPath, 'properties'));
     };
 
+    const openPhotoStudio = () => {
+        if (!targetPath || isDir || isMulti) return;
+        dispatchOpenPhotoStudio(targetPath);
+    };
+
+    const canOpenStudio = !isMulti && !isDir && !driveInfo && isImageExt(ext);
+
     const canCustomizeIcon = !isMulti && !driveInfo && !!(
         isDir || /\.lnk$/i.test(targetPath || '') || /\.lnk$/i.test(entity?.path || '')
     );
@@ -473,6 +481,11 @@ export default function PropertiesPlugin({
                             {copied ? 'Copied!' : 'Copy path'}
                         </PluginHeroActionButton>
                         <PluginHeroActionButton icon="folder_open_ui" onClick={showInExplorer}>Reveal</PluginHeroActionButton>
+                        {canOpenStudio && (
+                            <PluginHeroActionButton icon="picture_ui" onClick={openPhotoStudio}>
+                                Studio
+                            </PluginHeroActionButton>
+                        )}
                         <PluginHeroActionButton icon="sys_properties" onClick={showNativeProperties}>Windows props</PluginHeroActionButton>
                     </>
                 ) : (

@@ -17,23 +17,23 @@ export default function FolderSizeSyncChip({ current, total, path, percent = 0, 
 
   return (
     <span
-      className="bndz-status-bar-chip"
+      className="bndz-status-bar-chip bndz-status-bar-chip--sizemap"
       title={path || 'Building folder size map'}
       role="status"
     >
-      <LauncherIcon id="folder_size_sync" size={12} className="shrink-0 opacity-85" />
-      <span className="truncate">
+      <LauncherIcon id="folder_size_sync" size={12} className="bndz-status-bar-chip-ico shrink-0" />
+      <span className="bndz-status-bar-chip-label truncate">
         Size map {current}/{total}
-        <span className="text-[#888] ml-1">({pct}%)</span>
-        {folder ? <span className="text-[#888] ml-1">· {folder}</span> : null}
+        <span className="bndz-status-bar-chip-muted"> ({pct}%)</span>
+        {folder ? <span className="bndz-status-bar-chip-muted"> · {folder}</span> : null}
       </span>
-      <span className="hidden sm:inline-flex h-1 w-12 rounded-sm bg-[#1a1a1a] overflow-hidden shrink-0 border border-[#454545]">
-        <span className="h-full bg-[var(--accent,#0078d4)] transition-all" style={{ width: `${pct}%` }} />
+      <span className="bndz-status-bar-chip-track hidden sm:inline-flex" aria-hidden>
+        <span className="bndz-status-bar-chip-fill" style={{ width: `${pct}%` }} />
       </span>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onCancel(); }}
-        className="shrink-0 p-0.5 text-[#888] hover:text-white transition-colors"
+        className="bndz-status-bar-chip-cancel shrink-0"
         title="Cancel folder size sync (Esc)"
         aria-label="Cancel folder size sync"
       >

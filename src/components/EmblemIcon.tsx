@@ -93,14 +93,26 @@ type Props = {
   progress?: number;
   /** When true, media-playback-playing uses the live seek ring (audio session). */
   live?: boolean;
+  /** When using the seek-ring control, show pause bars in the center. */
+  paused?: boolean;
 };
 
-export function EmblemIcon({ id, size = 16, className = '', title, disabled, progress, live }: Props) {
+export function EmblemIcon({ id, size = 16, className = '', title, disabled, progress, live, paused }: Props) {
   const clean = String(id).replace(/\.svg$/i, '').replace(/_/g, '-');
-  if ((clean === 'media-playback-playing' || clean === 'media-playing') && (live || typeof progress === 'number')) {
+  const useRing =
+    clean === 'media-playback-playing'
+    || clean === 'media-playing'
+    || clean === 'media-playback-paused'
+    || clean === 'media-pause';
+  if (useRing && (live || typeof progress === 'number' || paused != null)) {
     return (
       <span title={title} className={disabled ? 'opacity-40 inline-flex' : 'inline-flex'}>
-        <MediaPlayingIcon size={size} className={className} progress={progress} />
+        <MediaPlayingIcon
+          size={size}
+          className={className}
+          progress={progress}
+          paused={paused ?? (clean === 'media-playback-paused' || clean === 'media-pause')}
+        />
       </span>
     );
   }

@@ -1088,6 +1088,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(path), 'open'));
   };
 
+  const revealInFolder = () => {
+    if (!path) return;
+    import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('reveal', toWindowsPath(path)));
+  };
+
   const copyPath = () => {
     if (!path) return;
     import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', toWindowsPath(path)));
@@ -1143,7 +1148,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                  <PopOutGlyph size={16} className="bndz-preview-action-icon text-sky-200" />
                </button>
              )}
-             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="folder_open_ui" size={18} className="bndz-preview-action-icon" /></button>
+             <button type="button" onClick={revealInFolder} className="bndz-preview-action-btn" title="Show in folder"><Icons8Icon id="explorer" size={18} className="bndz-preview-action-icon" /></button>
              <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={18} className="bndz-preview-action-icon" /></button>
           </div>
        </div>
@@ -1165,10 +1170,6 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               kindLabel={isDrive ? (entity as any).typeDescription : (isDir ? 'Folder' : (ext ? `${ext.toUpperCase()} file` : 'File'))}
               isDirectory={isDir}
               facts={curatedPreviewFacts(extendedDetails)}
-              onReveal={() => {
-                if (!path) return;
-                void import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('reveal', toWindowsPath(path)));
-              }}
             />
           )}
           {(isImage || isSvg) && activeTab === 'preview' && (

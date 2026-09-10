@@ -101,6 +101,17 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
     }
   }, []);
 
+  const scheduleFit = useCallback(() => {
+    // Fit after flex/layout settles so ConPTY rows match the visible hole, not under chrome.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fitAndResize();
+        window.setTimeout(fitAndResize, 48);
+        window.setTimeout(fitAndResize, 160);
+      });
+    });
+  }, [fitAndResize]);
+
   useEffect(() => {
     const host = containerRef.current;
     if (!host || termRef.current) return;
@@ -136,9 +147,10 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
     const focusTerm = () => { try { term.focus(); } catch { /* ignore */ } };
     host.addEventListener('pointerdown', focusTerm);
     const ro = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => fitAndResize())
+      ? new ResizeObserver(() => scheduleFit())
       : null;
     ro?.observe(host);
+    scheduleFit();
     return () => {
       ro?.disconnect();
       host.removeEventListener('pointerdown', focusTerm);
@@ -146,25 +158,13 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [flushOrphans, fitAndResize]);
+  }, [flushOrphans, fitAndResize, scheduleFit]);
 
   useEffect(() => {
     if (!active) return;
-    let cancelled = false;
-    const run = () => {
-      if (cancelled) return;
-      fitAndResize();
-      try { termRef.current?.focus(); } catch { /* ignore */ }
-    };
-    requestAnimationFrame(() => requestAnimationFrame(run));
-    const t1 = window.setTimeout(run, 50);
-    const t2 = window.setTimeout(run, 200);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [active, sessionId, fitAndResize]);
+    scheduleFit();
+    try { termRef.current?.focus(); } catch { /* ignore */ }
+  }, [active, sessionId, scheduleFit]);
 
   useEffect(() => {
     ensureMeshTerminalOutputHub();
@@ -183,9 +183,9 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
     if (!sessionId) return;
     // Do not reset — that wiped ConPTY banner / early output. Only flush + focus.
     flushOrphans(sessionId);
-    fitAndResize();
+    scheduleFit();
     try { term.focus(); } catch { /* ignore */ }
-  }, [sessionId, flushOrphans, fitAndResize]);
+  }, [sessionId, flushOrphans, scheduleFit]);
 
   return (
     <div
@@ -398,6 +398,17 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   const terminalMode = tab === 'terminal';
 
+  // Compress bottom tabstrip while Terminal owns the hole (header/footer inset).
+  useEffect(() => {
+    const panel = document.querySelector('.bndz-bottom-panel') as HTMLElement | null;
+    if (!panel) return;
+    if (terminalMode) panel.setAttribute('data-terminal-active', 'true');
+    else if (panel.getAttribute('data-terminal-active') === 'true') panel.removeAttribute('data-terminal-active');
+    return () => {
+      if (panel.getAttribute('data-terminal-active') === 'true') panel.removeAttribute('data-terminal-active');
+    };
+  }, [terminalMode]);
+
   return (
     <PluginPanelShell
       title="Remote"
@@ -406,13 +417,14 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       subtitle="Hosts SSH/SFTP · Mesh Drop P2P · Mesh VPS (local temp) · mirrors · Shell Here"
       variant="embedded"
       scrollable={!terminalMode}
+      density={terminalMode ? 'terminal' : 'default'}
       toolbar={terminalMode ? (
-        <div className="flex items-center gap-1.5 flex-wrap w-full justify-between">
-          <div className="flex items-center gap-1 flex-wrap min-w-0">
+        <div className="bndz-mesh-term-actions flex items-center gap-1 w-full min-h-0">
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto scrollbar-hidden">
             <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
               Local
             </PluginToolbarButton>
-            {hosts.filter(h => h.provider === 0).slice(0, 4).map(h => (
+            {hosts.filter(h => h.provider === 0).slice(0, 2).map(h => (
               <PluginToolbarButton key={h.id} onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }} disabled={busy}>
                 SSH · {h.alias}
               </PluginToolbarButton>
@@ -432,7 +444,6 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {status && <span className="text-[10px] text-sky-200/70 truncate max-w-[160px]">{status}</span>}
             <PluginToolbarButton onClick={() => setTab('hosts')}>Hosts</PluginToolbarButton>
           </div>
         </div>
@@ -455,7 +466,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       )}
       status={!terminalMode && status ? <span className="text-xs text-sky-200/80 bndz-mesh-status-pulse">{status}</span> : undefined}
     >
-      <div className={`flex flex-col h-full min-h-0 bndz-mesh-surface ${terminalMode ? 'bndz-mesh-surface--terminal' : ''}`}>
+      <div className={`flex flex-col flex-1 min-h-0 h-full bndz-mesh-surface ${terminalMode ? 'bndz-mesh-surface--terminal' : ''}`}>
         {!terminalMode && (
           <div className="bndz-mesh-tabrail flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
             {([
@@ -479,13 +490,19 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           </div>
         )}
 
-        <div className={`flex-1 min-h-0 relative ${terminalMode ? 'overflow-hidden p-0' : 'p-3 overflow-y-auto bndz-scrollbar'}`}>
+        <div
+          className={`flex-1 min-h-0 min-w-0 ${
+            terminalMode
+              ? 'overflow-hidden p-0 flex flex-col relative'
+              : 'relative p-3 overflow-y-auto bndz-scrollbar'
+          }`}
+        >
           {/* Keep xterm mounted after first open so ConPTY output survives Remote tab switches. */}
           {(terminalMode || sessionId) && (
             <div
               className={`bndz-mesh-terminal-frame bg-[#07090e] ${
                 terminalMode
-                  ? 'relative flex-1 min-h-0 h-full overflow-hidden'
+                  ? 'relative flex-1 min-h-0 min-w-0 w-full overflow-hidden'
                   : 'hidden'
               }`}
               aria-hidden={!terminalMode}

@@ -152,12 +152,12 @@ html[data-bndz-embed="1"] #panels .panel-tab-group{
   flex:0 0 auto!important;
   min-height:max-content!important;
   max-height:none!important;
-  overflow:visible!important;
-  border-radius:12px!important;
+  overflow:hidden!important;
+  border-radius:8px!important;
   margin:0!important;
-  border:1px solid color-mix(in srgb,var(--border-active) 65%,transparent)!important;
-  background:linear-gradient(180deg,var(--bg-depth-2),var(--bg-depth-1))!important;
-  box-shadow:0 14px 34px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.04)!important;
+  border:1px solid color-mix(in srgb,var(--border) 75%,transparent)!important;
+  background:color-mix(in srgb,var(--bg-depth-1) 94%,transparent)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03)!important;
 }
 html[data-bndz-embed="1"] #panels .panel-tab-group.ptg-flex{
   flex:0 0 auto!important;
@@ -302,11 +302,37 @@ html[data-bndz-embed="1"] #layers-list-visual{
 html[data-bndz-embed="1"] #panels .panel-tabs{
   flex:0 0 auto!important;
   position:relative!important;
-  min-height:36px!important;
+  min-height:28px!important;
   display:flex!important;
+  gap:2px!important;
+  padding:3px 4px 0!important;
   visibility:visible!important;
   opacity:1!important;
   z-index:2;
+  background:transparent!important;
+  border-bottom:1px solid color-mix(in srgb,var(--border) 65%,transparent)!important;
+}
+html[data-bndz-embed="1"] #panels .panel-tab{
+  padding:5px 9px 6px!important;
+  min-height:0!important;
+  border-radius:6px 6px 0 0!important;
+  font-size:10px!important;
+  font-weight:650!important;
+  letter-spacing:.04em!important;
+  border:none!important;
+  border-bottom:2px solid transparent!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+html[data-bndz-embed="1"] #panels .panel-tab:hover{
+  background:rgba(255,255,255,.04)!important;
+  color:var(--text-secondary)!important;
+}
+html[data-bndz-embed="1"] #panels .panel-tab.active{
+  color:var(--text-primary)!important;
+  background:color-mix(in srgb,var(--bg-depth-2) 90%,transparent)!important;
+  border-bottom-color:var(--accent)!important;
+  box-shadow:none!important;
 }
 html[data-bndz-embed="1"] #panels .panel-tab-content.active{
   display:flex!important;

@@ -199,7 +199,7 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--bndz-border-subtle', isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)');
   // Light themes: pale footer statusbar + black ink (top chrome stays dark via --chrome-dark-*).
   root.style.setProperty('--statusbar-bg', isLight ? '#eef0f4' : mixHex(preset.bg, '#000000', 0.2));
-  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(255,255,255,0.88)');
+  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(236, 240, 246, 0.94)');
   root.style.setProperty('--status-neon', preset.accent);
   root.style.setProperty('--status-neon-soft', `${preset.accent}28`);
   root.style.setProperty('--status-neon-mid', `${preset.accent}0a`);
@@ -241,7 +241,7 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--menu-accent', preset.accent);
   root.style.setProperty('--statusbar-bg', isLight ? '#eef0f4' : mixHex(preset.bg, '#000000', 0.2));
   // Pale footer on light themes — black ink (never white-on-pale).
-  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(255,255,255,0.88)');
+  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(236, 240, 246, 0.94)');
   root.style.setProperty('--list-header-bg', isLight ? '#eef0f3' : elevated);
   root.style.setProperty('--list-header-text', isLight ? 'rgba(0,0,0,0.82)' : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--list-text-secondary', isLight ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.45)');
@@ -271,7 +271,19 @@ export function applyThemeCssVars(preset: ThemePreset): void {
 
 export function applyThemeByName(themeName: string | undefined): void {
   if (!themeName) return;
-  const resolved = themeName === 'Midnight' ? 'Midnight Cobalt' : themeName;
+  const resolved =
+    themeName === 'Midnight' ? 'Midnight Cobalt'
+      : themeName === 'Slate' ? 'Slate Workstation'
+        : themeName;
   const preset = ALL_THEME_PRESETS.find(t => t.name === resolved);
   if (preset) applyThemeCssVars(preset);
+}
+
+/** Default dark shell for first boot + OS dark sync. */
+export const DEFAULT_DARK_THEME = 'Slate Workstation';
+/** Companion light theme when following Windows light mode. */
+export const DEFAULT_LIGHT_THEME = 'macOS Light';
+
+export function themeNameForOsColorScheme(prefersDark: boolean): string {
+  return prefersDark ? DEFAULT_DARK_THEME : DEFAULT_LIGHT_THEME;
 }

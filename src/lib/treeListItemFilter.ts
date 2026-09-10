@@ -94,6 +94,8 @@ export function isTreeListItemVisible(
   }
   if (!showSystem) {
     if (attrs.includes('system')) return false;
+    // `$…` protected-style names (e.g. $Recycle.Bin, $WinREAgent) even if attr bits lag.
+    if (name.startsWith('$') && name.length > 1) return false;
   }
 
   const allowed = new Set(resolveTreeListVisibleTypes(config));

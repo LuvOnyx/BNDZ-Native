@@ -120,7 +120,7 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 ### Plugins / surfaces (continue sweeping)
 - [x] Notifications tab uses BNDZ Checkbox (not raw accent inputs)
 - [x] Extension Hub (PluginStoreDialog) redesigned — glass/squircle craft, aurora backdrop, shimmer CTA, animated catalog rows, grouped sections, capability items, version timeline card
-- [ ] Advanced plugins as **external installable packages** (npm/zip distribution, isolated runtime, signature check) — planned for a future BNDZ release; current hub manages built-in + JSON-imported manifests only
+- [ ] Advanced plugins as **external installable packages** (npm/zip distribution, isolated runtime, signature check) — planned for a future BNDZ release; current hub manages built-in + JSON-imported manifests only. Do **not** vendor Rain-Explorer / QuickLook / filessh into `external/` for launch.
 - [ ] Visual Filters empty/default state craft
 - [ ] Tag Manager / Action History spot-check regressions
 - [ ] Bottom plugin panel empty state + install gating still correct

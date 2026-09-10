@@ -150,7 +150,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ActionLogPluginDef,
-        description: 'Reversible operation history with undo/redo — XYplorer-style action log.',
+        description: 'Reversible operation history with undo and redo for copy, move, and rename.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -158,7 +158,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ComparePluginDef,
-        description: 'Binary file compare and recursive folder diff — XYplorer branch compare parity.',
+        description: 'Binary file compare and recursive folder diff for dual-pane verification.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',

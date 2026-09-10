@@ -688,13 +688,19 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <Checkbox
                    label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">H</span>idden files in list</span>}
                    checked={localConfig.showHiddenFiles ?? false}
-                   onChange={e => updateLocalConfig({ showHiddenFiles: e.target.checked })}
+                   onChange={e => updateLocalConfig({
+                     showHiddenFiles: e.target.checked,
+                     showHiddenSystemFoldersInTree: e.target.checked || !!localConfig.showSystemFiles,
+                   })}
                  />
                  <p className="text-[10px] text-[#888] -mt-1 mb-1 ml-[22px]">Also available in View menu. Files with the Hidden attribute are shown dimmed.</p>
                  <Checkbox
                    label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">S</span>ystem files in list</span>}
                    checked={localConfig.showSystemFiles ?? false}
-                   onChange={e => updateLocalConfig({ showSystemFiles: e.target.checked })}
+                   onChange={e => updateLocalConfig({
+                     showSystemFiles: e.target.checked,
+                     showHiddenSystemFoldersInTree: e.target.checked || !!localConfig.showHiddenFiles,
+                   })}
                  />
                  <p className="text-[10px] text-[#888] -mt-1 mb-1 ml-[22px]">Shows $-prefixed and system-attributed items (e.g. pagefile.sys, System Volume Information).</p>
                  <Checkbox label={<span>A<span className="underline decoration-1 underline-offset-[3px]">u</span>to-select first item</span>} checked={localConfig.autoSelectFirstItem ?? false} onChange={e => updateLocalConfig({ autoSelectFirstItem: e.target.checked })} />
@@ -1140,7 +1146,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   <div className="h-2"></div>
                   <Checkbox label={<span>No network <span className="underline decoration-1 underline-offset-[3px]">b</span>rowsing at startup</span>} checked={localConfig.noNetworkBrowsingAtStartup ?? false} onChange={e => updateLocalConfig({ noNetworkBrowsingAtStartup: e.target.checked })} />
                   <Checkbox label={<span>Reconnect mapped network <span className="underline decoration-1 underline-offset-[3px]">d</span>rives at startup</span>} checked={localConfig.reconnectMappedNetworkDrivesAtStartup ?? false} onChange={e => updateLocalConfig({ reconnectMappedNetworkDrivesAtStartup: e.target.checked })} />
-                  <Checkbox label={<span>Adjust to OS lig<span className="underline decoration-1 underline-offset-[3px]">h</span>t/dark mode at startup</span>} checked={localConfig.adjustToOsLightDarkModeAtStartup ?? false} onChange={e => updateLocalConfig({ adjustToOsLightDarkModeAtStartup: e.target.checked })} />
+                  <Checkbox label={<span>Adjust to OS lig<span className="underline decoration-1 underline-offset-[3px]">h</span>t/dark mode at startup</span>} checked={localConfig.adjustToOsLightDarkModeAtStartup ?? false} onChange={e => updateLocalConfig({ adjustToOsLightDarkModeAtStartup: e.target.checked })} disabled={!!localConfig.followOsColorScheme} />
+                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">F</span>ollow Windows light / dark continuously</span>} checked={localConfig.followOsColorScheme ?? false} onChange={e => { const on = e.target.checked; updateLocalConfig({ followOsColorScheme: on }); applySettingsRuntime({ ...localConfig, followOsColorScheme: on } as any); }} />
+                  <p className="text-[10px] text-[#777] ml-5 max-w-[480px]">Also available under Colors and Styles → Highlights &amp; Dark Mode. Dark → Slate Workstation · Light → macOS Light.</p>
               </div>
               
               <SectionHeader title="Save Settings" />
@@ -2939,6 +2947,28 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        <div className="mt-1"><Checkbox label="Adaptive colors" checked={localConfig.adaptiveColors ?? false} onChange={e => updateLocalConfig({ adaptiveColors: e.target.checked })} /></div>
                     </div>
                  </div>
+              </div>
+
+              <SectionHeader title="Windows light / dark" />
+              <div className="ml-2 mb-6 space-y-[8px]">
+                <p className="text-[11px] text-[#888] mb-2 max-w-[520px]">
+                  Opt in to match Windows appearance. Dark maps to <strong className="text-[#ccc]">Slate Workstation</strong>; light maps to <strong className="text-[#ccc]">macOS Light</strong>.
+                </p>
+                <Checkbox
+                  label={<span>Follow Windows light / dark <span className="underline decoration-1 underline-offset-[3px]">c</span>olor scheme</span>}
+                  checked={localConfig.followOsColorScheme ?? false}
+                  onChange={e => {
+                    const on = e.target.checked;
+                    updateLocalConfig({ followOsColorScheme: on });
+                    applySettingsRuntime({ ...localConfig, followOsColorScheme: on } as any);
+                  }}
+                />
+                <Checkbox
+                  label={<span>Adjust to OS light/dark once at <span className="underline decoration-1 underline-offset-[3px]">s</span>tartup only</span>}
+                  checked={localConfig.adjustToOsLightDarkModeAtStartup ?? false}
+                  onChange={e => updateLocalConfig({ adjustToOsLightDarkModeAtStartup: e.target.checked })}
+                  disabled={!!localConfig.followOsColorScheme}
+                />
               </div>
             </TabsContent>
 

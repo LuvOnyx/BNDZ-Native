@@ -109,9 +109,9 @@ export function ShellNativeIcon({
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path, shellPx);
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumb, thumbPx);
 
-  // SVG: CAS PNG first; if empty, inline blob: (never bndz-stream — custom scheme 404s poison previews).
+  // SVG: prefer inline blob over CAS PNG (Skia thumbs were vertically flipped vs browser).
   useEffect(() => {
-    if (!visible || !path || dirFlag || ext !== 'svg' || thumbSrc) {
+    if (!visible || !path || dirFlag || (ext !== 'svg' && ext !== 'svgz')) {
       setSvgInline(null);
       return;
     }
@@ -120,10 +120,15 @@ export function ShellNativeIcon({
       if (active) setSvgInline(url);
     });
     return () => { active = false; };
-  }, [visible, path, dirFlag, ext, thumbSrc]);
+  }, [visible, path, dirFlag, ext]);
 
+  const isSvgFile = ext === 'svg' || ext === 'svgz';
   // Prefer thumb when requested; briefly withhold shell so stableSrc doesn't lock the wrong bitmap.
-  const candidate = (useThumb && thumbSrc) || svgInline || ((thumbSettled || !useThumb) ? shellSrc : null) || null;
+  const candidate = (isSvgFile && svgInline)
+    || (useThumb && thumbSrc)
+    || svgInline
+    || ((thumbSettled || !useThumb) ? shellSrc : null)
+    || null;
   if (stableSrc) {
     if (candidate && !lockedSrcRef.current) lockedSrcRef.current = candidate;
   } else {

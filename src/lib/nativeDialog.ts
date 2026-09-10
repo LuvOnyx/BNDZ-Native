@@ -112,6 +112,12 @@ export async function promptElevationIfNeeded(
 
   if (!approved) return false;
 
+  try {
+    // Persist intent so the elevated WebView force-applies shell settings even if
+    // the native --apply-shell host path already ran (fingerprint / race safety).
+    localStorage.setItem('bndz-shell-apply-pending', '1');
+  } catch { /* ignore */ }
+
   const { IPC } = await import('./ipcBridge');
   const relaunch = await IPC.relaunchAsAdmin(relaunchArgs);
   return relaunch.success;
