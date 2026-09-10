@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { EmblemIcon } from './EmblemIcon';
+import MediaPlayingIcon from './MediaPlayingIcon';
 import MediaSeekBar from './MediaSeekBar';
 import { toWindowsPath, normalizePanePath } from '../lib/pathUtils';
 import {
@@ -592,23 +594,33 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
 
         <div className="bndz-media-transport-controls">
           <div className="bndz-media-transport-cluster">
-            <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Back 10s">
-              <Icons8Icon id="skip_back_ui" size={15} />
+            <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Back 10s">
+              <EmblemIcon id="media-seek-backward" size={16} />
             </button>
-            <button type="button" onClick={togglePlay} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--primary" title={playing ? 'Pause' : 'Play'}>
-              {playing ? <Icons8Icon id="pause_ui" size={16} /> : <Icons8Icon id="play_ui" size={16} className="ml-0.5" />}
+            <button
+              type="button"
+              onClick={togglePlay}
+              disabled={!!loadError}
+              className="bndz-media-transport-btn bndz-media-transport-btn--play"
+              title={playing ? 'Pause' : 'Play'}
+            >
+              <MediaPlayingIcon
+                size={36}
+                paused={!playing}
+                progress={duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0}
+              />
             </button>
-            <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Forward 10s">
-              <Icons8Icon id="skip_forward_ui" size={15} />
+            <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Forward 10s">
+              <EmblemIcon id="media-seek-forward" size={16} />
             </button>
           </div>
 
           <div className="bndz-media-transport-cluster bndz-media-transport-cluster--end">
-            <button type="button" onClick={cycleRate} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-rate-btn" title="Playback speed">
+            <button type="button" onClick={cycleRate} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round bndz-media-rate-btn" title="Playback speed">
               {playbackRate}×
             </button>
 
-            <button type="button" onClick={toggleMute} disabled={!!loadError} className="bndz-media-transport-btn" title={muted ? 'Unmute' : 'Mute'}>
+            <button type="button" onClick={toggleMute} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title={muted ? 'Unmute' : 'Mute'}>
               {muted || volume === 0 ? <Icons8Icon id="volume_off_ui" size={15} /> : <Icons8Icon id="volume_ui" size={15} />}
             </button>
             <MediaSeekBar
@@ -622,10 +634,10 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
 
             {type === 'video' && (
               <>
-                <button type="button" onClick={togglePiP} disabled={!!loadError} className="bndz-media-transport-btn" title="Picture in picture">
+                <button type="button" onClick={togglePiP} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Picture in picture">
                   <Icons8Icon id="picture_ui" size={15} />
                 </button>
-                <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="bndz-media-transport-btn" title="Fullscreen">
+                <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Fullscreen">
                   <Icons8Icon id="maximize_ui" size={15} />
                 </button>
               </>
@@ -642,7 +654,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
                     onOpenFloating?.();
                   }}
                   disabled={!!loadError}
-                  className="bndz-media-transport-btn bndz-media-transport-btn--accent"
+                  className="bndz-media-transport-btn bndz-media-transport-btn--round bndz-media-transport-btn--accent"
                   title="Open floating preview (Space)"
                 >
                   <Icons8Icon id="eye_ui" size={15} />

@@ -320,8 +320,8 @@ public sealed class FileTransferQueueService
     public void MarkFailed(string operationId, string? error)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
-        // Don't overwrite an intentional cancel/pause with a failed status.
-        if (job.Status is FileTransferJobStatus.Cancelled or FileTransferJobStatus.Paused) return;
+        // Don't overwrite terminal success/cancel/pause with a late failure from post-work hooks.
+        if (job.Status is FileTransferJobStatus.Completed or FileTransferJobStatus.Cancelled or FileTransferJobStatus.Paused) return;
         job.Status = FileTransferJobStatus.Failed;
         job.Error = error;
         job.CompletedUtc = DateTime.UtcNow;

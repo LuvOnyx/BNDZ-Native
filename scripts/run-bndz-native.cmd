@@ -2,6 +2,7 @@
 setlocal EnableExtensions
 REM BNDZ-Native — unpackaged WinUI shell (self-contained Windows App SDK).
 cd /d "%~dp0.."
+set BNDZ_DRAGSTARTING=1
 
 REM Hard-kill shell + backend so DLL/UI assets are not locked (zombie WinUI PIDs).
 taskkill /F /T /IM BNDZShell.exe >nul 2>&1

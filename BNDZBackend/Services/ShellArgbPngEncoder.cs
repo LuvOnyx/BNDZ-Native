@@ -61,32 +61,34 @@ internal static class ShellArgbPngEncoder
             if (width <= 0 || height <= 0)
                 return "";
 
-            // 32bpp DIBSECTION with bits pointer — Files-style scan0 path.
+            // 32bpp DIBSECTION with bits pointer — Files always flips scanlines for GDI+.
+            // Do not gate on bmHeight sign: Vanara/shell HBITMAPs often report positive height
+            // even when bits are already top-down (or the opposite), which inverted every
+            // list/grid shell glyph after the conditional-flip change.
             if (bm.bmBitsPixel == 32 && bm.bmBits != IntPtr.Zero && bm.bmWidthBytes > 0)
             {
                 int stride = bm.bmWidthBytes;
                 int byteCount = checked(stride * height);
-                IntPtr flipped = Marshal.AllocHGlobal(byteCount);
+                IntPtr pixels = Marshal.AllocHGlobal(byteCount);
                 try
                 {
-                    // Match Files: treat source rows as top→bottom in bmBits, flip for GDI+ top-down.
                     var row = new byte[stride];
                     for (int y = 0; y < height; y++)
                     {
                         IntPtr src = IntPtr.Add(bm.bmBits, y * stride);
-                        IntPtr dst = IntPtr.Add(flipped, (height - y - 1) * stride);
+                        IntPtr dst = IntPtr.Add(pixels, (height - y - 1) * stride);
                         Marshal.Copy(src, row, 0, stride);
                         Marshal.Copy(row, 0, dst, stride);
                     }
 
-                    using var wrapped = new Bitmap(width, height, stride, PixelFormat.Format32bppArgb, flipped);
+                    using var wrapped = new Bitmap(width, height, stride, PixelFormat.Format32bppArgb, pixels);
                     // Clone so we can free the temporary buffer before PNG encode returns.
                     using var clone = new Bitmap(wrapped);
                     return SavePngBase64(clone);
                 }
                 finally
                 {
-                    Marshal.FreeHGlobal(flipped);
+                    Marshal.FreeHGlobal(pixels);
                 }
             }
 

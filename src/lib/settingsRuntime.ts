@@ -47,6 +47,7 @@ export interface SettingsRuntimeContext {
     useGenericIcons: boolean;
     applyColorFilters: boolean;
     showHiddenInList: boolean;
+    showSystemInList: boolean;
     zebraRows: boolean;
     /** 1 = subtle, 2 = stronger alternate rows */
     zebraIntensity: 1 | 2;
@@ -65,6 +66,7 @@ export interface SettingsRuntimeContext {
   };
   tree: {
     showHidden: boolean;
+    showSystem: boolean;
     expandOnBrowse: boolean;
     expandOnSingleClick: boolean;
     rememberState: boolean;
@@ -146,7 +148,8 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       autoSelectFirst: !!config.autoSelectFirstItem,
       useGenericIcons: !!config.useGenericIconsForSuperFastBrowsing,
       applyColorFilters: config.applyColorFiltersToTheList !== false && config.enableColorFilters !== false,
-    showHiddenInList: !!config.showHiddenSystemFoldersInTree,
+    showHiddenInList: !!(config.showHiddenFiles ?? config.showHiddenSystemFoldersInTree),
+    showSystemInList: !!(config.showSystemFiles ?? config.showHiddenSystemFoldersInTree),
     zebraRows: !!config.listZebraStyle && config.listZebraStyle !== 'Solid Color' && config.listZebraStyle !== false,
     zebraIntensity: String(config.listZebraStyle || '').includes('(2)') ? 2 : 1,
     selectionChrome: (config.listSelectionChrome === 'nameOnly' || config.listSelectionChrome === 'throughSecondColumn')
@@ -172,7 +175,8 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       scrollToTopAfterResort: !!config.scrollToTopAfterResorting,
     },
     tree: {
-      showHidden: !!config.showHiddenSystemFoldersInTree,
+      showHidden: !!(config.showHiddenSystemFoldersInTree || config.showHiddenFiles),
+      showSystem: !!(config.showHiddenSystemFoldersInTree || config.showSystemFiles),
       expandOnBrowse: !!config.expandTreeNodesOnBrowse,
       expandOnSingleClick: !!config.expandTreeNodesOnSingleClick,
       rememberState: !!config.rememberStateOfTree,
@@ -1031,7 +1035,8 @@ function lockLightThemeChromeContrast(root: HTMLElement): void {
   root.style.setProperty('--tree-bg', '#ffffff');
   root.style.setProperty('--list-header-bg', '#eef0f3');
   root.style.setProperty('--list-header-text', 'rgba(0,0,0,0.82)');
-  root.style.setProperty('--list-text-secondary', 'rgba(0,0,0,0.58)');
+  root.style.setProperty('--list-text-secondary', 'rgba(0,0,0,0.72)');
+  root.style.setProperty('--text-secondary', 'rgba(0,0,0,0.72)');
   root.style.setProperty('--header-text', 'rgba(0,0,0,0.72)');
   root.style.setProperty('--panel-preview-text', 'rgba(0,0,0,0.88)');
   root.style.setProperty('--panel-bottom-text', 'rgba(0,0,0,0.88)');
@@ -1188,6 +1193,22 @@ export function applySettingsRuntime(config: AppConfig): void {
     applyStatusNeonAndPluginHeroVars(config, root);
   }
 
+  // Selection highlight must stay magenta/purple even when the color pack is off —
+  // otherwise list CSS falls through to :root --accent (#0078d4 Explorer blue).
+  {
+    const listSel = typeof config.listSelectionHighlightColor === 'string'
+      ? config.listSelectionHighlightColor.trim()
+      : '';
+    const solid = listSel
+      ? (listSel.startsWith('#') ? listSel : `#${listSel}`)
+      : '#a855f7';
+    root.style.setProperty('--list-selected-bg', solid);
+    root.style.setProperty('--list-focused-bg', solid);
+    root.style.setProperty('--highlight-bg', solid);
+    root.style.setProperty('--bndz-files-selected', `${solid}57`);
+    root.style.setProperty('--bndz-files-selected-hover', `${solid}66`);
+  }
+
   // Light themes keep dark top/bottom chrome. Color packs often overwrite those
   // tokens with pale/dark-theme leftovers — re-lock contrast-critical vars.
   lockLightThemeChromeContrast(root);
@@ -1212,7 +1233,19 @@ export function applySettingsRuntime(config: AppConfig): void {
   applyNativeShellBackdrop(config, root);
 
   import('./shellIntegrationRuntime').then(({ scheduleBackendSettings }) => {
-    scheduleBackendSettings(config);
+    let force = false;
+    try {
+      if (localStorage.getItem('bndz-shell-apply-pending') === '1') {
+        force = true;
+        localStorage.removeItem('bndz-shell-apply-pending');
+      }
+    } catch { /* ignore */ }
+    // Also force when launched elevated with --apply-shell (query / hash mirror from host).
+    try {
+      const q = typeof location !== 'undefined' ? `${location.search} ${location.hash}` : '';
+      if (/apply-shell|elevated/i.test(q)) force = true;
+    } catch { /* ignore */ }
+    scheduleBackendSettings(config, force);
   });
 }
 

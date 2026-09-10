@@ -67,7 +67,7 @@ public static class BndzHostCaches
     /// Bump when icon PNG encode semantics change (e.g. alpha-preserving ARGB) so L1/L2
     /// keys miss poisoned white-plate PNGs from MakeTransparent / Icon.ToBitmap.
     /// </summary>
-    public const string IconEncodeEpoch = "a3";
+    public const string IconEncodeEpoch = "a4";
 
     public static string IconCacheKey(string path, bool isDirectory, int pixelSize = 48)
     {

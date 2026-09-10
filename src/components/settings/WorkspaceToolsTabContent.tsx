@@ -17,7 +17,7 @@ import { formatUiPath } from '../../lib/displayPath';
 type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation' | 'mesh-drop' | 'ghost-link' | 'ram-staging';
 
 const TOOL_TABS: { id: ToolTab; label: string; icon: string; desc: string }[] = [
-  { id: 'remote-mesh', label: 'Remote Mesh', icon: 'cloud_ui', desc: 'SSH/SFTP hosts & S3 buckets' },
+  { id: 'remote-mesh', label: 'Remote', icon: 'cloud_ui', desc: 'SSH/SFTP hosts & S3 buckets' },
   { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared', desc: 'P2P WebRTC transfer' },
   { id: 'ghost-link', label: 'Ghost-Link', icon: 'emblem-symbolic-link', desc: 'Cold storage symlinks' },
   { id: 'ram-staging', label: 'RAM Staging', icon: 'hard_drive_ui', desc: 'RAM-disk staging zones' },
@@ -378,7 +378,7 @@ export default function WorkspaceToolsTabContent({
 
                 <SettingsSection title="Folder tree integration">
                   <Checkbox
-                    label={<span>Show <strong>Remote Mesh</strong> section in the folder tree when hosts are pinned</span>}
+                    label={<span>Show <strong>Remote</strong> section in the folder tree when hosts are pinned</span>}
                     checked={!!localConfig.meshShowInNavTree}
                     onChange={e => updateLocalConfig({ meshShowInNavTree: e.target.checked })}
                   />
@@ -603,7 +603,7 @@ export default function WorkspaceToolsTabContent({
               <div className="space-y-4">
                 <SettingsSection title="Deploy-on-save mirrors">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
-                    Push local project folders to remote hosts when files are saved — ideal for instant deploys. Full controls also live in the Remote Mesh bottom plugin.
+                    Push local project folders to remote hosts when files are saved — ideal for instant deploys. Full controls also live in the Remote bottom plugin.
                   </p>
                   <div className="flex gap-2 mb-3 flex-wrap">
                     <PluginToolbarButton onClick={addRule}>Add rule</PluginToolbarButton>

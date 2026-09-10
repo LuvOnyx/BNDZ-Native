@@ -6,13 +6,13 @@ let idleTimer: ReturnType<typeof setTimeout> | null = null;
 /** Short idle so icons resume quickly after finger-lift without fighting the scroll frame. */
 const SCROLL_IDLE_MS = 90;
 
-const MAX_SHELL = 6;
-const MAX_SHELL_SCROLLING = 3;
+const MAX_SHELL = 8;
+const MAX_SHELL_SCROLLING = 4;
 const MAX_THUMB = 3;
 const MAX_THUMB_SCROLLING = 1;
 const VIEWPORT_PRIORITY_FLOOR = 1700;
 /** Raised so listing prefetch + viewport shells coexist without mass eviction. */
-const MAX_PENDING = 192;
+const MAX_PENDING = 224;
 
 type QueueKind = 'shell' | 'thumb';
 

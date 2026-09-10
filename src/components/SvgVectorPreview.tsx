@@ -19,19 +19,22 @@ export default function SvgVectorPreview({ src, alt, onOpenFloating }: Props) {
   const [natural, setNatural] = useState({ w: 0, h: 0 });
   const [imgSrc, setImgSrc] = useState(src);
   const [dragging, setDragging] = useState(false);
+  const [failed, setFailed] = useState(false);
   const baseFitRef = useRef(1);
   const userScaleRef = useRef(1);
   const dragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
 
   useEffect(() => {
     // Force a fresh decode so returning to a cached blob: URL stays crisp.
-    const bust = src.includes('#') ? `${src}&bndz=${Date.now()}` : `${src}#bndz=${Date.now()}`;
+    // Prefer fragment bust over query — blob: URLs reject &query appends.
+    const bust = `${src}${src.includes('#') ? '&' : '#'}bndz=${Date.now()}`;
     setImgSrc(bust);
     userScaleRef.current = 1;
     setDisplayScale(1);
     setNatural({ w: 0, h: 0 });
     dragRef.current = null;
     setDragging(false);
+    setFailed(false);
   }, [src]);
 
   const applyFit = useCallback((nw: number, nh: number, userMul = 1) => {
@@ -122,7 +125,7 @@ export default function SvgVectorPreview({ src, alt, onOpenFloating }: Props) {
     <div className="bndz-image-preview bndz-svg-vector-preview">
       <div
         ref={stageRef}
-        className={`bndz-image-preview-stage bndz-svg-vector-stage${dragging ? ' is-dragging' : ''}`}
+        className={`bndz-image-preview-stage bndz-svg-vector-stage relative${dragging ? ' is-dragging' : ''}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -134,9 +137,15 @@ export default function SvgVectorPreview({ src, alt, onOpenFloating }: Props) {
           alt={alt}
           draggable={false}
           className="bndz-svg-vector-img"
-          style={{ width: w, height: h }}
+          style={{ width: w, height: h, display: failed ? 'none' : undefined }}
           onLoad={onLoad}
+          onError={() => setFailed(true)}
         />
+        {failed && (
+          <div className="absolute inset-0 flex items-center justify-center text-[12px] text-white/45 p-6 text-center">
+            Could not paint this SVG
+          </div>
+        )}
       </div>
       <div className="bndz-image-preview-chrome">
         <span className="bndz-image-preview-hint">Vector SVG · Wheel zoom · Drag to pan</span>

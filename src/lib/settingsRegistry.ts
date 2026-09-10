@@ -23,6 +23,7 @@ const LIST_KEYS = new Set([
   'highlightHoveredItems', 'selectListItemsOnMouseHover', 'fullNameColumnSelect',
   'alsoOnFullRowSelect', 'drawHiddenIconsGhosted', 'showMessageWhenListIsEmpty',
   'useGenericIconsForSuperFastBrowsing', 'ignoreDiacritics', 'showHiddenSystemFoldersInTree',
+  'showHiddenFiles', 'showSystemFiles',
   'showImplicitSecondarySortOrderArrow', 'listShowSelectionHighlight', 'listShowSelectionCheckboxes',
   'stickyGroupHeaders', 'listZebraStyle', 'listSelectionBorderStyle', 'listSelectionChromeStyle',
   'listSelectionFillStyle', 'listHoverFadeSteps', 'listHoverFadeMs', 'listSelectionOpacity',
@@ -119,6 +120,7 @@ const UI_KEYS = new Set([
   'listFontLcdAa',
   'uiCornerRadius', 'compactToolbar', 'denseMenubar', 'showPanelAccentBorders',
   'animatePanelTransitions', 'interfaceScale', 'lockBrowserZoom', 'applyColors', 'theme',
+  'followOsColorScheme', 'adjustToOsLightDarkModeAtStartup',
   'richTransitionAnimations', 'showFolderSizeOnPropertiesTab',
 ]);
 

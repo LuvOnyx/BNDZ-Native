@@ -60,6 +60,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const [booleanMode, setBooleanMode] = useState(true);
     const [searchContent, setSearchContent] = useState(rt.search.searchContent);
     const [extraRoots, setExtraRoots] = useState('');
+    /** Windows path override; blank = follow the list's current folder. */
+    const [scopeFolder, setScopeFolder] = useState('');
     const [results, setResults] = useState<any[]>([]);
     const [duplicateGroups, setDuplicateGroups] = useState<Array<{ hash: string; size: number; paths: string[] }>>([]);
     const [searching, setSearching] = useState(false);
@@ -94,7 +96,16 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
         updateConfig({ findSearchHistory: [] });
     };
 
-    const scopePath = focusedPath?.startsWith('/') ? focusedPath : (focusedPath ? `/${focusedPath}` : '/C:');
+    const toPaneRoot = (raw: string): string => {
+        const s = raw.trim();
+        if (!s) return '';
+        return s.startsWith('/') ? s : `/${s.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:')}`;
+    };
+
+    const focusedPane = focusedPath?.startsWith('/')
+        ? focusedPath
+        : (focusedPath ? `/${focusedPath}` : '/C:');
+    const scopePath = toPaneRoot(scopeFolder) || focusedPane;
 
     useEffect(() => {
         if (isPluginTabActive === false) return;
@@ -106,9 +117,14 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     }, [isPluginTabActive]);
 
     const parseExtraRoots = (): string[] =>
-        extraRoots.split(/[;\n]+/).map(s => s.trim()).filter(Boolean).map(p =>
-            p.startsWith('/') ? p : `/${p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:')}`,
-        );
+        extraRoots.split(/[;\n]+/).map(s => s.trim()).filter(Boolean).map(toPaneRoot);
+
+    const pickScopeFolder = async () => {
+        const picked = await IPC.openFolderDialog('Folder to search');
+        if (!picked) return;
+        setScopeFolder(toWindowsPath(toPaneRoot(picked)).replace(/\//g, '\\'));
+        if (mode === 'global') setMode('local');
+    };
 
     const doSearch = async (queryOverride?: string) => {
         const effectiveQuery = (queryOverride ?? query).trim();
@@ -156,7 +172,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     searchContent || isAdvanced,
                     {
                       booleanMode: isAdvanced || booleanMode,
-                      rootPaths: isAdvanced ? roots : undefined,
+                      rootPaths: isAdvanced ? roots : (mode === 'local' ? [rootPath] : undefined),
                       matchCase: !!rt.search.matchCase,
                     },
                 );
@@ -169,9 +185,11 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         );
                     } catch { /* ignore quota */ }
                 }
-                const scopeLabel = isAdvanced
-                    ? `${roots.length} root(s)`
-                    : mode === 'global' ? 'All drives' : 'Current folder';
+                const scopeLabel = mode === 'global'
+                    ? 'All drives'
+                    : isAdvanced && roots.length > 1
+                        ? `${roots.length} folder(s)`
+                        : formatUiPath(rootPath);
                 const indent = rt.search.levelIndentWidthInPixels || rt.search.levelIndent || 12;
                 setStatus(`${items?.length ?? 0} result(s) · ${scopeLabel}${engine ? ` · ${engine}` : ''} · indent ${indent}px`);
             } else {
@@ -253,9 +271,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
         <PluginPanelShell
             title="Fast Search"
             icon="find"
-            iconColor="#0078d4"
+            iconColor="#a855f7"
             variant="embedded"
-            subtitle={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced / multi-root' : `Scope: ${scopePath}`}
+            subtitle={mode === 'global' ? 'Everything · all drives' : mode === 'advanced' ? 'Boolean · multi-root · content' : mode === 'duplicates' ? 'Hash duplicates in scope' : `Scoped · ${formatUiPath(scopePath)}`}
             status={!IPC.isNative ? (
                 <span className="text-amber-300/90 text-[11px]">Native host required for indexed search</span>
             ) : undefined}
@@ -268,10 +286,10 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
                 <PluginHeroStrip
                     icon={<Icons8Icon id="find" size={52} className="opacity-90" />}
-                    name={query.trim() || 'Fast search'}
-                    typeLabel={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced find' : mode === 'duplicates' ? 'Duplicate finder' : 'Local folder'}
+                    name={query.trim() || 'Fast Search'}
+                    typeLabel={mode === 'global' ? 'Global' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
                     path={mode === 'local' ? scopePath : undefined}
-                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Enter a query and press Search')}</span>}
+                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy chips · Everything global · advanced boolean')}</span>}
                     actions={
                         <PluginHeroActionButton
                             icon={searching ? 'loading' : 'play_ui'}
@@ -283,13 +301,35 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         </PluginHeroActionButton>
                     }
                 />
+                <div className="px-4 pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
+                    {([
+                        { id: 'local' as const, label: 'Easy', hint: 'This folder + chips', icon: 'find', tone: 'from-violet-500/18 border-violet-400/30' },
+                        { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network', tone: 'from-sky-500/18 border-sky-400/30' },
+                        { id: 'advanced' as const, label: 'Advanced', hint: 'Boolean · multi-root', icon: 'code_ui', tone: 'from-amber-500/18 border-amber-400/30' },
+                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Hash groups in scope', icon: 'copy', tone: 'from-emerald-500/18 border-emerald-400/30' },
+                    ]).map(card => (
+                        <button
+                            key={card.id}
+                            type="button"
+                            onClick={() => setMode(card.id)}
+                            className={`text-left rounded-2xl border bg-gradient-to-br to-transparent px-3 py-2.5 transition-all ${card.tone} ${
+                                mode === card.id ? 'ring-1 ring-white/25 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]' : 'opacity-85 hover:opacity-100'
+                            }`}
+                        >
+                            <div className="flex items-center gap-1.5 text-[12px] font-semibold text-white/95">
+                                <Icons8Icon id={card.icon} size={13} /> {card.label}
+                            </div>
+                            <p className="text-[10px] bndz-panel-muted mt-0.5 leading-snug">{card.hint}</p>
+                        </button>
+                    ))}
+                </div>
             <div className="flex w-full flex-1 min-h-0">
                 <PluginSidebar>
                     <PluginSectionTitle icon="filters">Mode</PluginSectionTitle>
                     <div className="flex flex-col gap-1">
                         {([
-                            { id: 'local' as const, label: 'Local folder', icon: 'find' },
-                            { id: 'global' as const, label: 'Global (Everything)', icon: 'go_network' },
+                            { id: 'local' as const, label: 'Easy (local)', icon: 'find' },
+                            { id: 'global' as const, label: 'Everything', icon: 'go_network' },
                             { id: 'advanced' as const, label: 'Advanced find', icon: 'code_ui' },
                             { id: 'duplicates' as const, label: 'Duplicate finder', icon: 'copy' },
                         ]).map(m => (
@@ -298,7 +338,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 type="button"
                                 onClick={() => setMode(m.id)}
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left ${
-                                    mode === m.id ? 'bg-[#094771]/50 text-[#cce4f7] border border-[#0078d4]/40' : 'text-gray-400 hover:bg-[#1a1a1a]'
+                                    mode === m.id ? 'bg-violet-500/20 text-violet-100 border border-violet-400/35' : 'text-gray-400 hover:bg-[#1a1a1a]'
                                 }`}
                             >
                                 <Icons8Icon id={m.icon} size={12} /> {m.label}
@@ -452,15 +492,55 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     </div>
                 </PluginSidebar>
                 <div className="flex-1 flex flex-col min-w-0">
+                    {mode === 'duplicates' && (
+                        <div className="p-3 border-b border-white/[0.06] shrink-0">
+                            <div className="flex items-center gap-1.5">
+                                <input
+                                    value={scopeFolder}
+                                    onChange={e => setScopeFolder(e.target.value)}
+                                    placeholder={`Current · ${formatUiPath(focusedPane)}`}
+                                    title="Folder to scan. Leave blank to use the folder open in the list."
+                                    className={`flex-1 min-w-0 ${PLUGIN_INPUT_CLASS} bndz-mono text-[11px]`}
+                                />
+                                <button
+                                    type="button"
+                                    className="shrink-0 w-[30px] h-7 rounded-md border border-white/10 bg-white/[0.04] text-[13px] font-semibold text-white/70 hover:bg-white/[0.08] hover:text-white"
+                                    title="Choose folder"
+                                    onClick={() => void pickScopeFolder()}
+                                >
+                                    …
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     {mode !== 'duplicates' && (
                         <div className="p-3 border-b border-white/[0.06] shrink-0 space-y-2">
+                            {mode !== 'global' && (
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        value={scopeFolder}
+                                        onChange={e => setScopeFolder(e.target.value)}
+                                        placeholder={`Current · ${formatUiPath(focusedPane)}`}
+                                        title="Folder to search. Leave blank to use the folder open in the list."
+                                        className={`flex-1 min-w-0 ${PLUGIN_INPUT_CLASS} bndz-mono text-[11px]`}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="shrink-0 w-[30px] h-7 rounded-md border border-white/10 bg-white/[0.04] text-[13px] font-semibold text-white/70 hover:bg-white/[0.08] hover:text-white"
+                                        title="Choose folder"
+                                        onClick={() => void pickScopeFolder()}
+                                    >
+                                        …
+                                    </button>
+                                </div>
+                            )}
                             <div className="relative">
                                 <Icons8Icon id="search" size={14} className="absolute left-3 top-2.5 opacity-60" />
                                 <input
                                     value={query}
                                     onChange={e => setQuery(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && doSearch()}
-                                    placeholder={mode === 'advanced' ? 'Boolean query across multiple roots…' : mode === 'global' ? 'Search all drives…' : 'Search in current folder…'}
+                                    placeholder={mode === 'advanced' ? 'Boolean query across multiple roots…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
                                     className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm`}
                                 />
                             </div>

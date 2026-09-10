@@ -153,7 +153,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-white tracking-tight">Advanced Storage Scan</h2>
-          <p className="text-xs bndz-panel-muted mt-0.5">CCleaner-style intelligent cleanup · you choose what gets removed</p>
+          <p className="text-xs bndz-panel-muted mt-0.5">Intelligent cleanup · you choose what gets removed</p>
         </div>
         <button type="button" onClick={onClose} disabled={executing || scanning} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40" aria-label="Close">
           <CloseGlyph size={16} />
@@ -165,8 +165,10 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
           {step === 'options' && (
             <motion.div key="opts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-2xl mx-auto space-y-4">
               <PluginCard>
-                <PluginSectionTitle icon="layers_ui">Scan categories</PluginSectionTitle>
-                <p className="text-xs bndz-panel-muted mb-3">Select what to analyze. Safe categories are pre-checked; advanced items require your review before delete.</p>
+                <PluginSectionTitle icon="layers_ui">Pre-selected scan areas</PluginSectionTitle>
+                <p className="text-xs bndz-panel-muted mb-3">
+                  Check the directories / categories to analyze. Safe areas start selected. After the scan you’ll get a results window with checkboxes — accept only what you want, or cancel.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {CLEANUP_CATEGORY_PRESETS.map(p => {
                     const on = selectedPresets.has(p.id);
@@ -287,19 +289,35 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
       </div>
 
       <div className="shrink-0 px-5 py-4 border-t border-white/[0.06] flex items-center justify-between gap-3 bg-black/30">
-        <PluginToolbarButton onClick={() => { if (step === 'results') setStep('options'); else onClose(); }} disabled={executing || scanning}>
-          {step === 'results' ? 'Back' : 'Cancel'}
+        <PluginToolbarButton
+          onClick={() => {
+            if (scanning) {
+              try { IPC.cancelStorageCleanupScan(); } catch { /* ignore */ }
+              setScanning(false);
+              setProgress(null);
+              setStep('options');
+              return;
+            }
+            if (step === 'results') setStep('options');
+            else onClose();
+          }}
+          disabled={executing}
+        >
+          {scanning ? 'Cancel scan' : step === 'results' ? 'Back' : 'Cancel'}
         </PluginToolbarButton>
         <div className="flex gap-2">
           {step === 'options' && (
             <PluginToolbarButton icon={scanning ? 'loading' : 'file_search_ui'} active onClick={() => void runScan()} disabled={scanning || selectedPresets.size === 0}>
-              Analyze storage
+              Analyze selected
             </PluginToolbarButton>
           )}
           {step === 'results' && (
-            <PluginToolbarButton icon={executing ? 'loading' : 'trash_ui'} active onClick={() => void runCleanup()} disabled={executing || selectedCount === 0}>
-              Clean {selectedCount} selected
-            </PluginToolbarButton>
+            <>
+              <PluginToolbarButton onClick={onClose} disabled={executing}>Cancel</PluginToolbarButton>
+              <PluginToolbarButton icon={executing ? 'loading' : 'trash_ui'} active onClick={() => void runCleanup()} disabled={executing || selectedCount === 0}>
+                Clean {selectedCount} selected
+              </PluginToolbarButton>
+            </>
           )}
           {step === 'done' && (
             <PluginToolbarButton active onClick={() => { onComplete?.(); onClose(); }}>Done</PluginToolbarButton>

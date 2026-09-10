@@ -1,0 +1,1387 @@
+{
+  "_comment": "DEV ONLY — find icon ids here, edit TOOLBAR_LAUNCHER_ICONS in src/lib/toolbarLauncherIcons.ts, bump LAUNCHER_ICON_REV, npm run build. Not an in-app feature.",
+  "generated": "2026-09-06",
+  "count": 230,
+  "icons": [
+    {
+      "id": "nav_back",
+      "file": "nav_back.png",
+      "path": "public/launcher-icons/nav_back.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "nav_forward",
+      "file": "nav_forward.png",
+      "path": "public/launcher-icons/nav_forward.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "nav_up",
+      "file": "nav_up.png",
+      "path": "public/launcher-icons/nav_up.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "go_home",
+      "file": "home.svg",
+      "path": "public/launcher-icons/home.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "home",
+      "file": "home.svg",
+      "path": "public/launcher-icons/home.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "refresh",
+      "file": "refresh.png",
+      "path": "public/launcher-icons/refresh.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "folder_size_sync",
+      "file": "folder_size_sync.png",
+      "path": "public/launcher-icons/folder_size_sync.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "go_recycle_bin",
+      "file": "go_recycle_bin.png",
+      "path": "public/launcher-icons/go_recycle_bin.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "go_network",
+      "file": "go_network.png",
+      "path": "public/launcher-icons/go_network.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "new_tab",
+      "file": "new_tab.png",
+      "path": "public/launcher-icons/new_tab.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "cut",
+      "file": "cut.png",
+      "path": "public/launcher-icons/cut.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "copy",
+      "file": "copy.png",
+      "path": "public/launcher-icons/copy.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "paste",
+      "file": "paste.png",
+      "path": "public/launcher-icons/paste.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "delete",
+      "file": "delete.png",
+      "path": "public/launcher-icons/delete.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "undo",
+      "file": "undo.png",
+      "path": "public/launcher-icons/undo.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "redo",
+      "file": "redo.png",
+      "path": "public/launcher-icons/redo.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "select_all",
+      "file": "select_all.png",
+      "path": "public/launcher-icons/select_all.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "invert_selection",
+      "file": "invert_selection.png",
+      "path": "public/launcher-icons/invert_selection.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "copy_path",
+      "file": "copy_path.png",
+      "path": "public/launcher-icons/copy_path.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "copy_to",
+      "file": "copy_to.png",
+      "path": "public/launcher-icons/copy_to.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "new_folder",
+      "file": "new_folder.png",
+      "path": "public/launcher-icons/new_folder.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "new_file",
+      "file": "new_file.png",
+      "path": "public/launcher-icons/new_file.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "compress",
+      "file": "compress.png",
+      "path": "public/launcher-icons/compress.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "extract",
+      "file": "extract.png",
+      "path": "public/launcher-icons/extract.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "properties",
+      "file": "properties.png",
+      "path": "public/launcher-icons/properties.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "sync_folders",
+      "file": "sync_folders.png",
+      "path": "public/launcher-icons/sync_folders.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "map_network_drive",
+      "file": "map_network_drive.png",
+      "path": "public/launcher-icons/map_network_drive.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "share",
+      "file": "Share.ico",
+      "path": "public/launcher-icons/Share.ico",
+      "category": "toolbar"
+    },
+    {
+      "id": "burn_disc",
+      "file": "burn_disc.png",
+      "path": "public/launcher-icons/burn_disc.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "view_details",
+      "file": "view_details.png",
+      "path": "public/launcher-icons/view_details.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "view_grid",
+      "file": "view_grid.png",
+      "path": "public/launcher-icons/view_grid.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "view_list",
+      "file": "view_list.png",
+      "path": "public/launcher-icons/view_list.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "view_columns",
+      "file": "view_columns.png",
+      "path": "public/launcher-icons/view_columns.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "search",
+      "file": "search.png",
+      "path": "public/launcher-icons/search.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "toggle_dual_pane",
+      "file": "toggle_dual_pane.svg",
+      "path": "public/launcher-icons/toggle_dual_pane.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "toggle_preview",
+      "file": "toggle_preview.png",
+      "path": "public/launcher-icons/toggle_preview.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "toggle_bottom",
+      "file": "toggle_bottom.svg",
+      "path": "public/launcher-icons/toggle_bottom.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "smart_tools",
+      "file": "smart_tools.png",
+      "path": "public/launcher-icons/smart_tools.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "tag_manager",
+      "file": "tag_manager.png",
+      "path": "public/launcher-icons/tag_manager.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "accept",
+      "file": "Accept.ico",
+      "path": "public/launcher-icons/Accept.ico",
+      "category": "toolbar"
+    },
+    {
+      "id": "decline",
+      "file": "Decline.ico",
+      "path": "public/launcher-icons/Decline.ico",
+      "category": "toolbar"
+    },
+    {
+      "id": "icon_studio",
+      "file": "icon_studio.png",
+      "path": "public/launcher-icons/icon_studio.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "find",
+      "file": "find.png",
+      "path": "public/launcher-icons/find.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "dropstack",
+      "file": "dropstack.png",
+      "path": "public/launcher-icons/dropstack.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "filters",
+      "file": "filters.png",
+      "path": "public/launcher-icons/filters.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "batch_rename",
+      "file": "batch_rename.png",
+      "path": "public/launcher-icons/batch_rename.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "shell_menus",
+      "file": "shell_menus.png",
+      "path": "public/launcher-icons/shell_menus.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "metadata",
+      "file": "metadata.png",
+      "path": "public/launcher-icons/metadata.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "storage_cleanup",
+      "file": "storage_cleanup.png",
+      "path": "public/launcher-icons/storage_cleanup.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "sys_properties",
+      "file": "sys_properties.png",
+      "path": "public/launcher-icons/sys_properties.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "config",
+      "file": "config.png",
+      "path": "public/launcher-icons/config.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "extension_hub",
+      "file": "extension_hub.png",
+      "path": "public/launcher-icons/extension_hub.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "wrench",
+      "file": "wrench.png",
+      "path": "public/launcher-icons/wrench.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "cmd",
+      "file": "cmd.png",
+      "path": "public/launcher-icons/cmd.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "ps",
+      "file": "ps.png",
+      "path": "public/launcher-icons/ps.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "terminal_here",
+      "file": "terminal_here.png",
+      "path": "public/launcher-icons/terminal_here.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "taskmgr",
+      "file": "taskmgr.png",
+      "path": "public/launcher-icons/taskmgr.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "regedit",
+      "file": "regedit.png",
+      "path": "public/launcher-icons/regedit.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "control_panel",
+      "file": "control_panel.png",
+      "path": "public/launcher-icons/control_panel.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "settings_ui",
+      "file": "control_panel.png",
+      "path": "public/launcher-icons/control_panel.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "settings_app",
+      "file": "settings_app.png",
+      "path": "public/launcher-icons/settings_app.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "device_manager",
+      "file": "device_manager.png",
+      "path": "public/launcher-icons/device_manager.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "services",
+      "file": "services.png",
+      "path": "public/launcher-icons/services.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "event_viewer",
+      "file": "event_viewer.png",
+      "path": "public/launcher-icons/event_viewer.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "disk_mgmt",
+      "file": "disk_mgmt.png",
+      "path": "public/launcher-icons/disk_mgmt.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "computer_mgmt",
+      "file": "computer_mgmt.png",
+      "path": "public/launcher-icons/computer_mgmt.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "sysdm_cpl",
+      "file": "sysdm_cpl.png",
+      "path": "public/launcher-icons/sysdm_cpl.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "network_connections",
+      "file": "network_connections.png",
+      "path": "public/launcher-icons/network_connections.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "printers",
+      "file": "printers.png",
+      "path": "public/launcher-icons/printers.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "programs_features",
+      "file": "programs_features.png",
+      "path": "public/launcher-icons/programs_features.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "firewall",
+      "file": "firewall.png",
+      "path": "public/launcher-icons/firewall.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "power_options",
+      "file": "power_options.png",
+      "path": "public/launcher-icons/power_options.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "user_accounts",
+      "file": "user_accounts.png",
+      "path": "public/launcher-icons/user_accounts.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "msinfo",
+      "file": "msinfo.png",
+      "path": "public/launcher-icons/msinfo.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "dxdiag",
+      "file": "dxdiag.png",
+      "path": "public/launcher-icons/dxdiag.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "notepad",
+      "file": "notepad.png",
+      "path": "public/launcher-icons/notepad.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "calc",
+      "file": "calc.png",
+      "path": "public/launcher-icons/calc.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "paint",
+      "file": "paint.png",
+      "path": "public/launcher-icons/paint.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "snipping_tool",
+      "file": "snipping_tool.png",
+      "path": "public/launcher-icons/snipping_tool.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "explorer",
+      "file": "explorer.png",
+      "path": "public/launcher-icons/explorer.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "magnifier",
+      "file": "magnifier.png",
+      "path": "public/launcher-icons/magnifier.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "osk",
+      "file": "osk.png",
+      "path": "public/launcher-icons/osk.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "bookmark",
+      "file": "bookmark.png",
+      "path": "public/launcher-icons/bookmark.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "link",
+      "file": "link.png",
+      "path": "public/launcher-icons/link.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "store",
+      "file": "store.png",
+      "path": "public/launcher-icons/store.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "theme",
+      "file": "theme.png",
+      "path": "public/launcher-icons/theme.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "keyboard_settings",
+      "file": "keyboard_settings.png",
+      "path": "public/launcher-icons/keyboard_settings.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "clipboard",
+      "file": "clipboard.png",
+      "path": "public/launcher-icons/clipboard.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "snippet",
+      "file": "snippet.png",
+      "path": "public/launcher-icons/snippet.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "plugin",
+      "file": "plugin.png",
+      "path": "public/launcher-icons/plugin.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "plugins",
+      "file": "plugins.png",
+      "path": "public/launcher-icons/plugins.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "zip",
+      "file": "zip.png",
+      "path": "public/launcher-icons/zip.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "recycle",
+      "file": "recycle.png",
+      "path": "public/launcher-icons/recycle.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "network",
+      "file": "network.png",
+      "path": "public/launcher-icons/network.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "terminal",
+      "file": "terminal.png",
+      "path": "public/launcher-icons/terminal.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "powershell",
+      "file": "powershell.png",
+      "path": "public/launcher-icons/powershell.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "calculator",
+      "file": "calculator.png",
+      "path": "public/launcher-icons/calculator.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "chevron_right",
+      "file": "chevron_right.png",
+      "path": "public/launcher-icons/chevron_right.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "chevron_left",
+      "file": "chevron_left.png",
+      "path": "public/launcher-icons/chevron_left.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "chevron_down",
+      "file": "chevron_down.png",
+      "path": "public/launcher-icons/chevron_down.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "chevron_up",
+      "file": "chevron_up.png",
+      "path": "public/launcher-icons/chevron_up.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "close",
+      "file": "close.png",
+      "path": "public/launcher-icons/close.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "check",
+      "file": "check.png",
+      "path": "public/launcher-icons/check.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "star_ui",
+      "file": "star_ui.png",
+      "path": "public/launcher-icons/star_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "clock_ui",
+      "file": "clock_ui.png",
+      "path": "public/launcher-icons/clock_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "loading",
+      "file": "loading.png",
+      "path": "public/launcher-icons/loading.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "warning",
+      "file": "warning.png",
+      "path": "public/launcher-icons/warning.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "error_ui",
+      "file": "error_ui.png",
+      "path": "public/launcher-icons/error_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "external_link",
+      "file": "external_link.png",
+      "path": "public/launcher-icons/external_link.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "send",
+      "file": "send.png",
+      "path": "public/launcher-icons/send.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "upload",
+      "file": "upload.png",
+      "path": "public/launcher-icons/upload.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "download",
+      "file": "download.png",
+      "path": "public/launcher-icons/download.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "download_ui",
+      "file": "download.png",
+      "path": "public/launcher-icons/download.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "clipboard_ui",
+      "file": "clipboard.png",
+      "path": "public/launcher-icons/clipboard.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "smart_view",
+      "file": "smart_tools.png",
+      "path": "public/launcher-icons/smart_tools.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "edit_image",
+      "file": "edit-image.svg",
+      "path": "public/launcher-icons/edit-image.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "data_warning",
+      "file": "warning.png",
+      "path": "public/launcher-icons/warning.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "emblem-symbolic-link",
+      "file": "emblem-symbolic-link.svg",
+      "path": "public/launcher-icons/emblem-symbolic-link.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem-shared",
+      "file": "emblem-shared.svg",
+      "path": "public/launcher-icons/emblem-shared.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "plus_ui",
+      "file": "plus_ui.png",
+      "path": "public/launcher-icons/plus_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "minus_ui",
+      "file": "minus_ui.png",
+      "path": "public/launcher-icons/minus_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "lock_ui",
+      "file": "lock_ui.png",
+      "path": "public/launcher-icons/lock_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "unlock_ui",
+      "file": "unlock_ui.png",
+      "path": "public/launcher-icons/unlock_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "shield_ui",
+      "file": "shield_ui.png",
+      "path": "public/launcher-icons/shield_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "key_ui",
+      "file": "key_ui.png",
+      "path": "public/launcher-icons/key_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "database_ui",
+      "file": "database_ui.png",
+      "path": "public/launcher-icons/database_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "sparkles_ui",
+      "file": "sparkles_ui.png",
+      "path": "public/launcher-icons/sparkles_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "pin_ui",
+      "file": "pin_ui.png",
+      "path": "public/launcher-icons/pin_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "pencil_ui",
+      "file": "pencil_ui.png",
+      "path": "public/launcher-icons/pencil_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "picture_ui",
+      "file": "picture_ui.png",
+      "path": "public/launcher-icons/picture_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "music_ui",
+      "file": "music_ui.png",
+      "path": "public/launcher-icons/music_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "film_ui",
+      "file": "film_ui.png",
+      "path": "public/launcher-icons/film_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "code_ui",
+      "file": "code_ui.png",
+      "path": "public/launcher-icons/code_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "info",
+      "file": "Info.ico",
+      "path": "public/launcher-icons/Info.ico",
+      "category": "toolbar"
+    },
+    {
+      "id": "info_ui",
+      "file": "Info.ico",
+      "path": "public/launcher-icons/Info.ico",
+      "category": "toolbar"
+    },
+    {
+      "id": "help_ui",
+      "file": "help_ui.png",
+      "path": "public/launcher-icons/help_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "table_ui",
+      "file": "table_ui.png",
+      "path": "public/launcher-icons/table_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "dashboard_ui",
+      "file": "dashboard_ui.png",
+      "path": "public/launcher-icons/dashboard_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "category_ui",
+      "file": "category_ui.png",
+      "path": "public/launcher-icons/category_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "play_ui",
+      "file": "play_ui.png",
+      "path": "public/launcher-icons/play_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "file_ui",
+      "file": "file_ui.png",
+      "path": "public/launcher-icons/file_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "print_ui",
+      "file": "print_ui.png",
+      "path": "public/launcher-icons/print_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "compare_ui",
+      "file": "compare_ui.png",
+      "path": "public/launcher-icons/compare_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "palette_ui",
+      "file": "palette_ui.png",
+      "path": "public/launcher-icons/palette_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "reset_ui",
+      "file": "reset_ui.png",
+      "path": "public/launcher-icons/reset_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "zap_ui",
+      "file": "zap_ui.png",
+      "path": "public/launcher-icons/zap_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "pointer_click_ui",
+      "file": "pointer_click_ui.png",
+      "path": "public/launcher-icons/pointer_click_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "folder_open_ui",
+      "file": "folder_open_ui.png",
+      "path": "public/launcher-icons/folder_open_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "keyboard_ui",
+      "file": "keyboard_ui.png",
+      "path": "public/launcher-icons/keyboard_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "mouse_ui",
+      "file": "mouse_ui.png",
+      "path": "public/launcher-icons/mouse_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "trash_ui",
+      "file": "trash_ui.png",
+      "path": "public/launcher-icons/trash_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "layers_ui",
+      "file": "layers_ui.png",
+      "path": "public/launcher-icons/layers_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "eye_ui",
+      "file": "eye_ui.png",
+      "path": "public/launcher-icons/eye_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "eye_off_ui",
+      "file": "eye_ui.png",
+      "path": "public/launcher-icons/eye_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "puzzle_ui",
+      "file": "puzzle_ui.png",
+      "path": "public/launcher-icons/puzzle_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "globe_ui",
+      "file": "globe_ui.png",
+      "path": "public/launcher-icons/globe_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "filter_ui",
+      "file": "filter_ui.png",
+      "path": "public/launcher-icons/filter_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "arrow_right_ui",
+      "file": "arrow_right_ui.png",
+      "path": "public/launcher-icons/arrow_right_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "monitor_ui",
+      "file": "monitor_ui.png",
+      "path": "public/launcher-icons/monitor_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "this_pc",
+      "file": "computer_mgmt.png",
+      "path": "public/launcher-icons/computer_mgmt.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "cloud_ui",
+      "file": "cloud_ui.png",
+      "path": "public/launcher-icons/cloud_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "cloud_drive",
+      "file": "cloud-folder.png",
+      "path": "public/launcher-icons/cloud-folder.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "git_branch_ui",
+      "file": "git_branch_ui.png",
+      "path": "public/launcher-icons/git_branch_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "hard_drive_ui",
+      "file": "hard_drive_ui.png",
+      "path": "public/launcher-icons/hard_drive_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "history_ui",
+      "file": "history_ui.png",
+      "path": "public/launcher-icons/history_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "eraser_ui",
+      "file": "eraser_ui.png",
+      "path": "public/launcher-icons/eraser_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "file_search_ui",
+      "file": "file_search_ui.png",
+      "path": "public/launcher-icons/file_search_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "zoom_in_ui",
+      "file": "color-zoom-in.svg",
+      "path": "public/launcher-icons/color-zoom-in.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "zoom_out_ui",
+      "file": "color-zoom-out.svg",
+      "path": "public/launcher-icons/color-zoom-out.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "maximize_ui",
+      "file": "maximize_ui.png",
+      "path": "public/launcher-icons/maximize_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "target_ui",
+      "file": "target_ui.png",
+      "path": "public/launcher-icons/target_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "regex_ui",
+      "file": "regex_ui.png",
+      "path": "public/launcher-icons/regex_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "braces_ui",
+      "file": "braces_ui.png",
+      "path": "public/launcher-icons/braces_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "wand_ui",
+      "file": "wand_ui.png",
+      "path": "public/launcher-icons/wand_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "command_ui",
+      "file": "command_ui.png",
+      "path": "public/launcher-icons/command_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "images_ui",
+      "file": "images_ui.png",
+      "path": "public/launcher-icons/images_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "rocket_ui",
+      "file": "rocket_ui.png",
+      "path": "public/launcher-icons/rocket_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "piechart_ui",
+      "file": "piechart_ui.png",
+      "path": "public/launcher-icons/piechart_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "move_ui",
+      "file": "move_ui.png",
+      "path": "public/launcher-icons/move_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "bookopen_ui",
+      "file": "bookopen_ui.png",
+      "path": "public/launcher-icons/bookopen_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "magnet_ui",
+      "file": "magnet_ui.png",
+      "path": "public/launcher-icons/magnet_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "radio_ui",
+      "file": "radio_ui.png",
+      "path": "public/launcher-icons/radio_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "volume_ui",
+      "file": "volume_ui.png",
+      "path": "public/launcher-icons/volume_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "volume_off_ui",
+      "file": "volume_off_ui.png",
+      "path": "public/launcher-icons/volume_off_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "skip_back_ui",
+      "file": "skip_back_ui.png",
+      "path": "public/launcher-icons/skip_back_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "skip_forward_ui",
+      "file": "skip_forward_ui.png",
+      "path": "public/launcher-icons/skip_forward_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "pause_ui",
+      "file": "pause_ui.png",
+      "path": "public/launcher-icons/pause_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "brain_ui",
+      "file": "brain_ui.png",
+      "path": "public/launcher-icons/brain_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "wifi_off_ui",
+      "file": "wifi_off_ui.png",
+      "path": "public/launcher-icons/wifi_off_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "folder_plus_ui",
+      "file": "folder_plus_ui.png",
+      "path": "public/launcher-icons/folder_plus_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "server_ui",
+      "file": "server_ui.png",
+      "path": "public/launcher-icons/server_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "play_circle_ui",
+      "file": "play_circle_ui.png",
+      "path": "public/launcher-icons/play_circle_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "arrow_down_circle_ui",
+      "file": "arrow_down_circle_ui.png",
+      "path": "public/launcher-icons/arrow_down_circle_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "checksquare_ui",
+      "file": "checksquare_ui.png",
+      "path": "public/launcher-icons/checksquare_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "columns_ui",
+      "file": "columns_ui.png",
+      "path": "public/launcher-icons/columns_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "mini_tree",
+      "file": "mini_tree.png",
+      "path": "public/launcher-icons/mini_tree.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "scissors_ui",
+      "file": "scissors_ui.png",
+      "path": "public/launcher-icons/scissors_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "panel_bottom_ui",
+      "file": "panel_bottom_ui.png",
+      "path": "public/launcher-icons/panel_bottom_ui.png",
+      "category": "toolbar"
+    },
+    {
+      "id": "bluetooth",
+      "file": "bluetooth.svg",
+      "path": "public/launcher-icons/bluetooth.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "emblem_added",
+      "file": "emblem-added.svg",
+      "path": "public/launcher-icons/emblem-added.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem_checked",
+      "file": "emblem-checked.svg",
+      "path": "public/launcher-icons/emblem-checked.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem_documents",
+      "file": "emblem-documents.svg",
+      "path": "public/launcher-icons/emblem-documents.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem_downloads",
+      "file": "emblem-downloads.svg",
+      "path": "public/launcher-icons/emblem-downloads.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem_shared",
+      "file": "emblem-shared.svg",
+      "path": "public/launcher-icons/emblem-shared.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem_symbolic_link",
+      "file": "emblem-symbolic-link.svg",
+      "path": "public/launcher-icons/emblem-symbolic-link.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem_synchronizing",
+      "file": "emblem-synchronizing.svg",
+      "path": "public/launcher-icons/emblem-synchronizing.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "emblem_unlocked",
+      "file": "emblem-unlocked.svg",
+      "path": "public/launcher-icons/emblem-unlocked.svg",
+      "category": "emblem"
+    },
+    {
+      "id": "media_playback_playing",
+      "file": "Media/playing.svg",
+      "path": "public/Media/playing.svg",
+      "category": "media"
+    },
+    {
+      "id": "media_playback_paused",
+      "file": "Media/pause.svg",
+      "path": "public/Media/pause.svg",
+      "category": "media"
+    },
+    {
+      "id": "media_playback_stop",
+      "file": "Media/stop.svg",
+      "path": "public/Media/stop.svg",
+      "category": "media"
+    },
+    {
+      "id": "media_play",
+      "file": "Media/play.svg",
+      "path": "public/Media/play.svg",
+      "category": "media"
+    },
+    {
+      "id": "media_pause",
+      "file": "Media/pause.svg",
+      "path": "public/Media/pause.svg",
+      "category": "media"
+    },
+    {
+      "id": "media_stop",
+      "file": "Media/stop.svg",
+      "path": "public/Media/stop.svg",
+      "category": "media"
+    },
+    {
+      "id": "media_playing",
+      "file": "Media/playing.svg",
+      "path": "public/Media/playing.svg",
+      "category": "media"
+    },
+    {
+      "id": "media_record",
+      "file": "media-record.svg",
+      "path": "public/launcher-icons/media-record.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "media_repeat_none",
+      "file": "media-repeat-none.svg",
+      "path": "public/launcher-icons/media-repeat-none.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "media_repeat_single",
+      "file": "media-repeat-single.svg",
+      "path": "public/launcher-icons/media-repeat-single.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "media_seek_backward",
+      "file": "media-seek-backward.svg",
+      "path": "public/launcher-icons/media-seek-backward.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "media_seek_forward",
+      "file": "media-seek-forward.svg",
+      "path": "public/launcher-icons/media-seek-forward.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "media_skip_backward",
+      "file": "media-skip-backward.svg",
+      "path": "public/launcher-icons/media-skip-backward.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "media_skip_forward",
+      "file": "media-skip-forward.svg",
+      "path": "public/launcher-icons/media-skip-forward.svg",
+      "category": "toolbar"
+    },
+    {
+      "id": "ui_plugin",
+      "file": "Ui/plugin.svg",
+      "path": "public/Ui/plugin.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_color",
+      "file": "Ui/color.svg",
+      "path": "public/Ui/color.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_icons",
+      "file": "Ui/icons.svg",
+      "path": "public/Ui/icons.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_keyboard",
+      "file": "Ui/keybinds-keyboard.svg",
+      "path": "public/Ui/keybinds-keyboard.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_featured",
+      "file": "Ui/applications-featured.svg",
+      "path": "public/Ui/applications-featured.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_image_loading",
+      "file": "Ui/image-loading.svg",
+      "path": "public/Ui/image-loading.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_image_missing",
+      "file": "Ui/image-missing.svg",
+      "path": "public/Ui/image-missing.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_preview_folder",
+      "file": "Ui/preview-Big Folder.svg",
+      "path": "public/Ui/preview-Big Folder.svg",
+      "category": "ui-chrome"
+    },
+    {
+      "id": "ui_preview_folder_alt",
+      "file": "Ui/preview-Big Folder-1.svg",
+      "path": "public/Ui/preview-Big Folder-1.svg",
+      "category": "ui-chrome"
+    }
+  ]
+}

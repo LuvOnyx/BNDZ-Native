@@ -942,6 +942,21 @@ export default function BndzAutomationView() {
   }, []);
 
   useEffect(() => {
+    const onExternalDrop = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const paths = (detail.paths as string[] | undefined)?.filter(Boolean);
+      if (!paths?.length) return;
+      const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : window.innerWidth / 2;
+      const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : window.innerHeight / 2;
+      const surface = document.elementFromPoint(clientX, clientY)?.closest('[data-bndz-workspace-surface]');
+      if (!surface) return;
+      setStatus('Drop files on Spatial Canvas or the file list — Automation graph does not accept file drops.');
+    };
+    window.addEventListener('bndz-external-drop', onExternalDrop);
+    return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
+  }, []);
+
+  useEffect(() => {
     if (!armed || !IPC.isNative) return;
     let active = true;
     const poll = () => {

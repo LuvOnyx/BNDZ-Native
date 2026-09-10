@@ -142,99 +142,117 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
   return (
     <BndzWindowFrame
       title="History"
-      subtitle={`BNDZ Action Log · ${maxEntries} max · ${undoItems.length} undo · ${redoItems.length} redo · Explorer keeps a separate Ctrl+Z stack`}
+      subtitle={`Action Log · ${undoItems.length} undo · ${redoItems.length} redo`}
       iconId="clock_ui"
       onClose={onClose}
-      widthClass="w-[min(560px,calc(100vw-2rem))]"
-      heightClass="h-[min(520px,calc(100vh-2rem))]"
+      widthClass="w-[min(640px,calc(100vw-2rem))]"
+      heightClass="h-[min(560px,calc(100vh-2rem))]"
       zIndexClass="z-[260]"
     >
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-        <div className="bndz-plugin-tabstrip flex border-b border-white/[0.06] shrink-0">
-          <button
-            type="button"
-            className={`bndz-plugin-tab ${tab === 'undo' ? 'bndz-plugin-tab-active' : ''}`}
-            onClick={() => setTab('undo')}
-          >
-            Undo stack ({undoItems.length})
-          </button>
-          <button
-            type="button"
-            className={`bndz-plugin-tab ${tab === 'redo' ? 'bndz-plugin-tab-active' : ''}`}
-            onClick={() => setTab('redo')}
-          >
-            Redo stack ({redoItems.length})
-          </button>
+      <div className="bndz-history-shell flex flex-1 min-h-0 flex-col overflow-hidden">
+        <div className="bndz-history-hero shrink-0 px-5 pt-4 pb-3">
+          <div className="bndz-history-hero-glow" aria-hidden />
+          <div className="relative flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70 font-semibold">BNDZ Action Log</div>
+              <div className="text-[13px] text-white/55 mt-1 leading-snug truncate">
+                Select a step — undo rewinds through everything above it.
+              </div>
+            </div>
+            <div className="bndz-history-segment" role="tablist" aria-label="History stack">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'undo'}
+                className={`bndz-history-seg ${tab === 'undo' ? 'is-active' : ''}`}
+                onClick={() => setTab('undo')}
+              >
+                Undo
+                <span className="bndz-history-seg-count">{undoItems.length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'redo'}
+                className={`bndz-history-seg ${tab === 'redo' ? 'is-active' : ''}`}
+                onClick={() => setTab('redo')}
+              >
+                Redo
+                <span className="bndz-history-seg-count">{redoItems.length}</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar p-3 space-y-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar px-4 pb-3">
           {loading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-gray-500 text-xs">
-              <Icons8Icon id="loading" size={14} spin /> Loading history…
+            <div className="flex items-center justify-center gap-2 py-16 text-white/40 text-sm">
+              <Icons8Icon id="loading" size={16} spin /> Loading history…
             </div>
           )}
           {!loading && pool.length === 0 && (
-            <div className="bndz-plugin-card text-center py-12 text-gray-500 text-xs space-y-1">
-              <div>{tab === 'undo' ? 'No Action Log entries to undo yet.' : 'Nothing to redo in the Action Log.'}</div>
-              <div className="text-[10px] text-gray-600">
-                Recent BNDZ transfers appear here when Action Log is enabled. Windows Explorer may keep its own undo stack.
+            <div className="bndz-history-empty">
+              <div className="bndz-history-empty-orb" aria-hidden />
+              <div className="text-sm text-white/70 font-medium">
+                {tab === 'undo' ? 'No actions to undo yet' : 'Nothing to redo'}
+              </div>
+              <div className="text-[12px] text-white/40 mt-1.5 max-w-[320px] leading-relaxed">
+                Moves, copies, renames, and deletes you run in BNDZ land here when Action Log is enabled.
               </div>
             </div>
           )}
-          {!loading && pool.map((entry, idx) => {
-            const accent = KIND_COLOR[entry.kind] || '#94a3b8';
-            const active = entry.id === selectedId;
-            return (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => setSelectedId(entry.id)}
-                className={`w-full text-left bndz-plugin-card !p-3 flex items-start gap-3 transition-colors ${
-                  active ? 'ring-1 ring-[#0078d4]/50 bg-[#094771]/25' : 'hover:bg-white/[0.03]'
-                }`}
-              >
-                <span
-                  className="mt-1 w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: accent }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12px] text-gray-100 font-medium truncate">{entry.label}</div>
-                  {entry.destination && (
-                    <div className="text-[10px] text-gray-500 truncate mt-0.5" title={entry.destination}>
-                      → {entry.destination}
+          {!loading && pool.length > 0 && (
+            <div className="bndz-history-rail">
+              {pool.map((entry, idx) => {
+                const accent = KIND_COLOR[entry.kind] || '#94a3b8';
+                const active = entry.id === selectedId;
+                const inRange = tab === 'undo' && selectedIndex >= 0 && idx <= selectedIndex;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setSelectedId(entry.id)}
+                    className={`bndz-history-row ${active ? 'is-active' : ''} ${inRange && !active ? 'is-range' : ''}`}
+                    style={{ ['--history-accent' as string]: accent }}
+                  >
+                    <span className="bndz-history-dot" aria-hidden />
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="text-sm text-white/92 font-medium truncate leading-snug">{entry.label}</div>
+                      {entry.destination && (
+                        <div className="text-[11px] text-white/40 truncate mt-0.5" title={entry.destination}>
+                          → {entry.destination}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span className="bndz-history-kind">{entry.kind}</span>
+                        <span className="text-[11px] text-white/35">{formatWhen(entry.utc, dateFormat)}</span>
+                        {idx === 0 && <span className="bndz-history-chip bndz-history-chip--sky">latest</span>}
+                        {tab === 'undo' && active && selectedIndex > 0 && (
+                          <span className="bndz-history-chip bndz-history-chip--amber">
+                            undo {selectedIndex + 1} steps
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
-                    <span
-                      className="uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border"
-                      style={{ color: accent, borderColor: `${accent}44`, background: `${accent}14` }}
-                    >
-                      {entry.kind}
-                    </span>
-                    <span>{formatWhen(entry.utc, dateFormat)}</span>
-                    {idx === 0 && <span className="text-sky-400/80">latest</span>}
-                    {tab === 'undo' && selectedIndex >= 0 && idx <= selectedIndex && active && idx > 0 && (
-                      <span className="text-amber-400/80">undo {selectedIndex + 1} steps</span>
+                    {tab === 'undo' && !entry.canUndo && (
+                      <span className="bndz-history-chip bndz-history-chip--rose shrink-0">permanent</span>
                     )}
-                  </div>
-                </div>
-                {tab === 'undo' && !entry.canUndo && (
-                  <span className="text-[9px] text-rose-300/80 shrink-0">permanent</span>
-                )}
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-white/[0.06]">
-          <button type="button" className="bndz-hub-btn-ghost px-3 py-2 text-xs font-semibold" onClick={onClose}>
+        <div className="bndz-history-footer shrink-0 flex items-center justify-between gap-2 px-4 py-3">
+          <button type="button" className="bndz-history-btn bndz-history-btn--ghost" onClick={onClose}>
             Close
           </button>
           <div className="flex items-center gap-2">
             {tab === 'undo' ? (
               <button
                 type="button"
-                className="bndz-hub-btn-primary px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                className="bndz-history-btn bndz-history-btn--primary"
                 disabled={!selected || busy || rangeBlocked}
                 title={rangeBlocked ? 'Selection includes a permanent delete that cannot be undone' : undefined}
                 onClick={() => void runAction('undo')}
@@ -244,7 +262,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
             ) : (
               <button
                 type="button"
-                className="bndz-hub-btn-primary px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                className="bndz-history-btn bndz-history-btn--primary"
                 disabled={!selected || busy}
                 onClick={() => void runAction('redo')}
               >

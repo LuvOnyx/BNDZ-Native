@@ -130,7 +130,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
 export function resolveToolbarItem(id: string, tags?: Array<{ id?: string; name?: string; label?: string; color?: string }>): ToolbarItemDef | undefined {
   if (id.startsWith('tag__')) {
     const tagId = id.slice(5);
-    const tag = tags?.find(t => (t.id || t.name) === tagId);
+    const tag = tags?.find(t => tagChipId(t) === tagId || (t.id || t.name) === tagId);
     if (tag) {
       return { id, label: `Tag: ${tag.label || tag.name}`, color: tag.color || '#fbbf24', category: 'tags' };
     }
@@ -485,10 +485,7 @@ export default function ToolbarConfigurator({
                   <div className="bndz-tb-section-label mb-2.5">Live preview</div>
                   <div className="bndz-tb-chrome">
                     <div className="bndz-tb-chrome-caption">
-                      <span className="w-2 h-2 rounded-[3px] bg-[#e81123]/80" />
-                      <span className="w-2 h-2 rounded-[3px] bg-[#f7c948]/80" />
-                      <span className="w-2 h-2 rounded-[3px] bg-[#3cc66d]/80" />
-                      <span className="ml-2 text-[10px] text-white/30 tracking-wide">BNDZ toolbar</span>
+                      <span className="text-[10px] text-white/30 tracking-wide">BNDZ toolbar</span>
                     </div>
                     <ToolbarDropZone empty={currentLayout.length === 0}>
                       <SortableContext items={currentLayout.map(i => i.uid)} strategy={rectSortingStrategy}>

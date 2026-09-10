@@ -15,6 +15,11 @@ interface PluginPanelShellProps {
   variant?: 'default' | 'embedded';
   /** When false, body uses overflow-hidden flex fill (canvas plugins). */
   scrollable?: boolean;
+  /**
+   * Terminal mode: collapse chrome so the xterm hole matches the visible panel
+   * opening (no padded header/footer stealing ~20–30% of the frame).
+   */
+  density?: 'default' | 'terminal';
 }
 
 /** Shared chrome for bottom panel plugins */
@@ -29,24 +34,37 @@ export default function PluginPanelShell({
   footer,
   variant = 'default',
   scrollable = true,
+  density = 'default',
 }: PluginPanelShellProps) {
   const iconId = typeof icon === 'string' ? icon : 'extension_hub';
+  const terminalDensity = density === 'terminal';
   const bodyClass = scrollable
     ? 'flex-1 min-h-0 overflow-y-auto overflow-x-hidden bndz-scrollbar overscroll-contain'
     : 'flex-1 min-h-0 overflow-hidden flex flex-col';
   if (variant === 'embedded') {
     return (
-      <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[var(--panel-bottom-bg,var(--bndz-surface-panel,#0c0e14))] text-[var(--panel-bottom-text,var(--text-main,#e2e8f0))]">
+      <div
+        className={`bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[var(--panel-bottom-bg,var(--bndz-surface-panel,#0c0e14))] text-[var(--panel-bottom-text,var(--text-main,#e2e8f0))]${
+          terminalDensity ? ' bndz-plugin-tier--terminal' : ''
+        }`}
+        data-plugin-density={density}
+      >
         {toolbar && (
-          <div className="bndz-plugin-toolbar shrink-0 px-3 py-2 flex items-center justify-end gap-2">
+          <div
+            className={`bndz-plugin-toolbar shrink-0 flex items-center justify-end gap-1 min-h-0 ${
+              terminalDensity
+                ? 'bndz-plugin-toolbar--terminal px-1.5 py-0.5'
+                : 'px-2 py-1 gap-1.5'
+            }`}
+          >
             {toolbar}
           </div>
         )}
-        {status && (
-          <div className="shrink-0 px-4 py-2 border-b border-[var(--border-subtle,rgba(255,255,255,0.06))] bndz-panel-muted">{status}</div>
+        {status && !terminalDensity && (
+          <div className="shrink-0 px-3 py-1 border-b border-[var(--border-subtle,rgba(255,255,255,0.06))] bndz-panel-muted text-[11px] leading-tight">{status}</div>
         )}
         <div className={bodyClass}>{children}</div>
-        {footer && (
+        {footer && !terminalDensity && (
           <div className="bndz-plugin-footer shrink-0 px-3 py-2 border-t border-[var(--border-subtle,rgba(255,255,255,0.06))] flex items-center gap-2 bg-[color-mix(in_srgb,var(--panel-bottom-bg,#0c0e14)_92%,#000_8%)]">
             {footer}
           </div>

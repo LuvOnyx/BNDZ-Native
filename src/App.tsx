@@ -81,10 +81,14 @@ export default function App() {
   if (PLUGIN_BOOT) {
     return (
       <ConfigProvider>
-        <PluginRegistryProvider>
-          <PluginPopoutShell initial={PLUGIN_BOOT} />
-          <ToastHost />
-        </PluginRegistryProvider>
+        <ClipboardProvider>
+          <PluginRegistryProvider>
+            <ModalProvider>
+              <PluginPopoutShell initial={PLUGIN_BOOT} />
+              <ToastHost />
+            </ModalProvider>
+          </PluginRegistryProvider>
+        </ClipboardProvider>
       </ConfigProvider>
     );
   }

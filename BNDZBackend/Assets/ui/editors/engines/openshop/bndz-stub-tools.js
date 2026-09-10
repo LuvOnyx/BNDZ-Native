@@ -279,46 +279,46 @@
       },
 
       _historyBrushSnapshotCanvas() {
-        // Prefer previous history entry (one step back), else base snapshot.
+        // Prefer raster attached to the previous history entry (real undo source).
         const idx = Math.max(0, (this.historyIdx ?? 0) - 1);
-        const snap = this.history?.[idx]?.snapshot || this.history?.[idx]?.beforeSnapshot || this._historyBaseSnapshot;
-        if (!snap) return null;
-        try {
-          // Snapshot is usually a JSON canvas state — rasterize current doc into offscreen and
-          // sample from a committed history PNG if available.
-          if (typeof snap === 'string' && snap.startsWith('data:')) {
-            return null; // async path not used here
-          }
-        } catch { /* ignore */ }
-        // Practical path: use document raster captured at last clean history via temporary canvas
-        // from reading current + storing baseline on first use.
-        if (!this._historyBrushRaster) {
-          try {
-            const doc = this._readDocumentImageData?.();
-            if (!doc) return null;
-            const c = document.createElement('canvas');
-            c.width = doc.width; c.height = doc.height;
-            c.getContext('2d').putImageData(doc, 0, 0);
-            this._historyBrushRaster = c;
-          } catch { return null; }
-        }
-        return this._historyBrushRaster;
+        const entry = this.history?.[idx];
+        if (entry?.bndzRasterCanvas) return entry.bndzRasterCanvas;
+        if (this._historyBrushRaster) return this._historyBrushRaster;
+        if (this._historyBaseRaster) return this._historyBaseRaster;
+        return null;
       },
       _captureHistoryBrushSource() {
         try {
-          const doc = this._readDocumentImageData?.();
-          if (!doc) return;
-          const c = document.createElement('canvas');
-          c.width = doc.width; c.height = doc.height;
-          c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(doc.data), doc.width, doc.height), 0, 0);
+          const c = this._rasterizeDocToCanvas?.();
+          if (!c) {
+            this.toast('Could not capture history source', 'error');
+            return;
+          }
           this._historyBrushRaster = c;
-          this.toast('History source captured (current document)', 'info');
+          this.toast('History source locked from current pixels (Alt+click again to refresh)', 'info');
         } catch {
           this.toast('Could not capture history source', 'error');
         }
       },
+      _rasterizeDocToCanvas() {
+        try {
+          const doc = this._readDocumentImageData?.();
+          if (!doc) return null;
+          const c = document.createElement('canvas');
+          c.width = doc.width; c.height = doc.height;
+          c.getContext('2d').putImageData(
+            new ImageData(new Uint8ClampedArray(doc.data), doc.width, doc.height),
+            0, 0
+          );
+          return c;
+        } catch { return null; }
+      },
       _historyBrushStart(ptr, art) {
-        if (!this._historyBrushRaster) this._captureHistoryBrushSource();
+        if (!this._historyBrushSnapshotCanvas()) this._captureHistoryBrushSource();
+        if (!this._historyBrushSnapshotCanvas()) {
+          this.toast('No history source yet — make an edit or Alt+click to lock one', 'info');
+          return;
+        }
         const stroke = this._beginPixelStroke(ptr, art ? 'Art History Brush' : 'History Brush');
         if (!stroke) return;
         this._historyBrush = { ...stroke, art: !!art };
@@ -333,10 +333,12 @@
         document.addEventListener('mouseup', commit);
       },
       _historyBrushStroke(ptr) {
-        if (!this._historyBrush || !this._historyBrushRaster) return;
+        if (!this._historyBrush) return;
+        const srcCanvas = this._historyBrushSnapshotCanvas();
+        if (!srcCanvas) return;
         const { target, oc, art } = this._historyBrush;
         const { lx, ly, matrix } = this._localOnImage(ptr, target, oc);
-        const src = this._historyBrushRaster.getContext('2d');
+        const src = srcCanvas.getContext('2d');
         const ctx = oc.getContext('2d');
         const size = (this.state.cloneSize || 20) * (art ? 1.6 : 1);
         const r = Math.ceil(size / 2);
@@ -773,6 +775,23 @@
       return result;
     };
 
+    // Attach document rasters to history entries so History Brush paints from real undo.
+    const origSaveHistory = OS.saveHistory?.bind(OS);
+    if (origSaveHistory) {
+      OS.saveHistory = function (action, opts = {}) {
+        const ok = origSaveHistory(action, opts);
+        try {
+          if (ok && opts?.pixelEdit) {
+            const entry = this.history?.[this.historyIdx];
+            const raster = this._rasterizeDocToCanvas?.();
+            if (entry && raster) entry.bndzRasterCanvas = raster;
+            if (raster && this.historyIdx <= 0) this._historyBaseRaster = raster;
+          }
+        } catch { /* ignore */ }
+        return ok;
+      };
+    }
+
     OS._bndzConfigureStubTool = function (tool) {
       const c = this.canvas;
       const show = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'flex'; };
@@ -789,7 +808,7 @@
           show('opt-clone'); show('opt-pattern'); break;
         case 'history-brush': case 'art-history-brush':
           show('opt-clone');
-          this.toast('Alt+click to capture history source, then paint', 'info');
+          this.toast('Paints from previous history raster · Alt+click locks a custom source', 'info');
           break;
         case 'background-eraser':
           c.isDrawingMode = false; show('opt-brush'); show('opt-wand'); break;

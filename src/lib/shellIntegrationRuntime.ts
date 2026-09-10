@@ -25,10 +25,12 @@ async function applyShellSetting(
   try {
     const result = await withTimeout(apply(), SHELL_CALL_MS, 'SHELL_INTEGRATION_RESULT');
     if (!result.success && result.needsElevation) {
+      // Pass --apply-shell so the elevated instance force-applies ALL pending shell
+      // settings from config before the WebView / fingerprint system initialises.
       await promptElevationIfNeeded(result, {
         title: 'Administrator approval required',
-        message: `${result.message}\n\nRestart BNDZ as administrator to ${label}?`,
-      });
+        message: `${result.message}\n\nRestart BNDZ as administrator to ${label}?\n\nAll Shell Integration settings will be applied on restart.`,
+      }, '--apply-shell --elevated');
     }
     return result;
   } catch (err) {
@@ -149,10 +151,10 @@ export function scheduleBackendSettings(config: AppConfig, force = false): void 
     if (!cfg) return;
 
     const fp = shellFingerprint(cfg);
-    // Always fingerprint-gate. `force` only bypasses debounce coalescing intent —
-    // never rewrites HKCU shell verbs when nothing shell-related changed.
+    // `force` clears the fingerprint gate so elevated relaunch / explicit Settings toggles
+    // always rewrite HKLM/HKCU even when the in-memory fingerprint matches.
+    if (force) lastAppliedFingerprint = null;
     if (fp === lastAppliedFingerprint) return;
-    void force;
 
     applyChain = applyChain
       .then(() => applyBackendSettingsInner(cfg))
@@ -160,7 +162,7 @@ export function scheduleBackendSettings(config: AppConfig, force = false): void 
       .catch(err => {
         console.warn('[shell] applyBackendSettings failed:', err);
       });
-  }, 650);
+  }, force ? 0 : 650);
 }
 
 /** Immediate apply (e.g. after explicit user toggle in Settings). */

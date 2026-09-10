@@ -101,4 +101,8 @@ public sealed class MeshTerminalSessionInfo
     public string HostId { get; set; } = "";
     public string? RemoteCwd { get; set; }
     public bool IsLocal { get; set; }
+    /// <summary>Always false — HWND-in-WebView is unsafe. Local uses ConPTY→xterm.</summary>
+    public bool Embedded { get; set; }
+    /// <summary>Always false — local stays inside BNDZ via ConPTY.</summary>
+    public bool ExternalOs { get; set; }
 }

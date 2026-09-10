@@ -12,12 +12,13 @@ import {
   hitTestArchiveRootAtPoint,
   hitTestListBodyAtPoint,
   hitTestNewTabZoneAtPoint,
+  hitTestSelectorByRect,
   hitTestTabAtPoint,
   isArchiveInternalDropTargetAtPoint,
   resolveNativeFileDropTarget,
   type PaneTabSnapshot,
 } from './fileDragSession';
-import { recordExternalDragHover, recordPointerDragHover } from './fileDragHover';
+import { recordExternalDragHover, recordPointerDragHover, recallPointerDragHover, resolveNavTreeDropPath, resolveBreadcrumbDropPath } from './fileDragHover';
 import { hitTestMagnetAtPoint } from '../components/DropMagnetStrip';
 import { isQueuedIpcResult } from './transferIpc';
 import { IPC } from './ipcBridge';
@@ -44,7 +45,7 @@ export type FileDropBusContext = {
   getActivePaneListCenter: () => { x: number; y: number } | null;
   activatePaneTab: (paneId: string, tabIndex: number) => void;
   applyHover: (clientX: number, clientY: number) => void;
-  executeDrop: (op: 'copy' | 'move', paths: string[], destPath: string, sourcePath?: string) => void;
+  executeDrop: (op: 'copy' | 'move', paths: string[], destPath: string, sourcePath?: string, opts?: { skipConfirm?: boolean }) => void;
   addTab: (paneId: string, path: string) => void;
   setActivePaneId: (paneId: string) => void;
   toast: (message: string) => void;
@@ -81,7 +82,8 @@ export function forceCommitToActivePaneFolder(
 ): boolean {
   const ctx = busContext;
   if (!ctx || !paths.length) return false;
-  const ok = tryCommitToKnownListFolder(ctx, paths, op, source);
+  const skipConfirm = source === 'externalOle';
+  const ok = tryCommitToKnownListFolder(ctx, paths, op, source, { skipConfirm });
   if (ok) {
     lastDropDebug = {
       clientX: window.innerWidth / 2,
@@ -186,12 +188,13 @@ function tryCommitToKnownListFolder(
   paths: string[],
   op: 'copy' | 'move',
   source: DropSource,
+  opts?: { skipConfirm?: boolean },
 ): boolean {
   const html = ctx.getHtmlDropTarget();
   if (html?.tabPath) {
     const norm = normalizePanePath(html.tabPath);
     if (isFsDropTargetPath(norm)) {
-      ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(norm));
+      ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(norm), undefined, opts);
       return true;
     }
   }
@@ -201,14 +204,14 @@ function tryCommitToKnownListFolder(
   const pane = panes.find(p => p.id === activeId) ?? panes[0];
   const tabPath = normalizePanePath(pane?.tabs[pane.activeTabIndex]?.path || '');
   if (tabPath && isFsDropTargetPath(tabPath)) {
-    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(tabPath));
+    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(tabPath), undefined, opts);
     return true;
   }
 
   if (pane) {
     const real = findLastRealPathInHistory(panes, pane.id, pane.activeTabIndex);
     if (real) {
-      ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(real));
+      ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(real), undefined, opts);
       return true;
     }
   }
@@ -253,8 +256,31 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
   const paths = opts.paths.filter(Boolean);
   if (!paths.length) return false;
 
+  const dropOpts = opts.source === 'externalOle' ? { skipConfirm: true as const } : undefined;
   const { clientX, clientY, coordSource } = resolveDropCoords(opts, opts.source);
   ctx.applyHover(clientX, clientY);
+
+  const recalled = recallPointerDragHover(clientX, clientY);
+  const navTreePath = resolveNavTreeDropPath(clientX, clientY, recalled?.navTreePath ?? null);
+  if (navTreePath && isFsDropTargetPath(navTreePath)) {
+    const op: 'copy' | 'move' = opts.op === 'move' || opts.preferredEffect === 'move' ? 'move' : 'copy';
+    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(navTreePath), undefined, dropOpts);
+    lastDropDebug = { clientX, clientY, coordSource, destPath: navTreePath, source: opts.source, committed: true };
+    if (isDropDebugEnabled()) {
+      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
+    }
+    return true;
+  }
+  const breadcrumbPath = resolveBreadcrumbDropPath(clientX, clientY, recalled?.breadcrumbPath ?? null);
+  if (breadcrumbPath && isFsDropTargetPath(breadcrumbPath)) {
+    const op: 'copy' | 'move' = opts.op === 'move' || opts.preferredEffect === 'move' ? 'move' : 'copy';
+    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(breadcrumbPath), undefined, dropOpts);
+    lastDropDebug = { clientX, clientY, coordSource, destPath: breadcrumbPath, source: opts.source, committed: true };
+    if (isDropDebugEnabled()) {
+      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
+    }
+    return true;
+  }
 
   const dropStackEl = document.elementsFromPoint(clientX, clientY)
     .map(el => {
@@ -262,11 +288,36 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
       return node.closest('[data-drop-stack-zone]')
         || node.closest('[data-plugin-tab-id="dropstack"]');
     })
-    .find(Boolean);
+    .find(Boolean)
+    || hitTestSelectorByRect(clientX, clientY, '[data-drop-stack-zone]')
+    || hitTestSelectorByRect(clientX, clientY, '[data-plugin-tab-id="dropstack"]');
   if (dropStackEl) {
     appendDropStackPaths(paths);
     window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'dropstack' } }));
     lastDropDebug = { clientX, clientY, coordSource, destPath: 'drop-stack', source: opts.source, committed: true };
+    if (isDropDebugEnabled()) {
+      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
+    }
+    return true;
+  }
+
+  const ramZoneEl = (
+    document.elementsFromPoint(clientX, clientY)
+      .map(el => (el as HTMLElement).closest('[data-ram-zone-id]'))
+      .find(Boolean)
+    || hitTestSelectorByRect(clientX, clientY, '[data-ram-zone-id]')
+  ) as HTMLElement | null;
+  const ramZoneId = ramZoneEl?.getAttribute('data-ram-zone-id');
+  if (ramZoneId) {
+    void IPC.ramStagingStagePaths(ramZoneId, paths.map(toWindowsPath)).then(r => {
+      if (!r?.ok) {
+        void import('../components/ToastHost').then(({ pushToast }) => {
+          pushToast({ kind: 'error', title: 'RAM Staging', message: r?.error || 'Could not stage files.' });
+        }).catch(() => { /* ignore */ });
+      }
+    }).catch(() => { /* ignore */ });
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'ram-staging' } }));
+    lastDropDebug = { clientX, clientY, coordSource, destPath: `ram-zone:${ramZoneId}`, source: opts.source, committed: true };
     if (isDropDebugEnabled()) {
       window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
     }
@@ -278,7 +329,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     .find(Boolean);
   if (meshDropInboxEl) {
     const op: 'copy' | 'move' = opts.op === 'move' || opts.preferredEffect === 'move' ? 'move' : 'copy';
-    ctx.executeDrop(op, paths.map(toWindowsPath), MESH_DROP_INBOX_DEST);
+    ctx.executeDrop(op, paths.map(toWindowsPath), MESH_DROP_INBOX_DEST, undefined, dropOpts);
     lastDropDebug = { clientX, clientY, coordSource, destPath: MESH_DROP_INBOX_DEST, source: opts.source, committed: true };
     if (isDropDebugEnabled()) {
       window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
@@ -292,7 +343,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
   const homeNavPath = homeNavEl?.getAttribute('data-home-nav-path');
   if (homeNavPath && isFsDropTargetPath(homeNavPath)) {
     const op: 'copy' | 'move' = opts.preferredEffect === 'move' ? 'move' : 'copy';
-    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(homeNavPath));
+    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(homeNavPath), undefined, dropOpts);
     lastDropDebug = { clientX, clientY, coordSource, destPath: homeNavPath, source: opts.source, committed: true };
     if (isDropDebugEnabled()) {
       window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
@@ -325,7 +376,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
   const favoritePath = favoriteEl?.getAttribute('data-favorite-path');
   if (favoritePath) {
     const op: 'copy' | 'move' = opts.preferredEffect === 'move' ? 'move' : 'copy';
-    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(favoritePath));
+    ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(favoritePath), undefined, dropOpts);
     lastDropDebug = { clientX, clientY, coordSource, destPath: favoritePath, source: opts.source, committed: true };
     return true;
   }
@@ -337,7 +388,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     const openPath = `/${parentWin.replace(/\\/g, '/').replace(/^\/+/, '')}`;
     ctx.setActivePaneId(newTabPaneId);
     ctx.addTab(newTabPaneId, openPath);
-    ctx.executeDrop('copy', paths.map(toWindowsPath), canonicalDropPath(openPath));
+    ctx.executeDrop('copy', paths.map(toWindowsPath), canonicalDropPath(openPath), undefined, dropOpts);
     lastDropDebug = { clientX, clientY, coordSource, destPath: openPath, source: opts.source, committed: true };
     return true;
   }
@@ -395,7 +446,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
       || recordPointerDragHover.last.overList
       || !!ctx.getHtmlDropTarget()?.tabPath;
     const fallbackOp: 'copy' | 'move' = opts.op === 'move' ? 'move' : 'copy';
-    if (hoveredList && tryCommitToKnownListFolder(ctx, paths, fallbackOp, opts.source)) {
+    if (hoveredList && tryCommitToKnownListFolder(ctx, paths, fallbackOp, opts.source, dropOpts)) {
       lastDropDebug = { clientX, clientY, coordSource, destPath: 'active-list-fallback', source: opts.source, committed: true };
       if (isDropDebugEnabled()) {
         window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
@@ -416,7 +467,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     if (!fromBndzOle) consumeOleDragSession();
     if (oleSession?.op === 'move' || oleSession?.op === 'copy') op = oleSession.op;
     else if (opts.preferredEffect === 'move') op = 'move';
-    ctx.executeDrop(op, paths.map(toWindowsPath), destCanon, oleSession?.sourceTabPath);
+    ctx.executeDrop(op, paths.map(toWindowsPath), destCanon, oleSession?.sourceTabPath, dropOpts);
   } else {
     ctx.executeDrop(op, paths.map(toWindowsPath), destCanon);
   }
@@ -430,75 +481,102 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
 
 let lastInboundDropKey = '';
 let lastInboundDropMs = 0;
+let lastInboundDropOk = false;
+let inboundInFlightKey = '';
 
-function shouldDedupeInboundDrop(paths: string[]): boolean {
+/** Only skip when a *successful* commit of the same paths landed very recently. */
+function shouldSkipDuplicateInbound(paths: string[]): boolean {
   const key = [...paths].sort().join('\0');
   const now = Date.now();
-  if (key === lastInboundDropKey && now - lastInboundDropMs < 600) return true;
-  lastInboundDropKey = key;
-  lastInboundDropMs = now;
-  return false;
+  return lastInboundDropOk
+    && key === lastInboundDropKey
+    && now - lastInboundDropMs < 700;
+}
+
+function markInboundDropResult(paths: string[], ok: boolean): void {
+  lastInboundDropKey = [...paths].sort().join('\0');
+  lastInboundDropMs = Date.now();
+  lastInboundDropOk = ok;
+}
+
+function resolveInboundOp(opts: ResolveAndCommitDropOpts): 'copy' | 'move' {
+  if (opts.op === 'move' || opts.preferredEffect === 'move') return 'move';
+  return 'copy';
 }
 
 /**
- * External OLE drop from WPF host — only fires when drop landed in our window.
+ * External OLE / HTML5 drop into BNDZ — only when drop landed in our window.
  * Falls back to active-pane folder when coord hit-tests miss (125% DPI, etc.).
+ * Dual-path (OLE + HTML5 + ExecuteScript inject) must not double-commit.
  */
 export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Promise<boolean> {
   if (!opts.paths?.length) return false;
-  if (shouldDedupeInboundDrop(opts.paths)) return true;
+  if (shouldSkipDuplicateInbound(opts.paths)) return true;
+  const flightKey = [...opts.paths].sort().join('\0');
+  if (inboundInFlightKey === flightKey) return true;
   if (!busContext) {
     pendingDrops.push(opts);
     return false;
   }
+  inboundInFlightKey = flightKey;
 
-  const { clientX, clientY } = resolveDropCoords(opts, 'externalOle');
-  const magnetId = hitTestMagnetAtPoint(clientX, clientY);
-  if (magnetId) {
-    const res = await IPC.magnetApplyDrop(
-      magnetId,
-      opts.paths,
-      opts.preferredEffect === 'move' ? 'move' : 'copy',
-    );
-    if (res.ok || isQueuedIpcResult(res)) {
-      lastDropDebug = { clientX, clientY, coordSource: 'htmlTarget', destPath: `magnet:${magnetId}`, source: 'externalOle', committed: true };
-      window.dispatchEvent(new CustomEvent('bndz-magnet-applied', { detail: { magnetId, paths: opts.paths } }));
-      return true;
-    }
-    busContext.toast(res.error || 'Magnet drop failed.');
-    return false;
-  }
+  try {
+    const op = resolveInboundOp(opts);
+    const normalized: ResolveAndCommitDropOpts = { ...opts, op, preferredEffect: op, source: 'externalOle' };
 
-  if (resolveAndCommitDrop(opts)) return true;
-
-  // Defer to studio plugins when drop is over their surface (OLE steals HTML5 DnD).
-  {
-    const { clientX, clientY } = resolveDropCoords(opts, 'externalOle');
-    const hit = document.elementFromPoint(clientX, clientY);
-    if (
-      hit?.closest('[data-icon-studio]')
-      || hit?.closest('.icon-studio')
-      || hit?.closest('.bndz-design-board')
-      || hit?.closest('.bndz-design-board-overlay')
-      || hit?.closest('.bndz-photo-studio')
-      || hit?.closest('[data-studio-drop-surface]')
-    ) {
+    const { clientX, clientY } = resolveDropCoords(normalized, 'externalOle');
+    const magnetId = hitTestMagnetAtPoint(clientX, clientY);
+    if (magnetId) {
+      const res = await IPC.magnetApplyDrop(magnetId, opts.paths, op);
+      if (res.ok || isQueuedIpcResult(res)) {
+        lastDropDebug = { clientX, clientY, coordSource: 'htmlTarget', destPath: `magnet:${magnetId}`, source: 'externalOle', committed: true };
+        window.dispatchEvent(new CustomEvent('bndz-magnet-applied', { detail: { magnetId, paths: opts.paths } }));
+        markInboundDropResult(opts.paths, true);
+        return true;
+      }
+      busContext.toast(res.error || 'Magnet drop failed.');
+      markInboundDropResult(opts.paths, false);
       return false;
     }
-  }
 
-  const op: 'copy' | 'move' = opts.preferredEffect === 'move' ? 'move' : 'copy';
-  if (forceCommitToActivePaneFolder(opts.paths, op, 'externalOle')) return true;
-  busContext.toast('Open a folder tab to receive dropped files.');
-  lastDropDebug = {
-    clientX: opts.webViewX ?? opts.clientX ?? 0,
-    clientY: opts.webViewY ?? opts.clientY ?? 0,
-    coordSource: 'fallback',
-    destPath: 'none',
-    source: 'externalOle',
-    committed: false,
-  };
-  return false;
+    if (resolveAndCommitDrop(normalized)) {
+      markInboundDropResult(opts.paths, true);
+      return true;
+    }
+
+    {
+      const hit = document.elementFromPoint(clientX, clientY);
+      if (
+        hit?.closest('[data-icon-studio]')
+        || hit?.closest('.icon-studio')
+        || hit?.closest('.bndz-design-board')
+        || hit?.closest('.bndz-design-board-overlay')
+        || hit?.closest('.bndz-photo-studio')
+        || hit?.closest('[data-studio-drop-surface]')
+      ) {
+        markInboundDropResult(opts.paths, false);
+        return false;
+      }
+    }
+
+    if (forceCommitToActivePaneFolder(opts.paths, op, 'externalOle')) {
+      markInboundDropResult(opts.paths, true);
+      return true;
+    }
+    busContext.toast('Open a folder tab to receive dropped files.');
+    lastDropDebug = {
+      clientX: opts.webViewX ?? opts.clientX ?? 0,
+      clientY: opts.webViewY ?? opts.clientY ?? 0,
+      coordSource: 'fallback',
+      destPath: 'none',
+      source: 'externalOle',
+      committed: false,
+    };
+    markInboundDropResult(opts.paths, false);
+    return false;
+  } finally {
+    if (inboundInFlightKey === flightKey) inboundInFlightKey = '';
+  }
 }
 
 /** Archive extract-and-copy — never escalate to desktop OLE when still inside BNDZ. */

@@ -112,10 +112,20 @@ export default function ImageZoomPreview({
     if (blobTriedRef.current || !filePath) return false;
     blobTriedRef.current = true;
     try {
+      const win = toWindowsPath(filePath);
+      // SVG: prefer sanitized text→blob (same as docked/Quick Look) before media-blob.
+      if (/\.svg$/i.test(win)) {
+        const { resolveSvgInlineThumb } = await import('../lib/svgInlineThumb');
+        const svgUrl = await resolveSvgInlineThumb(win);
+        if (svgUrl) {
+          setImgSrc(svgUrl);
+          return true;
+        }
+      }
       const { IPC } = await import('../lib/ipcBridge');
       if (!IPC.isNative) return false;
       // Hard cap — decoding multi‑MB base64 on the UI thread freezes WebView2.
-      const result = await IPC.getMediaBlob(toWindowsPath(filePath), 2 * 1024 * 1024);
+      const result = await IPC.getMediaBlob(win, 2 * 1024 * 1024);
       if (!result.base64 || !result.mime || result.error) return false;
       if (result.base64.length > 2.8e6) return false; // ~2MB binary ≈ 2.7M b64 chars
       const binary = atob(result.base64);

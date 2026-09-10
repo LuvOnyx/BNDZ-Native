@@ -14,7 +14,7 @@ export const TAB_ACCENT_PRESETS = [
 /** Colored tab chrome — reads as a machined bar, not a flat web pill. */
 export function tabAccentStyle(color?: string | null, isActive?: boolean): Record<string, string> | undefined {
   if (!color) return undefined;
-  const edge = isActive ? color : `${color}cc`;
+  const edge = isActive ? color : color;
   return {
     borderTopWidth: '3px',
     borderTopStyle: 'solid',
@@ -31,12 +31,14 @@ export function tabAccentStyle(color?: string | null, isActive?: boolean): Recor
           `0 0 14px ${color}28`,
         ].join(', ')
       : [
-          `inset 0 1px 0 ${color}44`,
-          `inset 0 -1px 0 ${color}22`,
+          `inset 0 2px 0 ${color}`,
+          `inset 0 1px 0 ${color}66`,
+          `inset 0 -1px 0 ${color}33`,
           `0 1px 0 rgba(0,0,0,0.25)`,
         ].join(', '),
     backgroundImage: isActive
       ? `linear-gradient(180deg, ${color}28 0%, ${color}0c 42%, transparent 100%)`
-      : `linear-gradient(180deg, ${color}14 0%, transparent 65%)`,
-  };
+      : `linear-gradient(180deg, ${color}32 0%, ${color}14 45%, transparent 100%)`,
+    backgroundColor: isActive ? undefined : `${color}18`,
+  } as Record<string, string>;
 }

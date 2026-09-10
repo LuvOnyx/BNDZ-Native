@@ -6,6 +6,7 @@ import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
+import RealityCheckPlugin from './RealityCheckPlugin';
 import {
   PluginToolbarButton,
   PluginTabStrip,
@@ -22,12 +23,12 @@ export const LibraryHealthPluginDef = {
   id: 'library-health',
   name: 'Library Health',
   icon: 'shield_ui',
-  description: 'Scan libraries for broken links, naming conflicts, permission issues, and orphans.',
+  description: 'Scan libraries for broken links, naming conflicts, permission issues, orphans, and missing project refs.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
 
-type TabId = 'summary' | 'problems' | 'plan';
+type TabId = 'summary' | 'problems' | 'plan' | 'refs';
 
 type Problem = {
   id: string;
@@ -103,9 +104,11 @@ function splitPath(full: string): { leaf: string; parent: string } {
 
 export default function LibraryHealthPlugin({
   currentPath,
+  pluginLaunch,
 }: {
   selectedPaths?: string[];
   currentPath?: string;
+  pluginLaunch?: { tab?: string; currentPath?: string; rootPath?: string } | null;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [summary, setSummary] = useState<Summary>({ total: 0, critical: 0, warning: 0, info: 0 });
@@ -123,6 +126,13 @@ export default function LibraryHealthPlugin({
     fixAllAuto: false,
   });
   const [approving, setApproving] = useState(false);
+
+  useEffect(() => {
+    const launchTab = String(pluginLaunch?.tab || '').toLowerCase();
+    if (launchTab === 'refs' || launchTab === 'missing' || launchTab === 'reality') {
+      setActiveTab('refs');
+    }
+  }, [pluginLaunch?.tab]);
 
   const refresh = useCallback(async () => {
     try {
@@ -273,6 +283,7 @@ export default function LibraryHealthPlugin({
   const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = [
     { id: 'summary', label: 'Summary', icon: 'piechart_ui' },
     { id: 'problems', label: 'Problems', icon: 'warning', badge: summary.total },
+    { id: 'refs', label: 'Missing refs', icon: 'data_warning' },
     { id: 'plan', label: 'Plan', icon: 'task_due', badge: planActions.length || undefined },
   ];
 
@@ -282,7 +293,7 @@ export default function LibraryHealthPlugin({
       icon="shield_ui"
       iconColor="#f59e0b"
       variant="embedded"
-      subtitle="Integrity scanner · broken links · naming conflicts"
+      subtitle="Integrity scanner · broken links · missing project refs"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -299,6 +310,11 @@ export default function LibraryHealthPlugin({
         </PluginTabStrip>
       }
     >
+      {activeTab === 'refs' ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <RealityCheckPlugin currentPath={pluginLaunch?.currentPath || pluginLaunch?.rootPath || currentPath} />
+        </div>
+      ) : (
       <div className="flex flex-col min-h-0">
         <PluginHeroStrip
           icon={
@@ -554,6 +570,7 @@ export default function LibraryHealthPlugin({
           )}
         </div>
       </div>
+      )}
     </PluginPanelShell>
   );
 }

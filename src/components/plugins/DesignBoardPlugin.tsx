@@ -37,9 +37,12 @@ type Props = {
   useOpenPencil?: boolean;
 };
 
+type HostMsg = Record<string, unknown>;
+
 /**
  * Host for the Figma/ProDesign UI (public/editors/bndz-design-board.html).
  * Chrome stays; Fabric canvas is default. OpenPencil opt-in via useOpenPencil prop.
+ * Expand uses CSS fixed overlay on the same iframe host — never remounts the frame.
  */
 export default function DesignBoardPlugin({
   popout = false,
@@ -48,14 +51,28 @@ export default function DesignBoardPlugin({
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  const pendingRef = useRef<HostMsg[]>([]);
+  const boardReadyRef = useRef(false);
   const [expanded, setExpanded] = useState(!!popout);
   const [boardKey, setBoardKey] = useState(0);
   const [keysArmed, setKeysArmed] = useState(!!popout);
   const [status, setStatus] = useState<string | null>(null);
 
-  const postToBoard = useCallback((msg: Record<string, unknown>) => {
+  const flushPending = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
-    if (!win) return;
+    if (!win || !boardReadyRef.current) return;
+    const queued = pendingRef.current.splice(0, pendingRef.current.length);
+    for (const msg of queued) {
+      win.postMessage({ source: 'bndz-host', ...msg }, '*');
+    }
+  }, []);
+
+  const postToBoard = useCallback((msg: HostMsg) => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !boardReadyRef.current) {
+      pendingRef.current.push(msg);
+      return;
+    }
     win.postMessage({ source: 'bndz-host', ...msg }, '*');
   }, []);
 
@@ -85,10 +102,14 @@ export default function DesignBoardPlugin({
   });
 
   const newBoard = useCallback(() => {
-    // Prefer in-place reset — full iframe reload was blanking before Fabric boot finished.
     postToBoard({ type: 'action', action: 'new' });
     setStatus('Fresh board');
   }, [postToBoard]);
+
+  useEffect(() => {
+    boardReadyRef.current = false;
+    pendingRef.current = [];
+  }, [boardKey]);
 
   useEffect(() => {
     if (popout) return;
@@ -96,7 +117,7 @@ export default function DesignBoardPlugin({
       const root = document.querySelector('.bndz-design-board');
       if (root && e.target instanceof Node && root.contains(e.target)) {
         setKeysArmed(true);
-      } else if (!(e.target as HTMLElement | null)?.closest?.('.bndz-design-board-overlay')) {
+      } else if (!(e.target as HTMLElement | null)?.closest?.('.bndz-design-board-dock-fab')) {
         setKeysArmed(false);
       }
     };
@@ -137,8 +158,17 @@ export default function DesignBoardPlugin({
   useEffect(() => {
     const onMsg = (ev: MessageEvent) => {
       const d = ev.data;
-      if (!d || d.source !== 'bndz-openpencil') return;
+      if (!d || typeof d !== 'object') return;
+      if (d.source === 'bndz-design-board' && d.type === 'ready') {
+        boardReadyRef.current = true;
+        flushPending();
+        setStatus('Design Board ready');
+        return;
+      }
+      if (d.source !== 'bndz-openpencil') return;
       if (d.type === 'ready') {
+        boardReadyRef.current = true;
+        flushPending();
         setStatus(d.degraded ? 'OpenPencil failed — Fabric fallback' : 'OpenPencil live');
       } else if (d.type === 'error' && d.message) {
         setStatus(String(d.message));
@@ -148,9 +178,8 @@ export default function DesignBoardPlugin({
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, []);
+  }, [flushPending]);
 
-  // Host OLE drops (WebView2 IDropTarget steals Chromium HTML5 DnD).
   useEffect(() => {
     const onExternalDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -159,7 +188,7 @@ export default function DesignBoardPlugin({
       const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : null;
       const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : null;
       if (clientX != null && clientY != null) {
-        if (!hitIsStudioSurface(clientX, clientY, ['.bndz-design-board', '.bndz-design-board-overlay'])) return;
+        if (!hitIsStudioSurface(clientX, clientY, ['.bndz-design-board', '.bndz-design-board-dock-fab'])) return;
       }
       void placeDropImages(paths);
     };
@@ -183,20 +212,13 @@ export default function DesignBoardPlugin({
   }, [placeDropImages]);
 
   const postResize = useCallback((opts?: { forceFit?: boolean }) => {
-    try {
-      iframeRef.current?.contentWindow?.postMessage(
-        {
-          source: 'bndz-host',
-          type: 'action',
-          action: 'resize',
-          forceFit: !!opts?.forceFit,
-        },
-        '*',
-      );
-    } catch { /* ignore */ }
-  }, []);
+    postToBoard({
+      type: 'action',
+      action: 'resize',
+      forceFit: !!opts?.forceFit,
+    });
+  }, [postToBoard]);
 
-  // Ordinary host resize: never forceFit (avoids thrash). Expand / large size uses forceFit.
   useEffect(() => {
     if (!isPluginTabActive && !expanded && !popout) return;
     const forceFit = !!(expanded || popout);
@@ -205,7 +227,6 @@ export default function DesignBoardPlugin({
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [expanded, popout, boardKey, isPluginTabActive, postResize]);
 
-  // Expand / popout: show inspector panels (nested dock boots panels-hidden + bottom strip).
   useEffect(() => {
     if (!expanded && !popout) return;
     const timers = [80, 220, 600].map((ms) =>
@@ -220,7 +241,6 @@ export default function DesignBoardPlugin({
     let raf = 0;
     const ro = new ResizeObserver(() => {
       cancelAnimationFrame(raf);
-      // Dock resize only — no forceFit. Fit happens inside the editor when size past MIN_FIT_*.
       raf = requestAnimationFrame(() => postResize());
     });
     ro.observe(root);
@@ -233,31 +253,46 @@ export default function DesignBoardPlugin({
   const board = (
     <div
       ref={boardRef}
-      className={`bndz-design-board bndz-design-board--exact bndz-design-board--no-hostbar${expanded || popout ? ' is-expanded' : ''}${popout ? ' is-popout' : ''}`}
+      className={`bndz-design-board bndz-design-board--exact bndz-design-board--no-hostbar${expanded || popout ? ' is-expanded' : ''}${popout ? ' is-popout' : ''}${expanded && !popout ? ' bndz-design-board--viewport' : ''}`}
       data-studio-drop-surface="design-board"
       onDragEnter={onHostDragOver}
       onDragOver={onHostDragOver}
       onDrop={onHostDrop}
     >
-      {/* No host Expand/New board chrome — duplicates stole clicks from iframe menus.
-          Expand via double-click title / View menu postMessage; dock strip removed. */}
       <iframe
         key={boardKey}
         ref={iframeRef}
         className="bndz-design-board-frame"
         title="BNDZ Design Board"
         tabIndex={0}
-          src={editorSrc(useOpenPencil)}
+        src={editorSrc(useOpenPencil)}
         sandbox="allow-scripts allow-same-origin allow-downloads allow-modals"
         onLoad={() => {
           try {
             iframeRef.current?.focus({ preventScroll: true });
           } catch { /* ignore */ }
-          window.setTimeout(() => postResize(), 60);
+          // Soft unlock — editor also posts ready; avoid dropping early host messages forever.
+          window.setTimeout(() => {
+            if (!boardReadyRef.current) {
+              boardReadyRef.current = true;
+              flushPending();
+            }
+            postResize();
+          }, 60);
           window.setTimeout(() => postResize(), 220);
         }}
       />
       {status && <div className="bndz-design-board-toast">{status}</div>}
+      {expanded && !popout && (
+        <button
+          type="button"
+          className="bndz-design-board-dock-fab"
+          onClick={() => setExpanded(false)}
+          title="Dock Design Board"
+        >
+          Dock
+        </button>
+      )}
     </div>
   );
 
@@ -269,22 +304,7 @@ export default function DesignBoardPlugin({
     );
   }
 
-  if (expanded) {
-    return (
-      <div className="bndz-design-board-overlay" role="dialog" aria-label="Design Board">
-        {board}
-        <button
-          type="button"
-          className="bndz-design-board-dock-fab"
-          onClick={() => setExpanded(false)}
-          title="Dock Design Board"
-        >
-          Dock
-        </button>
-      </div>
-    );
-  }
-
+  // Single tree: expand via CSS fixed viewport — iframe never remounts.
   return (
     <PluginPanelShell
       title="Design Board"
@@ -293,7 +313,7 @@ export default function DesignBoardPlugin({
       subtitle="Hosted canvas engine · Fabric / OpenPencil"
       variant="embedded"
       scrollable={false}
-      footer={(
+      footer={!expanded ? (
         <div className="bndz-design-board-host-actions" style={{ border: 'none', padding: 0, background: 'transparent', width: '100%' }}>
           <PluginToolbarButton
             onClick={() => {
@@ -306,8 +326,19 @@ export default function DesignBoardPlugin({
             Expand
           </PluginToolbarButton>
           <PluginToolbarButton onClick={newBoard} title="Start a fresh board">New board</PluginToolbarButton>
+          <PluginToolbarButton
+            onClick={() => {
+              boardReadyRef.current = false;
+              pendingRef.current = [];
+              setBoardKey(k => k + 1);
+              setStatus('Reloading board…');
+            }}
+            title="Hard-reload the editor frame"
+          >
+            Reload
+          </PluginToolbarButton>
         </div>
-      )}
+      ) : null}
     >
       {board}
     </PluginPanelShell>

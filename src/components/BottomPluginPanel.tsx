@@ -19,8 +19,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
-import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import { Icons8Icon, DragHandleGlyph, PopOutGlyph } from './Icons8Icon';
 import BndzErrorBoundary from './BndzErrorBoundary';
+import { IPC } from '../lib/ipcBridge';
+import { pushToast } from './ToastHost';
 import type { ContextToolId } from '../workstation/command-deck/contextToolRegistry';
 
 /** Keep tab reorder drags horizontal — no vertical pull on the tab strip. */
@@ -271,7 +273,7 @@ export default function BottomPluginPanel(props: any & {
       'folder-sync': 'folder-sync',
       'project-sandbox': 'project-sandbox',
       'library-health': 'library-health',
-      'capacity-solver': 'capacity-solver',
+      'capacity-solver': 'storage-cleanup',
       'inbound-volume': 'inbound-volume',
       'branching-time': 'branching-time',
       'transcode-rack': 'transcode-rack',
@@ -280,7 +282,15 @@ export default function BottomPluginPanel(props: any & {
     };
     const tab = tabMap[id];
     // Hard invariant: never switch to a tab for an uninstalled plugin.
-    if (tab && orderedPlugins.some((p: any) => p.id === tab)) handleTabClick(tab);
+    if (tab && orderedPlugins.some((p: any) => p.id === tab)) {
+      if (id === 'capacity-solver') {
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+          detail: { id: 'storage-cleanup', tab: 'capacity' },
+        }));
+        return;
+      }
+      handleTabClick(tab);
+    }
   }, [onCommandDeckTool, config.bottomPanelRememberTab, updateConfig, orderedPlugins]);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -387,20 +397,19 @@ export default function BottomPluginPanel(props: any & {
                   title="Pop out plugin into a separate window"
                   onClick={() => {
                     const name = activePlugin?.name;
-                    void import('../lib/ipcBridge').then(async ({ IPC }) => {
+                    void (async () => {
                       const r = await IPC.openPluginWindow(activeTab, { title: name });
                       if (!r?.ok) {
-                        const { pushToast } = await import('./ToastHost');
                         pushToast({
                           kind: 'error',
                           title: 'Pop-out failed',
                           message: r?.error || 'Could not open plugin window',
                         });
                       }
-                    });
+                    })();
                   }}
                 >
-                  <Icons8Icon id="external_link" size={12} />
+                  <PopOutGlyph size={12} className="text-sky-200" />
                 </button>
               )}
               {!immersive && onEnterImmersive && (

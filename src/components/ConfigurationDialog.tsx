@@ -29,6 +29,7 @@ import { mergeUserCommands } from '../lib/userCommands';
 import BndzIndexManagerPanel from './settings/BndzIndexManagerPanel';
 import WorkspaceToolsTabContent from './settings/WorkspaceToolsTabContent';
 import CustomColumnsTabContent from './settings/CustomColumnsTabContent';
+import NotificationsTabContent from './settings/NotificationsTabContent';
 import FieldPickerDialog from './settings/FieldPickerDialog';
 import {
   STANDARD_FILE_INFO_FIELDS,
@@ -275,10 +276,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
       const result = await apply();
       if (!result.success && result.needsElevation) {
+        // Pass --apply-shell so the elevated process force-applies ALL shell settings
+        // from persisted config before the WebView / fingerprint system initialises.
         const elevated = await promptElevationIfNeeded(result, {
           title: 'Administrator approval required',
-          message: `${result.message}\n\nRestart BNDZ as administrator to ${elevationLabel}?`,
-        });
+          message: `${result.message}\n\nRestart BNDZ as administrator to ${elevationLabel}?\n\nAll Shell Integration settings will be applied on restart.`,
+        }, '--apply-shell --elevated');
         if (!elevated) {
           setLocalConfig(prev => {
             const reverted = { ...prev };
@@ -448,7 +451,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   };
 
   const categories = [
-    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Keyboard Shortcuts", "Controls & More", "Safety Belts, Network", "Startup & Exit"] },
+    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Keyboard Shortcuts", "Controls & More", "Notifications", "Safety Belts, Network", "Startup & Exit"] },
     { name: "Automation", items: ["Workspace Tools", "Custom Event Actions", "User Commands"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
@@ -560,19 +563,6 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     Other: 'from-slate-500/22 to-transparent border-slate-500/35',
   };
 
-  const categoryTabActive: Record<string, string> = {
-    General: 'data-active:bg-[#094771]/45 data-active:text-[#cce4f7] data-active:border-[#0078d4]/45 data-active:font-medium',
-    Automation: 'data-active:bg-orange-600/25 data-active:text-orange-100 data-active:border-orange-500/45 data-active:font-medium',
-    'Colors and Styles': 'data-active:bg-violet-600/25 data-active:text-violet-100 data-active:border-violet-500/45 data-active:font-medium',
-    Information: 'data-active:bg-emerald-600/25 data-active:text-emerald-100 data-active:border-emerald-500/45 data-active:font-medium',
-    'File Operations': 'data-active:bg-amber-600/25 data-active:text-amber-100 data-active:border-amber-500/45 data-active:font-medium',
-    'Find and Filter': 'data-active:bg-cyan-600/25 data-active:text-cyan-100 data-active:border-cyan-500/45 data-active:font-medium',
-    Preview: 'data-active:bg-pink-600/25 data-active:text-pink-100 data-active:border-pink-500/45 data-active:font-medium',
-    'Tabs and Panes': 'data-active:bg-indigo-600/25 data-active:text-indigo-100 data-active:border-indigo-500/45 data-active:font-medium',
-    'Shell & Access': 'data-active:bg-slate-600/25 data-active:text-slate-100 data-active:border-slate-500/45 data-active:font-medium',
-    Other: 'data-active:bg-slate-600/25 data-active:text-slate-100 data-active:border-slate-500/45 data-active:font-medium',
-  };
-
   return (
     <BndzWindowFrame
       title="Configuration"
@@ -585,22 +575,22 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-row flex-1 min-h-0 overflow-hidden" orientation="vertical">
          {/* Sidebar Tabs */}
-         <div className="bndz-settings-nav w-[240px] bg-[#141418] border-r border-[#333] shrink-0 flex flex-col min-h-0">
-            <div className="shrink-0 p-2.5 border-b border-[#333] bg-[#141418] space-y-2">
+         <div className="bndz-settings-nav w-[248px] shrink-0 flex flex-col min-h-0">
+            <div className="bndz-settings-nav-search shrink-0 p-2.5 space-y-2">
               <div className="relative">
-                <Icons8Icon id="search" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-60 pointer-events-none" />
+                <Icons8Icon id="search" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-55 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Filter settings…"
                   value={navFilter}
                   onChange={e => setNavFilter(e.target.value)}
-                  className="w-full bg-[#0d0d10] border border-[#333] pl-8 pr-2 py-1.5 text-[11px] text-gray-200 placeholder-gray-600 outline-none focus:border-[#0078d4]/50"
+                  className="w-full bg-[#0c0c10]/90 border border-white/[0.08] pl-8 pr-2.5 py-1.5 text-[11px] text-gray-200 placeholder-gray-600 outline-none"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => { setShowJumpDialog(true); setJumpQuery(''); }}
-                className="bndz-settings-jump w-full text-gray-500 hover:text-[#7eb8e8] py-1 transition-colors text-left"
+                className="bndz-settings-jump w-full text-gray-500 hover:text-[#9ec9ea] py-1 transition-colors text-left"
               >
                 Jump to setting (Ctrl+F)
               </button>
@@ -608,20 +598,21 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             <div className="flex-1 min-h-0 overflow-y-auto styled-scrollbar">
             <TabsList variant="line" className="!flex !flex-col !items-stretch !justify-start !w-full !h-auto !p-2 !gap-0 !rounded-none !bg-transparent">
                {filteredCategories.map((cat, i) => (
-                 <div key={i} className="mb-3 last:mb-2">
-                    <div className={`bndz-settings-category mb-1 px-2.5 py-1.5 rounded-md border bg-gradient-to-r flex items-center justify-between gap-1.5 ${categoryAccent[cat.name] || categoryAccent.Other}`}>
-                      <span className="flex items-center gap-1.5 text-gray-300 min-w-0">
+                 <div key={i} className="bndz-settings-nav-group mb-2.5 last:mb-1" data-settings-cat={cat.name}>
+                    <div className={`bndz-settings-category mb-1.5 px-2.5 py-1.5 flex items-center justify-between gap-1.5 border bg-gradient-to-r ${categoryAccent[cat.name] || categoryAccent.Other}`}>
+                      <span className="flex items-center gap-1.5 text-gray-300/95 min-w-0">
                         {categoryIcons[cat.name]}
                         <span className="truncate">{cat.name}</span>
                       </span>
-                      <span className="bndz-panel-muted bndz-mono shrink-0 text-[10px]">{cat.items.length}</span>
+                      <span className="bndz-settings-cat-count shrink-0">{cat.items.length}</span>
                     </div>
-                    <div className="flex flex-col gap-px pl-1">
+                    <div className="bndz-settings-nav-items flex flex-col gap-0.5 pl-0.5">
                     {cat.items.map((item, j) => (
-                       <TabsTrigger 
-                         key={j} 
-                         value={item} 
-                         className={`bndz-settings-nav-item !flex-none !grow-0 !shrink-0 !h-auto !min-h-[26px] !w-full !justify-start !text-left !px-2.5 !py-1.5 !pl-3 !text-[12px] !font-normal !rounded-md !border !border-transparent !whitespace-normal !leading-snug text-[#c8c8c8] hover:bg-white/5 !shadow-none after:!hidden ${categoryTabActive[cat.name] || categoryTabActive.Other}`}
+                       <TabsTrigger
+                         key={j}
+                         value={item}
+                         data-settings-cat={cat.name}
+                         className="bndz-settings-nav-item !flex-none !grow-0 !shrink-0 !h-auto !min-h-[28px] !w-full !justify-start !text-left !px-2.5 !py-1.5 !pl-3 !text-[12px] !font-normal !whitespace-normal !leading-snug !shadow-none after:!hidden"
                        >
                          {TAB_NAV_LABELS[item] || item}
                        </TabsTrigger>
@@ -694,6 +685,24 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
               <SettingsSection title="File list" description="Columns, selection, and display in the main workspace.">
                  <Checkbox label={<span>Show File <span className="underline decoration-1 underline-offset-[3px]">E</span>xtensions</span>} checked={localConfig.showFileExtensions ?? false} onChange={e => updateLocalConfig({ showFileExtensions: e.target.checked })} />
+                 <Checkbox
+                   label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">H</span>idden files in list</span>}
+                   checked={localConfig.showHiddenFiles ?? false}
+                   onChange={e => updateLocalConfig({
+                     showHiddenFiles: e.target.checked,
+                     showHiddenSystemFoldersInTree: e.target.checked || !!localConfig.showSystemFiles,
+                   })}
+                 />
+                 <p className="text-[10px] text-[#888] -mt-1 mb-1 ml-[22px]">Also available in View menu. Files with the Hidden attribute are shown dimmed.</p>
+                 <Checkbox
+                   label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">S</span>ystem files in list</span>}
+                   checked={localConfig.showSystemFiles ?? false}
+                   onChange={e => updateLocalConfig({
+                     showSystemFiles: e.target.checked,
+                     showHiddenSystemFoldersInTree: e.target.checked || !!localConfig.showHiddenFiles,
+                   })}
+                 />
+                 <p className="text-[10px] text-[#888] -mt-1 mb-1 ml-[22px]">Shows $-prefixed and system-attributed items (e.g. pagefile.sys, System Volume Information).</p>
                  <Checkbox label={<span>A<span className="underline decoration-1 underline-offset-[3px]">u</span>to-select first item</span>} checked={localConfig.autoSelectFirstItem ?? false} onChange={e => updateLocalConfig({ autoSelectFirstItem: e.target.checked })} />
                  <Checkbox label={<span>Select <span className="underline decoration-1 underline-offset-[3px]">l</span>ast used subfolder</span>} checked={localConfig.selectLastUsedSubfolder ?? false} onChange={e => updateLocalConfig({ selectLastUsedSubfolder: e.target.checked })} />
                  <Checkbox label={<span>Select n<span className="underline decoration-1 underline-offset-[3px]">e</span>xt item after delete and move</span>} checked={localConfig.selectNextItemAfterDeleteAndMove ?? false} onChange={e => updateLocalConfig({ selectNextItemAfterDeleteAndMove: e.target.checked })} />
@@ -1016,6 +1025,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
             </TabsContent>
 
+            <TabsContent value="Notifications" className="m-0 border-0 p-0 outline-none">
+              <NotificationsTabContent localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
+            </TabsContent>
+
             <TabsContent value="Controls & More" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Controls & More</h1>
               
@@ -1133,7 +1146,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   <div className="h-2"></div>
                   <Checkbox label={<span>No network <span className="underline decoration-1 underline-offset-[3px]">b</span>rowsing at startup</span>} checked={localConfig.noNetworkBrowsingAtStartup ?? false} onChange={e => updateLocalConfig({ noNetworkBrowsingAtStartup: e.target.checked })} />
                   <Checkbox label={<span>Reconnect mapped network <span className="underline decoration-1 underline-offset-[3px]">d</span>rives at startup</span>} checked={localConfig.reconnectMappedNetworkDrivesAtStartup ?? false} onChange={e => updateLocalConfig({ reconnectMappedNetworkDrivesAtStartup: e.target.checked })} />
-                  <Checkbox label={<span>Adjust to OS lig<span className="underline decoration-1 underline-offset-[3px]">h</span>t/dark mode at startup</span>} checked={localConfig.adjustToOsLightDarkModeAtStartup ?? false} onChange={e => updateLocalConfig({ adjustToOsLightDarkModeAtStartup: e.target.checked })} />
+                  <Checkbox label={<span>Adjust to OS lig<span className="underline decoration-1 underline-offset-[3px]">h</span>t/dark mode at startup</span>} checked={localConfig.adjustToOsLightDarkModeAtStartup ?? false} onChange={e => updateLocalConfig({ adjustToOsLightDarkModeAtStartup: e.target.checked })} disabled={!!localConfig.followOsColorScheme} />
+                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">F</span>ollow Windows light / dark continuously</span>} checked={localConfig.followOsColorScheme ?? false} onChange={e => { const on = e.target.checked; updateLocalConfig({ followOsColorScheme: on }); applySettingsRuntime({ ...localConfig, followOsColorScheme: on } as any); }} />
+                  <p className="text-[10px] text-[#777] ml-5 max-w-[480px]">Also available under Colors and Styles → Highlights &amp; Dark Mode. Dark → Slate Workstation · Light → macOS Light.</p>
               </div>
               
               <SectionHeader title="Save Settings" />
@@ -1348,23 +1363,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <div className="bndz-settings-section-header">
                   <h2 className="text-[13px] font-bold text-white">Notifications</h2>
                 </div>
-                <div className="p-4">
-                <Checkbox label="Show Windows toast notifications (Action Center)" checked={localConfig.useNativeWindowsNotifications !== false} onChange={e => updateLocalConfig({ useNativeWindowsNotifications: e.target.checked })} />
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[12px] text-gray-300">Folder size toast cooldown</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={600}
-                    value={localConfig.folderSizeToastCooldownSeconds ?? 90}
-                    onChange={e => updateLocalConfig({ folderSizeToastCooldownSeconds: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                    className="w-[72px] h-7 bg-[#111] border border-[#555] rounded px-2 text-[12px] text-white"
-                  />
-                  <span className="text-[11px] text-gray-500">seconds (auto-scan only)</span>
-                </div>
-                <div className="mt-2">
-                  <Checkbox label="Only notify when sizes are freshly calculated (not from cache)" checked={localConfig.folderSizeToastOnlyWhenFetched !== false} onChange={e => updateLocalConfig({ folderSizeToastOnlyWhenFetched: e.target.checked })} />
-                </div>
+                <div className="p-4 space-y-2">
+                  <p className="text-[12px] text-gray-400">
+                    Toast delivery, Windows Action Center categories, and folder-size notify options live under{' '}
+                    <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Notifications')}>
+                      General → Notifications
+                    </button>
+                    .
+                  </p>
                 </div>
               </div>
               
@@ -1904,7 +1910,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        useCustomContextMenu: true,
                      })} 
                  />
-                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu with icons. Enable only if you want Windows shell extensions merged in.</p>
+                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. Shell verbs weave into Open / clipboard / tools sections — never a dump folder. Shift+right-click still opens the full Windows menu.</p>
               </div>
 
               <SectionHeader title="Shell Succession" />
@@ -2706,28 +2712,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="Plugin Rack" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Modular Plugin Rack</h1>
-              
-              <SectionHeader title="Active Bottom Panel Plugins" />
-              <div className="ml-[4px] mb-6 space-y-[6px]">
-                 {([
-                   ['properties', 'Properties'],
-                   ['context-menu-manager', 'Context Menus'],
-                   ['icon-studio', 'Icon Studio'],
-                   ['batch-rename', 'Batch Rename'],
-                   ['find', 'Fast Search'],
-                   ['dropstack', 'Drop Stack'],
-                   ['filters', 'Visual Filters'],
-                   ['metadata', 'Metadata Inspector'],
-                 ] as const).map(([id, label]) => {
-                   const defaults = ['properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare'];
-                   const current = localConfig.installedPlugins || defaults;
-                   return (
-                     <Checkbox key={id} label={<span>Enable <span className="font-bold">{label}</span> Module</span>} checked={current.includes(id)} onChange={e => {
-                       updateLocalConfig({ installedPlugins: e.target.checked ? [...new Set([...current, id])] : current.filter((x: string) => x !== id) });
-                     }} />
-                   );
-                 })}
+              <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Modular Plugin Rack</h1>
+              <p className="text-[12px] text-gray-400 mb-6 max-w-[560px] leading-relaxed">
+                Install and uninstall extensions in the <span className="text-gray-200">Extension Hub</span> (Help → Extension Hub or the bottom panel empty state).
+                This settings tab no longer duplicates the install list — that prevented marketplace and config from fighting each other.
+              </p>
+              <div className="bndz-native-dialog-panel p-4 max-w-[520px] space-y-2">
+                <p className="text-[12px] text-gray-300">Default installed: System Properties, Fast Search, Visual Filters.</p>
+                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Extension Hub to add Remote, Ghost-Link, RAM Staging, and selling-pillar tools.</p>
               </div>
 
               <SectionHeader title="Right Sidebar Preview Engine" />
@@ -2956,6 +2948,28 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     </div>
                  </div>
               </div>
+
+              <SectionHeader title="Windows light / dark" />
+              <div className="ml-2 mb-6 space-y-[8px]">
+                <p className="text-[11px] text-[#888] mb-2 max-w-[520px]">
+                  Opt in to match Windows appearance. Dark maps to <strong className="text-[#ccc]">Slate Workstation</strong>; light maps to <strong className="text-[#ccc]">macOS Light</strong>.
+                </p>
+                <Checkbox
+                  label={<span>Follow Windows light / dark <span className="underline decoration-1 underline-offset-[3px]">c</span>olor scheme</span>}
+                  checked={localConfig.followOsColorScheme ?? false}
+                  onChange={e => {
+                    const on = e.target.checked;
+                    updateLocalConfig({ followOsColorScheme: on });
+                    applySettingsRuntime({ ...localConfig, followOsColorScheme: on } as any);
+                  }}
+                />
+                <Checkbox
+                  label={<span>Adjust to OS light/dark once at <span className="underline decoration-1 underline-offset-[3px]">s</span>tartup only</span>}
+                  checked={localConfig.adjustToOsLightDarkModeAtStartup ?? false}
+                  onChange={e => updateLocalConfig({ adjustToOsLightDarkModeAtStartup: e.target.checked })}
+                  disabled={!!localConfig.followOsColorScheme}
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value="Styles" className="m-0 border-0 p-0 outline-none">
@@ -3034,9 +3048,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
             </TabsContent>
             
-            <TabsContent value="Color Filters" className="m-0 border-0 p-0 outline-none flex flex-col h-full">
-              <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Color Filters</h1>
-              <p className="text-[12px] text-[#e0e0e0] mb-[20px]">Color-code files and folders by name, attributes, size, date, age, or properties.</p>
+            <TabsContent value="Color Filters" className="m-0 border-0 p-0 outline-none flex flex-col h-full min-h-0">
+              <h1 className="text-[20px] font-bold text-white mb-2 leading-tight shrink-0">Color Filters</h1>
+              <p className="text-[12px] text-[#e0e0e0] mb-[16px] shrink-0">Color-code files and folders by name, attributes, size, date, age, or properties.</p>
               
               <div className="mb-4">
                  <Checkbox label={<span>Enable c<span className="underline decoration-1 underline-offset-[3px]">o</span>lor filters</span>} checked={localConfig.enableColorFilters ?? false} onChange={e => updateLocalConfig({ enableColorFilters: e.target.checked })} />
@@ -3059,12 +3073,37 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                          className={`flex gap-2 items-center cursor-pointer rounded px-1 ${i === selectedColorFilterIdx ? 'bg-[#094771]/40 ring-1 ring-[#0078d4]/50' : 'hover:bg-[#222]'}`}
                          onClick={() => setSelectedColorFilterIdx(i)}
                        >
-                          <span className="w-[18px] text-right text-gray-500">{row.i}</span>
-                          <input type="checkbox" checked={row.c} onChange={(e) => {
-                             const newArr = [...localConfig.colorFilters];
-                             newArr[i].c = e.target.checked;
-                             updateLocalConfig({ colorFilters: newArr });
-                           }} className="accent-[#555] w-[13px] h-[13px]" />
+                          <span className="w-[18px] text-right text-gray-500 shrink-0">{row.i}</span>
+                          <span
+                            className="relative flex items-center justify-center shrink-0"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              className="bndz-ui-checkbox-input peer"
+                              checked={row.c}
+                              onChange={(e) => {
+                                const newArr = [...localConfig.colorFilters];
+                                newArr[i] = { ...newArr[i], c: e.target.checked };
+                                updateLocalConfig({ colorFilters: newArr });
+                              }}
+                            />
+                            <svg
+                              className="bndz-ui-checkbox-mark pointer-events-none absolute"
+                              viewBox="0 0 14 14"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              aria-hidden
+                            >
+                              <path
+                                d="M2.5 7.5L5.5 10.5L11.5 3.5"
+                                stroke="currentColor"
+                                strokeWidth="2.25"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </span>
                           <span className={`${row.style} flex-1 min-w-0 truncate`}>{row.t}</span>
                           {row.folderIcon && (
                             <img
@@ -3078,30 +3117,32 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        </div>
                     ))}
                  </div>
-                 <div className="w-[100px] flex flex-col gap-2 relative">
-                    <ActionBtn label="New" className="w-full text-center py-[4px]" onClick={addColorFilter} />
-                    <ActionBtn label="Edit" className="w-full text-center py-[4px]" onClick={editColorFilter} disabled={!colorFilters.length} />
-                    <ActionBtn label="Delete" className="w-full text-center py-[4px]" onClick={deleteColorFilter} disabled={!colorFilters.length} />
-                    <div className="h-4"></div>
-                    <ActionBtn label="Advanced Rules..." className="w-full text-center py-[4px] bg-[#094771]/35 text-[#7eb8e8] border-[#0078d4]/40 hover:bg-[#094771]/55" onClick={() => setShowConditionalFormattingDialog(true)} />
-                    <div className="h-4"></div>
-                    <ActionBtn label="Up" className="w-full text-center py-[4px]" onClick={() => moveColorFilter(-1)} disabled={selectedColorFilterIdx <= 0} />
-                    <ActionBtn label="Down" className="w-full text-center py-[4px]" onClick={() => moveColorFilter(1)} disabled={selectedColorFilterIdx >= colorFilters.length - 1} />
-                    
-                    <div className="absolute bottom-0 left-0 w-full space-y-2">
-                       <span className="text-[12px] text-white">Define colors:</span>
-                       <div className="flex gap-1 w-full">
-                          <ActionBtn label="Text..." className="flex-1 py-[4px]" onClick={() => void setColorFilterPart('text')} disabled={!colorFilters.length} />
-                          <ActionBtn label="Clear" className="px-2 py-[4px]" onClick={() => void setColorFilterPart('text', true)} disabled={!colorFilters.length} />
-                       </div>
-                       <div className="flex gap-1 w-full">
-                          <ActionBtn label="Back..." className="flex-1 py-[4px]" onClick={() => void setColorFilterPart('bg')} disabled={!colorFilters.length} />
-                          <ActionBtn label="Clear" className="px-2 py-[4px]" onClick={() => void setColorFilterPart('bg', true)} disabled={!colorFilters.length} />
+                 <div className="w-[156px] shrink-0 flex flex-col gap-1.5 min-h-0 self-stretch overflow-y-auto pr-0.5">
+                    <ActionBtn label="New" className="w-full text-center py-[5px]" onClick={addColorFilter} />
+                    <ActionBtn label="Edit" className="w-full text-center py-[5px]" onClick={editColorFilter} disabled={!colorFilters.length} />
+                    <ActionBtn label="Delete" className="w-full text-center py-[5px]" onClick={deleteColorFilter} disabled={!colorFilters.length} />
+                    <div className="flex gap-1.5 pt-1">
+                      <ActionBtn label="Up" className="flex-1 text-center py-[5px]" onClick={() => moveColorFilter(-1)} disabled={selectedColorFilterIdx <= 0} />
+                      <ActionBtn label="Down" className="flex-1 text-center py-[5px]" onClick={() => moveColorFilter(1)} disabled={selectedColorFilterIdx >= colorFilters.length - 1} />
+                    </div>
+                    <ActionBtn
+                      label="Advanced…"
+                      className="w-full text-center py-[5px] mt-1 bg-[#094771]/35 text-[#7eb8e8] border-[#0078d4]/40 hover:bg-[#094771]/55"
+                      onClick={() => setShowConditionalFormattingDialog(true)}
+                      title="Advanced color rules"
+                    />
+                    <div className="mt-auto pt-3 border-t border-[#444] flex flex-col gap-1.5">
+                       <span className="text-[11px] font-semibold text-white/85">Define colors</span>
+                       <div className="grid grid-cols-[1fr_auto] gap-1.5 items-stretch">
+                          <ActionBtn label="Text…" className="w-full text-center py-[5px] min-w-0" onClick={() => void setColorFilterPart('text')} disabled={!colorFilters.length} />
+                          <ActionBtn label="Clear" className="px-2.5 py-[5px] whitespace-nowrap" onClick={() => void setColorFilterPart('text', true)} disabled={!colorFilters.length} />
+                          <ActionBtn label="Back…" className="w-full text-center py-[5px] min-w-0" onClick={() => void setColorFilterPart('bg')} disabled={!colorFilters.length} />
+                          <ActionBtn label="Clear" className="px-2.5 py-[5px] whitespace-nowrap" onClick={() => void setColorFilterPart('bg', true)} disabled={!colorFilters.length} />
                        </div>
                        <div className="pt-1">
                          <span className="text-[11px] text-[#aaa]">Folder icon</span>
                          <select
-                           className="mt-1 w-full bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[11px] px-1 py-[2px] rounded-sm outline-none"
+                           className="mt-1 w-full bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[11px] px-1.5 py-[4px] rounded-sm outline-none"
                            disabled={!colorFilters.length}
                            value={colorFilters[selectedColorFilterIdx]?.folderIcon || ''}
                            onChange={e => {
@@ -3196,7 +3237,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <ContextMenuConfiguratorTab />
             </TabsContent>
 
-            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts"].includes(item)).map(item => (
+            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Notifications", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts", "Workspace Tools"].includes(item)).map(item => (
                <TabsContent key={item} value={item} className="m-0 border-0 p-0 outline-none">
                   <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">{item}</h1>
                   <p className="text-[#a0a0a0] text-[13px]">Configuration options for this section are disabled in the current preview.</p>

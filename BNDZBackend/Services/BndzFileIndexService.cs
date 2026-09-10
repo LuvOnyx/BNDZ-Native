@@ -1293,7 +1293,9 @@ public sealed class BndzFileIndexService : IDisposable
 
     private void RemoveEntry(string panePath)
     {
-        _writeLock.Wait();
+        // Never block UI forever — IndexLocation can hold this lock for minutes during scans.
+        if (!_writeLock.Wait(millisecondsTimeout: 250))
+            return;
         try
         {
             using var conn = OpenConnection();

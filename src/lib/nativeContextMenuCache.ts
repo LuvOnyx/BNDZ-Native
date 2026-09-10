@@ -35,3 +35,11 @@ export function prefetchNativeContextMenu(path: string, fetcher: (p: string) => 
     .then(items => { if (items?.length) setCachedNativeContextMenu(path, items); })
     .catch(() => {});
 }
+
+export function clearNativeContextMenuCache(path?: string): void {
+  if (path) {
+    cache.delete(path);
+    return;
+  }
+  cache.clear();
+}

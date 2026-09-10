@@ -101,6 +101,7 @@ async function loadDirectoryChildren(
   showHidden: boolean,
   skipInvisible: boolean,
   config?: AppConfig,
+  showSystem: boolean = false,
 ): Promise<NavTreeSourceNode[]> {
   try {
     const isShellish = /^\/?shell:/i.test(path || '') || path === '/' || path === '';
@@ -109,10 +110,10 @@ async function loadDirectoryChildren(
       try {
         items = await IPC.getDirContents(path);
       } catch {
-        items = await IPC.getSubDirectories(path, showHidden);
+        items = await IPC.getSubDirectories(path, showHidden, showSystem);
       }
     } else {
-      items = await IPC.getSubDirectories(path, showHidden);
+      items = await IPC.getSubDirectories(path, showHidden, showSystem);
     }
     let dirs = (items || []).filter((item: { type?: string; isDirectory?: boolean }) => item.type === 'directory' || item.isDirectory);
     if (skipInvisible) {
@@ -209,6 +210,7 @@ function TreeRow({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // After a drag/drop we suppress the synthetic click once. Never leave navigate dead.
     if (suppressTreeClickRef?.current) {
       suppressTreeClickRef.current = false;
       return;
@@ -259,10 +261,6 @@ function TreeRow({
       data-nav-path={row.path || undefined}
       data-tree-key={row.treeKey || undefined}
       data-depth={row.depth}
-      onPointerDown={canDragFile ? (e) => {
-        if (e.button !== 0) return;
-        onFilePointerDown?.(row, e);
-      } : undefined}
       onDragOver={e => {
         if (canReorder) onDragOver?.(e, row);
       }}
@@ -277,6 +275,18 @@ function TreeRow({
       onMouseMove={tipHandlers?.onMouseMove}
       onMouseLeave={tipHandlers?.onMouseLeave}
       onClick={handleClick}
+      onPointerDown={(e) => {
+        // Clear stuck OLE/list capture so left-click can select again (hover/RMB still worked).
+        if (e.button === 0) {
+          try {
+            document.documentElement.classList.remove('bndz-ole-drag-handoff');
+            document.getElementById('bndz-ole-veil')?.remove();
+          } catch { /* ignore */ }
+          // Fresh LMB — do not inherit a stuck suppress from a prior cancelled drag.
+          if (suppressTreeClickRef) suppressTreeClickRef.current = false;
+        }
+        if (canDragFile && e.button === 0) onFilePointerDown?.(row, e);
+      }}
       onDoubleClick={e => {
         e.stopPropagation();
         clearSlowDoubleClickTimer(treeRenameTimerRef);
@@ -351,7 +361,7 @@ function TreeRow({
         <input
           type="text"
           autoFocus
-          className="bg-[#111] text-white border border-[#007acc] px-1.5 outline-none text-[12px] w-[140px] rounded-sm"
+          className="bndz-inline-rename-input px-1.5 outline-none text-[12px] w-[140px] rounded-sm"
           value={inlineRename.currentName}
           onChange={e => setInlineRename({ ...inlineRename, currentName: e.target.value })}
           onBlur={() => {
@@ -490,6 +500,13 @@ export function VirtualizedNavTree({
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // TreeRowMemo skips re-render when only onNavigate identity changes — keep a stable
+  // callback so Navigation Tree LMB never freezes on the first-render handler.
+  const onNavigateRef = useRef(onNavigate);
+  onNavigateRef.current = onNavigate;
+  const stableNavigate = useCallback((path: string) => {
+    onNavigateRef.current(path);
+  }, []);
   const [dynamicState, setDynamicState] = useState<Record<string, DynamicTreeState>>({});
   const didRestoreTreeStateRef = useRef(false);
   const [dragKey, setDragKey] = useState<string | null>(null);
@@ -550,7 +567,7 @@ export function VirtualizedNavTree({
     });
     let cancelled = false;
     remembered.forEach(p => {
-      loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config).then(children => {
+      loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config, rt.tree.showSystem).then(children => {
         if (cancelled) return;
         setDynamicState(inner => ({
           ...inner,
@@ -561,6 +578,38 @@ export function VirtualizedNavTree({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rt.tree.rememberState]);
+
+  // Re-fetch expanded branches when View → Hidden/System (or tree toggle) changes.
+  const visibilityReloadSkipRef = useRef(true);
+  useEffect(() => {
+    if (visibilityReloadSkipRef.current) {
+      visibilityReloadSkipRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    setDynamicState(prev => {
+      const next = { ...prev };
+      const toReload: string[] = [];
+      for (const [p, state] of Object.entries(prev)) {
+        if (!state.expanded) continue;
+        toReload.push(p);
+        next[p] = { ...state, loading: true };
+      }
+      if (toReload.length === 0) return prev;
+      toReload.forEach(p => {
+        loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config, rt.tree.showSystem).then(children => {
+          if (cancelled) return;
+          setDynamicState(inner => ({
+            ...inner,
+            [p]: { expanded: true, children, loading: false },
+          }));
+        });
+      });
+      return next;
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rt.tree.showHidden, rt.tree.showSystem, config?.skipInvisibleSubfolders]);
 
   // Auto-optimize: collapse branches that are not ancestors of the current path.
   useEffect(() => {
@@ -600,7 +649,7 @@ export function VirtualizedNavTree({
     clearExpandDragTimer();
   }, [clearExpandDragTimer]);
 
-  const FILE_DRAG_THRESHOLD_PX = 6;
+  const FILE_DRAG_THRESHOLD_PX = 12;
 
   const handleFilePointerDown = useCallback((row: FlatNavRow, e: React.PointerEvent) => {
     if (!row.path || disallowDragFromTree) return;
@@ -611,15 +660,69 @@ export function VirtualizedNavTree({
     const rowEl = (e.currentTarget as HTMLElement);
     let oleStarted = false;
     let hostOleEscalated = false;
-    let outsideChromeStreak = 0;
     let sessionStarted = false;
     let captured = false;
+    let treeGhostEl: HTMLElement | null = null;
+    const ghostOffsetX = Math.max(8, Math.min(e.clientX - rowEl.getBoundingClientRect().left, rowEl.offsetWidth - 8));
+    const ghostOffsetY = Math.max(4, Math.min(e.clientY - rowEl.getBoundingClientRect().top, rowEl.offsetHeight - 4));
+
+    const removeTreeGhost = () => {
+      if (!treeGhostEl) return;
+      try { treeGhostEl.remove(); } catch { /* ignore */ }
+      treeGhostEl = null;
+    };
+
+    const placeTreeGhost = (clientX: number, clientY: number) => {
+      if (!treeGhostEl) return;
+      treeGhostEl.style.transform = `translate3d(${clientX - ghostOffsetX}px, ${clientY - ghostOffsetY}px, 0)`;
+    };
+
+    const armTreeGhost = () => {
+      removeTreeGhost();
+      try {
+        const rect = rowEl.getBoundingClientRect();
+        const cs = getComputedStyle(rowEl);
+        const clone = rowEl.cloneNode(true) as HTMLElement;
+        clone.classList.add('bndz-tree-drag-ghost', 'nav-tree-row-selected');
+        clone.removeAttribute('data-nav-path');
+        clone.removeAttribute('data-tree-key');
+        clone.querySelectorAll('button, [data-nav-expand], input').forEach(el => {
+          el.setAttribute('tabindex', '-1');
+          (el as HTMLElement).style.pointerEvents = 'none';
+        });
+        // Paint like the live tree button — not a generic card.
+        clone.style.cssText = [
+          'position:fixed',
+          'left:0',
+          'top:0',
+          `width:${Math.max(rect.width, 120)}px`,
+          `height:${rect.height}px`,
+          `padding-left:${cs.paddingLeft}`,
+          `padding-right:${cs.paddingRight}`,
+          `background:${cs.backgroundColor}`,
+          `color:${cs.color}`,
+          `border-radius:${cs.borderRadius}`,
+          `font:${cs.font}`,
+          'box-shadow:0 10px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.1)',
+          'opacity:0.98',
+          'z-index:9500',
+          'pointer-events:none',
+          'margin:0',
+          'box-sizing:border-box',
+          'will-change:transform',
+        ].join(';');
+        document.body.appendChild(clone);
+        treeGhostEl = clone;
+        placeTreeGhost(startX, startY);
+      } catch { /* ignore */ }
+    };
 
     const cleanup = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
       window.removeEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
+      removeTreeGhost();
       if (captured) {
         try { rowEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
       }
@@ -630,6 +733,7 @@ export function VirtualizedNavTree({
       hostOleEscalated = true;
       oleStarted = true;
       suppressTreeClickRef.current = true;
+      removeTreeGhost();
       dispatchPointerFileDragActive(false);
       stashOleDragSession(getFileDragSession());
       endFileDragSession();
@@ -642,7 +746,8 @@ export function VirtualizedNavTree({
       if (!sessionStarted) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < FILE_DRAG_THRESHOLD_PX) return;
         sessionStarted = true;
-        suppressTreeClickRef.current = true;
+        // Do NOT suppress row click here — pointercancel/up without OLE used to leave
+        // suppress stuck true and kill Navigation Tree LMB navigate (chevrons still worked).
         try {
           rowEl.setPointerCapture(capturePointerId);
           captured = true;
@@ -655,11 +760,12 @@ export function VirtualizedNavTree({
         });
         dispatchPointerFileDragActive(true);
         IPC.notifyFileDragActive(true, [winPath]);
+        armTreeGhost();
         window.addEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
       }
+      placeTreeGhost(ev.clientX, ev.clientY);
       dispatchPointerFileDragMove(ev.clientX, ev.clientY);
       if (hostOleEscalated) return;
-      // Host poll is authoritative for leave-window → DoDragDrop; no FE START_DRAG backup.
     };
 
     const onUp = (ev: PointerEvent) => {
@@ -669,6 +775,7 @@ export function VirtualizedNavTree({
       IPC.notifyFileDragActive(false);
       const session = getFileDragSession();
       if (!session) {
+        suppressTreeClickRef.current = false;
         dispatchPointerFileDragActive(false);
         return;
       }
@@ -690,6 +797,8 @@ export function VirtualizedNavTree({
           destPath,
           op,
         );
+      } else {
+        suppressTreeClickRef.current = false;
       }
       endFileDragSession();
       dispatchPointerFileDragActive(false);
@@ -700,6 +809,7 @@ export function VirtualizedNavTree({
       // host poll can still escalate to DoDragDrop after the cursor leaves the window.
       if (ev.pointerId !== capturePointerId) return;
       if (sessionStarted && !oleStarted && !hostOleEscalated) {
+        removeTreeGhost();
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onCancel);
@@ -707,6 +817,7 @@ export function VirtualizedNavTree({
           try { rowEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
           captured = false;
         }
+        suppressTreeClickRef.current = false;
         dispatchPointerFileDragActive(false);
         return;
       }
@@ -841,7 +952,7 @@ export function VirtualizedNavTree({
         if (prev[p]?.expanded && (prev[p]?.children || prev[p]?.loading)) return prev;
         const needsLoad = !prev[p]?.children;
         if (needsLoad) {
-          loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config).then(children => {
+          loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config, rt.tree.showSystem).then(children => {
             setDynamicState(inner => ({
               ...inner,
               [p]: { expanded: true, children, loading: false },
@@ -854,7 +965,7 @@ export function VirtualizedNavTree({
         };
       });
     });
-  }, [currentPath, nodes, rt.tree.lockState, rt.tree.expandOnBrowse, rt.tree.showHidden, config?.skipInvisibleSubfolders]);
+  }, [currentPath, nodes, rt.tree.lockState, rt.tree.expandOnBrowse, rt.tree.showHidden, rt.tree.showSystem, config?.skipInvisibleSubfolders]);
 
   const handleToggle = useCallback(
     async (row: FlatNavRow) => {
@@ -894,16 +1005,17 @@ export function VirtualizedNavTree({
 
       const children = await loadDirectoryChildren(
         path,
-        !!config?.showHiddenSystemFoldersInTree,
+        rt.tree.showHidden,
         !!config?.skipInvisibleSubfolders,
         config,
+        rt.tree.showSystem,
       );
       setDynamicState(prev => ({
         ...prev,
         [path]: { expanded: true, children, loading: false },
       }));
     },
-    [dynamicState, config?.showHiddenSystemFoldersInTree, config?.skipInvisibleSubfolders],
+    [dynamicState, rt.tree.showHidden, rt.tree.showSystem, config?.skipInvisibleSubfolders, config],
   );
 
   toggleRowRef.current = handleToggle;
@@ -1004,7 +1116,7 @@ export function VirtualizedNavTree({
       treeRt={rt.tree}
       currentPath={currentPath}
       onToggle={handleToggle}
-      onNavigate={onNavigate}
+      onNavigate={stableNavigate}
       onStaticNavigate={onStaticNavigate}
       onContextMenu={onContextMenu}
       inlineRename={inlineRename}

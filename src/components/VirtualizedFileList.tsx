@@ -200,7 +200,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
             }}
           >
             {items.map((item, i) => (
-              <div key={i} style={{ minWidth: 0, maxWidth: '100%' }}>{renderItem(item, i)}</div>
+              <div key={i} style={{ minWidth: 0, width: trackWidth, maxWidth: trackWidth }}>{renderItem(item, i)}</div>
             ))}
           </div>
         );
@@ -264,7 +264,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
                   }}
                 >
                   {rowItems.map((item, i) => (
-                    <div key={startIdx + i} style={{ pointerEvents: 'auto', minWidth: 0, maxWidth: '100%' }}>{renderItem(item, startIdx + i)}</div>
+                    <div key={startIdx + i} style={{ pointerEvents: 'auto', minWidth: 0, width: trackWidth, maxWidth: trackWidth }}>{renderItem(item, startIdx + i)}</div>
                   ))}
                 </div>
               </div>

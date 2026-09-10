@@ -108,6 +108,8 @@ export default function CaptureInboxPlugin({
     }
   }, []);
 
+  useEffect(() => () => { void IPC.captureInboxStopWatching(); }, []);
+
   useEffect(() => { void refresh({ force: true }); }, [refresh]);
 
   useEffect(() => {

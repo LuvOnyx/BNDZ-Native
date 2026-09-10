@@ -45,7 +45,7 @@ export function clearSvgInlineThumbCache() {
 export async function resolveSvgInlineThumb(path: string | null | undefined): Promise<string | null> {
   if (!path || !IPC.isNative) return null;
   const win = toWindowsPath(path);
-  if (!win || !/\.svg$/i.test(win)) return null;
+  if (!win || !/\.svgz?$/i.test(win)) return null;
   const key = win.toLowerCase();
   const hit = cache.get(key);
   if (hit) {
@@ -57,21 +57,51 @@ export async function resolveSvgInlineThumb(path: string | null | undefined): Pr
 
   const job = (async () => {
     try {
-      const res = await IPC.readTextFile(win, 4 * 1024 * 1024);
-      const text = res?.content;
-      if (!text || typeof text !== 'string' || text.length < 8) return null;
-      // Strip scripts / external event handlers so <img> and preview stay safe.
-      const sanitized = text
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-      const blob = new Blob([sanitized], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
-      const prev = cache.get(key);
-      if (prev && prev !== url) {
-        try { URL.revokeObjectURL(prev); } catch { /* ignore */ }
+      // Prefer UTF-8 text decode for .svg — bndz-stream / CAS thumbs are flaky for vectors.
+      if (/\.svg$/i.test(win)) {
+        const res = await IPC.readTextFile(win, 4 * 1024 * 1024);
+        const text = res?.content;
+        if (text && typeof text === 'string' && text.length >= 8) {
+          const sanitized = text
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+          const blob = new Blob([sanitized], { type: 'image/svg+xml' });
+          const url = URL.createObjectURL(blob);
+          const prev = cache.get(key);
+          if (prev && prev !== url) {
+            try { URL.revokeObjectURL(prev); } catch { /* ignore */ }
+          }
+          touch(key, url);
+          return url;
+        }
       }
-      touch(key, url);
-      return url;
+
+      // .svgz or text-read miss — fall back to media blob (binary) when available.
+      try {
+        const media = await IPC.getMediaBlob(win, 4 * 1024 * 1024);
+        if (media?.base64 && !media.error) {
+          const bin = atob(media.base64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const mime = media.mime || (/\.svgz$/i.test(win) ? 'image/svg+xml' : 'image/svg+xml');
+          // svgz is gzip — browsers can't paint it as image/svg+xml; skip unless already inflated.
+          if (/\.svgz$/i.test(win) && bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+            return null;
+          }
+          const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)], {
+            type: mime.includes('svg') ? 'image/svg+xml' : mime,
+          });
+          const url = URL.createObjectURL(blob);
+          const prev = cache.get(key);
+          if (prev && prev !== url) {
+            try { URL.revokeObjectURL(prev); } catch { /* ignore */ }
+          }
+          touch(key, url);
+          return url;
+        }
+      } catch { /* ignore */ }
+
+      return null;
     } catch {
       return null;
     } finally {

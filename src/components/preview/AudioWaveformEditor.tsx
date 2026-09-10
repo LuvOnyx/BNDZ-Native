@@ -505,7 +505,12 @@ export default function AudioWaveformEditor({ path, title }: Props) {
           −5s
         </button>
         <button type="button" className="bndz-wave-btn is-primary" disabled={!ready} onClick={togglePlay}>
-          <EmblemIcon id={playing ? 'media-playback-paused' : 'media-playback-playing'} size={12} />
+          <EmblemIcon
+            id={playing ? 'media-playback-playing' : 'media-playback-paused'}
+            size={22}
+            progress={duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0}
+            paused={!playing}
+          />
           {playing ? 'Pause' : 'Play'}
         </button>
         <button type="button" className="bndz-wave-btn" disabled={!ready} onClick={() => skip(5)} title="Forward 5s">

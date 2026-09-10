@@ -1,8 +1,8 @@
 import React from 'react';
 import { SettingsTabHeader, SettingsSection } from './SettingsPrimitives';
+import { Checkbox } from '../ui/checkbox';
 import {
   migrateLayoutV39,
-  migrateLayoutV40,
   migrateLayoutV43,
 } from '../../lib/workspaceLayout';
 import {
@@ -86,33 +86,21 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
       />
 
       <SettingsSection title="Selection & focus">
-        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
-          <input
-            type="checkbox"
-            className="accent-[#0078d4]"
-            checked={localConfig.listShowSelectionHighlight !== false}
-            onChange={e => patch({ listShowSelectionHighlight: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90">Show list selection highlight</span>
-        </label>
-        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
-          <input
-            type="checkbox"
-            className="accent-[#0078d4]"
-            checked={!!localConfig.listShowSelectionCheckboxes}
-            onChange={e => patch({ listShowSelectionCheckboxes: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90">Show item checkboxes in details view</span>
-        </label>
-        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
-          <input
-            type="checkbox"
-            className="accent-[#0078d4]"
-            checked={localConfig.stickyGroupHeaders !== false}
-            onChange={e => patch({ stickyGroupHeaders: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90">Sticky type group headers while scrolling</span>
-        </label>
+        <Checkbox
+          label="Show list selection highlight"
+          checked={localConfig.listShowSelectionHighlight !== false}
+          onChange={e => patch({ listShowSelectionHighlight: e.target.checked })}
+        />
+        <Checkbox
+          label="Show item checkboxes in details view"
+          checked={!!localConfig.listShowSelectionCheckboxes}
+          onChange={e => patch({ listShowSelectionCheckboxes: e.target.checked })}
+        />
+        <Checkbox
+          label="Sticky type group headers while scrolling"
+          checked={localConfig.stickyGroupHeaders !== false}
+          onChange={e => patch({ stickyGroupHeaders: e.target.checked })}
+        />
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">
             <div className="text-[12px] font-medium text-white/90">Highlight color</div>
@@ -134,15 +122,11 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
             </button>
           </div>
         </div>
-        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
-          <input
-            type="checkbox"
-            className="accent-[#0078d4]"
-            checked={localConfig.showQuickActionsBar === true}
-            onChange={e => patch({ showQuickActionsBar: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90">Show selection quick actions bar</span>
-        </label>
+        <Checkbox
+          label="Show selection quick actions bar"
+          checked={localConfig.showQuickActionsBar === true}
+          onChange={e => patch({ showQuickActionsBar: e.target.checked })}
+        />
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">
             <div className="text-[12px] font-medium text-white/90">Selection highlight</div>
@@ -175,20 +159,18 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
       </SettingsSection>
 
       <SettingsSection title="Surfaces & chrome">
-        <label className="flex items-start gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
-          <input
-            type="checkbox"
-            className="accent-[#0078d4] mt-0.5"
-            checked={localConfig.micaBackdrop !== false}
-            onChange={e => patch({ micaBackdrop: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90 leading-snug">
-            Mica / Fluent backdrop
-            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              On (default): Windows Mica material behind the shell chrome. Off: solid native fill.
-            </span>
-          </span>
-        </label>
+        <Checkbox
+          label={
+            <>
+              Mica / Fluent backdrop
+              <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+                On (default): Windows Mica material behind the shell chrome. Off: solid native fill.
+              </span>
+            </>
+          }
+          checked={localConfig.micaBackdrop !== false}
+          onChange={e => patch({ micaBackdrop: e.target.checked })}
+        />
         <VariantSelect<'mica' | 'micaAlt' | 'acrylic'>
           label="Backdrop material"
           description="Fluent system backdrop when Mica is enabled"
@@ -200,20 +182,57 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           ]}
           onChange={v => patch({ systemBackdropKind: v, micaBackdrop: true })}
         />
-        <label className="flex items-start gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
-          <input
-            type="checkbox"
-            className="accent-[#0078d4] mt-0.5"
-            checked={localConfig.nativeActionCenterToasts !== false}
-            onChange={e => patch({ nativeActionCenterToasts: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90 leading-snug">
-            Windows Notification Center toasts
-            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Mirror important alerts into Action Center via AppNotificationBuilder (in-app toasts stay).
-            </span>
-          </span>
-        </label>
+        <VariantSelect<'inApp' | 'windows' | 'both'>
+          label="Toast delivery"
+          description="In-app stack, Windows Action Center, or both"
+          value={
+            (localConfig.toastDelivery as 'inApp' | 'windows' | 'both')
+            || (localConfig.nativeActionCenterToasts === false ? 'inApp' : 'both')
+          }
+          options={[
+            { id: 'inApp', label: 'In-app only', hint: 'Physics toast stack inside BNDZ' },
+            { id: 'windows', label: 'Windows only', hint: 'Action Center / Notification Center' },
+            { id: 'both', label: 'Both', hint: 'In-app + Action Center' },
+          ]}
+          onChange={v => patch({
+            toastDelivery: v,
+            nativeActionCenterToasts: v !== 'inApp',
+            useNativeWindowsNotifications: v !== 'inApp',
+          })}
+        />
+        <VariantSelect<'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'>
+          label="In-app toast position"
+          description="Corner for the physics toast stack"
+          value={(localConfig.toastPosition as 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left') || 'top-right'}
+          options={[
+            { id: 'top-right', label: 'Top right' },
+            { id: 'top-left', label: 'Top left' },
+            { id: 'bottom-right', label: 'Bottom right' },
+            { id: 'bottom-left', label: 'Bottom left' },
+          ]}
+          onChange={v => patch({ toastPosition: v })}
+        />
+        <Checkbox
+          label={
+            <>
+              Windows Notification Center toasts
+              <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+                Route success and alerts through AppNotificationBuilder when delivery includes Windows.
+              </span>
+            </>
+          }
+          checked={(localConfig.toastDelivery || 'both') !== 'inApp' && localConfig.nativeActionCenterToasts !== false}
+          onChange={e => {
+            const on = e.target.checked;
+            patch({
+              nativeActionCenterToasts: on,
+              useNativeWindowsNotifications: on,
+              toastDelivery: on
+                ? ((localConfig.toastDelivery === 'windows' ? 'windows' : 'both') as 'windows' | 'both')
+                : 'inApp',
+            });
+          }}
+        />
         <VariantSelect<ChromePalette>
           label="Workspace palette"
           description="Base background family (escapes brown/black slop)"
@@ -238,55 +257,51 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
       </SettingsSection>
 
       <SettingsSection title="Workspace layout">
-        <label className="flex items-start gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
-          <input
-            type="checkbox"
-            className="accent-[#0078d4] mt-0.5"
-            checked={localConfig.previewDockedInWorkspace === true}
-            onChange={e => {
-              const docked = e.target.checked;
-              const migrated = docked
-                ? migrateLayoutV39(
-                  localConfig.workspaceLayoutOuter as Record<string, number>,
-                  localConfig.workspaceLayoutMainRow as Record<string, number>,
-                )
-                : migrateLayoutV43(
-                  localConfig.workspaceLayoutOuter as Record<string, number>,
-                  localConfig.workspaceLayoutMainRow as Record<string, number>,
-                  false,
-                );
-              patch({
-                previewDockedInWorkspace: docked,
-                workspaceLayoutOuter: migrated.outer,
-                workspaceLayoutMainRow: migrated.mainRow,
-              });
-            }}
-          />
-          <span className="text-[12px] text-white/90 leading-snug">
-            Dock preview above bottom plugin panel
-            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Off (default): classic layout — preview is full-height on the right; bottom plugins span only under the file list.
-              On: preview shares the list row and sits above the plugin dock.
-            </span>
-          </span>
-        </label>
+        <Checkbox
+          label={
+            <>
+              Dock preview above bottom plugin panel
+              <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+                Off (default): classic layout — preview is full-height on the right; bottom plugins span only under the file list.
+                On: preview shares the list row and sits above the plugin dock.
+              </span>
+            </>
+          }
+          checked={localConfig.previewDockedInWorkspace === true}
+          onChange={e => {
+            const docked = e.target.checked;
+            const migrated = docked
+              ? migrateLayoutV39(
+                localConfig.workspaceLayoutOuter as Record<string, number>,
+                localConfig.workspaceLayoutMainRow as Record<string, number>,
+              )
+              : migrateLayoutV43(
+                localConfig.workspaceLayoutOuter as Record<string, number>,
+                localConfig.workspaceLayoutMainRow as Record<string, number>,
+                false,
+              );
+            patch({
+              previewDockedInWorkspace: docked,
+              workspaceLayoutOuter: migrated.outer,
+              workspaceLayoutMainRow: migrated.mainRow,
+            });
+          }}
+        />
       </SettingsSection>
 
       <SettingsSection title="List & Grid cards">
-        <label className="flex items-start gap-3 py-2 cursor-pointer">
-          <input
-            type="checkbox"
-            className="mt-0.5 accent-[#0078d4]"
-            checked={localConfig.showListGridCards === true}
-            onChange={e => patch({ showListGridCards: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90 leading-snug">
-            Show cards on List &amp; Grid
-            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Off (default): icons and names only — like File Explorer. On: mica/glass tiles; Grid auto-sizes so captions fit.
-            </span>
-          </span>
-        </label>
+        <Checkbox
+          label={
+            <>
+              Show cards on List &amp; Grid
+              <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+                Off (default): icons and names only — like File Explorer. On: mica/glass tiles; Grid auto-sizes so captions fit.
+              </span>
+            </>
+          }
+          checked={localConfig.showListGridCards === true}
+          onChange={e => patch({ showListGridCards: e.target.checked })}
+        />
       </SettingsSection>
 
       <SettingsSection title="Typography (list & tree)">
@@ -390,34 +405,30 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           options={DENSITY_OPTIONS}
           onChange={v => patch({ appearanceDensity: v, rowHeight: undefined })}
         />
-        <label className="flex items-start gap-3 py-2 cursor-pointer">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={localConfig.adaptiveListDensity !== false}
-            onChange={e => patch({ adaptiveListDensity: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90 leading-snug">
-            Adaptive list density
-            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Slightly expands row spacing when items are focused. Row size no longer changes mid-scroll (that caused flash).
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-3 py-2 cursor-pointer">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={!!localConfig.liveShareCursorEnabled}
-            onChange={e => patch({ liveShareCursorEnabled: e.target.checked })}
-          />
-          <span className="text-[12px] text-white/90 leading-snug">
-            Live Share cursor
-            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Broadcast selection and cursor in shared folders so mesh peers see your focus (Remote Mesh plugin).
-            </span>
-          </span>
-        </label>
+        <Checkbox
+          label={
+            <>
+              Adaptive list density
+              <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+                Slightly expands row spacing when items are focused. Row size no longer changes mid-scroll (that caused flash).
+              </span>
+            </>
+          }
+          checked={localConfig.adaptiveListDensity !== false}
+          onChange={e => patch({ adaptiveListDensity: e.target.checked })}
+        />
+        <Checkbox
+          label={
+            <>
+              Live Share cursor
+              <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+                Broadcast selection and cursor in shared folders so mesh peers see your focus (Remote plugin).
+              </span>
+            </>
+          }
+          checked={!!localConfig.liveShareCursorEnabled}
+          onChange={e => patch({ liveShareCursorEnabled: e.target.checked })}
+        />
         <VariantSelect<TabStyle>
           label="Tab strip"
           description="Classic Explorer vs Soft Modern, plus accent variants"

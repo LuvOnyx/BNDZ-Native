@@ -456,21 +456,29 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       } catch { /* ignore */ }
     }
 
+    try {
+      window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
+        detail: { opId, op, label, dest: panePath },
+      }));
+    } catch { /* ignore */ }
+
     const res = await IPC.executeFsOperation(opId, op, winSources, dest, false, label, 'high', recreateSourceStructure);
     if (res && res.ok === false) {
       pushToast({ kind: 'error', title: 'Paste failed', message: res.error || label });
       return;
     }
 
+    // Always refresh the paste target so the list updates even if FS watch is quiet.
+    window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
+    }, 500);
+
     // Background ack is not completion — leave list refresh to the transfer queue listener.
     // Cut clipboard still clears (Explorer clears Cut on paste start); do not toast “done”.
     if (isQueuedIpcResult(res)) {
       if (effectiveAction === 'cut') clearClipboard();
       return;
-    }
-
-    if (isBndzRamPath(panePath)) {
-      window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
     }
 
     if (effectiveAction === 'cut') {

@@ -27,7 +27,10 @@ interface TabContextMenuProps {
 }
 
 const itemClass =
-  'bndz-context-menu-item w-full flex items-center gap-2.5 text-[12px] text-left disabled:opacity-40 disabled:pointer-events-none';
+  'bndz-context-menu-item w-full flex items-center gap-2.5 text-sm text-left disabled:opacity-40 disabled:pointer-events-none';
+const itemDanger = `${itemClass} bndz-context-menu-item--danger`;
+const itemPositive = `${itemClass} bndz-context-menu-item--positive`;
+const itemAccent = `${itemClass} bndz-context-menu-item--accent`;
 
 export type TabHostContextMenuOpts = {
   clientX: number;
@@ -52,10 +55,11 @@ export type TabHostContextMenuOpts = {
 };
 
 /**
- * Host-owned WPF tab context menu (native). Maps selected id → callbacks.
+ * Host-owned WPF/WinUI tab context menu (native). Maps selected id → callbacks.
  * Color presets are omitted in v1 — use Reset Color or the React menu when not native.
+ * @returns true if the host menu was presented (selection or dismiss); false if caller should show React fallback.
  */
-export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Promise<void> {
+export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Promise<boolean> {
   const items: Array<{
     id: string;
     label: string;
@@ -84,12 +88,19 @@ export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Prom
     items.push({ id: 'resetColor', label: 'Reset Color' });
   }
 
-  const id = await IPC.showHostContextMenu({
-    clientX: opts.clientX,
-    clientY: opts.clientY,
-    items,
-  });
-  if (!id) return;
+  let id: string | null;
+  try {
+    id = await IPC.showHostContextMenu({
+      clientX: opts.clientX,
+      clientY: opts.clientY,
+      items,
+    });
+  } catch {
+    return false;
+  }
+
+  // Host presented the menu. null = dismissed — do NOT open a second React menu.
+  if (!id) return true;
 
   switch (id) {
     case 'lock':
@@ -122,6 +133,7 @@ export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Prom
     default:
       break;
   }
+  return true;
 }
 
 export function TabContextMenu({
@@ -148,14 +160,15 @@ export function TabContextMenu({
   const act = (fn: () => void) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    fn();
+    try { fn(); } finally { onCloseMenu(); }
   };
 
   return (
-    <ClampedFixedMenu x={x} y={y} className="min-w-[220px] select-none">
+    <ClampedFixedMenu x={x} y={y} className="min-w-[220px] select-none z-[99990]">
       <div
         data-bndz-tab-context-menu
         onMouseDown={e => e.stopPropagation()}
+        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
       >
         <div className="px-2.5 py-1.5 mb-1 text-[10px] uppercase tracking-wider text-white/40 border-b border-white/[0.08] truncate">
           {tabLabel}
@@ -164,31 +177,31 @@ export function TabContextMenu({
           <Icons8Icon id={isLocked ? 'unlock_ui' : 'lock_ui'} size={14} className="shrink-0 opacity-80" />
           {isLocked ? 'Unlock Tab' : 'Lock Tab'}
         </button>
-        <button type="button" className={itemClass} disabled={!canClose} onMouseDown={act(onClose)}>
+        <button type="button" className={itemDanger} disabled={!canClose} onMouseDown={act(onClose)}>
           <Icons8Icon id="close" size={14} className="shrink-0 opacity-80" />
           Close
         </button>
-        <button type="button" className={itemClass} disabled={!canCloseOthers} onMouseDown={act(onCloseOthers)}>
+        <button type="button" className={itemDanger} disabled={!canCloseOthers} onMouseDown={act(onCloseOthers)}>
           <Icons8Icon id="dropstack" size={14} className="shrink-0 opacity-80" />
           Close Others
         </button>
         {onCloseRight && (
-          <button type="button" className={itemClass} disabled={!canCloseRight} onMouseDown={act(onCloseRight)}>
+          <button type="button" className={itemDanger} disabled={!canCloseRight} onMouseDown={act(onCloseRight)}>
             <Icons8Icon id="nav_forward" size={14} className="shrink-0 opacity-80" />
             Close Tabs to the Right
           </button>
         )}
-        <button type="button" className={itemClass} onMouseDown={act(onCloseAll)}>
+        <button type="button" className={itemDanger} onMouseDown={act(onCloseAll)}>
           <Icons8Icon id="close" size={14} className="shrink-0 opacity-80" />
           Close All
         </button>
         <div className="bndz-context-menu-sep" />
-        <button type="button" className={itemClass} onMouseDown={act(onDuplicate)}>
+        <button type="button" className={itemPositive} onMouseDown={act(onDuplicate)}>
           <Icons8Icon id="copy" size={14} className="shrink-0 opacity-80" />
           Duplicate Tab
         </button>
         {onTearOff && (
-          <button type="button" className={itemClass} onMouseDown={act(onTearOff)}>
+          <button type="button" className={itemAccent} onMouseDown={act(onTearOff)}>
             <Icons8Icon id="external_link" size={14} className="shrink-0 opacity-80" />
             Tear Off to New Stage
           </button>
@@ -211,7 +224,7 @@ export function TabContextMenu({
               title={preset.label}
               className={`w-5 h-5 rounded-[5px] border-2 transition-transform hover:scale-105 ${!preset.color ? 'bg-[#333] border-[#555]' : ''} ${tabColor === preset.color ? 'ring-2 ring-white/60 scale-105' : 'border-transparent'}`}
               style={preset.color ? { backgroundColor: preset.color } : undefined}
-              onMouseDown={act(() => { onSetColor(preset.color); onCloseMenu(); })}
+              onMouseDown={act(() => { onSetColor(preset.color); })}
             />
           ))}
         </div>

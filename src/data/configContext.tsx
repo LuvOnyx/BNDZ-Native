@@ -7,6 +7,7 @@ import { DEFAULT_CUSTOM_COLUMNS, resolveCustomColumns, type CustomColumnDef } fr
 import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/fileInfoTipFields';
 import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib/hoverBoxConfig';
 import { DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES, type TreeListItemType } from '../lib/treeListItemFilter';
+import { mergeSeedVisualFilters } from '../lib/visualFilterEngine';
 import type { CustomEventAction } from '../lib/customEventActions';
 import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, DEFAULT_DUAL_PANE_LAYOUT, DEFAULT_MAIN_ROW_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
 import {
@@ -19,7 +20,7 @@ export interface VisualFilter {
     id: string;
     isActive: boolean;
     name: string;
-    matchType: 'extension' | 'regex' | 'age' | 'size' | 'event' | 'attribute';
+    matchType: 'extension' | 'regex' | 'age' | 'size' | 'event' | 'attribute' | 'emptyDir';
     matchValue: string; // for event: 'modifiedToday', 'createdWithin24Hours', 'isReadOnly'
     hexColor?: string; // legacy support
     rowTint?: string; // Highly transparent background color (e.g. rgba(255,0,0,0.1))
@@ -96,6 +97,10 @@ export interface AppConfig {
     toolbarProfiles?: any[][];
     activeToolbarProfileIndex?: number;
     showHiddenSystemFoldersInTree: boolean;
+    /** Show hidden files/folders in the file list (separate from tree-only toggle). */
+    showHiddenFiles?: boolean;
+    /** Show system-attributed files/folders in the file list. */
+    showSystemFiles?: boolean;
     useCustomContextMenu: boolean;
     previewCategories: Array<{n: string, d: string, c: boolean}>;
     previewFormats: Array<{i: string, n: string, c: boolean}>;
@@ -164,6 +169,17 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     micaBackdrop: true,
     systemBackdropKind: 'mica',
     nativeActionCenterToasts: true,
+    toastDelivery: 'both',
+    toastPosition: 'top-right',
+    windowsNotificationCategories: {
+        transfers: true,
+        errors: true,
+        filesystem: true,
+        plugins: false,
+        mesh: true,
+        system: true,
+        progress: false,
+    },
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
@@ -183,7 +199,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     }
     // Bust stale empty SVG/HEIC thumbnail CAS after Svg.Skia + stream-fallback removal.
     // 21: alpha-preserving shell PNG encode (no MakeTransparent white plates).
-    if ((merged.iconCacheBuster ?? 0) < 21) merged.iconCacheBuster = 21;
+    if ((merged.iconCacheBuster ?? 0) < 22) merged.iconCacheBuster = 22;
     if (merged.showLensStage === undefined) merged.showLensStage = true;
     if (merged.lensCollapsedByDefault === undefined) merged.lensCollapsedByDefault = false;
     if (merged.permanentHomeTab === undefined) merged.permanentHomeTab = false;
@@ -248,6 +264,15 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
             merged.colorConfig14 = '#a855f7';
         }
         merged.selectionColorMigrationVersion = 1;
+    }
+    // v1 wrongly forced shell merge OFF. v2 re-enables merge and weaves verbs into
+    // the BNDZ menu (no dump "Shell extensions" folder).
+    if ((merged.shellMenuPolishVersion ?? 0) < 2) {
+        merged.useNativeOSContextMenu = true;
+        merged.nativeContextMenu = true;
+        merged.hideShellExtensionsFromShellContextMenu = false;
+        merged.useCustomContextMenu = true;
+        merged.shellMenuPolishVersion = 2;
     }
     if ((merged.xCloseActionVersion ?? 0) < 1) {
         // Reset silent tray-on-X so the close dialog asks again; choice is remembered after.
@@ -324,6 +349,8 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if (!Array.isArray(merged.visualFilters)) {
         merged.visualFilters = [];
     }
+    // Seed default filter rules (symlinks, system, empty folders, modified today) when absent.
+    merged.visualFilters = mergeSeedVisualFilters(merged.visualFilters);
     if (!Array.isArray(merged.installedPlugins)) {
         merged.installedPlugins = ['properties', 'find', 'filters'];
     }
@@ -401,6 +428,8 @@ export const defaultConfig: AppConfig = normalizeConfig({
     bottomPanelLazyUnmount: true,
     alwaysOnTop: false,
     showHiddenSystemFoldersInTree: false,
+    showHiddenFiles: false,
+    showSystemFiles: false,
     useCustomContextMenu: true,
     enableIconContextSubmenu: true,
     enableContextSubmenus: true,

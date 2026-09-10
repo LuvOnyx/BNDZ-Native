@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace BNDZ.Services;
 
@@ -8,12 +9,45 @@ public sealed class LinkService
 {
     private const int SYMBOLIC_LINK_FLAG_FILE = 0x0;
     private const int SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1;
+    /// <summary>Windows 10 Creators Update (1703) Developer Mode — allows symlinks without elevation.</summary>
+    private const int SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE = 0x2;
+
+    /// <summary>True when the process can create symlinks without elevation (SeCreateSymbolicLinkPrivilege or Dev Mode).</summary>
+    private static readonly bool _canSymlinkUnprivileged = ProbeSymlinkPrivilege();
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool CreateSymbolicLink(string lpSymlinkFileName, string lpTargetFileName, int dwFlags);
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern SafeFileHandle CreateFile(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DeviceIoControl(
+        SafeFileHandle hDevice,
+        uint dwIoControlCode,
+        IntPtr lpInBuffer,
+        uint nInBufferSize,
+        IntPtr lpOutBuffer,
+        uint nOutBufferSize,
+        out uint lpBytesReturned,
+        IntPtr lpOverlapped);
+
+    private const uint GENERIC_WRITE = 0x40000000;
+    private const uint OPEN_EXISTING = 3;
+    private const uint FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;
+    private const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+    private const uint FSCTL_SET_REPARSE_POINT = 0x000900A4;
+    private const uint IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003;
 
     public LinkResult CreateLink(string linkPath, string targetPath, string linkType)
     {
@@ -42,8 +76,14 @@ public sealed class LinkService
                 case "symbolic":
                 {
                     bool isDir = Directory.Exists(targetPath);
-                    if (!CreateSymbolicLink(linkPath, targetPath, isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : SYMBOLIC_LINK_FLAG_FILE))
-                        return new LinkResult { Success = false, Error = $"CreateSymbolicLink failed: {Marshal.GetLastWin32Error()}" };
+                    int flags = isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : SYMBOLIC_LINK_FLAG_FILE;
+                    // Try with ALLOW_UNPRIVILEGED_CREATE first (Dev Mode / Creators Update+).
+                    // Fall back to plain flag if the OS rejects it (pre-1703 or group policy off).
+                    if (!CreateSymbolicLink(linkPath, targetPath, flags | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE))
+                    {
+                        if (!CreateSymbolicLink(linkPath, targetPath, flags))
+                            return new LinkResult { Success = false, Error = $"CreateSymbolicLink failed: {Marshal.GetLastWin32Error()} (try enabling Developer Mode)" };
+                    }
                     return new LinkResult { Success = true, LinkType = "symlink" };
                 }
                 case "hardlink":
@@ -59,8 +99,9 @@ public sealed class LinkService
                 {
                     if (!Directory.Exists(targetPath))
                         return new LinkResult { Success = false, Error = "Junctions require a directory target" };
-                    if (!CreateSymbolicLink(linkPath, targetPath, SYMBOLIC_LINK_FLAG_DIRECTORY))
-                        return new LinkResult { Success = false, Error = $"CreateJunction failed: {Marshal.GetLastWin32Error()}" };
+                    var jErr = CreateMountPointJunction(linkPath, targetPath);
+                    if (jErr != null)
+                        return new LinkResult { Success = false, Error = jErr };
                     return new LinkResult { Success = true, LinkType = "junction" };
                 }
                 case "shortcut":
@@ -217,6 +258,93 @@ public sealed class LinkService
         catch (Exception ex)
         {
             return new ShortcutResolveResult { Success = false, Error = ex.Message };
+        }
+    }
+
+    /// <summary>
+    /// Create a true NTFS junction (IO_REPARSE_TAG_MOUNT_POINT), not a directory symlink.
+    /// </summary>
+    private static string? CreateMountPointJunction(string junctionPath, string targetDir)
+    {
+        targetDir = Path.GetFullPath(targetDir);
+        if (!targetDir.EndsWith("\\", StringComparison.Ordinal))
+            targetDir += "\\";
+
+        // Substitute path form required by mount-point reparse buffers.
+        var substitute = @"\??\" + targetDir;
+        var printName = targetDir;
+
+        Directory.CreateDirectory(junctionPath);
+
+        using var handle = CreateFile(
+            junctionPath,
+            GENERIC_WRITE,
+            0,
+            IntPtr.Zero,
+            OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+            IntPtr.Zero);
+
+        if (handle.IsInvalid)
+            return $"Open junction path failed: {Marshal.GetLastWin32Error()}";
+
+        var subBytes = System.Text.Encoding.Unicode.GetBytes(substitute);
+        var printBytes = System.Text.Encoding.Unicode.GetBytes(printName);
+        // REPARSE_DATA_BUFFER layout for MountPointReparseBuffer (no PathBuffer padding quirks):
+        // 0: ReparseTag (u32), 4: ReparseDataLength (u16), 6: Reserved (u16),
+        // 8: SubstituteNameOffset (u16), 10: SubstituteNameLength (u16),
+        // 12: PrintNameOffset (u16), 14: PrintNameLength (u16), 16: PathBuffer
+        var pathBufferLen = subBytes.Length + printBytes.Length;
+        var reparseDataLength = (ushort)(8 + pathBufferLen);
+        var totalSize = 8 + reparseDataLength;
+        var buffer = Marshal.AllocHGlobal(totalSize);
+        try
+        {
+            for (var i = 0; i < totalSize; i++)
+                Marshal.WriteByte(buffer, i, 0);
+
+            Marshal.WriteInt32(buffer, 0, unchecked((int)IO_REPARSE_TAG_MOUNT_POINT));
+            Marshal.WriteInt16(buffer, 4, (short)reparseDataLength);
+            Marshal.WriteInt16(buffer, 6, 0);
+            Marshal.WriteInt16(buffer, 8, 0); // SubstituteNameOffset
+            Marshal.WriteInt16(buffer, 10, (short)subBytes.Length);
+            Marshal.WriteInt16(buffer, 12, (short)subBytes.Length); // PrintNameOffset
+            Marshal.WriteInt16(buffer, 14, (short)printBytes.Length);
+            Marshal.Copy(subBytes, 0, IntPtr.Add(buffer, 16), subBytes.Length);
+            Marshal.Copy(printBytes, 0, IntPtr.Add(buffer, 16 + subBytes.Length), printBytes.Length);
+
+            if (!DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, buffer, (uint)totalSize, IntPtr.Zero, 0, out _, IntPtr.Zero))
+            {
+                var err = Marshal.GetLastWin32Error();
+                try { Directory.Delete(junctionPath); } catch { /* best-effort cleanup */ }
+                return $"CreateJunction (mount point) failed: {err}";
+            }
+            return null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Probe whether unprivileged symlinks are allowed by attempting a dry-run with a null pointer
+    /// (which causes CreateSymbolicLink to fail with ERROR_INVALID_PARAMETER rather than
+    /// ERROR_PRIVILEGE_NOT_HELD when the flag is accepted by the OS).
+    /// </summary>
+    private static bool ProbeSymlinkPrivilege()
+    {
+        try
+        {
+            // ERROR_INVALID_PARAMETER (87) means the OS accepted the flags but rejected null paths — Dev Mode OK.
+            // ERROR_PRIVILEGE_NOT_HELD (1314) means the flag was rejected — no Dev Mode.
+            CreateSymbolicLink("", "", SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+            var err = Marshal.GetLastWin32Error();
+            return err == 87; // ERROR_INVALID_PARAMETER
+        }
+        catch
+        {
+            return false;
         }
     }
 

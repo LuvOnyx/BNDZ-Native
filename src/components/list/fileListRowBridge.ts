@@ -94,6 +94,8 @@ export type FileListRowBridge = {
   contextMenuBlockRef: React.MutableRefObject<boolean>;
   suppressNavClickUntilRef: React.MutableRefObject<number>;
   selectionAnchorRef: React.MutableRefObject<{ paneId: string; itemId: string } | null>;
+  html5NativeDrag?: boolean;
+  onHtml5NativeDragStart?: (entityId: string, e: React.DragEvent) => void;
 };
 
 export const paneFileListBridgeRegistry = new Map<string, FileListRowBridge>();

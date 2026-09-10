@@ -243,7 +243,15 @@ function FileConflictModal({
   );
 }
 
-function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () => void }) {
+function ConfirmModal({
+  config,
+  onClose,
+  onActionComplete,
+}: {
+  config: ModalConfig;
+  onClose: () => void;
+  onActionComplete: () => void;
+}) {
   const type = config.type || 'info';
   const [neverAgain, setNeverAgain] = useState(false);
 
@@ -251,8 +259,10 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
     if (isPrimary && neverAgain && config.neverShowAgain) {
       try { config.neverShowAgain.onConfirm(); } catch { /* noop */ }
     }
-    onClose();
+    // Run the button action first — it resolves the confirm promise (true/false).
+    // handleClose always resolves false; never call it from primary/secondary buttons.
     try { void action.action(); } catch { /* noop */ }
+    onActionComplete();
   };
 
   const buttons = config.actions.map((action, i) => {
@@ -471,13 +481,18 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
     closeModal();
   }, [closeModal]);
 
+  const handleConfirmActionComplete = useCallback(() => {
+    confirmQueueRef.current = null;
+    closeModal();
+  }, [closeModal]);
+
   return (
     <ModalContext.Provider value={{ showModal, closeModal, confirm, prompt }}>
       {children}
       {modal && (
         modal.type === 'conflict' && modal.conflict
           ? <FileConflictModal config={modal} onClose={handleClose} />
-          : <ConfirmModal config={modal} onClose={handleClose} />
+          : <ConfirmModal config={modal} onClose={handleClose} onActionComplete={handleConfirmActionComplete} />
       )}
       {promptState && (
         <PromptModal

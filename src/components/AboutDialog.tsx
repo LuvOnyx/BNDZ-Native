@@ -110,7 +110,7 @@ export default function AboutDialog({
         </p>
         <ul className="text-[11px] bndz-native-dialog-muted space-y-1">
           <li>· Cross-pane drag &amp; drop · Everything search · Virtualized tree &amp; list</li>
-          <li>· Rich preview panel · Background file queue · Offline license activation</li>
+          <li>· Rich preview panel · Background file queue · Online serial activation</li>
         </ul>
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 text-[10px]">
           {(['eula', 'privacy', 'third-party'] as const).map(key => {

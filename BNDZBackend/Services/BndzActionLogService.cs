@@ -164,6 +164,29 @@ public sealed class BndzActionLogService
         if (_persistBetweenSessions) PersistNow();
     }
 
+    /// <summary>Drop the newest undo entry when a queued op fails after optimistic Record.</summary>
+    public bool TryDiscardLast(ActionKind kind, IReadOnlyList<string>? sourcePaths = null)
+    {
+        lock (_lock)
+        {
+            if (_undo.Count == 0) return false;
+            var last = _undo[^1];
+            if (last.Kind != kind) return false;
+            if (sourcePaths is { Count: > 0 })
+            {
+                if (last.SourcePaths.Count != sourcePaths.Count) return false;
+                for (var i = 0; i < sourcePaths.Count; i++)
+                {
+                    if (!string.Equals(last.SourcePaths[i], sourcePaths[i], StringComparison.OrdinalIgnoreCase))
+                        return false;
+                }
+            }
+            _undo.RemoveAt(_undo.Count - 1);
+        }
+        if (_persistBetweenSessions) PersistNow();
+        return true;
+    }
+
     public async Task<ActionLogResult> UndoAsync(FileOperationService fileOps)
     {
         ActionLogEntry? entry;

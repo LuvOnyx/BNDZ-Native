@@ -146,22 +146,34 @@ export default function BndzLensStage({
       return;
     }
     let active = true;
+    let attempt = 0;
     setLoading(true);
     setStage(null);
-    const t = window.setTimeout(() => {
+    const run = () => {
       IPC.getLensStage(path)
         .then(payload => {
           if (!active) return;
+          const err = String(payload?.error || '').toLowerCase();
+          if (err.includes('timeout') && attempt < 1) {
+            attempt += 1;
+            window.setTimeout(run, 500);
+            return;
+          }
           setStage(payload);
+          setLoading(false);
         })
         .catch(() => {
           if (!active) return;
+          if (attempt < 1) {
+            attempt += 1;
+            window.setTimeout(run, 500);
+            return;
+          }
           setStage({ error: 'Lens unavailable.' });
-        })
-        .finally(() => {
-          if (active) setLoading(false);
+          setLoading(false);
         });
-    }, 120);
+    };
+    const t = window.setTimeout(run, 120);
     return () => {
       active = false;
       window.clearTimeout(t);

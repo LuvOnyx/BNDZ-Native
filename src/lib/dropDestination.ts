@@ -1,3 +1,4 @@
+import { isMeshPath, normalizeMeshPath } from './meshPaths';
 import { toWindowsPath } from './pathUtils';
 
 /** Canonical Windows path for equality checks (trim trailing slashes; drive roots keep `\`). */
@@ -25,9 +26,26 @@ export function getParentWinPath(filePath: string): string {
   return parent;
 }
 
+function meshParentPath(filePath: string): string {
+  const n = normalizeMeshPath(filePath);
+  const idx = n.lastIndexOf('/');
+  if (idx <= 0) return n;
+  const parent = n.slice(0, idx);
+  return parent === '/mesh' ? parent : parent || '/';
+}
+
 /** True when every source already lives directly in destDir (Explorer put-back / no-op move). */
 export function isSameDropLocation(sourcePaths: string[], destDir: string): boolean {
   if (!sourcePaths.length || !destDir) return false;
+
+  // Mesh pane paths must not go through toWindowsPath (yields mesh\host\… garbage).
+  if (isMeshPath(destDir)) {
+    if (!sourcePaths.every(isMeshPath)) return false;
+    const dest = normalizeMeshPath(destDir).toLowerCase();
+    return sourcePaths.every(sp => meshParentPath(sp).toLowerCase() === dest);
+  }
+  if (sourcePaths.some(isMeshPath)) return false;
+
   const dest = normalizeWinPathForCompare(destDir);
   if (!dest) return false;
   return sourcePaths.every(sp => normalizeWinPathForCompare(getParentWinPath(sp)) === dest);
@@ -39,6 +57,16 @@ export function isSameDropLocation(sourcePaths: string[], destDir: string): bool
  */
 export function isDropIntoDraggedSource(sourcePaths: string[], destDir: string): boolean {
   if (!sourcePaths.length || !destDir) return false;
+
+  if (isMeshPath(destDir) || sourcePaths.some(isMeshPath)) {
+    if (!isMeshPath(destDir) || !sourcePaths.every(isMeshPath)) return false;
+    const dest = normalizeMeshPath(destDir).toLowerCase();
+    return sourcePaths.some(sp => {
+      const src = normalizeMeshPath(sp).toLowerCase();
+      return dest === src || dest.startsWith(`${src}/`);
+    });
+  }
+
   const dest = normalizeWinPathForCompare(destDir);
   if (!dest) return false;
   return sourcePaths.some(sp => {
@@ -63,6 +91,8 @@ export function shouldCommitInternalFileDrop(opts: {
   pointerTravelPx: number;
   /** Max travel treated as "put back" when there is no foreign target. */
   putBackSlopPx?: number;
+  /** Tree/breadcrumb/folder target from hover memory — commit even when pointer-up coords lie. */
+  explicitDropTarget?: boolean;
 }): boolean {
   const {
     sourcePaths,
@@ -71,13 +101,22 @@ export function shouldCommitInternalFileDrop(opts: {
     hasForeignTarget,
     pointerTravelPx,
     putBackSlopPx = 14,
+    explicitDropTarget = false,
   } = opts;
 
   if (!sourcePaths.length || !destDir) return false;
   if (isDropIntoDraggedSource(sourcePaths, destDir)) return false;
 
+  const srcMesh = sourcePaths.some(isMeshPath);
+  const destMesh = isMeshPath(destDir);
+  // Local ↔ mesh is always a real transfer — never treat as put-back.
+  if (srcMesh !== destMesh) return true;
+
   const same = isSameDropLocation(sourcePaths, destDir);
   if (op === 'move' && same) return false;
+
+  // Explicit tree/breadcrumb/folder target from last good hover — never cancel as put-back.
+  if (explicitDropTarget && hasForeignTarget) return op === 'copy' || !same;
 
   // Picked up and released in place — do not treat background as a drop.
   if (!hasForeignTarget && pointerTravelPx < putBackSlopPx) return false;

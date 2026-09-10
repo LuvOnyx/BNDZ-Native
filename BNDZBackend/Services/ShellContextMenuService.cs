@@ -519,6 +519,8 @@ public sealed class ShellContextMenuService
                 data.SetFileDropList(fileList);
                 // DROPEFFECT_MOVE = 2, DROPEFFECT_COPY|LINK = 5 — Explorer interop convention
                 data.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(cut ? 2 : 5)));
+                // Also set Unicode text so Notepad / browsers / other apps can paste paths.
+                try { data.SetText(string.Join(Environment.NewLine, paths)); } catch { /* optional */ }
                 System.Windows.Clipboard.SetDataObject(data, true);
                 return true;
             });

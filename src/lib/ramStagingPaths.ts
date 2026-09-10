@@ -110,7 +110,7 @@ export async function createItemInPane(
   panePath: string,
   name: string,
   kind: 'dir' | 'file',
-): Promise<{ ok: boolean; error?: string; fullPath?: string }> {
+): Promise<{ ok: boolean; error?: string; fullPath?: string; finalName?: string }> {
   if (isMeshPath(panePath)) {
     return createMeshItemInPane(panePath, name, kind);
   }
@@ -124,16 +124,21 @@ export async function createItemInPane(
     const res = await IPC.executeFsOperation(
       `${op}-${Date.now()}`,
       op,
-      fullPath,
       '',
+      fullPath,
       false,
       name,
       'high',
     );
-    if (res && res.ok === false) {
+    if (res && (res.ok === false || res.success === false || (res.background && !res.finalPath && !res.finalName))) {
+      return { ok: false, error: res.error || 'Create failed', fullPath: res.finalPath || fullPath };
+    }
+    if (res && res.ok !== true && res.success !== true && !res.finalPath && !res.created) {
       return { ok: false, error: res.error || 'Create failed', fullPath };
     }
-    return { ok: true, fullPath };
+    const createdPath = res.finalPath || fullPath;
+    const createdName = res.finalName || name;
+    return { ok: true, fullPath: createdPath, finalName: createdName };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e), fullPath };
   }

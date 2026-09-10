@@ -17,22 +17,22 @@ import GhostLinkPlugin, { GhostLinkPluginDef } from '../components/plugins/Ghost
 import RamStagingPlugin, { RamStagingPluginDef } from '../components/plugins/RamStagingPlugin';
 import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plugins/ProjectSandboxPlugin';
 import LibraryHealthPlugin, { LibraryHealthPluginDef } from '../components/plugins/LibraryHealthPlugin';
-import CapacitySolverPlugin, { CapacitySolverPluginDef } from '../components/plugins/CapacitySolverPlugin';
 import InboundVolumePlugin, { InboundVolumePluginDef } from '../components/plugins/InboundVolumePlugin';
 import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
 import PolicyPackPlugin, { PolicyPackPluginDef } from '../components/plugins/PolicyPackPlugin';
 import ZkVaultPlugin, { ZkVaultPluginDef } from '../components/plugins/ZkVaultPlugin';
 import DropMagnetPlugin, { DropMagnetPluginDef } from '../components/plugins/DropMagnetPlugin';
-import CaptureInboxPlugin, { CaptureInboxPluginDef } from '../components/plugins/CaptureInboxPlugin';
-import RealityCheckPlugin, { RealityCheckPluginDef } from '../components/plugins/RealityCheckPlugin';
 import TranscodeRackPlugin, { TranscodeRackPluginDef } from '../components/plugins/TranscodeRackPlugin';
 import SemanticDeskPlugin, { SemanticDeskPluginDef } from '../components/plugins/SemanticDeskPlugin';
 import DesignBoardPlugin, { DesignBoardPluginDef } from '../components/plugins/DesignBoardPlugin';
 import { useAppConfig } from './configContext';
 
-/** Stale Part B sibling IDs remapped into real FM homes. */
+/** Stale / absorbed plugin IDs remapped into real FM homes. */
 const RETIRED_PLUGIN_REMAP: Record<string, string> = {
     'shell-verb-forge': 'context-menu-manager',
+    'capacity-solver': 'storage-cleanup',
+    'capture-inbox': 'inbound-volume',
+    'reality-check': 'library-health',
 };
 
 export type PluginManifest = {
@@ -150,7 +150,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ActionLogPluginDef,
-        description: 'Reversible operation history with undo/redo — XYplorer-style action log.',
+        description: 'Reversible operation history with undo and redo for copy, move, and rename.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -158,7 +158,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ComparePluginDef,
-        description: 'Binary file compare and recursive folder diff — XYplorer branch compare parity.',
+        description: 'Binary file compare and recursive folder diff for dual-pane verification.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -198,23 +198,15 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...LibraryHealthPluginDef,
-        description: 'Scan libraries for broken links, naming conflicts, permission issues, and orphans.',
+        description: 'Scan libraries for broken links, naming conflicts, permission issues, orphans, and missing project refs.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: LibraryHealthPlugin,
     },
     {
-        ...CapacitySolverPluginDef,
-        description: 'Analyze storage and build cleanup plans to free space on any volume.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: CapacitySolverPlugin,
-    },
-    {
         ...InboundVolumePluginDef,
-        description: 'Clipboard catcher and inbound file watcher — capture, review, and copy into your library.',
+        description: 'Clipboard catcher, OCR capture inbox, and inbound file watcher — capture, review, and copy into your library.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -235,22 +227,6 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: DropMagnetPlugin,
-    },
-    {
-        ...CaptureInboxPluginDef,
-        description: 'Screenshot and clipboard images saved as named PNG files via Windows OCR.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: CaptureInboxPlugin,
-    },
-    {
-        ...RealityCheckPluginDef,
-        description: 'Compare on-disk assets against project and DAW session references — missing files glow in the list.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: RealityCheckPlugin,
     },
     {
         ...TranscodeRackPluginDef,

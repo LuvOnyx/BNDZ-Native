@@ -5,6 +5,20 @@
 
 import { isFsDropTargetPath } from './bndzVirtualViews';
 import { joinPanePath } from './pathUtils';
+import { recordPointerDragHover, recallPointerDragHover } from './fileDragHover';
+
+/** Nav-tree drop path with WebView2 pointer-up fallbacks (avoids circular import with fileDragHover helpers). */
+function resolveNavTreeDropAtPoint(clientX: number, clientY: number): string | null {
+  return hitTestNavTreeAtPoint(clientX, clientY)
+    || recallPointerDragHover(clientX, clientY)?.navTreePath
+    || (recordPointerDragHover.last.valid ? recordPointerDragHover.last.navTreePath : null);
+}
+
+function resolveBreadcrumbDropAtPoint(clientX: number, clientY: number): string | null {
+  return hitTestBreadcrumbAtPoint(clientX, clientY)
+    || recallPointerDragHover(clientX, clientY)?.breadcrumbPath
+    || (recordPointerDragHover.last.valid ? recordPointerDragHover.last.breadcrumbPath : null);
+}
 
 export type TabHoverTarget = { paneId: string; tabIndex: number; tabId: string };
 export type ListFolderTarget = { id: string; type?: string; name?: string };
@@ -47,7 +61,7 @@ function resolveTabFromElement(tabEl: HTMLElement | null): TabHoverTarget | null
   const paneEl = tabEl.closest('[data-pane-id]') as HTMLElement | null;
   const paneId = paneEl?.getAttribute('data-pane-id') || '';
   const tabIndex = parseInt(tabEl.getAttribute('data-tab-index') || '-1', 10);
-  if (!paneId || tabIndex < 0) return { paneId: '', tabIndex: 0, tabId };
+  if (!paneId || tabIndex < 0) return null;
   return { paneId, tabIndex, tabId };
 }
 
@@ -111,7 +125,7 @@ const HIT_PROBES = (clientX: number, clientY: number): Array<[number, number]> =
 ];
 
 /** Rect hit-test when WebView2 poisons elementsFromPoint during pointer drags. */
-function hitTestSelectorByRect(
+export function hitTestSelectorByRect(
   clientX: number,
   clientY: number,
   selector: string,
@@ -139,6 +153,20 @@ export function hitTestListBodyAtPoint(clientX: number, clientY: number): HTMLEl
 export function hitTestWorkspaceSurfaceAtPoint(clientX: number, clientY: number): HTMLElement | null {
   return hitTestClosestAtPoint(clientX, clientY, '[data-bndz-workspace-surface]')
     ?? hitTestSelectorByRect(clientX, clientY, '[data-bndz-workspace-surface]');
+}
+
+/**
+ * Only exclusive workspace canvases own inbound file drops.
+ * Preview loupe also stamps data-bndz-workspace-surface — must not swallow desktop→list.
+ */
+export function hitTestExclusiveWorkspaceDropSurface(clientX: number, clientY: number): HTMLElement | null {
+  const el = hitTestWorkspaceSurfaceAtPoint(clientX, clientY);
+  if (!el) return null;
+  if (el.getAttribute('data-bndz-workspace-surface') === 'preview') return null;
+  if (el.closest('.bndz-spatial-canvas, .bndz-automation, .bndz-twin-chess, [data-bndz-workspace-drop-own]')) {
+    return el;
+  }
+  return null;
 }
 
 /** Hit-test a list folder row during internal drag. */
@@ -224,6 +252,11 @@ export function stashOleDragSession(state?: FileDragSessionState | null) {
   }
 }
 
+/** Read OLE stash without clearing — used when OLE_DRAG_ENDED omits paths. */
+export function peekOleDragSession(): FileDragSessionState | null {
+  return pendingOleSession ?? activeSession;
+}
+
 /** Read and clear OLE/in-app session for an EXTERNAL_FILES_DROPPED that originated from BNDZ. */
 export function consumeOleDragSession(): FileDragSessionState | null {
   const s = pendingOleSession ?? activeSession;
@@ -241,6 +274,8 @@ const INTERNAL_DRAG_CHROME_SELECTORS = [
   '[data-nav-path]',
   '[data-list-body]',
   '[data-bndz-workspace-surface]',
+  '[data-mesh-drop-inbox]',
+  '[data-drop-stack-zone]',
   '.fs-list-header',
   '.bndz-chrome-tabstrip',
   '.bndz-chrome-toolbar',
@@ -265,7 +300,13 @@ const OLE_EDGE_CHROME_SELECTORS = [
   '[data-new-tab-zone]',
   '[data-breadcrumb-path]',
   '[data-nav-path]',
+  '[data-home-nav-path]',
+  '[data-favorite-path]',
   '[data-list-body]',
+  '[data-mesh-drop-inbox]',
+  '[data-drop-stack-zone]',
+  '[data-plugin-tab-id="dropstack"]',
+  '[data-ram-zone-id]',
   '.fs-list-header',
   '.bndz-chrome-tabstrip',
   '.bndz-chrome-toolbar',
@@ -276,6 +317,7 @@ const OLE_EDGE_CHROME_SELECTORS = [
   '.bndz-chrome-preview',
   '.bndz-chrome-statusbar',
   '.bndz-archive-root',
+  '.bndz-ram-zone-card',
   '.sidebar-pin-row',
   '[data-bndz-workspace-surface]',
 ];
@@ -320,8 +362,15 @@ export function isOleEdgeChromeAtPoint(clientX: number, clientY: number): boolea
   if (hitTestListBodyAtPoint(clientX, clientY)) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-nav-path]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-breadcrumb-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-favorite-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-home-nav-path]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '.bndz-archive-root')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-sidebar')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-bottom')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-preview')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-drop-stack-zone]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-plugin-tab-id="dropstack"]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-ram-zone-id]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-tabstrip]')) return true;
   return false;
 }
@@ -339,6 +388,65 @@ export function isPointerNearWebViewViewportEdge(clientX: number, clientY: numbe
   const h = typeof window !== 'undefined' ? window.innerHeight : 0;
   if (w <= 0 || h <= 0) return false;
   return clientX <= edgePx || clientY <= edgePx || clientX >= w - edgePx || clientY >= h - edgePx;
+}
+
+/**
+ * Side/bottom viewport rim only — never the top band (React menubar lives there).
+ * Top exit must use screen-space leave (isPointerOutsideScreenWindow) so OLE does not
+ * start DoDragDrop while the cursor is still over the menubar / WinUI caption.
+ */
+export function isPointerNearWebViewSideOrBottomEdge(clientX: number, clientY: number, edgePx = 10): boolean {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+  if (w <= 0 || h <= 0) return false;
+  return clientX <= edgePx || clientX >= w - edgePx || clientY >= h - edgePx;
+}
+
+export function isPointerOverMenubar(clientX: number, clientY: number): boolean {
+  if (typeof document === 'undefined') return false;
+  for (const el of elementsAtPoint(clientX, clientY)) {
+    if (el.closest('.bndz-chrome-menubar, [data-bndz-menubar-logo], [data-menu-trigger]')) return true;
+  }
+  const bar = document.querySelector('.bndz-chrome-menubar');
+  if (!bar) return false;
+  const r = bar.getBoundingClientRect();
+  return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+}
+
+/**
+ * True when an in-app drag should hand off to native OLE at the WebView rim.
+ * WebView2 clamps clientX/Y — use side/bottom edge + screen leave, not outside-viewport.
+ * Never escalate while over real in-app drop chrome (sidebar / preview / Drop Stack / etc.).
+ */
+export function shouldTriggerOutboundOleBoundaryHandoff(
+  clientX: number,
+  clientY: number,
+  prevClientX: number,
+  prevClientY: number,
+  screenX?: number,
+  screenY?: number,
+  edgePx = 4,
+): boolean {
+  // True desktop/other-app leave — always escalate (chrome veto does not apply off-window).
+  if (typeof screenX === 'number' && typeof screenY === 'number'
+    && isPointerOutsideScreenWindow(screenX, screenY, 2)) {
+    return true;
+  }
+  if (isPointerOverMenubar(clientX, clientY)) return false;
+  // Sidebar / bottom / preview / Drop Stack / RAM — keep FE ghosts + in-app drop.
+  if (isOleEdgeChromeAtPoint(clientX, clientY)) return false;
+  const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+  if (w <= 0 || h <= 0) return false;
+  const atLeft = clientX <= edgePx;
+  const atRight = clientX >= w - edgePx;
+  const atBottom = clientY >= h - edgePx;
+  if (!atLeft && !atRight && !atBottom) return false;
+  if (atLeft && clientX <= prevClientX) return true;
+  if (atRight && clientX >= prevClientX) return true;
+  if (atBottom && clientY >= prevClientY) return true;
+  // Clamped on the rim (e.g. clientY stuck at innerHeight - 1) while LMB still down.
+  return atLeft || atRight || atBottom;
 }
 
 /** Screen-space leave check — works when clientX/Y are clamped by WebView2. */
@@ -366,6 +474,16 @@ export function isPointerNearWindowTopChrome(screenY: number, chromePx = 48): bo
  * Escalate in-app pointer drag to native OLE (Explorer/desktop).
  * Host FILE_DRAG_ACTIVE poll is authoritative; this is the FE backup path.
  */
+/** Pointer-up: only when screen coords left the WebView window (host poll handles rim while LMB down). */
+export function shouldEscalateOutboundOnPointerEnd(
+  _clientX: number,
+  _clientY: number,
+  screenX: number,
+  screenY: number,
+): boolean {
+  return isPointerOutsideScreenWindow(screenX, screenY);
+}
+
 export function shouldEscalateFileDragToOle(
   clientX: number,
   clientY: number,
@@ -380,8 +498,9 @@ export function shouldEscalateFileDragToOle(
     && isPointerOutsideScreenWindow(screenX, screenY)) {
     return true;
   }
-  if (overInternalChrome || outsideChromeStreak < 2) return false;
-  return isPointerNearWebViewViewportEdge(clientX, clientY);
+  if (overInternalChrome || outsideChromeStreak < 1) return false;
+  if (isPointerOverMenubar(clientX, clientY)) return false;
+  return isPointerNearWebViewSideOrBottomEdge(clientX, clientY);
 }
 
 /** True when archive drag should escalate to native OLE (desktop / Explorer), not in-app list. */
@@ -399,8 +518,9 @@ export function shouldArchiveEscalateToOle(
   }
   if (!isOutsideArchivePreviewAtPoint(clientX, clientY)) return false;
   if (isInternalFileDragChromeAtPoint(clientX, clientY)) return false;
-  if (outsideChromeStreak < 2) return false;
-  return isPointerNearWebViewViewportEdge(clientX, clientY);
+  if (outsideChromeStreak < 1) return false;
+  if (isPointerOverMenubar(clientX, clientY)) return false;
+  return isPointerNearWebViewSideOrBottomEdge(clientX, clientY);
 }
 
 /** True when pointer is over an in-app drop target for archive extract-and-copy. */
@@ -493,8 +613,8 @@ export function resolveNativeFileDropTarget(
   const listBody = hitTestListBodyAtPoint(clientX, clientY);
   const listWins = !!listBody;
 
-  const navTreePath = listWins ? null : hitTestNavTreeAtPoint(clientX, clientY);
-  const breadcrumbPath = listWins ? null : (navTreePath ? null : hitTestBreadcrumbAtPoint(clientX, clientY));
+  const navTreePath = listWins ? null : resolveNavTreeDropAtPoint(clientX, clientY);
+  const breadcrumbPath = listWins ? null : (navTreePath ? null : resolveBreadcrumbDropAtPoint(clientX, clientY));
   const tabHit = hitTestTabAtPoint(clientX, clientY);
 
   let hover: { paneId: string; tabIndex: number } | null = null;

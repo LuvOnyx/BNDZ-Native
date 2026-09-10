@@ -1,8 +1,10 @@
 import React from 'react';
+import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
+import MediaPlayingIcon from './MediaPlayingIcon';
 
 /**
  * SVG emblems from public/EMBLEMS — sized via CSS box, not the SVG's native viewport.
- * Use for status badges, list emblems, and plugin chrome where SVG sharpness matters.
+ * Media playback ids resolve via the DEV icon map (public/Media/) in toolbarLauncherIcons.
  */
 export type EmblemId =
   | 'emblem-mounted'
@@ -71,8 +73,11 @@ export type EmblemId =
 
 const EMBLEM_BASE = '/EMBLEMS';
 
+/** Prefer DEV icon map for media controls; fall back to EMBLEMS/*.svg. */
 export function emblemUrl(id: EmblemId | string): string {
   const clean = id.replace(/\.svg$/i, '');
+  const mapped = launcherIconUrl(clean) ?? launcherIconUrl(clean.replace(/-/g, '_'));
+  if (mapped) return mapped;
   return `${EMBLEM_BASE}/${clean}.svg`;
 }
 
@@ -84,9 +89,33 @@ type Props = {
   title?: string;
   /** Optional CSS filter / opacity via className; this dims for disabled chrome. */
   disabled?: boolean;
+  /** 0–1 seek progress for media-playback-playing (live seek ring). */
+  progress?: number;
+  /** When true, media-playback-playing uses the live seek ring (audio session). */
+  live?: boolean;
+  /** When using the seek-ring control, show pause bars in the center. */
+  paused?: boolean;
 };
 
-export function EmblemIcon({ id, size = 16, className = '', title, disabled }: Props) {
+export function EmblemIcon({ id, size = 16, className = '', title, disabled, progress, live, paused }: Props) {
+  const clean = String(id).replace(/\.svg$/i, '').replace(/_/g, '-');
+  const useRing =
+    clean === 'media-playback-playing'
+    || clean === 'media-playing'
+    || clean === 'media-playback-paused'
+    || clean === 'media-pause';
+  if (useRing && (live || typeof progress === 'number' || paused != null)) {
+    return (
+      <span title={title} className={disabled ? 'opacity-40 inline-flex' : 'inline-flex'}>
+        <MediaPlayingIcon
+          size={size}
+          className={className}
+          progress={progress}
+          paused={paused ?? (clean === 'media-playback-paused' || clean === 'media-pause')}
+        />
+      </span>
+    );
+  }
   return (
     <img
       src={emblemUrl(id)}

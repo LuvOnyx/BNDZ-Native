@@ -176,7 +176,11 @@ function SortablePaneTab({
     // Light themes keep dark tabstrip — always prefer light ink when theme-light is on
     ...(typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light')
       ? {
-          background: isActive ? 'var(--tab-active-bg, #2a2e36)' : 'var(--tab-inactive-bg, #1a1c22)',
+          ...(tab.color
+            ? {}
+            : {
+                background: isActive ? 'var(--tab-active-bg, #2a2e36)' : 'var(--tab-inactive-bg, #1a1c22)',
+              }),
           color: isActive ? 'var(--tab-active-text, rgba(255,255,255,0.95))' : 'var(--tab-inactive-text, rgba(255,255,255,0.58))',
         }
       : {}),
@@ -242,6 +246,7 @@ function SortablePaneTab({
       } ${
         isBndzAutomationPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--automation' : ''
       }`}
+      data-tab-accent={tab.color ? '1' : undefined}
       data-workspace-tab={isBndzCanvasPath(tab.path) ? 'spatial' : isBndzAutomationPath(tab.path) ? 'automation' : undefined}
       {...attributes}
       {...dragListeners}
@@ -275,6 +280,8 @@ function SortablePaneTab({
       onContextMenu={e => {
         e.preventDefault();
         e.stopPropagation();
+        // Explorer: right-click activates the tab before the menu appears.
+        onActivate();
         onContextMenu(e);
       }}
     >

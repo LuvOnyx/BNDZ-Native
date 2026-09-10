@@ -67,7 +67,32 @@ export function applyFsEventsToListing(
     }
 
     if (type === 'Created') {
-      // Need host metadata (size/type/id) — soft-refresh once, don't kick every Changed.
+      const idx = next.findIndex((e: any) => String(e.name || '') === name);
+      if (idx >= 0) {
+        // Already visible (optimistic drop) — still soft-refresh for real metadata.
+        needsSoftRefresh = true;
+        continue;
+      }
+      const dirRaw = String(ev.dir || '').replace(/\\/g, '/').replace(/\/+$/, '');
+      const paneDir = /^[A-Za-z]:/.test(dirRaw) && !dirRaw.startsWith('/')
+        ? `/${dirRaw}`
+        : dirRaw;
+      const paneChild = paneDir
+        ? `${paneDir.replace(/\/$/, '')}/${name}`
+        : name;
+      const looksFile = /\.[^./\\]+$/.test(name);
+      next = next.slice();
+      next.push({
+        id: paneChild,
+        name,
+        path: paneChild,
+        type: looksFile ? 'file' : 'directory',
+        isDirectory: !looksFile,
+        size: 0,
+        dateModified: Date.now(),
+        __provisionalFs: true,
+      });
+      mutated = true;
       needsSoftRefresh = true;
       continue;
     }

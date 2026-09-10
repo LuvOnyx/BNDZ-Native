@@ -4,6 +4,30 @@ const RESIZE_HANDLE_SELECTOR =
 
 const SPATIAL_BOARD_SELECTOR = '[data-spatial-board], .bndz-spatial-board';
 
+/** True while a panel separator is being dragged — list must not scroll/select underneath. */
+let panelResizeDepth = 0;
+
+export function beginPanelResizeGuard(): void {
+  panelResizeDepth += 1;
+  try {
+    document.documentElement.classList.add('bndz-panel-resizing');
+    document.body.classList.add('bndz-panel-resizing');
+  } catch { /* ignore */ }
+}
+
+export function endPanelResizeGuard(): void {
+  panelResizeDepth = Math.max(0, panelResizeDepth - 1);
+  if (panelResizeDepth > 0) return;
+  try {
+    document.documentElement.classList.remove('bndz-panel-resizing');
+    document.body.classList.remove('bndz-panel-resizing');
+  } catch { /* ignore */ }
+}
+
+export function isPanelResizeActive(): boolean {
+  return panelResizeDepth > 0;
+}
+
 export function clearChromeDragCursor(): void {
   document.body.style.removeProperty('cursor');
   document.documentElement.style.removeProperty('cursor');

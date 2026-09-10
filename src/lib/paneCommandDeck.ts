@@ -20,7 +20,10 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'mesh-shell-here':
     case 'mesh-download':
     case 'mesh-edit-remote':
+    case 'mesh-ephemeral':
       return { kind: 'plugin', pluginId: 'remote-mesh' };
+    case 'archive-extract':
+      return { kind: 'host', tool: id };
     case 'waveform':
     case 'media-tab':
       return { kind: 'preview', tab: 'media' };
@@ -48,7 +51,7 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'library-health':
       return { kind: 'plugin', pluginId: 'library-health' };
     case 'capacity-solver':
-      return { kind: 'plugin', pluginId: 'capacity-solver' };
+      return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'inbound-volume':
       return { kind: 'plugin', pluginId: 'inbound-volume' };
     case 'branching-time':

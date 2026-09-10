@@ -362,6 +362,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
               <PluginCard
                 key={z.id}
                 className={`bndz-ram-zone-card${z.isDirty ? ' is-dirty' : ''}`}
+                data-ram-zone-id={z.id}
                 onDragOver={e => {
                   // HTML5 internal + Explorer FileList drops (path may arrive via File.path in WebView2).
                   // Host OLE drops still go through fileDropBus → list/paste stagePaths as primary.

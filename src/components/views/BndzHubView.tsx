@@ -109,7 +109,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
 
   const workspaceSection = (
     <>
-      <div className="px-1 pt-1 pb-2 text-[10px] uppercase tracking-wider text-gray-500">Workspaces</div>
+      <div className="px-1 pt-1 pb-2 text-[10px] uppercase tracking-wider bndz-smart-hub-kicker">Workspaces</div>
       <div className="space-y-2 mb-2">
         {WORKSPACES.map(v => (
           <WorkspaceLaunchCard
@@ -135,7 +135,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
       </div>
       {(onOpenMeshDrop || onOpenGhostLink || onOpenRamStaging) && (
         <div className="px-1 pt-3 pb-2">
-          <div className="px-1 pb-2 text-[10px] uppercase tracking-wider text-gray-500">Power tools</div>
+          <div className="px-1 pb-2 text-[10px] uppercase tracking-wider bndz-smart-hub-kicker">Power tools</div>
           <div className="space-y-2">
             {onOpenMeshDrop && (
               <WorkspaceLaunchCard
@@ -203,8 +203,8 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
             <Icons8Icon id="sparkles_ui" size={16} />
           </div>
           <div className="min-w-0">
-            <h2 className="text-[13px] font-semibold text-[#e8eaed] tracking-wide">Smart Views</h2>
-            <p className="text-[11px] text-[#8b919a] mt-0.5">
+            <h2 className="bndz-smart-hub-title text-[13px] font-semibold tracking-wide">Smart Views</h2>
+            <p className="bndz-smart-hub-sub text-[11px] mt-0.5">
               {(status?.fileCount ?? 0).toLocaleString()} files indexed
               {(status?.locations?.length ?? 0) > 0 ? ` · ${status!.locations!.length} location${status!.locations!.length === 1 ? '' : 's'}` : ''}
             </p>
@@ -214,7 +214,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
 
       <div className="flex-1 overflow-y-auto bndz-scrollbar px-3 pb-4 pt-1 space-y-1.5">
         {workspaceSection}
-        <div className="px-1 pt-3 pb-2 text-[10px] uppercase tracking-wider text-gray-500">Indexed views</div>
+        <div className="px-1 pt-3 pb-2 text-[10px] uppercase tracking-wider bndz-smart-hub-kicker">Indexed views</div>
         {VIEWS.map(v => {
           const viewKey = v.path.split('/').pop() as 'recent' | 'media' | 'audio' | 'documents' | 'large';
           return (
@@ -229,15 +229,15 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
                 <Icons8Icon id={v.icon} size={18} />
               </div>
               <div className="flex-1 min-w-0 py-0.5">
-                <div className="text-[12.5px] font-medium text-[#e4e6ea] group-hover:text-white transition-colors">
+                <div className="bndz-smart-hub-row-title text-[12.5px] font-medium transition-colors">
                   {bndzVirtualLabel(viewKey)}
                 </div>
-                <div className="text-[10.5px] text-[#7a8088] truncate mt-0.5">{v.desc}</div>
+                <div className="bndz-smart-hub-row-desc text-[10.5px] truncate mt-0.5">{v.desc}</div>
               </div>
               <Icons8Icon
                 id="chevron_right"
                 size={14}
-                className="text-[#555] group-hover:text-[#9aa0a8] shrink-0 transition-colors"
+                className="bndz-smart-hub-row-chevron shrink-0 transition-colors"
               />
             </button>
           );

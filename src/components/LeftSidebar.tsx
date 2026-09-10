@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { dropSideFromPointer, computeReorderInsertIndex, reorderArrayMove } from '../lib/reorderOnDrop';
+import { IPC } from '../lib/ipcBridge';
 
 const SECTION_KEY_MAP: Record<string, string> = {
     storage: 'drives',
@@ -63,12 +64,21 @@ export function LeftSidebar({
     const [draggedItem, setDraggedItem] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
     const [dropSide, setDropSide] = useState<'before' | 'after'>('before');
+    const dragOverIdRef = useRef<string | null>(null);
+    const dropSideRef = useRef<'before' | 'after'>('before');
+    const suppressToggleRef = useRef(false);
+    const orderRef = useRef(order);
+    orderRef.current = order;
 
     useEffect(() => {
         setOrder(mappedOrder);
     }, [mappedOrder]);
 
     const toggleSection = (section: string) => {
+        if (suppressToggleRef.current) {
+            suppressToggleRef.current = false;
+            return;
+        }
         setExpandedSections(prev => ({ ...prev, [section]: !(prev as any)[section] }));
     };
 
@@ -78,22 +88,44 @@ export function LeftSidebar({
         e.stopPropagation();
         const gripEl = e.currentTarget as HTMLElement;
         const captureId = e.pointerId;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        let moved = false;
         try { gripEl.setPointerCapture(captureId); } catch { /* ignore */ }
         setDraggedItem(id);
+        dragOverIdRef.current = null;
+        dropSideRef.current = 'before';
 
         const resolveTarget = (clientX: number, clientY: number) => {
+            // Prefer another module's header — elementsFromPoint often lands on the
+            // dragged section (or its ghost), which previously aborted the swap.
             const hit = document.elementsFromPoint(clientX, clientY)
-                .map(el => (el as HTMLElement).closest('[data-section-id]'))
+                .map(el => {
+                    const header = (el as HTMLElement).closest?.('[data-section]');
+                    if (header) {
+                        const wrap = header.closest('[data-section-id]') as HTMLElement | null;
+                        if (wrap && wrap.getAttribute('data-section-id') !== id) return wrap;
+                    }
+                    const section = (el as HTMLElement).closest?.('[data-section-id]') as HTMLElement | null;
+                    if (section && section.getAttribute('data-section-id') !== id) return section;
+                    return null;
+                })
                 .find(Boolean) as HTMLElement | null;
             const targetId = hit?.getAttribute('data-section-id');
             if (!targetId || targetId === id) return;
             const rect = hit!.getBoundingClientRect();
+            const side = dropSideFromPointer(clientX, clientY, rect, 'y');
+            dragOverIdRef.current = targetId;
+            dropSideRef.current = side;
             setDragOverId(targetId);
-            setDropSide(dropSideFromPointer(clientX, clientY, rect, 'y'));
+            setDropSide(side);
         };
 
         const onMove = (ev: PointerEvent) => {
             if (ev.pointerId !== captureId) return;
+            if (!moved && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
+                moved = true;
+            }
             resolveTarget(ev.clientX, ev.clientY);
         };
 
@@ -104,30 +136,35 @@ export function LeftSidebar({
             window.removeEventListener('pointercancel', finish);
             try { gripEl.releasePointerCapture(captureId); } catch { /* ignore */ }
 
-            const hit = document.elementsFromPoint(ev.clientX, ev.clientY)
-                .map(el => (el as HTMLElement).closest('[data-section-id]'))
-                .find(Boolean) as HTMLElement | null;
-            const targetId = hit?.getAttribute('data-section-id');
-            if (targetId && targetId !== id) {
-                const from = order.indexOf(id);
-                const to = order.indexOf(targetId);
+            // Commit from last valid hover target — pointerup hit-test is unreliable under capture/ghost.
+            resolveTarget(ev.clientX, ev.clientY);
+            const targetId = dragOverIdRef.current;
+            const side = dropSideRef.current;
+            const currentOrder = orderRef.current;
+            if (moved && targetId && targetId !== id) {
+                const from = currentOrder.indexOf(id);
+                const to = currentOrder.indexOf(targetId);
                 if (from >= 0 && to >= 0) {
-                    const rect = hit!.getBoundingClientRect();
-                    const side = dropSideFromPointer(ev.clientX, ev.clientY, rect, 'y');
-                    const insertAt = computeReorderInsertIndex(from, to, side);
-                    const next = reorderArrayMove(order, from, insertAt);
+                    const insertAt = computeReorderInsertIndex(from, to, side === 'after');
+                    const next = reorderArrayMove(currentOrder, from, insertAt);
                     setOrder(next);
                     onSectionOrderChange?.(next.map((k: string) => REVERSE_SECTION_MAP[k] || k));
                 }
             }
+            if (moved) {
+                // Grip lives inside the clickable header — swallow the fold toggle after a drag.
+                suppressToggleRef.current = true;
+                window.setTimeout(() => { suppressToggleRef.current = false; }, 120);
+            }
             setDraggedItem(null);
             setDragOverId(null);
+            dragOverIdRef.current = null;
         };
 
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', finish);
         window.addEventListener('pointercancel', finish);
-    }, [order, onSectionOrderChange]);
+    }, [onSectionOrderChange]);
 
     const sections = {
         quickAccess: { content: quickAccessContent, label: 'Rapid access', icon: 'zap_ui', iconColor: 'text-emerald-400' },
@@ -140,8 +177,60 @@ export function LeftSidebar({
     return (
         <div
             className="w-full h-full min-h-0 flex flex-col py-2 select-none z-10 bg-inherit text-inherit overflow-y-auto overflow-x-hidden styled-scrollbar"
-            onClick={onBackgroundClick}
+            onClick={(e) => {
+              const t = e.target as HTMLElement | null;
+              if (t?.closest?.('[data-sidebar-nav], [data-favorite-path], .bndz-sidebar-nav-hit, .bndz-drive-card, .sidebar-pin-row, .nav-tree-row, [data-nav-path]')) {
+                return;
+              }
+              onBackgroundClick?.(e);
+            }}
             onContextMenu={e => e.preventDefault()}
+            onPointerDownCapture={(e) => {
+              // Stuck list/OLE pointer-capture steals left-clicks while hover/RMB still work.
+              // Re-stamp WinUI Passthrough at most every 2s — boot can leave sidebar LMB dead.
+              try {
+                const now = Date.now();
+                const w = window as typeof window & { __bndzSidebarRegionNudgeAt?: number };
+                if (!w.__bndzSidebarRegionNudgeAt || now - w.__bndzSidebarRegionNudgeAt > 2000) {
+                  w.__bndzSidebarRegionNudgeAt = now;
+                  IPC.windowChrome('refreshInputRegions');
+                  IPC.forceNativeAppRegionRecompute();
+                }
+              } catch { /* ignore */ }
+              try {
+                document.documentElement.classList.remove('bndz-ole-drag-handoff');
+                document.getElementById('bndz-ole-veil')?.remove();
+              } catch { /* ignore */ }
+              try {
+                document.querySelectorAll(
+                  '[data-list-body], [data-entity-id], .bndz-fluid-drag-stack, .bndz-drive-card, .bndz-sidebar-nav-hit, .sidebar-pin-row, .nav-tree-row',
+                ).forEach(node => {
+                  const el = node as Element & {
+                    hasPointerCapture?: (id: number) => boolean;
+                    releasePointerCapture?: (id: number) => void;
+                  };
+                  for (let id = 1; id <= 16; id++) {
+                    try {
+                      if (el.hasPointerCapture?.(id)) el.releasePointerCapture?.(id);
+                    } catch { /* ignore */ }
+                  }
+                });
+              } catch { /* ignore */ }
+              try {
+                // Only release Win32 capture when OLE handoff left it stuck — every-click
+                // releaseCapture synthesizes button-up and fights first sidebar LMB after boot.
+                if (document.documentElement.classList.contains('bndz-ole-drag-handoff')) {
+                  IPC.windowChrome('releaseCapture');
+                }
+              } catch { /* ignore */ }
+              // Ensure WinUI/WebView2 app-region never treats sidebar as caption drag.
+              try {
+                const t = e.target as HTMLElement | null;
+                if (t?.closest?.('.bndz-chrome-sidebar, [data-sidebar-nav], .sidebar-pin-row, .bndz-drive-card, .bndz-sidebar-nav-hit, .nav-tree-row, .nav-tree-host, [data-nav-path]')) {
+                  t.style.setProperty('-webkit-app-region', 'no-drag');
+                }
+              } catch { /* ignore */ }
+            }}
         >
             {order.map((key, idx) => {
                 const sec = (sections as any)[key];

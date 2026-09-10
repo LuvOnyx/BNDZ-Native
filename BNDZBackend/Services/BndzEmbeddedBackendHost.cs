@@ -18,6 +18,12 @@ public static class BndzEmbeddedBackendHost
 #endif
     private static readonly object PushSync = new();
     private static readonly List<Action<string>> PushTargets = new();
+    /// <summary>
+    /// Dedicated CraftPaneHost inbound-drop deliverer. Separate from PushTargets so
+    /// EXTERNAL_FILES_DROPPED still reaches WebView2 when the push fan-out list is empty
+    /// (push=True on the IpcHost lambda only means the lambda exists — not that targets exist).
+    /// </summary>
+    private static Action<string>? ExternalDropDeliver;
 
     /// <summary>WinUI CraftPaneHost registers receivers so backend push events fan out to every island.</summary>
     public static Action<string>? PushToUi
@@ -28,14 +34,7 @@ public static class BndzEmbeddedBackendHost
             {
                 if (PushTargets.Count == 0) return null;
                 var snapshot = PushTargets.ToArray();
-                return json =>
-                {
-                    foreach (var t in snapshot)
-                    {
-                        try { t(json); }
-                        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] push target: {ex.Message}"); }
-                    }
-                };
+                return json => FanOutToSnapshot(snapshot, json);
             }
         }
         set
@@ -49,6 +48,11 @@ public static class BndzEmbeddedBackendHost
         }
     }
 
+    public static int PushTargetCount
+    {
+        get { lock (PushSync) return PushTargets.Count; }
+    }
+
     public static void RegisterPushTarget(Action<string> target)
     {
         if (target is null) return;
@@ -57,6 +61,12 @@ public static class BndzEmbeddedBackendHost
             if (!PushTargets.Contains(target))
                 PushTargets.Add(target);
         }
+        try
+        {
+            WebView2DropTargetService.AppendOleDndLogPublic(
+                $"PushTarget register count={PushTargetCount}");
+        }
+        catch { /* ignore */ }
     }
 
     public static void UnregisterPushTarget(Action<string> target)
@@ -66,6 +76,92 @@ public static class BndzEmbeddedBackendHost
         {
             PushTargets.Remove(target);
         }
+    }
+
+    /// <summary>CraftPaneHost wires PostHostMessageRaw here so inbound OLE drops never depend on PushTargets alone.</summary>
+    public static void SetExternalDropDeliver(Action<string>? deliver)
+    {
+        lock (PushSync) { ExternalDropDeliver = deliver; }
+        try
+        {
+            WebView2DropTargetService.AppendOleDndLogPublic(
+                $"ExternalDropDeliver {(deliver != null ? "set" : "cleared")} pushTargets={PushTargetCount}");
+        }
+        catch { /* ignore */ }
+    }
+
+    /// <summary>Fan-out to all push targets; returns how many handlers were invoked.</summary>
+    public static int FanOutPush(string json)
+    {
+        Action<string>[] snapshot;
+        lock (PushSync) { snapshot = PushTargets.ToArray(); }
+        return FanOutToSnapshot(snapshot, json);
+    }
+
+    private static int FanOutToSnapshot(Action<string>[] snapshot, string json)
+    {
+        var n = 0;
+        foreach (var t in snapshot)
+        {
+            try
+            {
+                t(json);
+                n++;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[BndzEmbeddedBackendHost] push target: {ex.Message}");
+            }
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// Guaranteed inbound-drop path: dedicated CraftPaneHost deliverer first, then other push targets.
+    /// Logs target counts so ole-dnd.log can prove whether React was reachable.
+    /// </summary>
+    public static void DeliverExternalDropJson(string json)
+    {
+        Action<string>? drop;
+        Action<string>[] snapshot;
+        lock (PushSync)
+        {
+            drop = ExternalDropDeliver;
+            snapshot = PushTargets.ToArray();
+        }
+        var viaDrop = false;
+        var fanOut = 0;
+        if (drop != null)
+        {
+            try
+            {
+                drop(json);
+                viaDrop = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[BndzEmbeddedBackendHost] ExternalDropDeliver: {ex.Message}");
+            }
+        }
+        foreach (var t in snapshot)
+        {
+            if (drop != null && ReferenceEquals(t, drop)) continue;
+            try
+            {
+                t(json);
+                fanOut++;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[BndzEmbeddedBackendHost] push target: {ex.Message}");
+            }
+        }
+        try
+        {
+            WebView2DropTargetService.AppendOleDndLogPublic(
+                $"DeliverExternalDropJson fanOut={fanOut} dropCb={viaDrop} pushTargets={PushTargetCount}");
+        }
+        catch { /* ignore */ }
     }
 
     /// <summary>
@@ -138,12 +234,42 @@ public static class BndzEmbeddedBackendHost
                     _services.GetRequiredService<ShellIntegrationService>(),
                     pushWebMessage: json =>
                     {
-                        try { PushToUi?.Invoke(json); }
+                        try
+                        {
+                            var n = FanOutPush(json);
+                            // push=True on IpcHost only means this lambda exists. When targets=0 the
+                            // message used to vanish — queue is owned by IpcHost DeliverIpcJson.
+                            if (n == 0
+                                && json.Contains("\"EXTERNAL_FILES_DROPPED\"", StringComparison.Ordinal))
+                            {
+                                Action<string>? drop;
+                                lock (PushSync) { drop = ExternalDropDeliver; }
+                                if (drop != null)
+                                {
+                                    try { drop(json); }
+                                    catch (Exception dropEx)
+                                    {
+                                        Debug.WriteLine($"[BndzEmbeddedBackendHost] orphan drop: {dropEx.Message}");
+                                    }
+                                }
+                                else
+                                {
+                                    try
+                                    {
+                                        WebView2DropTargetService.AppendOleDndLogPublic(
+                                            "FanOut EXTERNAL_FILES_DROPPED targets=0 dropCb=null — ORPHAN");
+                                    }
+                                    catch { /* ignore */ }
+                                }
+                            }
+                        }
                         catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] push: {ex.Message}"); }
                     },
                     hostWindowHandle: hostWindowHandle);
 
                 ReadyTcs.TrySetResult(true);
+                BndzOleDragStaThread.WarmUp();
+                BndzShellStaThread.WarmUp();
                 Debug.WriteLine("[BndzEmbeddedBackendHost] headless BndzIpcHost ready");
             }
             catch (Exception ex)
@@ -382,6 +508,15 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    public static void SetHostActivateMainAction(Action activateMain)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostActivateMainAction(activateMain); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostActivateMainAction: {ex.Message}"); }
+#endif
+    }
+
     public static void NotifyDeviceChange()
     {
 #if BNDZ_HEADLESS_CORE
@@ -417,6 +552,20 @@ public static class BndzEmbeddedBackendHost
         _host.HandleDragNotifySync(requestJson);
 #endif
     }
+
+    /// <summary>WebView2 DragStarting COM path — host DoDragDrop from WebView2 IDataObject.</summary>
+    public static void HandleWebView2DragStarting(object dataObject)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        if (_host is null || dataObject is null) return;
+        try { _host.HandleWebView2DragStarting(dataObject); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] DragStarting: {ex.Message}"); }
+#endif
+    }
+
+    public static bool IsDragStartingEnabled =>
+        string.Equals(Environment.GetEnvironmentVariable("BNDZ_DRAGSTARTING"), "1", StringComparison.Ordinal);
 
     /// <summary>WinUI timer poll — escalate FILE_DRAG_ACTIVE when cursor leaves WebView HWND.</summary>
     public static bool TryEscalateOutboundOleDrag()
@@ -487,6 +636,20 @@ public static class BndzEmbeddedBackendHost
             _host = null;
         }
 #endif
-        lock (PushSync) { PushTargets.Clear(); }
+        lock (PushSync)
+        {
+            PushTargets.Clear();
+            ExternalDropDeliver = null;
+        }
+    }
+
+    /// <summary>Position embedded OS console for Remote Mesh local terminal.</summary>
+    public static void LayoutMeshTerminal(string sessionId, IntPtr parentHwnd, int x, int y, int width, int height, bool visible)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.LayoutEmbeddedMeshTerminal(sessionId, parentHwnd, x, y, width, height, visible); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] LayoutMeshTerminal: {ex.Message}"); }
+#endif
     }
 }

@@ -622,9 +622,9 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 
 /* Layers */
 .layers-list-shell{position:relative;min-height:2px}
-#layers-list{position:absolute;inset:0;z-index:2;overflow:hidden;pointer-events:none}
+#layers-list{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;opacity:0}
 #layers-list:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#layers-list-visual{max-height:none;overflow:visible;display:flex;flex-direction:column;gap:6px;padding:2px 1px 8px}
+#layers-list-visual{position:relative;z-index:1;max-height:none;overflow:visible;display:flex;flex-direction:column;gap:6px;padding:2px 1px 8px;pointer-events:auto}
 .bndz-layer-opacity{display:flex!important;align-items:center;gap:8px;padding:8px 8px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.12));border:1px solid color-mix(in srgb,var(--border) 80%,transparent)}
 .bndz-layer-opacity label{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);min-width:74px}
 .bndz-layer-opacity input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;border:0;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 75%,#10141c),#2a3344);box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
@@ -1502,29 +1502,40 @@ input[type="number"].range-number{box-sizing:border-box}
 }
 .panel-tab-group{
   overflow:hidden;
-  background:linear-gradient(180deg,color-mix(in srgb, var(--bg-depth-2) 98%, transparent),color-mix(in srgb, var(--bg-depth-1) 98%, transparent));
-  border:1px solid var(--border);
-  border-radius:10px;
-  box-shadow:0 12px 30px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.025);
+  background:color-mix(in srgb, var(--bg-depth-1) 92%, transparent);
+  border:1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius:8px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
 }
 .panel-tabs{
-  min-height:34px;
-  background:var(--bg-depth-2);
-  border-bottom-color:var(--border);
+  min-height:28px;
+  gap:2px;
+  padding:3px 4px 0;
+  background:transparent;
+  border-bottom:1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .panel-tab{
-  padding:10px 11px 8px;
+  padding:5px 9px 6px;
   color:var(--text-muted);
-  font-size:9px;
-  font-weight:700;
-  letter-spacing:.075em;
+  font-size:10px;
+  font-weight:650;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  border-radius:6px 6px 0 0;
+  border:none;
+  border-bottom:2px solid transparent;
+  background:transparent;
+  box-shadow:none;
 }
-.panel-tab:hover{color:var(--text-secondary);background:var(--bg-depth-3)}
+.panel-tab:hover{
+  color:var(--text-secondary);
+  background:rgba(255,255,255,.04);
+}
 .panel-tab.active{
   color:var(--text-primary);
-  background:var(--bg-depth-2);
+  background:color-mix(in srgb, var(--bg-depth-2) 88%, transparent);
   border-bottom-color:var(--accent);
-  box-shadow:inset 0 -1px var(--accent);
+  box-shadow:none;
 }
 .panel-tab-content>.ptc-inner{padding:9px}
 .panel-actions{gap:4px!important}
@@ -2488,34 +2499,54 @@ body.rulers-on .ruler-v{top:calc(var(--topbar-h) + 78px)}
   gap:9px;
 }
 .panel-tab-group{
-  background:linear-gradient(180deg,var(--bg-depth-2),var(--bg-depth-1));
-  border-color:color-mix(in srgb,var(--border-active) 65%,transparent);
-  border-radius:11px;
-  box-shadow:0 18px 42px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.035);
+  background:color-mix(in srgb, var(--bg-depth-1) 94%, transparent);
+  border-color:color-mix(in srgb,var(--border) 78%,transparent);
+  border-radius:8px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
 }
 .panel-tabs{
   position:relative;
-  min-height:40px;
-  padding-right:31px;
-  background:color-mix(in srgb,var(--bg-depth-2) 88%,transparent);
+  min-height:28px;
+  padding:3px 28px 0 4px;
+  gap:2px;
+  background:transparent;
+  border-bottom:1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 .panel-tabs::after{
-  content:'•••';
+  content:'';
   position:absolute;
-  right:10px;
+  right:8px;
   top:50%;
-  transform:translateY(-58%);
-  color:var(--text-muted);
-  font:600 9px 'JetBrains Mono',monospace;
-  letter-spacing:1px;
+  transform:translateY(-50%);
+  width:14px;height:14px;
+  border-radius:4px;
+  background:
+    radial-gradient(circle at 50% 25%, var(--text-muted) 1.4px, transparent 1.6px),
+    radial-gradient(circle at 50% 50%, var(--text-muted) 1.4px, transparent 1.6px),
+    radial-gradient(circle at 50% 75%, var(--text-muted) 1.4px, transparent 1.6px);
+  opacity:.55;
+  pointer-events:none;
 }
-.panel-tab{padding:12px 12px 10px;font-size:9.5px}
+.panel-tab{
+  padding:5px 9px 6px;
+  font-size:10px;
+  font-weight:650;
+  letter-spacing:.04em;
+  border-radius:6px 6px 0 0;
+  background:transparent;
+  box-shadow:none;
+}
+.panel-tab:hover{
+  color:var(--text-secondary);
+  background:rgba(255,255,255,.04);
+}
 .panel-tab.active{
-   color:var(--on-accent);
-  border-bottom-color:transparent;
-  box-shadow:inset 0 -2px var(--accent),0 1px 0 rgba(91,124,255,.28);
+  color:var(--text-primary);
+  background:color-mix(in srgb, var(--bg-depth-2) 88%, transparent);
+  border-bottom-color:var(--accent);
+  box-shadow:none;
 }
-.panel-tab-content>.ptc-inner{padding:11px 12px}
+.panel-tab-content>.ptc-inner{padding:9px 10px}
 .panel-actions{padding-bottom:7px;border-bottom:1px solid rgba(56,84,122,.42)}
 .panel-action{width:30px;height:30px;border-radius:7px}
 .blend-row{gap:9px}
@@ -6326,7 +6357,7 @@ const OS = {
     ]),
     _lastPreferenceMigrationReport: null,
     _preferenceExtras: {},
-    _prefs: { gridSize: 20, historyStates: 120, defaultW: 1920, defaultH: 1080, theme: 'dark', snapTolerance: 5, maxHistory: 120, stackNewObjects: false, vectorStrokes: false, rulersVisible: true, pixelZoomSnap: false, accent: null, toolOptions: {}, panelSizes: [], panelDock: 'right' },
+    _prefs: { gridSize: 20, historyStates: 120, defaultW: 1920, defaultH: 1080, theme: 'dark', snapTolerance: 5, maxHistory: 120, stackNewObjects: true, vectorStrokes: false, rulersVisible: true, pixelZoomSnap: false, accent: null, toolOptions: {}, panelSizes: [], panelDock: 'right' },
     _canvasCeilingStorageKey: 'openshop.canvas-ceiling.v1',
     _canvasCeilingProbeVersion: 1,
     _canvasCeiling: null,
@@ -6982,13 +7013,13 @@ const OS = {
         this.canvas.on('text:changed', () => this._syncTextRangeControls());
         this.canvas.on('mouse:wheel', opt => this.onMouseWheel(opt));
         // Every zoom and pan path ends in a render, so re-place the screen-space
-        // selection box here rather than chasing each caller.
+        // selection box / vector overlays here rather than chasing each caller.
         this.canvas.on('after:render', () => {
-            if (!this._selectionMask) return;
             const key = String(this.canvas.viewportTransform);
             if (key === this._selectionBoxViewport) return;
             this._selectionBoxViewport = key;
-            this._placeSelectionBox();
+            if (this._selectionMask) this._placeSelectionBox();
+            this._syncVectorOverlaysToViewport?.();
         });
         this.canvas.on('path:created', e => {
             if (!this._isLayerEditable()) {
@@ -16668,7 +16699,7 @@ self.onmessage = function(event) {
             else {
                 if (!this._guardActiveLayerEdit()) return;
                 const rect=new fabric.Rect({left:0,top:0,width:this.canvasW,height:this.canvasH,fill:this.state.fgColor,selectable:true,name:'Fill'});
-                this.canvas.add(rect);this.layers[this.activeLayerIdx].objects.push(rect);this.saveHistory('Fill Canvas');this.updateLayersPanel(); }
+                this._addObjectAsLayer(rect,'Fill');this.saveHistory('Fill Canvas');this.updateLayersPanel(); }
             return;
         }
         if (tool==='eyedropper') {
@@ -16749,7 +16780,7 @@ self.onmessage = function(event) {
         if(this.state.isPanning&&this.state.panStart) {
             const dx=opt.e.clientX-this.state.panStart.x, dy=opt.e.clientY-this.state.panStart.y;
             const vpt=this.canvas.viewportTransform.slice(); vpt[4]+=dx; vpt[5]+=dy;
-            this.canvas.setViewportTransform(vpt); this.state.panStart={x:opt.e.clientX,y:opt.e.clientY}; this.drawGrid(); this.drawRulers(); this._syncStickyNotesToViewport?.(); return;
+            this.canvas.setViewportTransform(vpt); this.state.panStart={x:opt.e.clientX,y:opt.e.clientY}; this.drawGrid(); this.drawRulers(); this._syncStickyNotesToViewport?.(); this._syncVectorOverlaysToViewport?.(); return;
         }
         if (this.state.tool === 'lasso' && this._freeLassoActive) this._freeLassoMove(opt.e);
         if (this.state.tool === 'lasso-magnetic' && this._magneticLassoActive) this._magneticLassoMove(ptr, opt.e);
@@ -17907,7 +17938,7 @@ self.onmessage = function(event) {
             grad = new fabric.Gradient({ type:'radial', coords:{x1:w/2,y1:h/2,r1:0,x2:w/2,y2:h/2,r2:Math.max(w,h)/2}, colorStops:stops });
         }
         const rect = new fabric.Rect({left,top,width:w,height:h,fill:grad,selectable:true,stroke:'transparent',strokeWidth:0});
-        this.canvas.add(rect); this.layers[this.activeLayerIdx].objects.push(rect);
+        this._addObjectAsLayer(rect, 'Gradient');
         this.saveHistory('Gradient'); this.updateLayersPanel();
         return true;
     },
@@ -18797,8 +18828,11 @@ self.onmessage = function(event) {
             ['tool.shape.rectangle','Shape','Rectangle Tool','U','shape layer or path','document-mutation','rect'],
             ['tool.shape.rounded-rectangle','Shape','Rounded Rectangle Tool','U','shape layer or path','document-mutation','rounded-rect'],
             ['tool.shape.ellipse','Shape','Ellipse Tool','U','shape layer or path','document-mutation','circle'],
+            ['tool.shape.triangle','Shape','Triangle Tool','U','shape layer or path','document-mutation','triangle'],
             ['tool.shape.polygon','Shape','Polygon Tool','U','shape layer or path','document-mutation','polygon'],
             ['tool.shape.line','Shape','Line Tool','U','shape layer or path','document-mutation','line'],
+            ['tool.shape.arrow','Shape','Arrow Tool','U','shape layer or path','document-mutation','arrow'],
+            ['tool.shape.star','Shape','Star Tool','U','shape layer or path','document-mutation','star'],
             ['tool.shape.custom','Shape','Custom Shape Tool','U','shape layer or path','document-mutation','custom-shape'],
             ['tool.navigation.hand','Navigation','Hand Tool','H','viewport','viewport-state','pan'],
             ['tool.navigation.rotate','Navigation','Rotate View Tool','R','viewport','viewport-state','rotate-view'],
@@ -24436,7 +24470,8 @@ self.onmessage = async function(event) {
         const snap = this._magneticLassoSnapshot;
         if (!snap?.data) return point;
         const x = Math.round(Number(point.x) || 0), y = Math.round(Number(point.y) || 0);
-        const radius = 7;
+        const zoom = this.canvas?.getZoom?.() || 1;
+        const radius = Math.max(2, Math.round(7 / zoom));
         const luminance = (px, py) => {
             if (px < 0 || py < 0 || px >= snap.width || py >= snap.height) return null;
             const index = (py * snap.width + px) * 4;
@@ -26062,28 +26097,124 @@ self.onmessage = async function(event) {
         const command = this._pathEditObject?.path?.[entry.commandIndex];
         return command ? { x:Number(command[entry.xIndex]) || 0, y:Number(command[entry.yIndex]) || 0 } : null;
     },
+    /** Map path-local coords → document screen pixels (must re-run after every zoom/pan). */
     _pathScreenPoint(point) {
         const object = this._pathEditObject;
         const canvas = this.canvas;
-        const element = canvas.lowerCanvasEl || canvas.upperCanvasEl;
+        if (!object || !canvas || !point) return { x: -9999, y: -9999 };
+        const element = canvas.upperCanvasEl || canvas.lowerCanvasEl;
         const canvasRect = element.getBoundingClientRect();
         const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
-        const transformed = fabric.util.transformPoint(point, object.calcTransformMatrix());
-        return { x:canvasRect.left + transformed.x * vpt[0] + transformed.y * vpt[2] + vpt[4], y:canvasRect.top + transformed.x * vpt[1] + transformed.y * vpt[3] + vpt[5] };
+        // Fabric Path points are stored before pathOffset; subtract so nodes sit on the stroke.
+        const offset = object.pathOffset || { x: 0, y: 0 };
+        const local = { x: point.x - (offset.x || 0), y: point.y - (offset.y || 0) };
+        const scene = fabric.util.transformPoint(local, object.calcTransformMatrix());
+        const view = fabric.util.transformPoint(scene, vpt);
+        // Canvas buffer may be retina-scaled; CSS box is logical pixels matching VPT space.
+        const logicalW = canvas.getWidth?.() || element.width || canvasRect.width || 1;
+        const logicalH = canvas.getHeight?.() || element.height || canvasRect.height || 1;
+        const scaleX = canvasRect.width / logicalW;
+        const scaleY = canvasRect.height / logicalH;
+        return {
+            x: canvasRect.left + view.x * scaleX,
+            y: canvasRect.top + view.y * scaleY,
+        };
     },
-    _renderPathEditOverlay() {
+    /** Keep pen preview + path-edit handles glued to the canvas after zoom/pan. */
+    _syncVectorOverlaysToViewport() {
+        try {
+            if (this._penPoints?.length) {
+                this._penResyncScreenPoints?.();
+                this._penUpdatePreview?.();
+                this._updateCloseHandle?.('pen-close-handle', this._penPoints, null, 2);
+            }
+            if (this._pathEditObject && document.getElementById('path-edit-overlay')) {
+                this._renderPathEditOverlay({ syncOnly: true });
+            }
+        } catch { /* ignore overlay sync failures */ }
+    },
+    _penResyncScreenPoints() {
+        const vpt = this.canvas?.viewportTransform || [1, 0, 0, 1, 0, 0];
+        const map = (x, y) => ({
+            sx: x * vpt[0] + y * vpt[2] + vpt[4],
+            sy: x * vpt[1] + y * vpt[3] + vpt[5],
+        });
+        (this._penPoints || []).forEach((pt) => {
+            const a = map(pt.x, pt.y);
+            pt.sx = a.sx; pt.sy = a.sy;
+            if (pt.inX != null && pt.inY != null) {
+                const i = map(pt.inX, pt.inY); pt.inSX = i.sx; pt.inSY = i.sy;
+            } else {
+                pt.inSX = pt.inSY = null;
+            }
+            if (pt.outX != null && pt.outY != null) {
+                const o = map(pt.outX, pt.outY); pt.outSX = o.sx; pt.outSY = o.sy;
+            } else {
+                pt.outSX = pt.outSY = null;
+            }
+        });
+    },
+    _renderPathEditOverlay(opts = {}) {
         const overlay = document.getElementById('path-edit-overlay');
         if (!overlay || !this._pathEditObject) return;
-        const svg = overlay.querySelector('svg'); svg.replaceChildren();
+        const syncOnly = !!opts.syncOnly;
+        const svg = overlay.querySelector('svg');
+        // Keep SVG sized to the viewport so zoomed-out handles stay on-screen.
+        svg.setAttribute('width', String(window.innerWidth));
+        svg.setAttribute('height', String(window.innerHeight));
+        svg.replaceChildren();
         const namespace = 'http://www.w3.org/2000/svg';
-        this._pathHandleEntries(this._pathEditObject).forEach((entry, index) => {
+        const entries = this._pathHandleEntries(this._pathEditObject);
+        // Draw control wires first so nodes sit on top (no orphan "ghost dots").
+        const byCmd = new Map();
+        entries.forEach((entry, index) => {
+            const list = byCmd.get(entry.commandIndex) || [];
+            list.push({ entry, index });
+            byCmd.set(entry.commandIndex, list);
+        });
+        byCmd.forEach((list) => {
+            const pts = list.map(({ entry }) => {
+                const local = this._pathLocalPoint(entry);
+                return local ? this._pathScreenPoint(local) : null;
+            }).filter(Boolean);
+            if (pts.length < 2) return;
+            for (let i = 0; i < pts.length - 1; i++) {
+                const wire = document.createElementNS(namespace, 'line');
+                wire.setAttribute('x1', pts[i].x); wire.setAttribute('y1', pts[i].y);
+                wire.setAttribute('x2', pts[i + 1].x); wire.setAttribute('y2', pts[i + 1].y);
+                wire.setAttribute('stroke', 'rgba(168,140,255,.7)');
+                wire.setAttribute('stroke-width', '1.25');
+                wire.setAttribute('stroke-dasharray', '3 3');
+                wire.style.pointerEvents = 'none';
+                svg.appendChild(wire);
+            }
+        });
+        entries.forEach((entry, index) => {
             const point = this._pathLocalPoint(entry); if (!point) return;
             const screen = this._pathScreenPoint(point);
             const handle = document.createElementNS(namespace, 'circle');
-            handle.setAttribute('cx', screen.x); handle.setAttribute('cy', screen.y); handle.setAttribute('r', entry.control ? '4' : '6');
-            handle.setAttribute('class', entry.control ? 'path-control-handle' : 'path-anchor-handle'); handle.dataset.handleIndex = index; handle.style.pointerEvents = 'auto';
+            handle.setAttribute('cx', screen.x); handle.setAttribute('cy', screen.y);
+            handle.setAttribute('r', entry.control ? '5' : '7');
+            handle.setAttribute('fill', entry.control ? '#a88cff' : '#ffffff');
+            handle.setAttribute('stroke', entry.control ? '#ffffff' : 'var(--accent, #a88cff)');
+            handle.setAttribute('stroke-width', entry.control ? '1.5' : '2');
+            handle.setAttribute('class', entry.control ? 'path-control-handle' : 'path-anchor-handle');
+            handle.dataset.handleIndex = index;
+            handle.style.pointerEvents = 'auto';
+            handle.style.cursor = 'move';
             svg.appendChild(handle);
         });
+        // Keep committed stroke on top of photo layers while editing (skip on zoom sync — avoids render loops).
+        if (syncOnly) return;
+        try {
+            const obj = this._pathEditObject;
+            if (obj) {
+                const sw = Math.max(1.5, Number(obj.strokeWidth) || 2);
+                if (!obj.stroke || obj.stroke === 'transparent') obj.set('stroke', this._activePenStroke() || '#ffffff');
+                obj.set({ strokeWidth: sw, strokeUniform: true, objectCaching: false, opacity: 1 });
+                this.canvas.bringObjectToFront?.(obj) ?? obj.bringToFront?.();
+            }
+        } catch { /* ignore */ }
     },
     editSelectedVectorPath() {
         if (document.getElementById('path-edit-overlay')) return this.finishPathEdit(true);
@@ -26096,6 +26227,22 @@ self.onmessage = async function(event) {
         }
         this.finishPathEdit(false);
         this._pathEditObject = active; this._pathEditDirty = false;
+        // Hide Fabric transform corners while node-editing — otherwise zoom shows a
+        // second "ghost" handle set that tracks the canvas while the overlay lags.
+        this._pathEditControlsBackup = {
+            hasControls: active.hasControls,
+            hasBorders: active.hasBorders,
+            selectable: active.selectable,
+            evented: active.evented,
+        };
+        active.set({ hasControls: false, hasBorders: true, objectCaching: false });
+        // Pen preview anchors must not compete with path-edit handles.
+        try {
+            const penOverlay = document.getElementById('pen-overlay');
+            if (penOverlay) penOverlay.style.display = 'none';
+            this._penPoints = [];
+            this._penRenderAnchors?.();
+        } catch { /* ignore */ }
         const overlay = document.createElement('div'); overlay.id = 'path-edit-overlay'; overlay.style.cssText = 'position:fixed;inset:0;z-index:12000;pointer-events:none';
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('width', String(window.innerWidth)); svg.setAttribute('height', String(window.innerHeight)); svg.style.cssText = 'position:absolute;inset:0;overflow:visible;pointer-events:none'; overlay.appendChild(svg); document.body.appendChild(overlay);
         const down = event => {
@@ -26105,12 +26252,28 @@ self.onmessage = async function(event) {
         const move = event => {
             if (!this._pathEditHandle) return;
             if (!this._guardObjectEdit(this._pathEditObject)) { this._pathEditHandle = null; return; }
-            const pointer = this.canvas.getScenePoint(event); const inverse = fabric.util.invertTransform(this._pathEditObject.calcTransformMatrix()); const local = fabric.util.transformPoint(pointer, inverse); const command = this._pathEditObject.path[this._pathEditHandle.commandIndex];
-            command[this._pathEditHandle.xIndex] = local.x; command[this._pathEditHandle.yIndex] = local.y; this._pathEditDirty = true; this._pathEditObject.dirty = true; this._pathEditObject.setCoords?.(); this.canvas.renderAll(); this._renderPathEditOverlay();
+            const pointer = this.canvas.getScenePoint(event);
+            const obj = this._pathEditObject;
+            const offset = obj.pathOffset || { x: 0, y: 0 };
+            const inverse = fabric.util.invertTransform(obj.calcTransformMatrix());
+            const local = fabric.util.transformPoint(pointer, inverse);
+            const command = obj.path[this._pathEditHandle.commandIndex];
+            // Inverse of _pathScreenPoint's pathOffset subtract.
+            command[this._pathEditHandle.xIndex] = local.x + (offset.x || 0);
+            command[this._pathEditHandle.yIndex] = local.y + (offset.y || 0);
+            this._pathEditDirty = true; obj.dirty = true; obj.setCoords?.(); this.canvas.renderAll(); this._renderPathEditOverlay();
         };
         const up = () => { this._pathEditHandle = null; };
+        const onResize = () => this._renderPathEditOverlay();
         svg.addEventListener('pointerdown', down); document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
-        overlay._cleanup = () => { svg.removeEventListener('pointerdown', down); document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
+        window.addEventListener('resize', onResize);
+        overlay._cleanup = () => {
+            svg.removeEventListener('pointerdown', down);
+            document.removeEventListener('pointermove', move);
+            document.removeEventListener('pointerup', up);
+            window.removeEventListener('resize', onResize);
+        };
+        this._selectionBoxViewport = null; // force overlay sync on next render
         this._renderPathEditOverlay(); this.toast('Drag path anchors and Bezier controls; click Edit Path again when done', 'info');
         return true;
     },
@@ -26118,8 +26281,15 @@ self.onmessage = async function(event) {
         const overlay = document.getElementById('path-edit-overlay');
         if (!overlay) return false;
         overlay._cleanup?.(); overlay.remove();
+        const obj = this._pathEditObject;
+        const backup = this._pathEditControlsBackup;
+        if (obj && backup) {
+            try { obj.set({ hasControls: backup.hasControls !== false, hasBorders: backup.hasBorders !== false }); } catch { /* ignore */ }
+        }
+        this._pathEditControlsBackup = null;
         const changed = Boolean(this._pathEditDirty); this._pathEditObject = null; this._pathEditHandle = null; this._pathEditDirty = false;
         if (record && changed) { this.canvas.renderAll(); this.saveHistory('Edit Vector Path'); }
+        else this.canvas?.requestRenderAll?.();
         return changed;
     },
     _normalizeTextFeatures(value) {
@@ -26302,23 +26472,16 @@ self.onmessage = async function(event) {
         this._penPoints.push(pt);
         this._penUpdatePreview();
         this._updateCloseHandle('pen-close-handle', this._penPoints, null, 2);
-        // Alt/Meta-drag creates cubic handles (Figma-style); default stays sharp corner.
+        // Drag past threshold bends the node (Figma-style). Alt/Meta also forces curve mode.
         if (evt && (evt.type === 'mousedown' || evt.type === 'pointerdown')) {
             const origin = { x: ptr.x, y: ptr.y, sx, sy };
-            const wantCurve = !!(evt.altKey || evt.metaKey);
-            const bendThresh = 8;
+            const zoom = Math.max(0.05, this.canvas.getZoom?.() || 1);
+            const bendThresh = 6 / zoom;
             const onMove = (e) => {
-                if (!wantCurve && !(e.altKey || e.metaKey)) {
-                    pt.outX = pt.outY = pt.inX = pt.inY = null;
-                    pt.outSX = pt.outSY = pt.inSX = pt.inSY = null;
-                    pt.nodeType = 'corner';
-                    this._penUpdatePreview();
-                    return;
-                }
                 const q = this.canvas.getScenePoint(e);
                 const qsx = q.x * vpt[0] + vpt[4], qsy = q.y * vpt[3] + vpt[5];
                 const dx = q.x - origin.x, dy = q.y - origin.y;
-                if (Math.hypot(dx, dy) < bendThresh / Math.max(0.05, this.canvas.getZoom?.() || 1)) {
+                if (Math.hypot(dx, dy) < bendThresh) {
                     pt.outX = pt.outY = pt.inX = pt.inY = null;
                     pt.outSX = pt.outSY = pt.inSX = pt.inSY = null;
                     pt.nodeType = 'corner';
@@ -26351,13 +26514,40 @@ self.onmessage = async function(event) {
         const g = document.querySelector('#pen-overlay svg g.pen-anchors');
         if (!g) return;
         while (g.firstChild) g.removeChild(g.firstChild);
-        const stroke = this._activePenStroke();
-        (this._penPoints || []).forEach((pt, i) => {
+        const stroke = this._activePenStroke() || '#ffffff';
+        const pts = this._penPoints || [];
+        // Handle rods between in/out for smooth nodes
+        pts.forEach((pt) => {
+            if (pt.inSX == null && pt.outSX == null) return;
+            const ax = pt.sx != null ? pt.sx : pt.x;
+            const ay = pt.sy != null ? pt.sy : pt.y;
+            const mkLine = (x, y) => {
+                if (x == null || y == null) return;
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', String(ax)); line.setAttribute('y1', String(ay));
+                line.setAttribute('x2', String(x)); line.setAttribute('y2', String(y));
+                line.setAttribute('stroke', stroke);
+                line.setAttribute('stroke-width', '1');
+                line.setAttribute('opacity', '0.75');
+                line.setAttribute('stroke-dasharray', '3 2');
+                g.appendChild(line);
+                const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y));
+                c.setAttribute('r', '3');
+                c.setAttribute('fill', stroke);
+                c.setAttribute('stroke', '#fff');
+                c.setAttribute('stroke-width', '1');
+                g.appendChild(c);
+            };
+            mkLine(pt.inSX, pt.inSY);
+            mkLine(pt.outSX, pt.outSY);
+        });
+        pts.forEach((pt, i) => {
             const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             c.setAttribute('class', 'pen-anchor' + (i === 0 ? ' is-first' : ''));
             c.setAttribute('cx', String(pt.sx != null ? pt.sx : pt.x));
             c.setAttribute('cy', String(pt.sy != null ? pt.sy : pt.y));
-            c.setAttribute('r', i === 0 && this._penPoints.length >= 2 ? '5.5' : '4');
+            c.setAttribute('r', i === 0 && pts.length >= 2 ? '5.5' : '4');
             c.setAttribute('fill', stroke);
             g.appendChild(c);
         });
@@ -26365,30 +26555,47 @@ self.onmessage = async function(event) {
     _penFinish() {
         if (this._penPoints.length < 2) {
             this._penPoints = [];
+            this._penClosedByStart = false;
             this._penRenderAnchors?.();
+            this._updateCloseHandle?.('pen-close-handle', [], null, 2);
             const preview = document.querySelector('#pen-overlay svg path');
             if (preview) preview.setAttribute('d', '');
             return;
         }
         if (!this._guardActiveLayerEdit()) {
             this._penPoints = [];
+            this._penClosedByStart = false;
+            this._penRenderAnchors?.();
+            this._updateCloseHandle?.('pen-close-handle', [], null, 2);
             const preview = document.querySelector('#pen-overlay svg path');
             if (preview) preview.setAttribute('d', '');
             return;
         }
         const closeIt = this.state.penFilled || this._penClosedByStart;
-        const closed = this._penPathDataFromPts(this._penPoints, !!closeIt);
-        const stroke = this._activePenStroke();
-        const path = new fabric.Path(closed, {
-            fill: closeIt ? (this.state.fgColor || this.state.shapeFill) : 'transparent',
+        const d = this._penPathDataFromPts(this._penPoints, !!closeIt);
+        const stroke = this._activePenStroke() || '#ffffff';
+        const sw = Math.max(1.5, Number(this.state.penWidth) || 2);
+        const path = new fabric.Path(d, {
+            fill: (closeIt && this.state.penFilled) ? (this.state.fgColor || this.state.shapeFill || 'transparent') : 'transparent',
             stroke,
-            strokeWidth: this.state.penWidth,
+            strokeWidth: sw,
+            strokeUniform: true,
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
             selectable: true,
+            evented: true,
             objectCaching: false,
+            opacity: 1,
         });
-        // Pen never auto-fills open paths; closed paths only fill when penFilled is on
-        if (!this.state.penFilled) path.set('fill', 'transparent');
+        // Never leave open paths filled — stroke only unless penFilled + closed.
+        if (!(closeIt && this.state.penFilled)) path.set('fill', 'transparent');
         this._addObjectAsLayer(path, this._shapeLayerName('pen'));
+        // Critical: image layers often sit above newly added vectors — bring stroke to front
+        // so we don't leave "ghost nodes" with an invisible path under the photo.
+        try { this.canvas.bringObjectToFront?.(path) ?? path.bringToFront?.(); } catch { /* ignore */ }
+        this.canvas.setActiveObject?.(path);
+        this.canvas.requestRenderAll?.();
+        this.canvas.renderAll?.();
         this.saveHistory('Pen Path'); this.updateLayersPanel();
         const segCount = this._penPoints.length;
         this._penPoints = [];
@@ -26396,7 +26603,11 @@ self.onmessage = async function(event) {
         this._updateCloseHandle('pen-close-handle', [], null, 2);
         const svg = document.querySelector('#pen-overlay svg path');
         if (svg) svg.setAttribute('d', '');
+        // Clear overlay anchors — previously left behind as orphan "ghost nodes".
+        this._penRenderAnchors?.();
         this.toast('Path created ('+segCount+' nodes)', 'success');
+        // Drop into path edit so handles + stroke stay visibly wired.
+        try { this.editSelectedVectorPath?.(); } catch { /* optional */ }
     },
     _pathAnchorToolClick(ptr, tool, evt) {
         const target = this._vectorObjectAtPoint(ptr) || this.canvas.getActiveObject();
@@ -26447,6 +26658,17 @@ self.onmessage = async function(event) {
         if (bestIdx < 0 || !bestCmd) {
             cmds.push(['L', local.x, local.y]);
         } else {
+            // Insert midpoint as cubic with independent handles along the segment.
+            const prev = cmds[bestIdx - 1] || cmds[0];
+            const pt = String(prev[0]).toUpperCase();
+            const px = Number(prev[pt === 'C' ? 5 : pt === 'Q' ? 3 : 1]) || 0;
+            const py = Number(prev[pt === 'C' ? 6 : pt === 'Q' ? 4 : 2]) || 0;
+            const nx = local.x, ny = local.y;
+            const c1x = px + (nx - px) / 3;
+            const c1y = py + (ny - py) / 3;
+            const c2x = nx - (nx - px) / 3;
+            const c2y = ny - (ny - py) / 3;
+            bestCmd = ['C', c1x, c1y, c2x, c2y, nx, ny];
             cmds.splice(bestIdx, 0, bestCmd);
         }
         pathObj.path = cmds;
@@ -26504,8 +26726,12 @@ self.onmessage = async function(event) {
         const py = Number(prev[pt === 'C' ? 6 : pt === 'Q' ? 4 : 2]) || 0;
         if (t === 'L') {
             const x = Number(cmd[1]) || 0, y = Number(cmd[2]) || 0;
-            const mx = (px + x) / 2, my = (py + y) / 2 - 24;
-            cmds[bestIdx] = ['C', mx, my, mx, my, x, y];
+            const ox = 0, oy = -Math.max(18, Math.hypot(x - px, y - py) * 0.2);
+            const c1x = px + (x - px) / 3 + ox;
+            const c1y = py + (y - py) / 3 + oy;
+            const c2x = x - (x - px) / 3 + ox;
+            const c2y = y - (y - py) / 3 + oy;
+            cmds[bestIdx] = ['C', c1x, c1y, c2x, c2y, x, y];
             this.toast('Corner → smooth', 'success');
         } else {
             const x = Number(cmd[t === 'C' ? 5 : 3]) || 0;
@@ -26781,7 +27007,7 @@ self.onmessage = async function(event) {
     _preferenceDefaults() {
         return {
             defaultW:1920, defaultH:1080, gridSize:20, snapTolerance:5, maxHistory:120,
-            stackNewObjects:false, vectorStrokes:false, rulersVisible:true, pixelZoomSnap:false,
+            stackNewObjects:true, vectorStrokes:false, rulersVisible:true, pixelZoomSnap:false,
             toolOptions:{}, panelSizes:[], panelDock:'right'
         };
     },
