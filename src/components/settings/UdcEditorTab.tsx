@@ -20,7 +20,8 @@ const BUILTIN_ACTIONS = [
 ];
 
 export default function UdcEditorTab({ commands, onChange }: Props) {
-  const custom = commands.filter(c => !BUILTIN_USER_COMMANDS.some(b => b.id === c.id));
+  const safeCommands = Array.isArray(commands) ? commands : [];
+  const custom = safeCommands.filter(c => !BUILTIN_USER_COMMANDS.some(b => b.id === c.id));
 
   const update = (idx: number, patch: Partial<UserCommandDef>) => {
     const next = [...custom];

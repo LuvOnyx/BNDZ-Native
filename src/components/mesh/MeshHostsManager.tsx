@@ -112,10 +112,22 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
     } finally { setBusy(false); }
   };
 
-  const browse = (host: MeshHost) => {
-    const root = host.remoteRootPath && host.remoteRootPath !== '/' ? host.remoteRootPath : '';
-    onNavigate?.(buildMeshPath(host.id, root));
-    setStatus(`Browsing ${host.alias}`);
+  const browse = async (host: MeshHost) => {
+    setBusy(true);
+    try {
+      if (host.state !== 2) {
+        const res = await IPC.meshConnect(host.id);
+        if (res?.error) throw new Error(res.error);
+        await refresh();
+      }
+      const root = host.remoteRootPath && host.remoteRootPath !== '/' ? host.remoteRootPath : '';
+      onNavigate?.(buildMeshPath(host.id, root));
+      setStatus(`Browsing ${host.alias}`);
+    } catch (e: any) {
+      setStatus(e?.message || 'Browse failed');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const stateClass = (state: number) =>
@@ -129,7 +141,7 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
       {showHero && (
         <PluginHeroStrip
           icon={<Icons8Icon id="cloud_ui" size={40} />}
-          name="Remote Mesh Hosts"
+          name="Remote Hosts"
           typeLabel="SSH · SFTP · S3"
           meta={<span className="text-[10px] text-gray-500">Browse, mirror, terminal</span>}
           actions={
@@ -212,7 +224,7 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
                 <PluginToolbarButton onClick={() => { setSelectedId(h.id); void connect(h.id); }} disabled={busy}>
                   <Icons8Icon id="link" size={12} /> Connect
                 </PluginToolbarButton>
-                <PluginToolbarButton onClick={() => browse(h)} disabled={h.state !== 2}>
+                <PluginToolbarButton onClick={() => void browse(h)} disabled={busy}>
                   <Icons8Icon id="folder_open_ui" size={12} /> Browse
                 </PluginToolbarButton>
                 <PluginToolbarButton onClick={() => setEditorHost(h)} disabled={busy}>

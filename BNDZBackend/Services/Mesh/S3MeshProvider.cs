@@ -114,6 +114,7 @@ public sealed class S3MeshProvider : IMeshProvider
             FilePath = localFile,
         };
         await _client!.PutObjectAsync(request, ct).ConfigureAwait(false);
+        progress?.Report(new FileInfo(localFile).Length);
     }
 
     public async Task DeleteAsync(string remotePath, CancellationToken ct = default)
@@ -123,10 +124,102 @@ public sealed class S3MeshProvider : IMeshProvider
         await _client!.DeleteObjectAsync(_bucket, key, ct).ConfigureAwait(false);
     }
 
+    public async Task RecursiveDeleteAsync(string remotePath, CancellationToken ct = default)
+    {
+        EnsureConnected();
+        var prefix = remotePath.TrimStart('/').TrimEnd('/');
+        if (string.IsNullOrEmpty(prefix)) throw new InvalidOperationException("Refusing to recursively delete S3 bucket root");
+        prefix += "/";
+        string? token = null;
+        do
+        {
+            var list = await _client!.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = _bucket,
+                Prefix = prefix,
+                ContinuationToken = token,
+            }, ct).ConfigureAwait(false);
+            if (list.S3Objects.Count > 0)
+            {
+                var del = new DeleteObjectsRequest { BucketName = _bucket };
+                foreach (var obj in list.S3Objects)
+                    del.Objects.Add(new KeyVersion { Key = obj.Key });
+                await _client.DeleteObjectsAsync(del, ct).ConfigureAwait(false);
+            }
+            token = list.NextContinuationToken;
+            if (list.IsTruncated != true) break;
+        } while (true);
+        // Also delete the "folder" marker if present
+        try { await _client!.DeleteObjectAsync(_bucket, prefix.TrimEnd('/'), ct).ConfigureAwait(false); } catch { }
+        try { await _client!.DeleteObjectAsync(_bucket, prefix, ct).ConfigureAwait(false); } catch { }
+    }
+
     public Task MkdirAsync(string remotePath, CancellationToken ct = default)
     {
         var key = remotePath.TrimStart('/').TrimEnd('/') + "/";
         return UploadAsync(CreateEmptyMarker(), key, null, ct);
+    }
+
+    public async Task RenameAsync(string fromPath, string toPath, CancellationToken ct = default)
+    {
+        EnsureConnected();
+        var fromKey = fromPath.TrimStart('/');
+        var toKey = toPath.TrimStart('/');
+        await _client!.CopyObjectAsync(_bucket, fromKey, _bucket, toKey, ct).ConfigureAwait(false);
+        await _client.DeleteObjectAsync(_bucket, fromKey, ct).ConfigureAwait(false);
+    }
+
+    public Task CreateFileAsync(string remotePath, CancellationToken ct = default)
+    {
+        var marker = CreateEmptyMarker();
+        return UploadAsync(marker, remotePath.TrimStart('/'), null, ct);
+    }
+
+    public async Task WriteAsync(string remotePath, Stream content, IProgress<long>? progress = null, CancellationToken ct = default)
+    {
+        EnsureConnected();
+        var key = remotePath.TrimStart('/');
+        var tmp = Path.Combine(Path.GetTempPath(), $"bndz-s3-write-{Guid.NewGuid():N}");
+        try
+        {
+            await using (var fs = File.Create(tmp))
+            {
+                await content.CopyToAsync(fs, ct).ConfigureAwait(false);
+            }
+            await UploadAsync(tmp, key, progress, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            try { File.Delete(tmp); } catch { }
+        }
+    }
+
+    public Task WriteBytesAsync(string remotePath, byte[] content, CancellationToken ct = default)
+    {
+        using var ms = new MemoryStream(content);
+        return WriteAsync(remotePath, ms, null, ct);
+    }
+
+    public async Task<MeshFileAttributes> GetAttributesAsync(string remotePath, CancellationToken ct = default)
+    {
+        EnsureConnected();
+        var key = remotePath.TrimStart('/');
+        try
+        {
+            var meta = await _client!.GetObjectMetadataAsync(_bucket, key, ct).ConfigureAwait(false);
+            return new MeshFileAttributes
+            {
+                Path = "/" + key,
+                Exists = true,
+                IsDirectory = key.EndsWith('/'),
+                Size = meta.ContentLength,
+                ModifiedUtc = meta.LastModified,
+            };
+        }
+        catch
+        {
+            return new MeshFileAttributes { Path = "/" + key, Exists = false };
+        }
     }
 
     private static string CreateEmptyMarker()

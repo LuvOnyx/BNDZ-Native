@@ -51,6 +51,10 @@ export function formatTransferAction(action: string): string {
     case 'folder-sync': return 'Sync';
     case 'archive-add': return 'Archive';
     case 'archive-extract': return 'Extract';
+    case 'archive-extract-rpf': return 'Extract RPF';
+    case 'mesh-upload': return 'Upload (Mesh)';
+    case 'mesh-download': return 'Download (Mesh)';
+    case 'mesh-drop-send': return 'Mesh Drop';
     case 'archive-create': return 'Archive';
     case 'undo': return 'Undo';
     case 'redo': return 'Redo';
@@ -106,17 +110,19 @@ export function formatTransferDestination(job: FileTransferJobDto): string | nul
   return dest;
 }
 
-export function formatTransferProgressLine(job: FileTransferJobDto): string {
+export function formatTransferProgressLine(job: FileTransferJobDto, showSpeedEta = true): string {
   const parts: string[] = [];
   if (job.bytesTransferred != null && job.totalBytes != null && job.totalBytes > 0) {
     parts.push(`${formatTransferBytes(job.bytesTransferred)} / ${formatTransferBytes(job.totalBytes)}`);
   } else if (job.itemsTotal != null && job.itemsTotal > 1) {
     parts.push(`${job.itemsCompleted ?? 0} / ${job.itemsTotal} items`);
   }
-  const speed = formatTransferSpeed(job.speedBytesPerSecond);
-  if (speed) parts.push(speed);
-  const eta = formatTransferEta(job.etaSeconds);
-  if (eta) parts.push(eta);
+  if (showSpeedEta) {
+    const speed = formatTransferSpeed(job.speedBytesPerSecond);
+    if (speed) parts.push(speed);
+    const eta = formatTransferEta(job.etaSeconds);
+    if (eta) parts.push(eta);
+  }
   return parts.join(' · ');
 }
 

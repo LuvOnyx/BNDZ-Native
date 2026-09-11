@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { type CSSProperties, type ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { formatUiPath } from '../../lib/displayPath';
 
@@ -14,6 +14,7 @@ export function PluginToolbarButton({
   onClick,
   disabled,
   active,
+  destructive,
   title,
   icon,
 }: {
@@ -21,6 +22,7 @@ export function PluginToolbarButton({
   onClick?: () => void;
   disabled?: boolean;
   active?: boolean;
+  destructive?: boolean;
   title?: string;
   icon?: string;
 }) {
@@ -31,7 +33,9 @@ export function PluginToolbarButton({
       disabled={disabled}
       title={title}
       className={`bndz-plugin-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none ${
-        active
+        destructive
+          ? 'bg-red-950/40 border-red-500/45 text-red-200 hover:bg-red-900/55 hover:border-red-400/60 hover:text-red-50 shadow-[0_0_12px_rgba(239,68,68,0.12)]'
+          : active
           ? 'bg-[#094771]/35 border-[#0078d4]/40 text-[#cce4f7]'
           : 'bg-white/[0.03] border-white/10 text-gray-300 hover:bg-white/[0.06] hover:text-white'
       }`}
@@ -99,12 +103,15 @@ export function PluginSectionTitle({
 export function PluginCard({
   children,
   className = '',
+  style,
+  ...rest
 }: {
   children: ReactNode;
   className?: string;
-}) {
+  style?: CSSProperties;
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`bndz-plugin-card ${className}`}>
+    <div className={`bndz-plugin-card ${className}`} style={style} {...rest}>
       {children}
     </div>
   );
@@ -156,12 +163,12 @@ export function PluginHeroActionButton({
   icon?: string;
   variant?: 'primary' | 'default';
 }) {
-  const base = 'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors disabled:opacity-40';
+  const base = 'bndz-plugin-hero-action flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors disabled:opacity-40';
   const styles = variant === 'primary'
-    ? 'bg-sky-500/15 border-sky-400/35 text-sky-300 hover:bg-sky-500/25'
+    ? 'bndz-plugin-hero-action--primary bg-sky-500/15 border-sky-400/35 text-sky-300 hover:bg-sky-500/25'
     : active
-      ? 'bg-[#094771]/35 border-[#38bdf8]/40 text-[#bae6fd]'
-      : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:border-white/20';
+      ? 'bndz-plugin-hero-action--active bg-[#094771]/35 border-[#38bdf8]/40 text-[#bae6fd]'
+      : 'bndz-plugin-hero-action--default bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:border-white/20';
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={`${base} ${styles}`}>
       {icon && <Icons8Icon id={icon} size={13} />}
@@ -190,7 +197,7 @@ export function PluginHeroStrip({
     <div className="bndz-plugin-hero shrink-0 border-b border-white/[0.08] px-5 py-4 flex gap-5 items-center min-w-0">
       <div className="shrink-0 drop-shadow-lg">{icon}</div>
       <div className="flex-1 min-w-0">
-        <h2 className="text-base font-semibold text-white truncate leading-tight tracking-tight">{name}</h2>
+        <h2 className="bndz-plugin-hero-title text-base font-semibold truncate leading-tight tracking-tight">{name}</h2>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           {typeLabel && <span className="bndz-plugin-kind-pill">{typeLabel}</span>}
           {meta}

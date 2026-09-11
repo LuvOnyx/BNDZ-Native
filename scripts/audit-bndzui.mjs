@@ -111,9 +111,9 @@ for (const m of src.matchAll(/const\s*\{([^}]+)\}\s*=/g)) {
 
 /** Undeclared identifiers in useEffect / useCallback / useMemo dependency arrays */
 const undeclaredDeps = [];
-const hookRe = /use(?:Effect|Callback|Memo)\s*\(/g;
+const undeclaredHookRe = /use(?:Effect|Callback|Memo)\s*\(/g;
 let hm;
-while ((hm = hookRe.exec(src)) !== null) {
+while ((hm = undeclaredHookRe.exec(src)) !== null) {
   const start = hm.index;
   const slice = src.slice(start, start + 8000);
   const depMatch = slice.match(/\},\s*\[([\s\S]*?)\]\s*\)/);

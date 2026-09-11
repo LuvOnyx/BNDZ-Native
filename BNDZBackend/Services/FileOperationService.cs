@@ -67,10 +67,10 @@ public class FileOperationService
                     var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
                     if (string.IsNullOrEmpty(dir))
                         throw new InvalidOperationException("No folder path was provided.");
-                    var existed = Directory.Exists(dir);
-                    Directory.CreateDirectory(dir);
-                    if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(dir));
-                    onProgress?.Invoke(operationId, 100, dir, 0, 0, 0, 1, 1);
+                    var uniqueDir = GetUniquePath(dir);
+                    Directory.CreateDirectory(uniqueDir);
+                    if (recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(uniqueDir));
+                    onProgress?.Invoke(operationId, 100, uniqueDir, 0, 0, 0, 1, 1);
                     break;
                 }
 
@@ -79,13 +79,13 @@ public class FileOperationService
                     var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
                     if (string.IsNullOrEmpty(filePath))
                         throw new InvalidOperationException("No file path was provided.");
-                    var dir = Path.GetDirectoryName(filePath);
+                    var uniqueFile = GetUniquePath(filePath);
+                    var dir = Path.GetDirectoryName(uniqueFile);
                     if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                         Directory.CreateDirectory(dir);
-                    var existed = File.Exists(filePath);
-                    if (!existed) File.WriteAllBytes(filePath, Array.Empty<byte>());
-                    if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(filePath));
-                    onProgress?.Invoke(operationId, 100, filePath, 0, 0, 0, 1, 1);
+                    File.WriteAllBytes(uniqueFile, Array.Empty<byte>());
+                    if (recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(uniqueFile));
+                    onProgress?.Invoke(operationId, 100, uniqueFile, 0, 0, 0, 1, 1);
                     break;
                 }
 
@@ -441,7 +441,15 @@ public class FileOperationService
             }
             else
             {
-                await CopyFileBufferedAsync(src, dest, cancellationToken).ConfigureAwait(false);
+                await CopyFileBufferedAsync(src, dest, cancellationToken, (fileDone, fileTotal) =>
+                {
+                    var soFar = transferred + fileDone;
+                    double speedNow = sw.Elapsed.TotalSeconds > 0 ? soFar / sw.Elapsed.TotalSeconds : 0;
+                    int pctNow = totalBytes > 0
+                        ? (int)Math.Clamp(soFar * 100 / totalBytes, 0, 99)
+                        : (int)((i + 1) * 100.0 / work.Count);
+                    onProgress?.Invoke(operationId, pctNow, src, soFar, totalBytes, speedNow, i, work.Count);
+                }).ConfigureAwait(false);
                 if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
                     throw new IOException($"Copy verification failed for {Path.GetFileName(src)}");
                 if (preservePermissions) TryPreservePermissions(src, dest);
@@ -475,7 +483,11 @@ public class FileOperationService
         return createdPaths;
     }
 
-    private static async Task CopyFileBufferedAsync(string sourceFile, string destinationFile, CancellationToken cancellationToken = default)
+    private static async Task CopyFileBufferedAsync(
+        string sourceFile,
+        string destinationFile,
+        CancellationToken cancellationToken = default,
+        Action<long, long>? onByteProgress = null)
     {
         const int bufferSize = 1024 * 1024;
         await using var sourceStream = new FileStream(
@@ -485,11 +497,24 @@ public class FileOperationService
             destinationFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         var buffer = new byte[bufferSize];
+        var fileTotal = sourceStream.Length;
+        long fileDone = 0;
+        var lastReportMs = 0L;
         int read;
         while ((read = await sourceStream.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken).ConfigureAwait(false)) > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await destinationStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            fileDone += read;
+            if (onByteProgress != null)
+            {
+                var now = Environment.TickCount64;
+                if (now - lastReportMs >= 100 || fileDone >= fileTotal)
+                {
+                    lastReportMs = now;
+                    onByteProgress(fileDone, fileTotal);
+                }
+            }
         }
         await destinationStream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -560,7 +585,7 @@ public class FileOperationService
         var dir = Path.GetDirectoryName(path) ?? "";
         var name = Path.GetFileNameWithoutExtension(path);
         var ext = Path.GetExtension(path);
-        int n = 1;
+        int n = 2;
         string candidate;
         do
         {

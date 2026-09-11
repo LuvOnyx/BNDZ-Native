@@ -27,8 +27,8 @@ export function PreviewHeroIcon({
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <div
-        className="bndz-preview-hero-frame rounded-md bg-[#2b2b2b] border border-[#454545] flex items-center justify-center overflow-hidden"
-        style={{ width: size, height: size }}
+        className="bndz-preview-hero-frame flex items-center justify-center overflow-hidden"
+        style={{ width: size, height: size, background: 'transparent', border: 'none', borderRadius: 0, boxShadow: 'none' }}
       >
         {path ? (
           <ShellNativeIcon

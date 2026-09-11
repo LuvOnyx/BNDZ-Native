@@ -508,10 +508,11 @@ public sealed class RamStagingService : IDisposable
         return (true, null);
     }
 
-    public async Task<(bool ok, string? error)> InstallAimAsync(CancellationToken ct = default)
+    public Task<(bool ok, string? error)> InstallAimAsync(CancellationToken ct = default)
     {
+        _ = ct;
         // Never auto-probe a potentially broken CLI from UI/settings — that pops OS dialogs.
-        return (false, null);
+        return Task.FromResult<(bool ok, string? error)>((false, null));
     }
 
     private static async Task WaitForWritableMountAsync(string mountPath, CancellationToken ct)

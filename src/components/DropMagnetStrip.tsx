@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IPC } from '../lib/ipcBridge';
 import { pushToast } from './ToastHost';
+import { runPluginRefresh } from '../lib/pluginRefresh';
+import { isQueuedIpcResult } from '../lib/transferIpc';
 
 type MagnetRow = {
   id: string;
@@ -33,12 +35,12 @@ export default function DropMagnetStrip({ externalDragActive, pendingPaths, onAp
   const [applying, setApplying] = useState(false);
 
   const refresh = useCallback(async () => {
-    const res = await IPC.magnetList();
-    setMagnets(
-      (res.magnets || [])
+    await runPluginRefresh('Drop Magnets', async () => {
+      const res = await IPC.magnetList();
+      return (res.magnets || [])
         .map((m: Record<string, unknown>) => normalizeMagnet(m))
-        .filter(m => m.enabled),
-    );
+        .filter(m => m.enabled);
+    }, setMagnets);
   }, []);
 
   useEffect(() => {
@@ -55,6 +57,15 @@ export default function DropMagnetStrip({ externalDragActive, pendingPaths, onAp
         return;
       }
       const magnet = magnets.find(m => m.id === magnetId);
+      if (isQueuedIpcResult(res)) {
+        pushToast({
+          kind: 'success',
+          title: magnet?.name ?? 'Magnet',
+          message: 'Routing queued — see transfer panel.',
+        });
+        onApplied?.();
+        return;
+      }
       pushToast({
         kind: 'success',
         title: magnet?.name ?? 'Magnet',

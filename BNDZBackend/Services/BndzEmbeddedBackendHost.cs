@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BNDZ.Services;
@@ -17,6 +18,12 @@ public static class BndzEmbeddedBackendHost
 #endif
     private static readonly object PushSync = new();
     private static readonly List<Action<string>> PushTargets = new();
+    /// <summary>
+    /// Dedicated CraftPaneHost inbound-drop deliverer. Separate from PushTargets so
+    /// EXTERNAL_FILES_DROPPED still reaches WebView2 when the push fan-out list is empty
+    /// (push=True on the IpcHost lambda only means the lambda exists — not that targets exist).
+    /// </summary>
+    private static Action<string>? ExternalDropDeliver;
 
     /// <summary>WinUI CraftPaneHost registers receivers so backend push events fan out to every island.</summary>
     public static Action<string>? PushToUi
@@ -27,14 +34,7 @@ public static class BndzEmbeddedBackendHost
             {
                 if (PushTargets.Count == 0) return null;
                 var snapshot = PushTargets.ToArray();
-                return json =>
-                {
-                    foreach (var t in snapshot)
-                    {
-                        try { t(json); }
-                        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] push target: {ex.Message}"); }
-                    }
-                };
+                return json => FanOutToSnapshot(snapshot, json);
             }
         }
         set
@@ -48,6 +48,11 @@ public static class BndzEmbeddedBackendHost
         }
     }
 
+    public static int PushTargetCount
+    {
+        get { lock (PushSync) return PushTargets.Count; }
+    }
+
     public static void RegisterPushTarget(Action<string> target)
     {
         if (target is null) return;
@@ -56,6 +61,12 @@ public static class BndzEmbeddedBackendHost
             if (!PushTargets.Contains(target))
                 PushTargets.Add(target);
         }
+        try
+        {
+            WebView2DropTargetService.AppendOleDndLogPublic(
+                $"PushTarget register count={PushTargetCount}");
+        }
+        catch { /* ignore */ }
     }
 
     public static void UnregisterPushTarget(Action<string> target)
@@ -65,6 +76,92 @@ public static class BndzEmbeddedBackendHost
         {
             PushTargets.Remove(target);
         }
+    }
+
+    /// <summary>CraftPaneHost wires PostHostMessageRaw here so inbound OLE drops never depend on PushTargets alone.</summary>
+    public static void SetExternalDropDeliver(Action<string>? deliver)
+    {
+        lock (PushSync) { ExternalDropDeliver = deliver; }
+        try
+        {
+            WebView2DropTargetService.AppendOleDndLogPublic(
+                $"ExternalDropDeliver {(deliver != null ? "set" : "cleared")} pushTargets={PushTargetCount}");
+        }
+        catch { /* ignore */ }
+    }
+
+    /// <summary>Fan-out to all push targets; returns how many handlers were invoked.</summary>
+    public static int FanOutPush(string json)
+    {
+        Action<string>[] snapshot;
+        lock (PushSync) { snapshot = PushTargets.ToArray(); }
+        return FanOutToSnapshot(snapshot, json);
+    }
+
+    private static int FanOutToSnapshot(Action<string>[] snapshot, string json)
+    {
+        var n = 0;
+        foreach (var t in snapshot)
+        {
+            try
+            {
+                t(json);
+                n++;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[BndzEmbeddedBackendHost] push target: {ex.Message}");
+            }
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// Guaranteed inbound-drop path: dedicated CraftPaneHost deliverer first, then other push targets.
+    /// Logs target counts so ole-dnd.log can prove whether React was reachable.
+    /// </summary>
+    public static void DeliverExternalDropJson(string json)
+    {
+        Action<string>? drop;
+        Action<string>[] snapshot;
+        lock (PushSync)
+        {
+            drop = ExternalDropDeliver;
+            snapshot = PushTargets.ToArray();
+        }
+        var viaDrop = false;
+        var fanOut = 0;
+        if (drop != null)
+        {
+            try
+            {
+                drop(json);
+                viaDrop = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[BndzEmbeddedBackendHost] ExternalDropDeliver: {ex.Message}");
+            }
+        }
+        foreach (var t in snapshot)
+        {
+            if (drop != null && ReferenceEquals(t, drop)) continue;
+            try
+            {
+                t(json);
+                fanOut++;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[BndzEmbeddedBackendHost] push target: {ex.Message}");
+            }
+        }
+        try
+        {
+            WebView2DropTargetService.AppendOleDndLogPublic(
+                $"DeliverExternalDropJson fanOut={fanOut} dropCb={viaDrop} pushTargets={PushTargetCount}");
+        }
+        catch { /* ignore */ }
     }
 
     /// <summary>
@@ -111,6 +208,13 @@ public static class BndzEmbeddedBackendHost
             }
             try
             {
+                // Headless shell has no App.xaml — bootstrap STA for clipboard / native menus.
+                try { BndzUiDispatcher.EnsureStarted(); }
+                catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] UI dispatcher: {ex.Message}"); }
+
+                try { ExternalDropHelper.SweepStaleDropTemps(); }
+                catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] drop temp sweep: {ex.Message}"); }
+
                 var collection = new ServiceCollection();
                 collection.AddSingleton<FileManagementService>();
                 collection.AddSingleton<LocalAiService>();
@@ -130,12 +234,42 @@ public static class BndzEmbeddedBackendHost
                     _services.GetRequiredService<ShellIntegrationService>(),
                     pushWebMessage: json =>
                     {
-                        try { PushToUi?.Invoke(json); }
+                        try
+                        {
+                            var n = FanOutPush(json);
+                            // push=True on IpcHost only means this lambda exists. When targets=0 the
+                            // message used to vanish — queue is owned by IpcHost DeliverIpcJson.
+                            if (n == 0
+                                && json.Contains("\"EXTERNAL_FILES_DROPPED\"", StringComparison.Ordinal))
+                            {
+                                Action<string>? drop;
+                                lock (PushSync) { drop = ExternalDropDeliver; }
+                                if (drop != null)
+                                {
+                                    try { drop(json); }
+                                    catch (Exception dropEx)
+                                    {
+                                        Debug.WriteLine($"[BndzEmbeddedBackendHost] orphan drop: {dropEx.Message}");
+                                    }
+                                }
+                                else
+                                {
+                                    try
+                                    {
+                                        WebView2DropTargetService.AppendOleDndLogPublic(
+                                            "FanOut EXTERNAL_FILES_DROPPED targets=0 dropCb=null — ORPHAN");
+                                    }
+                                    catch { /* ignore */ }
+                                }
+                            }
+                        }
                         catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] push: {ex.Message}"); }
                     },
                     hostWindowHandle: hostWindowHandle);
 
                 ReadyTcs.TrySetResult(true);
+                BndzOleDragStaThread.WarmUp();
+                BndzShellStaThread.WarmUp();
                 Debug.WriteLine("[BndzEmbeddedBackendHost] headless BndzIpcHost ready");
             }
             catch (Exception ex)
@@ -162,6 +296,191 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    /// <summary>WinUI STA synchronous invoke for OLE DoDragDrop (mouse-owning thread).</summary>
+    public static void SetHostStaInvoke(Action<Action>? invoke)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostStaInvoke(invoke); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostStaInvoke: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Dedicated OLE STA thread for modal DoDragDrop (WinUI must not block).</summary>
+    public static void RunOnOleDragSta(Action action, bool block = true)
+    {
+#if BNDZ_HEADLESS_CORE
+        BndzOleDragStaThread.Run(action, block);
+#else
+        _ = block;
+        action();
+#endif
+    }
+
+    /// <summary>Enqueue OLE work on the next WinUI dispatcher turn (never inline).</summary>
+    public static void SetHostStaInvokeNextTick(Action<Action>? invokeNextTick)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostStaInvokeNextTick(invokeNextTick); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostStaInvokeNextTick: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Run OLE work on WinUI dispatcher after delayMs (ghost handoff before DoDragDrop).</summary>
+    public static void SetHostStaInvokeDelayed(Action<Action, int>? invokeDelayed)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostStaInvokeDelayed(invokeDelayed); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostStaInvokeDelayed: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Fire-and-forget FE ghost dismiss before DoDragDrop blocks STA.</summary>
+    public static void SetOleEscalateFeDismiss(Action? dismiss)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetOleEscalateFeDismiss(dismiss); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetOleEscalateFeDismiss: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>
+    /// WinUI: run OLE only after WebView2 ghost-dismiss script completes (or times out).
+    /// </summary>
+    public static void SetRunOleAfterFeHandoff(Action<Action>? runAfterHandoff)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetRunOleAfterFeHandoff(runAfterHandoff); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetRunOleAfterFeHandoff: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Physical px height of caption/menubar for outbound OLE top-chrome escalate.</summary>
+    public static void SetOutboundTopChromePx(int physicalPx)
+    {
+        try { WebView2DropTargetService.SetOutboundTopChromePx(physicalPx); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetOutboundTopChromePx: {ex.Message}"); }
+    }
+
+    /// <summary>WinUI CraftPaneHost: map OLE screen coords to WebView2 CSS client space.</summary>
+    public static void ConfigureHeadlessDropBridge(
+        Func<double, double, (double X, double Y)>? screenToClientMapper,
+        double webViewClientWidth,
+        double webViewClientHeight)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try
+        {
+            _host?.ConfigureHeadlessDropBridge(
+                screenToClientMapper == null
+                    ? null
+                    : (x, y) =>
+                    {
+                        var p = screenToClientMapper(x, y);
+                        return new System.Windows.Point(p.X, p.Y);
+                    },
+                webViewClientWidth,
+                webViewClientHeight);
+        }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] ConfigureHeadlessDropBridge: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Register BNDZ OLE IDropTarget on WebView2 child HWND under the WinUI shell window.</summary>
+    public static bool RegisterHostOleDropTarget()
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try
+        {
+            _host?.RegisterHostOleDropTarget();
+            WebView2DropTargetService.SetOutboundDragResumeRegistration(() =>
+            {
+                try { _host?.RegisterHostOleDropTarget(); }
+                catch (Exception resumeEx) { Debug.WriteLine($"[BndzEmbeddedBackendHost] resume OLE: {resumeEx.Message}"); }
+            });
+            // Only latch success on a Chromium/InputSite child — top-level registration is never used.
+            return WebView2DropTargetService.IsRegisteredOnChromeChild;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[BndzEmbeddedBackendHost] RegisterHostOleDropTarget: {ex.Message}");
+            return false;
+        }
+#else
+        return false;
+#endif
+    }
+
+    public static bool IsOleRegisteredOnChromeChild
+    {
+        get
+        {
+#if BNDZ_HEADLESS_CORE
+            return WebView2DropTargetService.IsRegisteredOnChromeChild;
+#else
+            return false;
+#endif
+        }
+    }
+
+    public static IntPtr RegisteredOleWebViewHwnd
+    {
+        get
+        {
+#if BNDZ_HEADLESS_CORE
+            return WebView2DropTargetService.RegisteredWebViewHwnd;
+#else
+            return IntPtr.Zero;
+#endif
+        }
+    }
+
+    public static bool IsScreenPointOutsideOleWebView(int screenX, int screenY)
+    {
+#if BNDZ_HEADLESS_CORE
+        return WebView2DropTargetService.IsScreenPointOutsideRegisteredWebView(screenX, screenY);
+#else
+        return true;
+#endif
+    }
+
+    /// <summary>Revoke OLE drop target (pane unload / WebView recovery).</summary>
+    public static void RevokeHostOleDropTarget()
+    {
+#if BNDZ_HEADLESS_CORE
+        try { _host?.RevokeHostOleDropTarget(); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] RevokeHostOleDropTarget: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Path A fallback when Chromium navigates to file: from an external drop.</summary>
+    public static void NotifyNavigationFileDrop(string localPath)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.NotifyNavigationFileDrop(localPath); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] NotifyNavigationFileDrop: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Map screen coordinates to WebView2 client space after OLE registration.</summary>
+    public static bool TryScreenToWebViewClient(double screenX, double screenY, out double clientX, out double clientY)
+    {
+#if BNDZ_HEADLESS_CORE
+        return WebView2DropTargetService.TryScreenToWebViewClient(screenX, screenY, out clientX, out clientY);
+#else
+        clientX = screenX;
+        clientY = screenY;
+        return false;
+#endif
+    }
+
     public static void SetHostCloseAction(Action closeAction)
     {
 #if BNDZ_HEADLESS_CORE
@@ -177,6 +496,24 @@ public static class BndzEmbeddedBackendHost
         EnsureStarted();
         try { _host?.SetHostTrayActions(hideToTray, restoreFromTray); }
         catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostTrayActions: {ex.Message}"); }
+#endif
+    }
+
+    public static void SetOpenPluginWindowAction(Func<string, string?, string?, bool> openAction)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetOpenPluginWindowAction(openAction); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetOpenPluginWindowAction: {ex.Message}"); }
+#endif
+    }
+
+    public static void SetHostActivateMainAction(Action activateMain)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostActivateMainAction(activateMain); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostActivateMainAction: {ex.Message}"); }
 #endif
     }
 
@@ -207,6 +544,81 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    public static void HandleStartDragSync(string requestJson)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        if (_host is null) return;
+        _host.HandleDragNotifySync(requestJson);
+#endif
+    }
+
+    /// <summary>WebView2 DragStarting COM path — host DoDragDrop from WebView2 IDataObject.</summary>
+    public static void HandleWebView2DragStarting(object dataObject)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        if (_host is null || dataObject is null) return;
+        try { _host.HandleWebView2DragStarting(dataObject); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] DragStarting: {ex.Message}"); }
+#endif
+    }
+
+    public static bool IsDragStartingEnabled =>
+        string.Equals(Environment.GetEnvironmentVariable("BNDZ_DRAGSTARTING"), "1", StringComparison.Ordinal);
+
+    /// <summary>WinUI timer poll — escalate FILE_DRAG_ACTIVE when cursor leaves WebView HWND.</summary>
+    public static bool TryEscalateOutboundOleDrag()
+    {
+#if BNDZ_HEADLESS_CORE
+        if (!IsReady || _host is null) return false;
+        try { return _host.TryEscalateOutboundOleDrag(); }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[BndzEmbeddedBackendHost] TryEscalateOutboundOleDrag: {ex.Message}");
+            return false;
+        }
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>True while native ole32 DoDragDrop is on the stack — skip HWND re-register.</summary>
+    public static bool IsOutboundOleDragActive
+    {
+        get
+        {
+#if BNDZ_HEADLESS_CORE
+            try { return _host?.IsOutboundOleDragActive == true; }
+            catch { return false; }
+#else
+            return false;
+#endif
+        }
+    }
+
+    /// <summary>True while inbound IDropTarget is revoked for outbound DoDragDrop.</summary>
+    public static bool IsInboundSuspendedForOutbound
+    {
+        get
+        {
+            try { return WebView2DropTargetService.IsInboundSuspendedForOutbound; }
+            catch { return false; }
+        }
+    }
+
+    /// <summary>WinUI top strip over WebView during outbound OLE / top-chrome handoff.</summary>
+    public static bool ShouldShowOleTopGhostMask()
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { return _host?.ShouldShowOleTopGhostMask() == true; }
+        catch { return false; }
+#else
+        return false;
+#endif
+    }
+
     public static async Task<JsonDocument?> InvokeAsync(string type, object? payload = null, CancellationToken ct = default)
     {
         var id = Guid.NewGuid().ToString("N");
@@ -224,6 +636,20 @@ public static class BndzEmbeddedBackendHost
             _host = null;
         }
 #endif
-        lock (PushSync) { PushTargets.Clear(); }
+        lock (PushSync)
+        {
+            PushTargets.Clear();
+            ExternalDropDeliver = null;
+        }
+    }
+
+    /// <summary>Position embedded OS console for Remote Mesh local terminal.</summary>
+    public static void LayoutMeshTerminal(string sessionId, IntPtr parentHwnd, int x, int y, int width, int height, bool visible)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.LayoutEmbeddedMeshTerminal(sessionId, parentHwnd, x, y, width, height, visible); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] LayoutMeshTerminal: {ex.Message}"); }
+#endif
     }
 }

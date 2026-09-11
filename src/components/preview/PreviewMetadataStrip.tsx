@@ -39,12 +39,12 @@ function formatModified(value: Props['modified']) {
 
 /** Flat metadata ribbon — single action cluster (no duplicate open/copy from tabstrip). */
 export default function PreviewMetadataStrip({
-  name, path, size, modified, kindLabel, isDirectory, facts, onReveal,
-}: Props) {
+  name, path, size, modified, kindLabel, isDirectory, facts, onReveal, className,
+}: Props & { className?: string }) {
   const shownFacts = (facts || []).filter(f => f.value).slice(0, 6);
 
   return (
-    <div className="bndz-preview-metadata-strip shrink-0 border-b border-[#3a3a3a] bg-[#2a2a2a] px-3 py-2">
+    <div className={`bndz-preview-metadata-strip shrink-0 border-b border-[#3a3a3a] bg-[#2a2a2a] px-3 py-2 ${className || ''}`.trim()}>
       <div className="flex items-start gap-2 min-w-0">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-medium text-[#f3f4f6] truncate" title={name}>{name}</div>

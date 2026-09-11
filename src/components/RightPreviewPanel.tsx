@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
 import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath, normalizePanePath, isRecycleBinPath } from '../lib/pathUtils';
+import { isMeshPath } from '../lib/meshPaths';
+import { resolveLocalReadPath } from '../lib/meshPreviewResolve';
 import { formatUiPath } from '../lib/displayPath';
 import { isPreviewEnabledForExt, buildSettingsRuntime } from '../lib/settingsRuntime';
 import { getBlowUpMouseBehavior, getPreviewAvBehavior } from '../lib/settingsBehavior';
@@ -9,13 +11,12 @@ import { applyWebPathMap } from '../lib/listReportExport';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
-import { Icons8Icon } from './Icons8Icon';
+import { Icons8Icon, PopOutGlyph } from './Icons8Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
 const MonacoMicroEditor = lazy(() => import('./preview/MonacoMicroEditor'));
 const AudioWaveformEditor = lazy(() => import('./preview/AudioWaveformEditor'));
-import ImageZoomPreview from './ImageZoomPreview';
 import SvgVectorPreview from './SvgVectorPreview';
 import InspectionViewportRouter from '../workstation/inspection/InspectionViewportRouter';
 import type { InspectionShaderMode } from '../workstation/inspection/InspectionViewportRouter';
@@ -25,12 +26,13 @@ import MarkdownPreviewPanel from './MarkdownPreviewPanel';
 import HtmlPreviewPanel from './HtmlPreviewPanel';
 const DocxPreviewPanel = lazy(() => import('./DocxPreviewPanel'));
 const GpuModelViewport = lazy(() => import('../workstation/inspection/GpuModelViewport'));
-import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../lib/textFileTypes';
+import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt, isOfficeExt, isFontExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
 import { isArchiveExt, isTorrentExt } from '../lib/archiveTypes';
-import { isAudioExt, isVideoExt, isImageExt, isModelExt } from '../lib/mediaTypes';
+import { isAudioExt, isVideoExt, isImageExt, isModelExt, isGpuNativeModelExt, isRageConvertModelExt, isShellActivateExt } from '../lib/mediaTypes';
+import { useModelPreviewSource } from '../lib/useModelPreviewSource';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
@@ -79,6 +81,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
   const [extendedDetails, setExtendedDetails] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<PreviewTab>('preview');
+  const configInspectMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
+  const [inspectMode, setInspectMode] = useState<InspectionShaderMode>(configInspectMode);
+  useEffect(() => { setInspectMode(configInspectMode); }, [configInspectMode]);
 
   useEffect(() => {
     const onPreviewTab = (e: Event) => {
@@ -160,6 +165,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         });
         import('../lib/extendedMetadataCache').then(({ getExtendedMetadataCached }) => {
            const winPath = toWindowsPath(path);
+           const fileExt = String((entity as any)?.extension || '').toLowerCase().replace(/^\./, '');
+           if (isShellActivateExt(fileExt)) {
+             if (active) setExtendedDetails({});
+             return;
+           }
 
            if (IPC.isNative) {
                void getExtendedMetadataCached(winPath, { priority: 950 }).then(entry => {
@@ -248,10 +258,18 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   const isDir = entity?.type === 'directory' || !!(entity as any)?.isVirtual;
   const heroPath = (entity as any)?.isVirtual ? getLocationIconPath(path) : path;
-  const ext = !isDir ? (entity as any)?.extension?.toLowerCase() || '' : '';
+  // Prefer entity.extension, but fall back to path/name so inspection modes never vanish
+  // when the list row omits extension (common for some virtual / optimistic rows).
+  const extRaw = !isDir
+    ? String((entity as any)?.extension || '')
+      || (path ? path.split(/[/\\]/).pop()?.split('.').slice(1).pop() || '' : '')
+      || String(entity?.name || '').split('.').slice(1).pop() || ''
+    : '';
+  const ext = extRaw.toLowerCase().replace(/^\./, '');
   const isImage = isImageExt(ext);
   const isModel = isModelExt(ext);
-  const isSvg = ext === 'svg';
+  const isFont = isFontExt(ext);
+  const isSvg = ext === 'svg' || ext === 'svgz';
   const isAudio = isAudioExt(ext);
   const isVideo = isVideoExt(ext);
   const isTextRaw = isTextEditableExt(ext) && !isCodeExt(ext) && !isHtmlExt(ext) && !isMarkdownExt(ext);
@@ -259,20 +277,40 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const isHtml = isHtmlExt(ext);
   const isMarkdown = isMarkdownExt(ext);
   const isDocx = isDocxExt(ext);
+  const isOfficeOther = isOfficeExt(ext) && !isDocx;
   const isEditableText = isTextRaw || isCode || isMarkdown;
   const isPdf = ext === 'pdf';
   const isBinary = ['exe', 'dll', 'sys', 'dat', 'bin'].includes(ext);
   const isArchive = isArchiveExt(ext);
   const isTorrent = isTorrentExt(ext);
   const isDrive = !!(entity as any)?.driveInfo;
+  const modelPreview = useModelPreviewSource(isModel && path ? path : null, ext);
+  const fontFamilyName = isFont && path
+    ? `bndz-preview-font-${ext}-${(entity?.name || 'f').replace(/[^a-zA-Z0-9]/g, '')}`
+    : '';
   
   // Use local-stream prefix so C# WebResourceRequested can intercept and stream local files securely
   // For web fallback, use the Express backend route
   const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
-  const virtualUrl = path && !isDir
-      ? (isNative ? toVirtualStreamUrl(path) : `/local-stream/${encodeLocalStreamPath(toWindowsPath(path))}`)
+  const [meshPreviewLocalPath, setMeshPreviewLocalPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!path || !isMeshPath(path)) {
+      setMeshPreviewLocalPath(null);
+      return;
+    }
+    let cancelled = false;
+    void resolveLocalReadPath(path).then(res => {
+      if (!cancelled) setMeshPreviewLocalPath(res.error ? null : res.localPath);
+    });
+    return () => { cancelled = true; };
+  }, [path]);
+
+  const previewFsPath = meshPreviewLocalPath || path;
+  const virtualUrl = previewFsPath && !isDir
+      ? (isNative ? toVirtualStreamUrl(previewFsPath) : `/local-stream/${encodeLocalStreamPath(toWindowsPath(previewFsPath))}`)
       : '';
-  const previewAllowed = isArchive || isTorrent || isPreviewEnabledForExt(ext, config);
+  const previewAllowed = isArchive || isTorrent || isRageConvertModelExt(ext) || isPreviewEnabledForExt(ext, config);
 
   useEffect(() => {
     if (!entity) return;
@@ -358,9 +396,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       ? Number(mediaAv.playOnlyTheFirstSecondsValue) || 0
       : 0,
     keepPlayingWhenHidden: !!(mediaAv.keepPlayingWhenInfoPanelIsHidden || mediaAv.playAlsoWhenInfoPanelIsHidden),
-    // Video/audio seeking needs byte-range on bndz-stream — prefer stream for video.
-    // Audio stays blob-first (typically smaller; avoids codec edge cases).
-    preferBlob: isAudio || ((previewRt.preferBlob || !nativePreviewHandling) && !isVideo),
+    // Video/audio seeking needs byte-range on bndz-stream — prefer stream for both.
+    preferBlob: (previewRt.preferBlob || !nativePreviewHandling) && !isVideo && !isAudio,
     onOpenFloating: onOpenFloatingPreview,
     skipIntroMs: config.skipVideoPreview && isVideo
       ? Math.max(0, Number(mediaAv.skipVideoPreviewValue) || 0)
@@ -382,7 +419,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
      if (!path || isDir || !previewAllowed || isArchive || isTorrent) return;
      if (isHtml && htmlView === 'render') return;
-     if (isDocx || isPdf) return;
+     if (isDocx || isPdf || isModel || isFont || isImage || isAudio || isVideo) return;
 
      const delayMs = previewDelayMs || 0;
      let cancelled = false;
@@ -393,8 +430,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
          try {
              if (isEditableText) {
                  const { IPC } = await import('../lib/ipcBridge');
+                 const { resolveLocalReadPath } = await import('../lib/meshPreviewResolve');
                  if (IPC.isNative) {
-                     const result = await IPC.readTextFile(toWindowsPath(path));
+                     const resolved = await resolveLocalReadPath(path);
+                     if (resolved.error) throw new Error(resolved.error);
+                     const result = await IPC.readTextFile(resolved.localPath);
                      if (result.error) throw new Error(result.error);
                      setFileContent(result.content ?? '');
                  } else {
@@ -525,13 +565,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const renderFolderContentsPreview = () => {
     if (config.folderContentsPreview === false || !isDir || folderChildren.length === 0) return null;
     return (
-      <div className="flex flex-col min-h-0 flex-1 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]">
-        <div className="bndz-panel-section-title px-2 py-1.5 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+      <div className="bndz-preview-contents-panel flex flex-col min-h-0 flex-1 overflow-hidden rounded-xl border">
+        <div className="bndz-panel-section-title px-2 py-1.5 border-b flex items-center justify-between gap-2 shrink-0" style={{ borderColor: 'var(--bndz-border-subtle, #2a2a30)' }}>
           <span>Contents preview</span>
           {browsePath && path && browsePath !== path && (
             <button
               type="button"
-              className="text-[#7eb8e8] hover:text-[#99c9f0] normal-case tracking-normal text-xs font-medium"
+              className="bndz-preview-accent-muted normal-case tracking-normal text-xs font-medium hover:opacity-80"
               onClick={() => {
                 const parent = browsePath.replace(/\/[^/]+$/, '') || path;
                 setBrowsePath(parent);
@@ -549,8 +589,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               type="button"
               onClick={() => openChild(c)}
               onDoubleClick={() => openChild(c, { navigateMain: true })}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
-                selectedChild === c.name ? 'bg-[#094771]/35 text-[#cce4f7]' : 'hover:bg-white/[0.06] text-gray-300'
+              className={`bndz-preview-contents-row w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
+                selectedChild === c.name ? 'is-selected' : ''
               }`}
               title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
             >
@@ -614,11 +654,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           return <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} />;
       }
       if (isAudio && audioVideoEnabled && path) {
-        return (
-          <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform…</div>}>
-            <AudioWaveformEditor path={path} title={entity.name} />
-          </Suspense>
-        );
+        // Waveform stays mounted in the preview shell so Workspace tab switches
+        // do not re-decode peaks.
+        return null;
       }
 
       if (isVideo && audioVideoEnabled) {
@@ -639,8 +677,32 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
       }
 
-      if (isSvg && previewAllowed) {
-          const src = svgPreviewUrl;
+      if (isSvg) {
+          const wantInspect = inspectMode !== 'passthrough';
+          // SVG is still 2D — Loupe/Luma tint/magnify the rasterized image.
+          if (wantInspect) {
+            const src = virtualUrl || svgPreviewUrl || '';
+            if (!src) {
+              return (
+                <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
+                  <div className="text-xs text-gray-500 animate-pulse">Loading SVG…</div>
+                </div>
+              );
+            }
+            return (
+              <div className={`relative w-full h-full min-h-0 flex-1 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
+                <InspectionViewportRouter
+                  src={src}
+                  alt={entity.name}
+                  filePath={path}
+                  onOpenFloating={onOpenFloatingPreview}
+                  shaderMode={inspectMode}
+                  gpuEnabled={config.gpuInspection !== false}
+                />
+              </div>
+            );
+          }
+          const src = svgPreviewUrl || virtualUrl;
           if (!src) {
             return (
               <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
@@ -661,46 +723,93 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
       }
 
-      if (isModel && previewAllowed && virtualUrl) {
-        const webGlReady = probeWebGL();
-        const gpuFamily = ext === 'glb' || ext === 'gltf' || ext === 'obj' || ext === 'stl';
-        if (!webGlReady || !gpuFamily) {
-          return (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
-              <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
-              <p>
-                {!webGlReady
-                  ? 'WebGL is unavailable — enable GPU acceleration to preview 3D models.'
-                  : `Inline GPU preview supports GLB/GLTF/OBJ/STL. ${ext.toUpperCase()} can be opened externally.`}
-              </p>
-            </div>
-          );
-        }
+      if (isFont && previewAllowed && virtualUrl) {
         return (
-          <div className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
-            <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport…</div>}>
-              <GpuModelViewport src={virtualUrl} title={entity.name} />
-            </Suspense>
+          <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-5 p-5 text-[color:var(--preview-text,#e8e8e8)] bndz-preview-stage">
+            <style>{`@font-face{font-family:'${fontFamilyName}';src:url('${virtualUrl}');font-display:swap;}`}</style>
+            <div className="text-[10px] uppercase tracking-[0.16em] opacity-45">Font preview</div>
+            <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[28px] leading-snug text-center max-w-full">
+              The quick brown fox jumps over the lazy dog
+            </div>
+            <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[16px] opacity-70 text-center">
+              0123456789 · ABCDEFGHIJKLMNOPQRSTUVWXYZ
+            </div>
+            <div className="text-[11px] opacity-40 truncate max-w-full">{entity.name}</div>
           </div>
         );
       }
 
-      if (isImage && previewAllowed) {
-          // Always prefer full-res stream for the panel — CAS thumbs are interim/fallback only.
-          // Preferring thumbs as primary made zoom look soft/pixelated.
+      if (isModel && previewAllowed) {
+        // 3D / RAGE (.ydr/.ybn/…) — dedicated Orbit viewport only.
+        // Loupe / Luma inspection modes are image-only and never wrap this path.
+        const webGlReady = probeWebGL();
+        const canShow = webGlReady && (isGpuNativeModelExt(ext) || isRageConvertModelExt(ext));
+        if (!webGlReady) {
+          return (
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+              <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
+              <p>WebGL is unavailable — enable GPU acceleration to preview 3D models.</p>
+            </div>
+          );
+        }
+        if (!canShow) {
+          return (
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+              <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
+              <p>{ext.toUpperCase()} is recognized as a 3D/RAGE asset. Open externally for full tooling.</p>
+            </div>
+          );
+        }
+        if (modelPreview.loading) {
+          return (
+            <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 animate-pulse bndz-preview-stage">
+              Preparing {ext.toUpperCase()} mesh…
+            </div>
+          );
+        }
+        if (modelPreview.error || !modelPreview.url) {
+          return (
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+              <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
+              <p>{modelPreview.error || '3D preview unavailable'}</p>
+            </div>
+          );
+        }
+        return (
+          <div className={`relative w-full h-full min-h-[240px] bndz-preview-media-frame bndz-preview-border-${mediaBorderType} bndz-rage-preview-stage`}>
+            <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport…</div>}>
+              <GpuModelViewport src={modelPreview.url} title={entity.name} badge={modelPreview.badge} />
+            </Suspense>
+            <div className="pointer-events-none absolute left-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] text-white/80">
+              {isRageConvertModelExt(ext) ? 'FiveM · orbit' : '3D orbit'} · drag to rotate
+            </div>
+            {(modelPreview.vertices || modelPreview.triangles) ? (
+              <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
+                {modelPreview.vertices?.toLocaleString()} verts · {modelPreview.triangles?.toLocaleString()} tris
+              </div>
+            ) : null}
+          </div>
+        );
+      }
+
+      if (isImage) {
+          // Always use the inspection viewport for images so Luma/Loupe can apply —
+          // never fall through to a static hero thumb while the mode bar is visible.
           const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
               : null;
           const primarySrc = virtualUrl || thumbData || '';
           const fallbackSrc = thumbData || undefined;
+          if (!primarySrc) {
+            return (
+              <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
+                <div className="text-xs text-gray-500 animate-pulse">Loading image…</div>
+              </div>
+            );
+          }
           return (
             <div
-              className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}
-              style={{
-                ...(config.compressionPreviewBgColor
-                  ? { background: `#${String(config.compressionPreviewBgColor).replace(/^#/, '')}` }
-                  : {}),
-              }}
+              className={`relative w-full h-full min-h-0 flex-1 bndz-preview-media-frame bndz-preview-media-frame--flush bndz-preview-border-${mediaBorderType}`}
             >
               <InspectionViewportRouter
                   src={primarySrc}
@@ -708,8 +817,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   fallbackSrc={fallbackSrc}
                   filePath={path}
                   onOpenFloating={onOpenFloatingPreview}
-                  gpuEnabled={config.gpuInspection !== false && probeWebGL()}
-                  shaderMode={(config.inspectionShaderMode as InspectionShaderMode) || 'passthrough'}
+                  shaderMode={inspectMode}
+                  gpuEnabled={config.gpuInspection !== false}
               />
               {showPreviewCaption && (
                 <div
@@ -733,7 +842,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       // 3. Document / PDF
       if (isPdf && previewAllowed) {
-          return <PdfPreviewPanel url={virtualUrl} title={entity.name} />;
+          return <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><PdfPreviewPanel url={virtualUrl} title={entity.name} /></div>;
       }
 
       // 3a. Word (.docx)
@@ -745,10 +854,30 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
       }
 
+      // 3a2. Other Office (xlsx/pptx/xls/.doc) — honest open-externally, not hex/binary dump
+      if (isOfficeOther && previewAllowed) {
+          return (
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-3 p-6 text-center bndz-preview-stage">
+              <Icons8Icon id="sys_properties" size={40} className="opacity-70" />
+              <div className="text-sm font-semibold text-white/90">{entity.name}</div>
+              <div className="text-xs text-white/50 max-w-[280px]">
+                In-panel preview is not available for this Office format. Open it in the associated app.
+              </div>
+              <button
+                type="button"
+                className="bndz-preview-action-btn px-3 py-1.5 text-xs font-semibold"
+                onClick={openInShell}
+              >
+                Open externally
+              </button>
+            </div>
+          );
+      }
+
       // 3b. Markdown preview
       if (isMarkdown && previewAllowed) {
           return (
-            <div className="w-full h-full bndz-preview-stage flex flex-col min-h-0">
+            <div className="w-full h-full min-h-[240px] overflow-hidden bndz-preview-stage flex flex-col min-h-0">
               <div className="flex gap-1 p-1.5 border-b border-white/10 bg-black/20 shrink-0">
                 <button
                   type="button"
@@ -789,7 +918,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       // 3b. HTML live preview
       if (isHtml && previewAllowed) {
           return (
-            <div className="w-full h-full bndz-preview-stage flex flex-col min-h-0">
+            <div className="w-full h-full min-h-[240px] overflow-hidden bndz-preview-stage flex flex-col min-h-0">
               <div className="flex gap-1 p-1.5 border-b border-white/10 bg-black/20 shrink-0">
                 <button
                   type="button"
@@ -831,19 +960,19 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           if (fileContent != null && path) {
               if (isCode) {
                 return (
-                  <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading editor…</div>}>
+                  <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading editor…</div>}>
                     <MonacoMicroEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} />
-                  </Suspense>
+                  </Suspense></div>
                 );
               }
               return (
-                <TextPreviewEditor
+                <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><TextPreviewEditor
                   path={path}
                   fileName={entity.name}
                   extension={ext}
                   initialContent={fileContent}
                   displayTabsAsSpaces={previewRt.displayTabsAsSpaces}
-                />
+                /></div>
               );
           }
       }
@@ -851,7 +980,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       // 5. Hex View Fallback
       if (isBinary || (!isDir && hexContent)) {
           return (
-              <div className="w-full h-full flex flex-col bndz-preview-stage p-4 overflow-hidden">
+              <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col bndz-preview-stage p-4">
                   <div className="flex items-center gap-2 mb-4 text-[#eab308] bndz-mono text-xs pb-2 border-b border-[#333]">
                       <Icons8Icon id="code_ui" size={14} /> <span>HEX INSPECTOR (First 256 Bytes)</span>
                   </div>
@@ -869,7 +998,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       return (
          <div className={`w-full h-full flex flex-col items-center justify-center p-6 relative bndz-preview-stage ${showThumb ? 'pattern-checkerboard' : ''}`}>
              <div className="absolute inset-0 " />
-             <div className="bndz-glass-panel px-8 py-6 flex flex-col items-center gap-4 max-w-[min(92%,560px)] border border-white/[0.06]">
+             <div className="px-8 py-6 flex flex-col items-center gap-4 max-w-[min(92%,560px)] bg-transparent border-0 shadow-none">
                  {path && isDir && !isDrive && !(entity as any)?.isVirtual ? (
                     <img
                       src={launcherIconUrl('ui_preview_folder') || '/Ui/preview-Big%20Folder.svg'}
@@ -917,7 +1046,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <div className="flex flex-col items-center ">{getPreviewIcon()}</div>
                  )}
                  {isDir && folderStats && (
-                    <div className="text-xs text-white/55 text-center font-medium tracking-wide">
+                    <div className="text-xs bndz-panel-muted text-center font-medium tracking-wide">
                        {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
                     </div>
                  )}
@@ -928,17 +1057,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <div className="bndz-panel-muted text-center animate-pulse">Calculating folder size…</div>
                  )}
                  {isDrive && (entity as any).driveInfo && (
-                    <div className="text-xs text-white/55 text-center">
+                    <div className="text-xs bndz-panel-muted text-center">
                        {formatSize((entity as any).driveInfo.freeSpace)} free of {formatSize((entity as any).driveInfo.totalSpace)}
                     </div>
                  )}
              </div>
              {!isDir && extendedDetails && curatedPreviewFacts(extendedDetails).length > 0 && (
-               <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 pb-2 text-[10px] text-[#9aa3ad]">
+               <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 pb-2 text-[10px] bndz-panel-muted">
                  {curatedPreviewFacts(extendedDetails).map(f => (
                    <span key={`${f.label}:${f.value}`} className="min-w-0 max-w-full truncate" title={`${f.label}: ${f.value}`}>
-                     <span className="text-[#6b7280]">{f.label}</span>{' '}
-                     <span className="text-[#d1d5db]">{f.value}</span>
+                     <span className="opacity-70">{f.label}</span>{' '}
+                     <span>{f.value}</span>
                    </span>
                  ))}
                </div>
@@ -947,7 +1076,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 {isDir ? (
                    <span className="bndz-glass-chip text-[#38bdf8] text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">DIR</span>
                 ) : ext && (
-                   <span className="bndz-glass-chip text-white/90 text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">{ext}</span>
+                   <span className="bndz-glass-chip bndz-preview-accent-muted text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">{ext}</span>
                 )}
              </div>
          </div>
@@ -957,6 +1086,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const openInShell = () => {
     if (!path) return;
     import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(path), 'open'));
+  };
+
+  const revealInFolder = () => {
+    if (!path) return;
+    import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('reveal', toWindowsPath(path)));
   };
 
   const copyPath = () => {
@@ -975,13 +1109,18 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     { id: 'details', label: 'Details', show: true },
   ];
 
-  const shaderMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
-  const gpuInspectionOn = config.gpuInspection !== false && probeWebGL();
   const inspectionModes: { id: InspectionShaderMode; label: string }[] = [
     { id: 'passthrough', label: 'Standard' },
     { id: 'histogram', label: 'Luma inspect' },
     { id: 'loupe', label: 'Loupe' },
   ];
+
+  const setInspectionMode = useCallback((mode: InspectionShaderMode) => {
+    setInspectMode(mode);
+    // Inspection lives on Workspace — jump there if the user is on Details/Media.
+    setActiveTab('preview');
+    updateConfig({ inspectionShaderMode: mode });
+  }, [updateConfig]);
 
   return (
     <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 overflow-hidden">
@@ -998,14 +1137,27 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 </button>
              ))}
           </div>
-          <div className="flex gap-0.5 shrink-0">
-             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" /></button>
+          <div className="flex gap-0.5 shrink-0 ml-auto">
+             {onOpenFloatingPreview && (
+               <button
+                 type="button"
+                 onClick={onOpenFloatingPreview}
+                 className="bndz-preview-action-btn"
+                 title="Pop out preview"
+               >
+                 <PopOutGlyph size={16} className="bndz-preview-action-icon text-sky-200" />
+               </button>
+             )}
+             <button type="button" onClick={revealInFolder} className="bndz-preview-action-btn" title="Show in folder"><Icons8Icon id="explorer" size={18} className="bndz-preview-action-icon" /></button>
              <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={18} className="bndz-preview-action-icon" /></button>
           </div>
        </div>
        
        <div className={`bndz-preview-content flex-1 relative flex flex-col min-h-0 ${
-         isArchive || isTorrent || (isAudio && activeTab === 'media')
+         activeTab === 'details'
+           || isArchive || isTorrent || (isAudio && (activeTab === 'media' || activeTab === 'preview'))
+           || ((isImage || isSvg) && activeTab === 'preview')
+           || (activeTab === 'preview' && (isFont || isModel || isPdf || isDocx || isOfficeOther || isMarkdown || isHtml || isEditableText))
            ? 'overflow-hidden overscroll-contain'
            : 'overflow-y-auto bndz-scrollbar'
        }`}>
@@ -1018,27 +1170,46 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               kindLabel={isDrive ? (entity as any).typeDescription : (isDir ? 'Folder' : (ext ? `${ext.toUpperCase()} file` : 'File'))}
               isDirectory={isDir}
               facts={curatedPreviewFacts(extendedDetails)}
-              onReveal={() => {
-                if (!path) return;
-                void import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('reveal', toWindowsPath(path)));
-              }}
             />
           )}
-          {isImage && gpuInspectionOn && activeTab === 'preview' && (
-            <div className="bndz-inspection-mode-bar shrink-0">
+          {(isImage || isSvg) && activeTab === 'preview' && (
+            <div className="bndz-inspection-mode-bar bndz-inspection-mode-bar--stage shrink-0" role="tablist" aria-label="Preview inspection mode">
               {inspectionModes.map(mode => (
                 <button
                   key={mode.id}
                   type="button"
+                  role="tab"
+                  data-mode={mode.id}
+                  aria-selected={inspectMode === mode.id}
                   title={`${mode.label} view`}
-                  onClick={() => updateConfig({ inspectionShaderMode: mode.id })}
-                  className={`bndz-inspection-mode-btn${shaderMode === mode.id ? ' is-active' : ''}`}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setInspectionMode(mode.id);
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setInspectionMode(mode.id);
+                  }}
+                  className={`bndz-inspection-mode-btn${inspectMode === mode.id ? ' is-active' : ''}`}
                 >
                   {mode.label}
                 </button>
               ))}
             </div>
           )}
+          {isAudio && audioVideoEnabled && path && (
+            <div
+              className={`flex-1 min-h-0 flex flex-col ${activeTab === 'preview' ? '' : 'hidden'}`}
+              aria-hidden={activeTab !== 'preview'}
+            >
+              <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform…</div>}>
+                <AudioWaveformEditor path={path} title={entity.name} />
+              </Suspense>
+            </div>
+          )}
+          {!(isAudio && activeTab === 'preview') && (
           <AnimatePresence mode="wait">
              <motion.div 
                 key={`${path || entity.id}-${activeTab}-${isDir ? 'dir' : ext || 'file'}`}
@@ -1046,10 +1217,18 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}
                 transition={{ duration: animDuration, ease: "easeOut" }}
-                className={`flex flex-col flex-1 ${isArchive || isTorrent ? 'min-h-0 h-full' : ''}`}
+                className={`flex flex-col min-h-0 ${
+                  activeTab === 'details'
+                    ? 'flex-1 overflow-y-auto overflow-x-hidden bndz-scrollbar overscroll-contain'
+                    : 'flex-1 overflow-hidden'
+                } ${
+                  isArchive || isTorrent || ((isImage || isSvg) && activeTab === 'preview')
+                    || (activeTab === 'preview' && (isFont || isModel || isPdf || isDocx || isOfficeOther || isMarkdown || isHtml || isEditableText))
+                    ? 'h-full' : ''
+                }`}
              >
-                {(activeTab === 'preview' || activeTab === 'media') && (
-                <div className={`bndz-preview-stage w-full relative group flex flex-col min-h-0 flex-1 ${
+                {(activeTab === 'preview' || activeTab === 'media') && !(isAudio && activeTab === 'preview') && (
+                <div className={`bndz-preview-stage w-full relative group flex flex-col overflow-hidden h-full min-h-0 flex-1 min-h-[240px] ${
                   isArchive || isTorrent
                     ? 'border-0'
                     : 'border-b border-white/[0.06]'
@@ -1074,10 +1253,10 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 )}
 
                 {activeTab === 'details' && (
-                <div className="p-4 flex-1 bndz-preview-details flex flex-col gap-4">
+                <div className="p-4 pb-8 bndz-preview-details flex flex-col gap-4 w-full">
                     {/* Primary Identifier */}
-                    <div className="pb-3 border-b border-[#282830]">
-                       <h2 className="text-[14px] font-bold text-white break-words leading-tight">{entity.name}</h2>
+                    <div className="pb-3 border-b border-[var(--border-subtle,rgba(255,255,255,0.08))]">
+                       <h2 className="text-[14px] font-bold break-words leading-tight">{entity.name}</h2>
                        <div className="bndz-panel-muted mt-1 bndz-mono">
                           {isDrive ? (entity as any).typeDescription : (isDir ? 'File Folder' : `${ext.toUpperCase()} File`)}
                        </div>
@@ -1203,9 +1382,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 {activeTab === 'preview' && (
                 isDir ? (
                   <>
-                  <div className="shrink-0 border-t border-white/[0.06] bg-[#252526] grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
+                  <div className="shrink-0 border-t bndz-preview-folder-strip grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
                     <div className="min-w-0 flex flex-col justify-center">
-                      <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
+                      <h2 className="text-[14px] font-semibold truncate tracking-tight">{entity.name}</h2>
                       <p className="bndz-panel-section-title mt-1">Folder</p>
                       {folderStats && (
                         <p className="bndz-panel-muted mt-2 bndz-mono">
@@ -1220,9 +1399,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   <JobTicketPanel folderPath={path || null} />
                   </>
                 ) : !isArchive && !isTorrent ? (
-                <div className="px-4 py-3 border-t border-white/[0.06] bg-[#252526] shrink-0">
-                   <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
-                   <p className="bndz-panel-section-title mt-1 text-[#7eb8e8]">
+                <div className="px-4 py-3 border-t bndz-preview-folder-strip shrink-0">
+                   <h2 className="text-[14px] font-semibold truncate tracking-tight">{entity.name}</h2>
+                   <p className="bndz-panel-section-title mt-1 bndz-preview-accent-muted">
                       {isDrive ? (entity as any).typeDescription : `${ext.toUpperCase()} file`}
                    </p>
                 </div>
@@ -1230,6 +1409,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 )}
              </motion.div>
           </AnimatePresence>
+          )}
        </div>
        {(selectionPaths?.length ?? 0) > 1 && (
          <SelectionFilmstrip

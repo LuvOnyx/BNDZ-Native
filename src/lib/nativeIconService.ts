@@ -37,12 +37,33 @@ interface IconCacheEntry {
 }
 
 const NEGATIVE_TTL_MS = 10 * 60 * 1000;
+/** Match host L1 icon LRU so the long-lived WebView cannot accumulate unbounded PNGs. */
+const MAX_ICON_CACHE = 8192;
+const MAX_TYPE_GLYPH = 512;
+const MAX_BITMAP_WARMED = 4096;
 
 const cache = new Map<string, IconCacheEntry>();
 const typeGlyphCache = new Map<string, string>();
 const inflight = new Map<string, Promise<string | null>>();
 const listeners = new Map<string, Set<() => void>>();
 let lastAppliedCacheBuster = 0;
+
+function lruSet<K, V>(map: Map<K, V>, key: K, value: V, max: number, preserve?: K) {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  while (map.size > max) {
+    const oldest = map.keys().next().value as K | undefined;
+    if (oldest === undefined) break;
+    if (preserve !== undefined && oldest === preserve) {
+      const keep = map.get(oldest);
+      map.delete(oldest);
+      if (keep !== undefined) map.set(oldest, keep);
+      if (map.size <= max) break;
+      continue;
+    }
+    map.delete(oldest);
+  }
+}
 
 function canonicalizeIconPath(path: string): string {
   let win = (resolveShellIconPath(path) || toWindowsPath(path) || '').trim();
@@ -128,7 +149,7 @@ export function hydrateShellGlyphMap(glyphs: Record<string, string> | null | und
     const key = rawKey === FOLDER_GLYPH_KEY || rawKey.toLowerCase() === FOLDER_GLYPH_KEY
       ? FOLDER_GLYPH_KEY
       : (rawKey.startsWith('.') ? rawKey.toLowerCase() : `.${rawKey.toLowerCase()}`);
-    typeGlyphCache.set(key, data);
+    lruSet(typeGlyphCache, key, data, MAX_TYPE_GLYPH, FOLDER_GLYPH_KEY);
   }
   // Notify all shell listeners so rows that already mounted pick up glyphs.
   for (const [ck, entry] of cache) {
@@ -152,6 +173,7 @@ async function warmImageBitmaps(urls: string[]): Promise<void> {
     // Never warm broken legacy folder-map URLs (console ERR_FILE_NOT_FOUND flood).
     if (url.includes('/assets/native-icon/')) continue;
     bitmapWarmed.add(url);
+    if (bitmapWarmed.size > MAX_BITMAP_WARMED) bitmapWarmed.clear();
     try {
       // data: / http(s) may use createImageBitmap via fetch; custom schemes use Image decode.
       if (url.startsWith('data:') && typeof createImageBitmap === 'function') {
@@ -192,16 +214,16 @@ function commitCache(key: string, data: string | null, typeKey?: string | null, 
   const existing = cache.get(key);
   if (existing?.data && !data) return;
   if (data) {
-    cache.set(key, { data, status: 'ready' });
+    lruSet(cache, key, { data, status: 'ready' }, MAX_ICON_CACHE);
     // Extension type glyphs only. NEVER write per-path folder icons into __folder__ —
     // that poisons every directory with Downloads/Desktop/etc.
-    if (typeKey && typeKey.startsWith('.')) typeGlyphCache.set(typeKey, data);
+    if (typeKey && typeKey.startsWith('.')) lruSet(typeGlyphCache, typeKey, data, MAX_TYPE_GLYPH, FOLDER_GLYPH_KEY);
     void warmImageBitmaps([data]);
   } else if (kind === 'shell') {
     // Transient shell misses (queue saturation / IPC timeout) must not poison for 10 minutes.
     cache.delete(key);
   } else {
-    cache.set(key, { data: null, status: 'error', errorAt: Date.now() });
+    lruSet(cache, key, { data: null, status: 'error', errorAt: Date.now() }, MAX_ICON_CACHE);
   }
   notify(key);
 }
@@ -228,7 +250,7 @@ export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequ
     if (typeKey?.startsWith('.')) {
       const glyph = typeGlyphCache.get(typeKey);
       if (glyph) {
-        cache.set(key, { data: glyph, status: 'ready' });
+        lruSet(cache, key, { data: glyph, status: 'ready' }, MAX_ICON_CACHE);
         return glyph;
       }
     }
@@ -346,7 +368,7 @@ export function requestNativeIcon(
     }
   }
 
-  if (!cached?.data) cache.set(key, { data: cached?.data ?? null, status: 'loading' });
+  if (!cached?.data) lruSet(cache, key, { data: cached?.data ?? null, status: 'loading' }, MAX_ICON_CACHE);
 
   // Priority: viewport shells ≥1700; thumbs 1000+; offscreen shells lower.
   // Split queues: shell concurrency ≥6, thumb ≤3 — shells never wait behind media extract.
@@ -602,8 +624,10 @@ export function listingPrefetchFromConfig(config: {
     return {
       includeFolderThumbs: config.showFolderThumbnails === true,
       diskCacheSearch: config.cacheThumbnailsOnDisk !== false && !!config.includeSearchResults,
-      iconLimit: all ? 48 : 32,
-      thumbLimit: all ? 16 : 8,
+      // Viewport-scale: CAS URLs paint via bndz-media (no IPC payload). Stay well below
+      // create-all-at-once 50k which starved the native IPC pump.
+      iconLimit: all ? 96 : 64,
+      thumbLimit: all ? 48 : 32,
     };
   }
   return {
@@ -648,6 +672,9 @@ export function clearIconCache() {
   cache.clear();
   typeGlyphCache.clear();
   inflight.clear();
+  void import('./svgInlineThumb').then(({ clearSvgInlineThumbCache }) => {
+    try { clearSvgInlineThumbCache(); } catch { /* ignore */ }
+  });
   requestAnimationFrame(() => keys.forEach(key => notify(key)));
 }
 

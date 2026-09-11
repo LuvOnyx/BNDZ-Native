@@ -12,6 +12,7 @@ import {
   peekFluidDragThumbs,
   type FluidDragItem,
 } from './fluidDragThumbs';
+import { isOleDragHandoffActive, subscribeOleDragHandoff } from '../../lib/fileDragUiCleanup';
 
 const MAX_VISIBLE = 10;
 /** Horizontal fan span per card — wide enough to read as a multi-file stack. */
@@ -134,6 +135,15 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
 
     const tick = () => {
       runningRef.current = false;
+      if (isOleDragHandoffActive()) {
+        const root = rootRef.current;
+        if (root) {
+          root.style.setProperty('display', 'none', 'important');
+          root.style.setProperty('visibility', 'hidden', 'important');
+          root.style.setProperty('opacity', '0', 'important');
+        }
+        return;
+      }
       const { pointer, snapTension } = getMotionBusSnapshot();
       if (!rootRef.current) return;
 
@@ -279,16 +289,19 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
 
 export default function FluidDragStack({ enabled = true }: Props) {
   const [state, setState] = useState(getFluidDragState);
+  const [handoff, setHandoff] = useState(isOleDragHandoffActive);
 
   useEffect(() => {
     if (!enabled) return;
     return subscribeFluidDrag(() => setState(getFluidDragState()));
   }, [enabled]);
 
+  useEffect(() => subscribeOleDragHandoff(() => setHandoff(isOleDragHandoffActive())), []);
+
   useEffect(() => {
     if (!enabled && state.visible) disarmFluidDrag();
   }, [enabled, state.visible]);
 
-  if (!enabled || !state.visible || !state.meta) return null;
+  if (!enabled || handoff || !state.visible || !state.meta) return null;
   return <FluidDragStackInner meta={state.meta} />;
 }

@@ -2,6 +2,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using ZstdSharp;
 
 namespace BNDZ.Services;
 
@@ -121,6 +122,20 @@ public sealed class BndzMediaDiskCache : IDisposable
                 }
                 catch { /* best-effort */ }
                 File.WriteAllText(v4, "1");
+            }
+            // One-shot: MakeTransparent / Icon.ToBitmap destroyed alpha → glowing white folder plates.
+            // Purge icon L1+L2 + glyph maps after ShellArgbPngEncoder (Format32bppArgb) landed.
+            var v5 = Path.Combine(_root, ".v5-argb-png-encode");
+            if (!File.Exists(v5))
+            {
+                try
+                {
+                    ClearKind(Kind.Icon);
+                    BndzHostCaches.ClearIcons();
+                    ShellGlyphMapService.Instance.ClearMemory();
+                }
+                catch { /* best-effort */ }
+                File.WriteAllText(v5, "1");
             }
         }
         catch { /* ignore */ }
@@ -318,7 +333,7 @@ public sealed class BndzMediaDiskCache : IDisposable
                 return null;
             }
 
-            var bytes = File.ReadAllBytes(file);
+            var bytes = MaybeZstdDecompress(File.ReadAllBytes(file));
             if (bytes.Length == 0) return null;
 
             // Touch last_access asynchronously — don't block the icon hot path.
@@ -389,7 +404,8 @@ public sealed class BndzMediaDiskCache : IDisposable
             if (!File.Exists(dest))
             {
                 var tmp = dest + ".tmp";
-                File.WriteAllBytes(tmp, bytes);
+                var toWrite = MaybeZstdCompress(bytes);
+                File.WriteAllBytes(tmp, toWrite);
                 File.Move(tmp, dest, overwrite: true);
             }
 
@@ -569,5 +585,44 @@ public sealed class BndzMediaDiskCache : IDisposable
         pragma.CommandText = "PRAGMA busy_timeout=8000;";
         pragma.ExecuteNonQuery();
         return conn;
+    }
+
+    /// <summary>Wave 15 — BNZS header + Zstd payload when compression wins (≥4KB).</summary>
+    private static byte[] MaybeZstdCompress(byte[] bytes)
+    {
+        if (bytes.Length < 4096) return bytes;
+        try
+        {
+            using var compressor = new Compressor(3);
+            var compressed = compressor.Wrap(bytes).ToArray();
+            if (compressed.Length + 8 >= bytes.Length) return bytes;
+            var toWrite = new byte[8 + compressed.Length];
+            toWrite[0] = (byte)'B';
+            toWrite[1] = (byte)'N';
+            toWrite[2] = (byte)'Z';
+            toWrite[3] = (byte)'S';
+            BitConverter.TryWriteBytes(toWrite.AsSpan(4, 4), bytes.Length);
+            Buffer.BlockCopy(compressed, 0, toWrite, 8, compressed.Length);
+            return toWrite;
+        }
+        catch
+        {
+            return bytes;
+        }
+    }
+
+    private static byte[] MaybeZstdDecompress(byte[] raw)
+    {
+        if (raw.Length < 8 || raw[0] != (byte)'B' || raw[1] != (byte)'N' || raw[2] != (byte)'Z' || raw[3] != (byte)'S')
+            return raw;
+        try
+        {
+            using var decompressor = new Decompressor();
+            return decompressor.Unwrap(raw.AsSpan(8)).ToArray();
+        }
+        catch
+        {
+            return raw;
+        }
     }
 }

@@ -21,6 +21,10 @@ public static class BndzHostCaches
     /// <summary>Thumbnails keyed by path|size|mtimeTicks.</summary>
     public static ConcurrentLru<string, string> Thumbnails { get; } = new(capacity: 2048);
 
+    /// <summary>Approx UTF-16 byte weight of L1 thumbnail payloads (cap soft-evicts whole L1).</summary>
+    private static long _thumbL1ApproxBytes;
+    private const long ThumbL1MaxBytes = 128L * 1024 * 1024;
+
     /// <summary>Negative CAS — failed extract keys with UTC ticks when recorded.</summary>
     private static readonly ConcurrentDictionary<string, long> ThumbNegatives = new(StringComparer.OrdinalIgnoreCase);
 
@@ -59,6 +63,12 @@ public static class BndzHostCaches
         };
     }
 
+    /// <summary>
+    /// Bump when icon PNG encode semantics change (e.g. alpha-preserving ARGB) so L1/L2
+    /// keys miss poisoned white-plate PNGs from MakeTransparent / Icon.ToBitmap.
+    /// </summary>
+    public const string IconEncodeEpoch = "a4";
+
     public static string IconCacheKey(string path, bool isDirectory, int pixelSize = 48)
     {
         path ??= "";
@@ -73,7 +83,7 @@ public static class BndzHostCaches
             || path.StartsWith("::{", StringComparison.Ordinal);
         // Bust prior disk/L1 poison where CLSIDs were stored under the generic white-doc glyph.
         if (isVirtual)
-            return "shellns:v2:" + path + "@" + band;
+            return IconEncodeEpoch + ":shellns:v2:" + path + "@" + band;
         if (!isDirectory && path.Length > 0
             && !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             && !path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
@@ -81,9 +91,9 @@ public static class BndzHostCaches
         {
             var ext = System.IO.Path.GetExtension(path);
             if (!string.IsNullOrEmpty(ext))
-                return ext.ToLowerInvariant() + "@" + band;
+                return IconEncodeEpoch + ":" + ext.ToLowerInvariant() + "@" + band;
         }
-        return path + "@" + band;
+        return IconEncodeEpoch + ":" + path + "@" + band;
     }
 
     public static string ThumbnailCacheKey(string path, int size)
@@ -189,7 +199,7 @@ public static class BndzHostCaches
                     if (!string.Equals(hit, canonical, StringComparison.OrdinalIgnoreCase))
                     {
                         hit = canonical;
-                        Thumbnails.AddOrUpdate(key, hit);
+                        PutThumbnailL1(key, hit);
                     }
                     Interlocked.Increment(ref _thumbL1Hits);
                     return hit;
@@ -211,7 +221,7 @@ public static class BndzHostCaches
             if (!string.IsNullOrEmpty(casUrl))
             {
                 Interlocked.Increment(ref _thumbL2Hits);
-                Thumbnails.AddOrUpdate(key, casUrl);
+                PutThumbnailL1(key, casUrl);
                 return casUrl;
             }
         }
@@ -230,7 +240,7 @@ public static class BndzHostCaches
                 var materialised = BndzMediaDiskCache.Instance.TryReadBase64ByHash(BndzMediaScheme.ParseHash(hit));
                 if (!string.IsNullOrEmpty(materialised))
                 {
-                    Thumbnails.AddOrUpdate(key, materialised);
+                    PutThumbnailL1(key, materialised);
                     Interlocked.Increment(ref _thumbL1Hits);
                     return materialised;
                 }
@@ -260,7 +270,7 @@ public static class BndzHostCaches
             if (!string.IsNullOrEmpty(fromDisk))
             {
                 Interlocked.Increment(ref _thumbL2Hits);
-                Thumbnails.AddOrUpdate(key, fromDisk);
+                PutThumbnailL1(key, fromDisk);
                 return fromDisk;
             }
         }
@@ -285,10 +295,28 @@ public static class BndzHostCaches
         Interlocked.Increment(ref _thumbMissExtract);
         Interlocked.Increment(ref _thumbExtractWindowCount);
         ThumbNegatives.TryRemove(key, out _);
-        Thumbnails.AddOrUpdate(key, extracted);
+        PutThumbnailL1(key, extracted);
         if (allowDisk)
             disk.PutBase64(BndzMediaDiskCache.Kind.Thumbnail, key, extracted);
         return extracted;
+    }
+
+    private static int EstimatePayloadBytes(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return 0;
+        return checked(value.Length * 2);
+    }
+
+    private static void PutThumbnailL1(string key, string value)
+    {
+        Thumbnails.AddOrUpdate(key, value);
+        var added = EstimatePayloadBytes(value);
+        var total = Interlocked.Add(ref _thumbL1ApproxBytes, added);
+        if (total <= ThumbL1MaxBytes) return;
+        Thumbnails.Clear();
+        Interlocked.Exchange(ref _thumbL1ApproxBytes, 0);
+        Thumbnails.AddOrUpdate(key, value);
+        Interlocked.Exchange(ref _thumbL1ApproxBytes, EstimatePayloadBytes(value));
     }
 
     public static void ClearIcons() => Icons.Clear();
@@ -297,6 +325,7 @@ public static class BndzHostCaches
     {
         Thumbnails.Clear();
         ThumbNegatives.Clear();
+        Interlocked.Exchange(ref _thumbL1ApproxBytes, 0);
     }
 
     public static void ClearAll(bool includeDisk = true)

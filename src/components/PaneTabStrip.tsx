@@ -22,6 +22,7 @@ import { tabAccentStyle } from '../lib/tabColors';
 import type { TabState } from './tabTypes';
 import { findingTabLabel, isFindingTab } from '../lib/findingTab';
 import { normalizePanePath } from '../lib/pathUtils';
+import { isBndzAutomationPath, isBndzCanvasPath } from '../lib/bndzVirtualViews';
 
 /** Keep reorder on the tab row — only X follows the pointer; kill Y/scale hard. */
 const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
@@ -144,6 +145,19 @@ function SortablePaneTab({
     id: tab.id,
     disabled: !!tab.locked || !!suspendTabReorder,
   });
+  // dnd-kit PointerSensor should ignore non-primary buttons; wrap so right-click always
+  // reaches onContextMenu (host TrackPopupMenu / React tab menu).
+  const dragListeners = React.useMemo(() => {
+    if (!listeners) return listeners;
+    const onPointerDown = listeners.onPointerDown as ((e: React.PointerEvent) => void) | undefined;
+    return {
+      ...listeners,
+      onPointerDown: (e: React.PointerEvent) => {
+        if (e.button !== 0) return;
+        onPointerDown?.(e);
+      },
+    };
+  }, [listeners]);
   const pressRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const [liveWidth, setLiveWidth] = React.useState<number | null>(null);
   const effectiveWidth = liveWidth ?? customWidth;
@@ -159,6 +173,17 @@ function SortablePaneTab({
           background: isActive ? 'var(--tab-active-bg, var(--bndz-surface-raised))' : 'var(--tab-inactive-bg, var(--bndz-surface-chrome))',
           color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
         }),
+    // Light themes keep dark tabstrip — always prefer light ink when theme-light is on
+    ...(typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light')
+      ? {
+          ...(tab.color
+            ? {}
+            : {
+                background: isActive ? 'var(--tab-active-bg, #2a2e36)' : 'var(--tab-inactive-bg, #1a1c22)',
+              }),
+          color: isActive ? 'var(--tab-active-text, rgba(255,255,255,0.95))' : 'var(--tab-inactive-text, rgba(255,255,255,0.58))',
+        }
+      : {}),
     ...tabAccentStyle(tab.color, isActive),
     transform: CSS.Translate.toString(
       transform ? { ...transform, y: 0, scaleX: 1, scaleY: 1 } : null,
@@ -216,9 +241,15 @@ function SortablePaneTab({
         makeSelectedTabBold && isActive ? 'font-bold' : 'font-semibold'
       } ${isDragging ? 'opacity-60 bndz-tab-item--dragging' : ''} ${
         isFileDropHover ? 'bndz-tab-item--file-drop' : ''
-      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''}`}
+      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${
+        isBndzCanvasPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--spatial' : ''
+      } ${
+        isBndzAutomationPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--automation' : ''
+      }`}
+      data-tab-accent={tab.color ? '1' : undefined}
+      data-workspace-tab={isBndzCanvasPath(tab.path) ? 'spatial' : isBndzAutomationPath(tab.path) ? 'automation' : undefined}
       {...attributes}
-      {...listeners}
+      {...dragListeners}
       role="tab"
       aria-selected={isActive}
       tabIndex={-1}
@@ -249,6 +280,8 @@ function SortablePaneTab({
       onContextMenu={e => {
         e.preventDefault();
         e.stopPropagation();
+        // Explorer: right-click activates the tab before the menu appears.
+        onActivate();
         onContextMenu(e);
       }}
     >
@@ -333,6 +366,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
+      // Left-button only — right-click must reach onContextMenu for tab menus.
       activationConstraint: { distance: suspendTabReorder ? 99999 : 6 },
     }),
   );
@@ -418,10 +452,11 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
           {tabs.map((tab, idx) => {
             const isActive = idx === activeTabIndex;
             const name = isFindingTab(tab) ? findingTabLabel(tab) : getPaneTabLabel(tab.path);
+            const isWorkspaceTool = isBndzCanvasPath(tab.path) || isBndzAutomationPath(tab.path);
             const showXClose =
               showXCloseButtonsOnTabs !== 'None'
-              && tabs.length > 1
-              && (showXCloseButtonsOnTabs === 'All tabs' || isActive);
+              && (tabs.length > 1 || isWorkspaceTool)
+              && (showXCloseButtonsOnTabs === 'All tabs' || isActive || isWorkspaceTool);
             const pathKey = normalizePanePath(tab.path);
             const customWidth = tabCustomWidths?.[pathKey] ?? tabCustomWidths?.[tab.path];
 

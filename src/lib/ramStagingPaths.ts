@@ -1,5 +1,7 @@
 import { IPC } from './ipcBridge';
 import { BNDZ_RAM_ROOT, isBndzRamPath, parseBndzRamZoneId, bndzRamVirtualPath } from './bndzVirtualViews';
+import { isMeshPath, normalizeMeshPath } from './meshPaths';
+import { createMeshItemInPane } from './meshFsOps';
 import { normalizePanePath, toWindowsPath } from './pathUtils';
 
 type ZoneMount = { id: string; mountPath: string; name?: string };
@@ -94,20 +96,24 @@ export function joinRamVirtualPath(zoneId: string, relativeWinPath: string, moun
 
 /**
  * Resolve any pane path to a Windows FS path for copy/move/paste/drop.
- * RAM virtual paths → mount; others → toWindowsPath.
+ * RAM virtual paths → mount; mesh paths stay as /mesh/…; others → toWindowsPath.
  */
 export async function resolvePanePathForFs(panePath: string): Promise<string> {
+  if (isMeshPath(panePath)) return normalizeMeshPath(panePath);
   const ram = await resolveRamStagingFsPath(panePath);
   if (ram) return ram;
   return toWindowsPath(panePath);
 }
 
-/** Create a file or folder inside a pane path (supports /bndz/ram zones). */
+/** Create a file or folder inside a pane path (supports /bndz/ram zones and /mesh). */
 export async function createItemInPane(
   panePath: string,
   name: string,
   kind: 'dir' | 'file',
-): Promise<{ ok: boolean; error?: string; fullPath?: string }> {
+): Promise<{ ok: boolean; error?: string; fullPath?: string; finalName?: string }> {
+  if (isMeshPath(panePath)) {
+    return createMeshItemInPane(panePath, name, kind);
+  }
   const base = await resolvePanePathForFs(panePath);
   if (!base || /^bndz\\/i.test(base)) {
     return { ok: false, error: 'This location is not writable.' };
@@ -118,16 +124,21 @@ export async function createItemInPane(
     const res = await IPC.executeFsOperation(
       `${op}-${Date.now()}`,
       op,
-      fullPath,
       '',
+      fullPath,
       false,
       name,
       'high',
     );
-    if (res && res.ok === false) {
+    if (res && (res.ok === false || res.success === false || (res.background && !res.finalPath && !res.finalName))) {
+      return { ok: false, error: res.error || 'Create failed', fullPath: res.finalPath || fullPath };
+    }
+    if (res && res.ok !== true && res.success !== true && !res.finalPath && !res.created) {
       return { ok: false, error: res.error || 'Create failed', fullPath };
     }
-    return { ok: true, fullPath };
+    const createdPath = res.finalPath || fullPath;
+    const createdName = res.finalName || name;
+    return { ok: true, fullPath: createdPath, finalName: createdName };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e), fullPath };
   }

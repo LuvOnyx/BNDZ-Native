@@ -67,7 +67,7 @@ export default function CustomColumnCell({
   return (
     <div
       ref={cellRef}
-      className="bndz-list-select-cell px-2 bndz-detail-col-muted whitespace-nowrap overflow-hidden text-ellipsis text-[11px] font-mono"
+      className="bndz-list-select-cell bndz-list-col-muted bndz-detail-col-muted px-2 whitespace-nowrap overflow-hidden text-ellipsis text-[11px] font-mono"
       title={value}
     >
       {value}

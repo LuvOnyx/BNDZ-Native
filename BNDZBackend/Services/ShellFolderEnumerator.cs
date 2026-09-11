@@ -22,9 +22,7 @@ public sealed record ShellChildItem(
 public static class ShellFolderEnumerator
 {
     public static Task<List<object>> EnumerateAsync(string shellParsingName)
-    {
-        return Task.Run(() => Enumerate(shellParsingName));
-    }
+        => BndzShellStaThread.RunAsync(() => Enumerate(shellParsingName).Cast<object>().ToList());
 
     public static List<object> Enumerate(string shellParsingName)
     {

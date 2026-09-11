@@ -1,6 +1,7 @@
 /** Archive extensions BNDZ can list in preview */
 export const ARCHIVE_EXTENSIONS = [
-  'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'jar', 'war',
+  'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'lz', 'cab', 'iso', 'jar', 'war', 'ear',
+  'cbz', 'cbr', 'cbt', 'cb7', 'nupkg', 'snupkg', 'vsix', 'crx', 'whl', 'egg', 'apk',
 ] as const;
 
 export const TORRENT_EXTENSIONS = ['torrent'] as const;

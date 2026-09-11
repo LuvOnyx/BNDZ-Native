@@ -84,50 +84,53 @@ public static class SkiaThumbnailService
         }
     }
 
-    /// <summary>Rasterize SVG → PNG thumbnail (fits inside pixelSize box).</summary>
-    public static string TryEncodeSvgBase64(string filePath, int pixelSize)
-    {
-        try
-        {
-            if (!File.Exists(filePath)) return "";
-            var size = Math.Clamp(pixelSize <= 0 ? 128 : pixelSize, 16, 1024);
+  /// <summary>Rasterize SVG → PNG thumbnail (fits inside pixelSize box).</summary>
+  public static string TryEncodeSvgBase64(string filePath, int pixelSize)
+  {
+      try
+      {
+          if (!File.Exists(filePath)) return "";
+          var size = Math.Clamp(pixelSize <= 0 ? 128 : pixelSize, 16, 1024);
 
-            using var svg = new SKSvg();
-            if (svg.Load(filePath) is not { } picture)
-                return "";
+          using var svg = new SKSvg();
+          if (svg.Load(filePath) is not { } picture)
+              return "";
 
-            var cull = picture.CullRect;
-            var srcW = cull.Width > 1 ? cull.Width : size;
-            var srcH = cull.Height > 1 ? cull.Height : size;
-            var scale = Math.Min(size / srcW, size / srcH);
-            if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale)) scale = 1f;
-            if (scale > 4f) scale = 4f; // tiny icons → crisp upscale cap
-            var tw = Math.Max(1, (int)Math.Ceiling(srcW * scale));
-            var th = Math.Max(1, (int)Math.Ceiling(srcH * scale));
-            tw = Math.Min(tw, size);
-            th = Math.Min(th, size);
+          var cull = picture.CullRect;
+          var srcW = cull.Width > 1 ? cull.Width : size;
+          var srcH = cull.Height > 1 ? cull.Height : size;
+          var scale = Math.Min(size / srcW, size / srcH);
+          if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale)) scale = 1f;
+          if (scale > 4f) scale = 4f; // tiny icons → crisp upscale cap
+          var tw = Math.Max(1, (int)Math.Ceiling(srcW * scale));
+          var th = Math.Max(1, (int)Math.Ceiling(srcH * scale));
+          tw = Math.Min(tw, size);
+          th = Math.Min(th, size);
 
-            var info = new SKImageInfo(tw, th, SKColorType.Rgba8888, SKAlphaType.Premul);
-            using var surface = SKSurface.Create(info);
-            if (surface == null) return "";
-            var canvas = surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
-            canvas.Scale(scale);
-            canvas.Translate(-cull.Left, -cull.Top);
-            canvas.DrawPicture(picture);
-            canvas.Flush();
+          var info = new SKImageInfo(tw, th, SKColorType.Rgba8888, SKAlphaType.Premul);
+          using var surface = SKSurface.Create(info);
+          if (surface == null) return "";
+          var canvas = surface.Canvas;
+          canvas.Clear(SKColors.Transparent);
+          // Svg.Skia pictures can paint mirrored vs Chromium/WebView2 for some SVGs.
+          // Flip Y so list/Properties thumbs match Quick Look / inline SVG orientation.
+          canvas.Translate(0, th);
+          canvas.Scale(scale, -scale);
+          canvas.Translate(-cull.Left, -cull.Top);
+          canvas.DrawPicture(picture);
+          canvas.Flush();
 
-            using var image = surface.Snapshot();
-            using var data = image.Encode(SKEncodedImageFormat.Png, 92);
-            if (data == null) return "";
-            return Convert.ToBase64String(data.ToArray());
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[SkiaSvg] {ex.Message}");
-            return "";
-        }
-    }
+          using var image = surface.Snapshot();
+          using var data = image.Encode(SKEncodedImageFormat.Png, 92);
+          if (data == null) return "";
+          return Convert.ToBase64String(data.ToArray());
+      }
+      catch (Exception ex)
+      {
+          System.Diagnostics.Debug.WriteLine($"[SkiaSvg] {ex.Message}");
+          return "";
+      }
+  }
 
     /// <summary>2×2 collage of images inside a folder for list/grid folder thumbs.</summary>
     public static string TryEncodeFolderCollageBase64(string folderPath, int pixelSize)

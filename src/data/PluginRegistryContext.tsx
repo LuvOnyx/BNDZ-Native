@@ -11,27 +11,28 @@ import StorageCleanupPlugin, { StorageCleanupPluginDef } from '../components/plu
 import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/FolderSyncPlugin';
 import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
-import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
 import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
-import GhostLinkPlugin, { GhostLinkPluginDef } from '../components/plugins/GhostLinkPlugin';
 import RamStagingPlugin, { RamStagingPluginDef } from '../components/plugins/RamStagingPlugin';
 import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plugins/ProjectSandboxPlugin';
-import LibraryHealthPlugin, { LibraryHealthPluginDef } from '../components/plugins/LibraryHealthPlugin';
-import CapacitySolverPlugin, { CapacitySolverPluginDef } from '../components/plugins/CapacitySolverPlugin';
-import InboundVolumePlugin, { InboundVolumePluginDef } from '../components/plugins/InboundVolumePlugin';
 import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
-import PolicyPackPlugin, { PolicyPackPluginDef } from '../components/plugins/PolicyPackPlugin';
-import ZkVaultPlugin, { ZkVaultPluginDef } from '../components/plugins/ZkVaultPlugin';
-import DropMagnetPlugin, { DropMagnetPluginDef } from '../components/plugins/DropMagnetPlugin';
-import CaptureInboxPlugin, { CaptureInboxPluginDef } from '../components/plugins/CaptureInboxPlugin';
-import RealityCheckPlugin, { RealityCheckPluginDef } from '../components/plugins/RealityCheckPlugin';
-import TranscodeRackPlugin, { TranscodeRackPluginDef } from '../components/plugins/TranscodeRackPlugin';
-import SemanticDeskPlugin, { SemanticDeskPluginDef } from '../components/plugins/SemanticDeskPlugin';
+import DesignBoardPlugin, { DesignBoardPluginDef } from '../components/plugins/DesignBoardPlugin';
 import { useAppConfig } from './configContext';
 
-/** Stale Part B sibling IDs remapped into real FM homes. */
+/** Stale / absorbed plugin IDs remapped into real FM homes. */
 const RETIRED_PLUGIN_REMAP: Record<string, string> = {
     'shell-verb-forge': 'context-menu-manager',
+    'capacity-solver': 'storage-cleanup',
+    'drop-magnet': 'batch-rename',
+    compare: 'folder-sync',
+    'transcode-rack': 'metadata',
+    'semantic-desk': 'filters',
+    'policy-packs': 'dropstack',
+    'inbound-volume': 'dropstack',
+    'capture-inbox': 'dropstack',
+    'zk-vault': 'project-sandbox',
+    'ghost-link': 'ram-staging',
+    'library-health': 'storage-cleanup',
+    'reality-check': 'storage-cleanup',
 };
 
 export type PluginManifest = {
@@ -55,17 +56,11 @@ export const DEFAULT_INSTALLED_PLUGINS: string[] = [
 ];
 
 /**
- * Selling-pillar plugins that may soft-install when opened from FM homes.
- * Part B wraps (Drop Magnet, Capture, Reality Check, Verb Forge, Transcode,
- * Semantic Desk, Policy Packs) stay marketplace-optional — not first-use chrome.
+ * Selling-pillar plugin ids previously soft-installed on first open.
+ * Auto-install is intentionally disabled — keep this list empty so marketplace
+ * installs stay explicit. Prefer installing from the plugin store.
  */
-export const FIRST_USE_PLUGINS: string[] = [
-    'project-sandbox',
-    'library-health',
-    'capacity-solver',
-    'inbound-volume',
-    'branching-time',
-];
+export const FIRST_USE_PLUGINS: string[] = [];
 
 const ALL_PLUGINS: PluginManifest[] = [
     {
@@ -97,7 +92,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...BatchRenamePluginDef,
-        description: 'Batch rename files with pattern matching, numbering, and AI-assisted suggestions.',
+        description: 'Batch rename with patterns, numbering, AI suggestions, and drop magnets (rename/tag/route on release).',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -131,7 +126,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...StorageCleanupPluginDef,
-        description: 'Smart folder organization, large-file discovery, and storage cleanup workflows.',
+        description: 'Cleanup, capacity planning, and library health repair in one ops surface.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -139,7 +134,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...FolderSyncPluginDef,
-        description: 'Automatic folder sync with live watching — keeps backup folders up to date using robocopy.',
+        description: 'Folder sync with robocopy jobs plus binary file and recursive folder diff.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -155,20 +150,13 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ActionLogPluginDef,
-        description: 'Reversible operation history with undo/redo — XYplorer-style action log.',
+        description: 'Reversible operation history with undo and redo for copy, move, and rename.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: ActionLogPlugin,
     },
-    {
-        ...ComparePluginDef,
-        description: 'Binary file compare and recursive folder diff — XYplorer branch compare parity.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: ComparePlugin,
-    },
+
     {
         ...MeshPluginDef,
         description: 'Zero-config SSH/SFTP mesh — remote browsing, live deploy mirrors, and integrated terminal. Power-user optional plugin.',
@@ -177,17 +165,10 @@ const ALL_PLUGINS: PluginManifest[] = [
         targetPanel: 'bottom',
         component: MeshPlugin,
     },
-    {
-        ...GhostLinkPluginDef,
-        description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: GhostLinkPlugin,
-    },
+
     {
         ...RamStagingPluginDef,
-        description: 'RAM-disk staging zones — stage projects at memory speed, flush on eject. Browse at /bndz/ram.',
+        description: 'Staging continuum — hot RAM zones and cold ghost offload that keeps path links.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -195,36 +176,14 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ProjectSandboxPluginDef,
-        description: 'Isolated sandbox sessions — experiment freely, checkpoint, commit or discard changes.',
+        description: 'Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: ProjectSandboxPlugin,
     },
-    {
-        ...LibraryHealthPluginDef,
-        description: 'Scan libraries for broken links, naming conflicts, permission issues, and orphans.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: LibraryHealthPlugin,
-    },
-    {
-        ...CapacitySolverPluginDef,
-        description: 'Analyze storage and build cleanup plans to free space on any volume.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: CapacitySolverPlugin,
-    },
-    {
-        ...InboundVolumePluginDef,
-        description: 'Clipboard catcher and inbound file watcher — capture, review, and copy into your library.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: InboundVolumePlugin,
-    },
+
+
     {
         ...BranchingTimePluginDef,
         description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
@@ -233,59 +192,14 @@ const ALL_PLUGINS: PluginManifest[] = [
         targetPanel: 'bottom',
         component: BranchingTimePlugin,
     },
+
     {
-        ...DropMagnetPluginDef,
-        description: 'Named landing pads — drop files to rename, tag, and route in one release.',
+        ...DesignBoardPluginDef,
         isInstalled: false,
-        isNative: true,
+        // Hosted Fabric/OpenPencil iframe shell — not a native C# filesystem plugin.
+        isNative: false,
         targetPanel: 'bottom',
-        component: DropMagnetPlugin,
-    },
-    {
-        ...CaptureInboxPluginDef,
-        description: 'Screenshot and clipboard images saved as named PNG files via Windows OCR.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: CaptureInboxPlugin,
-    },
-    {
-        ...RealityCheckPluginDef,
-        description: 'Compare on-disk assets against project and DAW session references — missing files glow in the list.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: RealityCheckPlugin,
-    },
-    {
-        ...TranscodeRackPluginDef,
-        description: 'Batch image transcode rack — JPEG, PNG, WebP encode queue with live progress.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: TranscodeRackPlugin,
-    },
-    {
-        ...SemanticDeskPluginDef,
-        description: 'Semantic desk overlay — cluster folder items into 3–8 piles with list group headers.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: SemanticDeskPlugin,
-    },
-    {
-        ...PolicyPackPluginDef,
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: PolicyPackPlugin,
-    },
-    {
-        ...ZkVaultPluginDef,
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: ZkVaultPlugin,
+        component: DesignBoardPlugin,
     },
 ];
 

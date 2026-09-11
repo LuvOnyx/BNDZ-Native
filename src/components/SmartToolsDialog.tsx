@@ -180,10 +180,14 @@ export default function SmartToolsDialog({
     setApplying(true);
     setError(null);
     try {
-      const moved = await applyOrganizePlan(plan, (id, op, src, dest) =>
+      const { moved, queued } = await applyOrganizePlan(plan, (id, op, src, dest) =>
         IPC.executeFsOperation(id, op as any, src, dest),
       );
-      setStatus(`Organized ${moved} file(s).`);
+      setStatus(
+        queued > 0
+          ? `Organize queued (${plan.length} ops) — see transfer panel.`
+          : `Organized ${moved} file(s).`,
+      );
       setPlan([]);
       if (folderWin) {
         window.dispatchEvent(new CustomEvent('bndz-refresh-path', {

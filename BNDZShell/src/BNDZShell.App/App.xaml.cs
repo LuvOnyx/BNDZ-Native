@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Security.Principal;
+using BNDZ.Services;
+using BNDZShell.Bndz;
 using Microsoft.UI.Xaml;
 
 namespace BNDZShell;
@@ -8,11 +12,13 @@ public partial class App : Application
 	/// Must be retained — WinUI GC collects the Window if only a local in OnLaunched holds it,
 	/// which leaves a dead HWND and a blank native shell (WebView2 never paints).
 	/// </summary>
-	private Window? _mainWindow;
+	private MainWindow? _mainWindow;
 
 	public App()
 	{
 		InitializeComponent();
+		BndzShellChromeSettings.Load();
+		BndzAppNotifications.EnsureRegistered();
 		UnhandledException += (_, e) =>
 		{
 			System.Diagnostics.Debug.WriteLine($"[BNDZShell] Unhandled: {e.Exception}");
@@ -28,12 +34,54 @@ public partial class App : Application
 			}
 			catch { /* best-effort */ }
 			e.Handled = true;
+			try
+			{
+				_mainWindow?.ShowFatalError(e.Exception?.Message ?? "Unknown error");
+			}
+			catch { /* ignore */ }
 		};
 	}
 
 	protected override void OnLaunched(LaunchActivatedEventArgs args)
 	{
+		TryApplyShellIntegrationFromElevatedRelaunch();
+		PluginWindowBoot.Parse(Environment.GetCommandLineArgs());
 		_mainWindow = new MainWindow();
 		_mainWindow.Activate();
+	}
+
+	/// <summary>
+	/// UAC relaunch from Shell Integration passes <c>--apply-shell</c> so HKLM/HKCU
+	/// writes run with admin rights before the WebView fingerprint path boots.
+	/// </summary>
+	private static void TryApplyShellIntegrationFromElevatedRelaunch()
+	{
+		var argv = Environment.GetCommandLineArgs();
+		var apply = argv.Any(a => string.Equals(a, "--apply-shell", StringComparison.OrdinalIgnoreCase));
+		if (!apply || !IsProcessElevated()) return;
+		try
+		{
+			var json = new SettingsManager().LoadSettings();
+			if (!string.IsNullOrWhiteSpace(json))
+				new ShellIntegrationService().ApplySettingsFromConfig(json);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[BNDZShell --apply-shell] {ex.Message}");
+		}
+	}
+
+	private static bool IsProcessElevated()
+	{
+		try
+		{
+			using var id = WindowsIdentity.GetCurrent();
+			var principal = new WindowsPrincipal(id);
+			return principal.IsInRole(WindowsBuiltInRole.Administrator);
+		}
+		catch
+		{
+			return false;
+		}
 	}
 }

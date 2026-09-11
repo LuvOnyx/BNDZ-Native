@@ -141,7 +141,7 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
     label: 'Content grep', color: '#34d399', icon: 'search', category: 'filter',
     desc: 'Keep files whose text content matches a pattern',
     fields: [
-      { key: 'pattern', label: 'Pattern', placeholder: 'TODO|FIXME' },
+      { key: 'pattern', label: 'Pattern', placeholder: '\\b(error|warning)\\b' },
       { key: 'regex', label: 'Use regex', placeholder: 'false', type: 'boolean' },
     ],
   },

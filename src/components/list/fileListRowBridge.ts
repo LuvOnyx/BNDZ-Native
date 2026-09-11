@@ -87,11 +87,15 @@ export type FileListRowBridge = {
   scheduleQuickActionsBar: (show: boolean, immediate?: boolean) => void;
   setToastMessage: (message: string, kind?: ToastKind, title?: string, opts?: { native?: boolean }) => void;
   suppressRowClickRef: React.MutableRefObject<boolean>;
+  /** After gesture double-tap open, ignore the trailing native dblclick (avoids folder+1 / dual ShellExecute). */
+  suppressNativeDblUntilRef: React.MutableRefObject<number>;
   listGestureRef: React.MutableRefObject<{ moved?: boolean; mode?: string } | null>;
   listClickDeferTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   contextMenuBlockRef: React.MutableRefObject<boolean>;
   suppressNavClickUntilRef: React.MutableRefObject<number>;
   selectionAnchorRef: React.MutableRefObject<{ paneId: string; itemId: string } | null>;
+  html5NativeDrag?: boolean;
+  onHtml5NativeDragStart?: (entityId: string, e: React.DragEvent) => void;
 };
 
 export const paneFileListBridgeRegistry = new Map<string, FileListRowBridge>();

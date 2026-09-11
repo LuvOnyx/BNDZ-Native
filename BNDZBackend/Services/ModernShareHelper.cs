@@ -20,6 +20,14 @@ internal static class ModernShareHelper
         void ShowShareUIForWindow(IntPtr appWindow);
     }
 
+    private static IntPtr _ownerHwnd;
+
+    /// <summary>WinUI / headless host HWND — Application.Current.MainWindow is null in BNDZShell.</summary>
+    public static void SetOwnerHwnd(IntPtr hwnd)
+    {
+        if (hwnd != IntPtr.Zero) _ownerHwnd = hwnd;
+    }
+
     public static bool TryShowShareUi(IntPtr hwnd, IReadOnlyList<string> paths)
     {
         if (hwnd == IntPtr.Zero || paths == null || paths.Count == 0)
@@ -106,13 +114,16 @@ internal static class ModernShareHelper
 
     public static bool TryShowShareUiForActiveWindow(IReadOnlyList<string> paths)
     {
-        var hwnd = IntPtr.Zero;
-        try
+        var hwnd = _ownerHwnd;
+        if (hwnd == IntPtr.Zero)
         {
-            if (System.Windows.Application.Current?.MainWindow is System.Windows.Window win)
-                hwnd = new WindowInteropHelper(win).Handle;
+            try
+            {
+                if (System.Windows.Application.Current?.MainWindow is System.Windows.Window win)
+                    hwnd = new WindowInteropHelper(win).Handle;
+            }
+            catch { /* headless / tearing down */ }
         }
-        catch { /* headless / tearing down */ }
         return TryShowShareUi(hwnd, paths);
     }
 }

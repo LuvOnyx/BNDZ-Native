@@ -138,6 +138,86 @@ function parseLibrary(raw: unknown): SpatialBoardLibrary {
   return { version: 1, activeBoardId, boards };
 }
 
+/** Continuum = Home only. Spatial boards must never keep that name. */
+export const PILLAR_BOARD_ID = 'continuum-home';
+export const PILLAR_BOARD_NAME = 'Pillar Board';
+const FREEFORM_SPATIAL_NAME = 'Spatial Canvas';
+
+function isLegacyContinuumBoardLabel(name: string | undefined): boolean {
+  return !!name && /^continuum$/i.test(name.trim());
+}
+
+/**
+ * Continuum is Home branding — never a Spatial board title.
+ * - id continuum-home → always "Pillar Board"
+ * - any other board still named Continuum → "Spatial Canvas"
+ */
+export function migrateSpatialBoardIdentity(doc: SpatialCanvasDoc): SpatialCanvasDoc {
+  if (doc.id === PILLAR_BOARD_ID) {
+    if (doc.name === PILLAR_BOARD_NAME) return doc;
+    return { ...doc, name: PILLAR_BOARD_NAME, updatedAt: Date.now() };
+  }
+  if (isLegacyContinuumBoardLabel(doc.name)) {
+    return { ...doc, name: FREEFORM_SPATIAL_NAME, updatedAt: Date.now() };
+  }
+  return doc;
+}
+
+function migrateSpatialLibrary(lib: SpatialBoardLibrary): { lib: SpatialBoardLibrary; dirty: boolean } {
+  let dirty = false;
+  const boards = lib.boards.map(b => {
+    const next = migrateSpatialBoardIdentity(b);
+    if (next !== b) dirty = true;
+    return next;
+  });
+  // Deduplicate if somehow two boards share continuum-home after bad migrations.
+  const seen = new Set<string>();
+  const deduped: SpatialCanvasDoc[] = [];
+  for (const b of boards) {
+    if (seen.has(b.id)) {
+      dirty = true;
+      continue;
+    }
+    seen.add(b.id);
+    deduped.push(b);
+  }
+  const activeBoardId = deduped.some(b => b.id === lib.activeBoardId)
+    ? lib.activeBoardId
+    : (deduped[0]?.id || lib.activeBoardId);
+  if (activeBoardId !== lib.activeBoardId) dirty = true;
+  return { lib: { version: 1, activeBoardId, boards: deduped }, dirty };
+}
+
+async function loadLibrary(options?: { force?: boolean }): Promise<SpatialBoardLibrary> {
+  if (libraryCache && !options?.force) return libraryCache;
+  try {
+    const libRaw = await readBndzMeta(LIBRARY_KEY);
+    if (libRaw) {
+      const parsed = parseLibrary(JSON.parse(libRaw));
+      const { lib, dirty } = migrateSpatialLibrary(parsed);
+      libraryCache = lib;
+      cache = libraryCache.boards.find(b => b.id === libraryCache!.activeBoardId) || libraryCache.boards[0];
+      if (dirty) {
+        // Persist rename Continuum → Spatial Canvas / Pillar Board immediately.
+        void persistLibrary(libraryCache, 0);
+      }
+      return libraryCache;
+    }
+    // Migrate legacy single-board key into library.
+    const legacy = await readBndzMeta(META_KEY);
+    if (legacy) {
+      const doc = migrateSpatialBoardIdentity(parseSpatialDoc(JSON.parse(legacy) as Partial<SpatialCanvasDoc>));
+      libraryCache = { version: 1, activeBoardId: doc.id, boards: [doc] };
+      await flushBndzMeta(LIBRARY_KEY, JSON.stringify(libraryCache));
+      cache = doc;
+      return libraryCache;
+    }
+  } catch { /* fresh */ }
+  libraryCache = defaultLibrary();
+  cache = libraryCache.boards[0];
+  return libraryCache;
+}
+
 /** Drop in-memory cache so the next load reads from disk / IPC. */
 export function invalidateSpatialCanvasCache(): void {
   cache = null;
@@ -148,7 +228,7 @@ export function invalidateSpatialCanvasCache(): void {
 export function hydrateSpatialCanvasFromJson(json: string): SpatialCanvasDoc | null {
   try {
     const parsed = JSON.parse(json) as Partial<SpatialCanvasDoc>;
-    const doc = parseSpatialDoc(parsed);
+    const doc = migrateSpatialBoardIdentity(parseSpatialDoc(parsed));
     cache = doc;
     if (libraryCache) {
       libraryCache = {
@@ -161,30 +241,6 @@ export function hydrateSpatialCanvasFromJson(json: string): SpatialCanvasDoc | n
   } catch {
     return null;
   }
-}
-
-async function loadLibrary(options?: { force?: boolean }): Promise<SpatialBoardLibrary> {
-  if (libraryCache && !options?.force) return libraryCache;
-  try {
-    const libRaw = await readBndzMeta(LIBRARY_KEY);
-    if (libRaw) {
-      libraryCache = parseLibrary(JSON.parse(libRaw));
-      cache = libraryCache.boards.find(b => b.id === libraryCache!.activeBoardId) || libraryCache.boards[0];
-      return libraryCache;
-    }
-    // Migrate legacy single-board key into library.
-    const legacy = await readBndzMeta(META_KEY);
-    if (legacy) {
-      const doc = parseSpatialDoc(JSON.parse(legacy) as Partial<SpatialCanvasDoc>);
-      libraryCache = { version: 1, activeBoardId: doc.id, boards: [doc] };
-      await flushBndzMeta(LIBRARY_KEY, JSON.stringify(libraryCache));
-      cache = doc;
-      return libraryCache;
-    }
-  } catch { /* fresh */ }
-  libraryCache = defaultLibrary();
-  cache = libraryCache.boards[0];
-  return libraryCache;
 }
 
 async function persistLibrary(lib: SpatialBoardLibrary, delayMs = 400): Promise<boolean> {
@@ -280,7 +336,12 @@ export async function duplicateSpatialBoard(boardId: string): Promise<SpatialCan
 
 export async function renameSpatialBoard(boardId: string, name: string): Promise<SpatialCanvasDoc> {
   const lib = await loadLibrary();
-  const trimmed = name.trim() || 'Untitled board';
+  let trimmed = name.trim() || 'Untitled board';
+  // Continuum is Home — never allow it as a Spatial board title.
+  if (/^continuum$/i.test(trimmed)) {
+    trimmed = boardId === PILLAR_BOARD_ID ? PILLAR_BOARD_NAME : FREEFORM_SPATIAL_NAME;
+  }
+  if (boardId === PILLAR_BOARD_ID) trimmed = PILLAR_BOARD_NAME;
   const next: SpatialBoardLibrary = {
     ...lib,
     boards: lib.boards.map(b => (b.id === boardId ? { ...b, name: trimmed, updatedAt: Date.now() } : b)),
@@ -417,8 +478,9 @@ export async function pinPathsToSpatialCanvas(paths: string[]): Promise<number> 
   const existing = new Set(doc.items.map(it => it.path));
   const toAdd = normalized.filter(p => !existing.has(p));
   if (!toAdd.length) return 0;
-  const startX = 80;
-  const startY = 80;
+  // Place near world origin in a tidy grid — Spatial view will fitBoard on `fit: true`.
+  const startX = 0;
+  const startY = 0;
   const added = toAdd.map((path, i) => makeCanvasPin(
     path,
     startX + (i % 6) * (PIN_CARD_W + 16),
@@ -427,7 +489,9 @@ export async function pinPathsToSpatialCanvas(paths: string[]): Promise<number> 
   const next = { ...doc, items: [...doc.items, ...added] };
   await saveSpatialCanvasNow(next);
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('bndz-spatial-doc-changed', { detail: { added: added.length } }));
+    window.dispatchEvent(new CustomEvent('bndz-spatial-doc-changed', {
+      detail: { added: added.length, fit: true },
+    }));
   }
   return added.length;
 }

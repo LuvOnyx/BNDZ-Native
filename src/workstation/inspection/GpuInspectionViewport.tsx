@@ -22,6 +22,7 @@ type SceneProps = {
  * R3F orthographic camera: left/right = ±width/2 (pixel units).
  * Visible world width = size.width / zoom → fit zoom = size.width / planeW.
  * NEVER floor to a tiny constant — that makes the plane a speck and pan flies away.
+ * baseZoomRef stays 0 until a real fit is published (OrthoCameraController waits).
  */
 function FitCamera({
   texture,
@@ -33,6 +34,7 @@ function FitCamera({
   planeHalfRef: React.MutableRefObject<{ x: number; y: number }>;
 }) {
   const { camera, size, invalidate } = useThree();
+  const lastFitKey = useRef('');
 
   useEffect(() => {
     const img = texture.image as { width?: number; height?: number } | undefined;
@@ -43,11 +45,21 @@ function FitCamera({
     const planeH = (ih / maxDim) * 2;
     planeHalfRef.current = { x: planeW / 2, y: planeH / 2 };
 
-    // Wait for a real viewport — fitting at 0×0 stamps zoom≈0.2 and shrinks to a dot.
+    // Wait for a real viewport — fitting at 0×0 stamps zoom≈0 and shrinks to a dot.
     if (size.width < 16 || size.height < 16) return;
 
     const fitZoom = Math.min(size.width / planeW, size.height / planeH) * 0.92;
     if (!Number.isFinite(fitZoom) || fitZoom < 1) return;
+
+    const key = `${Math.round(size.width)}x${Math.round(size.height)}:${iw}x${ih}`;
+    const first = !lastFitKey.current;
+    // Ignore sub-pixel resize chatter; still refit when the stage actually changes.
+    if (!first && key === lastFitKey.current) return;
+    if (!first && Math.abs(baseZoomRef.current - fitZoom) < 0.75 && lastFitKey.current) {
+      // Tiny layout jitter — keep user zoom/pan; only refresh half extents above.
+      return;
+    }
+    lastFitKey.current = key;
 
     baseZoomRef.current = fitZoom;
     const ortho = camera as THREE.OrthographicCamera;
@@ -101,11 +113,30 @@ function InspectionPlane({
     });
   }, [texture, shaderMode, mouse]);
 
+  useEffect(() => () => {
+    material.dispose();
+  }, [material]);
+
   useEffect(() => {
     material.uniforms.uMap.value = texture;
     material.uniforms.uResolution.value.set(size.width, size.height);
     invalidate();
   }, [material, texture, size.width, size.height, invalidate]);
+
+  // Drive loupe magnification from ortho zoom mul so wheel/pinch actually changes the lens.
+  useEffect(() => {
+    if (shaderMode !== 'loupe') return;
+    let raf = 0;
+    const tick = () => {
+      const mul = Math.max(0.25, (baseZoomRef.current > 0
+        ? ((camera as THREE.OrthographicCamera).zoom / baseZoomRef.current)
+        : 1));
+      material.uniforms.uZoom.value = 2.2 + mul * 2.4;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [shaderMode, material, camera, baseZoomRef]);
 
   const img = texture.image as { width?: number; height?: number } | undefined;
   const iw = Math.max(1, img?.width || 1);
@@ -142,7 +173,7 @@ function InspectionPlane({
         planeHalfRef={planeHalfRef}
         onZoomChange={onZoomChange}
       />
-      <mesh>
+      <mesh key={shaderMode}>
         <planeGeometry args={[planeW, planeH]} />
         <primitive object={material} attach="material" />
       </mesh>
@@ -164,6 +195,7 @@ type Props = {
  */
 async function resolveTextureSrc(src: string, filePath?: string | null): Promise<string> {
   if (!src) return '';
+  if (typeof src !== 'string') return '';
   if (src.startsWith('blob:') || src.startsWith('data:')) return src;
   const needsBlob = /^bndz-stream:/i.test(src) || src.includes('/local-stream/');
   if (!needsBlob || !filePath) return src;
@@ -172,10 +204,8 @@ async function resolveTextureSrc(src: string, filePath?: string | null): Promise
     if (!IPC.isNative) return src;
     const result = await IPC.getMediaBlob(toWindowsPath(filePath));
     if (!result.base64 || !result.mime) return src;
-    const binary = atob(result.base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return URL.createObjectURL(new Blob([bytes], { type: result.mime }));
+    const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
+    return URL.createObjectURL(blob);
   } catch {
     return src;
   }
@@ -187,9 +217,9 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
   const [canvasKey, setCanvasKey] = useState(0);
   const [textureSrc, setTextureSrc] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const baseZoomRef = useRef(1);
+  const baseZoomRef = useRef(0);
   const planeHalfRef = useRef({ x: 1, y: 1 });
-  const fitZoomAtStart = useRef(1);
+  const fitZoomAtStart = useRef(0);
   const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -199,8 +229,8 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    baseZoomRef.current = 1;
-    fitZoomAtStart.current = 1;
+    baseZoomRef.current = 0;
+    fitZoomAtStart.current = 0;
     setZoomPct(100);
     setTextureSrc(null);
     setCanvasKey(k => k + 1);
@@ -229,23 +259,30 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
 
   if (!src || failed || !textureSrc) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
+      <div
+        className="w-full h-full flex items-center justify-center text-xs text-gray-500"
+        style={{ background: '#0b0e14' }}
+      >
         {failed ? 'GPU preview unavailable' : 'Loading GPU preview…'}
       </div>
     );
   }
 
   return (
-    <div ref={viewportRef} className="bndz-gpu-viewport group relative w-full h-full min-h-0">
+    <div
+      ref={viewportRef}
+      className="bndz-gpu-viewport group relative w-full h-full min-h-0"
+      style={{ background: '#0b0e14' }}
+    >
       <BndzErrorBoundary
         isolate
         label="GPU inspection"
         resetKey={`${textureSrc}:${shaderMode}`}
         onError={() => setFailed(true)}
-        fallback={<div className="w-full h-full flex items-center justify-center text-xs text-gray-500">GPU preview unavailable</div>}
+        fallback={<div className="w-full h-full flex items-center justify-center text-xs text-gray-500" style={{ background: '#0b0e14' }}>GPU preview unavailable</div>}
       >
         <Canvas
-          key={canvasKey}
+          key={`${canvasKey}:${shaderMode}`}
           orthographic
           frameloop="demand"
           camera={{ position: [0, 0, 2], zoom: 1, near: 0.1, far: 10 }}
@@ -255,10 +292,13 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
             antialias: false,
             stencil: false,
             depth: false,
+            alpha: false,
+            premultipliedAlpha: false,
             failIfMajorPerformanceCaveat: false,
             preserveDrawingBuffer: false,
           }}
           onCreated={({ gl, invalidate }) => {
+            gl.setClearColor('#0b0e14', 1);
             const canvas = gl.domElement;
             const onLost = (e: Event) => {
               // Do NOT dispose — that leaves a dead black/empty canvas and blocks restore.
@@ -275,16 +315,17 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
           }}
           onError={() => setFailed(true)}
         >
-          <color attach="background" args={['#0a0a0c']} />
+          <color attach="background" args={['#0b0e14']} />
           <Suspense fallback={null}>
             <InspectionPlane
+              key={shaderMode}
               src={textureSrc}
               shaderMode={shaderMode}
               viewportRef={viewportRef}
               baseZoomRef={baseZoomRef}
               planeHalfRef={planeHalfRef}
               onZoomChange={mul => {
-                if (fitZoomAtStart.current <= 1 && baseZoomRef.current > 1) {
+                if (fitZoomAtStart.current <= 0 && baseZoomRef.current > 1) {
                   fitZoomAtStart.current = baseZoomRef.current;
                 }
                 const base = fitZoomAtStart.current > 1 ? fitZoomAtStart.current : baseZoomRef.current;

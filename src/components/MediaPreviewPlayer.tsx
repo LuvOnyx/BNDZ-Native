@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { EmblemIcon } from './EmblemIcon';
+import MediaPlayingIcon from './MediaPlayingIcon';
 import MediaSeekBar from './MediaSeekBar';
 import { toWindowsPath, normalizePanePath } from '../lib/pathUtils';
 import {
@@ -191,12 +193,24 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     if (!isAudio || !filePath) return;
 
     let cancelled = false;
+
+    // Panel waveform / prior Quick Look already owns this path — bind UI only.
+    // Re-fetching a blob here freezes the main thread and can stall Space pop-out.
+    if (audioPlaybackSession.samePath(filePath)) {
+      const snap = audioPlaybackSession.getSnapshot();
+      if (snap.resolvedSrc) {
+        loadedPathRef.current = filePath;
+        syncFromSession();
+        return () => { cancelled = true; };
+      }
+    }
+
     const pathUnchanged = loadedPathRef.current && sameMediaPath(loadedPathRef.current, filePath)
       && audioPlaybackSession.samePath(filePath);
 
     if (pathUnchanged) {
       syncFromSession();
-      return;
+      return () => { cancelled = true; };
     }
 
     triedBlobRef.current = false;
@@ -213,10 +227,8 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
           if (!cancelled) setLoadError(result.error || 'Could not load media file.');
           return null;
         }
-        const binary = atob(result.base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: result.mime });
+        // Avoid per-byte main-thread loops — decode via data URL fetch.
+        const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
         return URL.createObjectURL(blob);
       } catch (err: any) {
         if (!cancelled) setLoadError(err?.message || 'Media load failed.');
@@ -225,9 +237,9 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     };
 
     const init = async () => {
-      const isNative = !!(window as any).chrome?.webview;
       let nextSrc = src;
-      if (isNative) {
+      // Prefer bndz-stream / local-stream for seeking; blob only when explicitly requested.
+      if (preferBlob) {
         triedBlobRef.current = true;
         const blobSrc = await loadBlob();
         if (cancelled) return;
@@ -235,9 +247,8 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
       }
       if (cancelled) return;
       audioPlaybackSession.clearError();
-      const reloaded = audioPlaybackSession.load(filePath, nextSrc, {
-        force: nextSrc.startsWith('blob:'),
-      });
+      // Never force-reload when session already has this path — Space pop-out must be seamless.
+      const reloaded = audioPlaybackSession.load(filePath, nextSrc, { force: false });
       loadedPathRef.current = filePath;
       syncFromSession();
       if (reloaded && autoplay) audioPlaybackSession.play();
@@ -284,10 +295,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
         const winPath = toWindowsPath(filePath);
         const result = await IPC.getMediaBlob(winPath);
         if (result.base64 && result.mime) {
-          const binary = atob(result.base64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const blob = new Blob([bytes], { type: result.mime });
+          const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
           const url = URL.createObjectURL(blob);
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = url;
@@ -340,10 +348,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
       const { IPC } = await import('../lib/ipcBridge');
       const result = await IPC.getMediaBlob(toWindowsPath(filePath));
       if (result.base64 && result.mime) {
-        const binary = atob(result.base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: result.mime });
+        const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
         const url = URL.createObjectURL(blob);
         if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = url;
@@ -589,23 +594,33 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
 
         <div className="bndz-media-transport-controls">
           <div className="bndz-media-transport-cluster">
-            <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Back 10s">
-              <Icons8Icon id="skip_back_ui" size={15} />
+            <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Back 10s">
+              <EmblemIcon id="media-seek-backward" size={16} />
             </button>
-            <button type="button" onClick={togglePlay} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--primary" title={playing ? 'Pause' : 'Play'}>
-              {playing ? <Icons8Icon id="pause_ui" size={16} /> : <Icons8Icon id="play_ui" size={16} className="ml-0.5" />}
+            <button
+              type="button"
+              onClick={togglePlay}
+              disabled={!!loadError}
+              className="bndz-media-transport-btn bndz-media-transport-btn--play"
+              title={playing ? 'Pause' : 'Play'}
+            >
+              <MediaPlayingIcon
+                size={36}
+                paused={!playing}
+                progress={duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0}
+              />
             </button>
-            <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Forward 10s">
-              <Icons8Icon id="skip_forward_ui" size={15} />
+            <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Forward 10s">
+              <EmblemIcon id="media-seek-forward" size={16} />
             </button>
           </div>
 
           <div className="bndz-media-transport-cluster bndz-media-transport-cluster--end">
-            <button type="button" onClick={cycleRate} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-rate-btn" title="Playback speed">
+            <button type="button" onClick={cycleRate} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round bndz-media-rate-btn" title="Playback speed">
               {playbackRate}×
             </button>
 
-            <button type="button" onClick={toggleMute} disabled={!!loadError} className="bndz-media-transport-btn" title={muted ? 'Unmute' : 'Mute'}>
+            <button type="button" onClick={toggleMute} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title={muted ? 'Unmute' : 'Mute'}>
               {muted || volume === 0 ? <Icons8Icon id="volume_off_ui" size={15} /> : <Icons8Icon id="volume_ui" size={15} />}
             </button>
             <MediaSeekBar
@@ -619,10 +634,10 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
 
             {type === 'video' && (
               <>
-                <button type="button" onClick={togglePiP} disabled={!!loadError} className="bndz-media-transport-btn" title="Picture in picture">
+                <button type="button" onClick={togglePiP} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Picture in picture">
                   <Icons8Icon id="picture_ui" size={15} />
                 </button>
-                <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="bndz-media-transport-btn" title="Fullscreen">
+                <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--round" title="Fullscreen">
                   <Icons8Icon id="maximize_ui" size={15} />
                 </button>
               </>
@@ -639,7 +654,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
                     onOpenFloating?.();
                   }}
                   disabled={!!loadError}
-                  className="bndz-media-transport-btn bndz-media-transport-btn--accent"
+                  className="bndz-media-transport-btn bndz-media-transport-btn--round bndz-media-transport-btn--accent"
                   title="Open floating preview (Space)"
                 >
                   <Icons8Icon id="eye_ui" size={15} />

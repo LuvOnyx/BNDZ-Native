@@ -15,6 +15,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using BNDZ.Services;
 using BNDZ.Services.Mesh;
+using BNDZ.Services.Mesh.Incus;
 using BNDZ.Services.MeshDrop;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
@@ -103,6 +104,8 @@ namespace BNDZ
         private readonly ConcurrentDictionary<string, TaskCompletionSource<List<DirListingSharedBuffer.DirEntryDto>>> _backendHostListingTasks = new();
         /// <summary>How many rows were already delivered on first-paint (MORE sends the remainder).</summary>
         private readonly ConcurrentDictionary<string, int> _backendHostListingFirstPaintCounts = new();
+        private readonly Queue<string> _pendingUiPushQueue = new();
+        private const int MaxPendingUiPushQueue = 96;
 
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
@@ -209,6 +212,7 @@ namespace BNDZ
             _ = Task.Run(() =>
             {
                 try { UsnHealthWatcherService.Instance.Start(); } catch { }
+                try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
                 try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
             });
             _meshDropService.SetSessionChangedHandler(evt =>
@@ -510,7 +514,8 @@ namespace BNDZ
         {
             try
             {
-                if (!IsVisible || WindowState == WindowState.Minimized)
+                if (!App.IsEmbeddedInWinUiShell && !App.IsBackendHost
+                    && (!IsVisible || WindowState == WindowState.Minimized))
                 {
                     ShowInTaskbar = true;
                     Show();
@@ -655,8 +660,16 @@ namespace BNDZ
 
             void Post()
             {
-                try { MainWebView?.CoreWebView2?.PostWebMessageAsJson(json); }
-                catch { }
+                try
+                {
+                    if (MainWebView?.CoreWebView2 != null)
+                    {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(json);
+                        return;
+                    }
+                }
+                catch { /* fall through to queue */ }
+                EnqueuePendingUiPush(json);
             }
 
             try
@@ -665,6 +678,25 @@ namespace BNDZ
                 else PostToUi(Post);
             }
             catch { }
+        }
+
+        private void EnqueuePendingUiPush(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return;
+            _pendingUiPushQueue.Enqueue(json);
+            while (_pendingUiPushQueue.Count > MaxPendingUiPushQueue)
+                _pendingUiPushQueue.Dequeue();
+        }
+
+        private void FlushPendingUiPushQueue()
+        {
+            if (MainWebView?.CoreWebView2 is null) return;
+            while (_pendingUiPushQueue.Count > 0)
+            {
+                var pending = _pendingUiPushQueue.Dequeue();
+                try { MainWebView.CoreWebView2.PostWebMessageAsJson(pending); }
+                catch { break; }
+            }
         }
 
         /// <summary>
@@ -953,15 +985,21 @@ namespace BNDZ
         private static string NormalizeFsPath(string path)
         {
             if (string.IsNullOrEmpty(path)) return "";
+            var trimmed = path.Trim().Trim('"');
+            var meshProbe = trimmed.Replace('\\', '/');
+            if (!meshProbe.StartsWith('/')) meshProbe = "/" + meshProbe;
+            if (MeshPath.IsMeshPath(meshProbe))
+                return MeshPath.Normalize(meshProbe);
+
             if (path.StartsWith("::{")) return path;
             if (path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)) return path;
-            if (path.StartsWith("/")) path = path.Substring(1);
-            path = path.Replace("/", "\\");
-            while (path.Contains("\\\\")) path = path.Replace("\\\\", "\\");
-            if (path.StartsWith("\\") && path.Length >= 3 && char.IsLetter(path[1]) && path[2] == ':')
-                path = path.TrimStart('\\');
-            if (path.EndsWith(":") && path.Length == 2) path += "\\";
-            return path;
+            if (trimmed.StartsWith("/")) trimmed = trimmed.Substring(1);
+            trimmed = trimmed.Replace("/", "\\");
+            while (trimmed.Contains("\\\\")) trimmed = trimmed.Replace("\\\\", "\\");
+            if (trimmed.StartsWith("\\") && trimmed.Length >= 3 && char.IsLetter(trimmed[1]) && trimmed[2] == ':')
+                trimmed = trimmed.TrimStart('\\');
+            if (trimmed.EndsWith(":") && trimmed.Length == 2) trimmed += "\\";
+            return trimmed;
         }
 
         private static string ExpandShellTemplate(string template, string workingDir, string itemPath, string command)
@@ -2200,7 +2238,8 @@ namespace BNDZ
                     "--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
                     "--enable-features=CanvasOopRasterization " +
                     "--disable-features=CalculateNativeWinOcclusion " +
-                    "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist",
+                    "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist " +
+                    "--unsafely-treat-insecure-origin-as-secure=http://bndz.local,https://bndz.local",
                 customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme, mediaScheme });
 
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -2389,6 +2428,9 @@ namespace BNDZ
 
         private async Task ProcessIncomingIpcMessageAsync(string messageStr)
         {
+            // Entry point only schedules work via Task.Run / fire-and-forget handlers;
+            // keep async for call-site compatibility and satisfy CS1998.
+            await Task.CompletedTask.ConfigureAwait(false);
             try
             {
                 IpcDebugLog($"[RECV] {messageStr}");
@@ -2464,13 +2506,15 @@ namespace BNDZ
                     catch { /* best-effort */ }
                     PostToUi(FlushPendingOpenPath);
                     PostToUi(FlushPendingPluginWindow);
+                    PostToUi(FlushPendingUiPushQueue);
                     PushDrivesUpdate();
                     // Offload I/O-bound startup work off the UI/IPC thread to avoid hitching
                     // the WebView message pump at first paint.
                     _ = Task.Run(() =>
                     {
-                        try { InboundVolumeService.Instance.StartWatching(); } catch { }
                         try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
+                        try { InboundVolumeService.Instance.CapStoredEntries(48); } catch { }
+                        try { CaptureInboxService.Instance.CapStoredCaptures(48); } catch { }
                         try { WarmKnownFolderGlyphs(); } catch { }
                     });
                 }
@@ -2730,129 +2774,137 @@ namespace BNDZ
                     
                     if (workingDir.StartsWith("/")) workingDir = workingDir.Substring(1);
                     workingDir = workingDir.Replace("/", "\\");
-                    
-                    if (action == "open")
-                    {
-                        _shellIntegrationService.ExecuteFile(path);
-                    }
-                    else if (action == "executeScript")
-                    {
-                        string scriptPath = path;
-                        if (!Path.IsPathRooted(scriptPath))
-                            scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptPath);
-                        if (File.Exists(scriptPath))
-                        {
-                            try
-                            {
-                                var psi = new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = scriptPath,
-                                    UseShellExecute = true,
-                                };
-                                if (!string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir))
-                                    psi.WorkingDirectory = workingDir;
-                                System.Diagnostics.Process.Start(psi);
-                            }
-                            catch { }
-                        }
-                    }
-                    else if (action == "openTerminal")
-                    {
-                        var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-                        if (!string.IsNullOrEmpty(startPath)) {
-                            try { StartShellProcess(startPath, null, shellElement); } catch { }
-                        }
-                    }
-                    else if (action == "runCommand")
-                    {
-                        // Raw user command from Shell Menus plugin — must not be path-normalized
-                        string rawCmd = pathElement.ValueKind == JsonValueKind.String
-                            ? pathElement.GetString() ?? ""
-                            : path;
-                        if (!string.IsNullOrWhiteSpace(rawCmd))
-                        {
-                            try
-                            {
-                                var startPath = !string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir)
-                                    ? workingDir
-                                    : (Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? "");
-                                StartShellProcess(startPath, rawCmd, shellElement);
-                            }
-                            catch { }
-                        }
-                    }
-                    else if (action == "openExplorer")
+
+                    _ = Task.Run(() =>
                     {
                         try
                         {
-                            if (File.Exists(path))
+                            if (action == "open")
                             {
-                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = "explorer.exe",
-                                    Arguments = $"/select,\"{path}\"",
-                                    UseShellExecute = true,
-                                });
+                                _shellIntegrationService.ExecuteFile(path);
                             }
-                            else
+                            else if (action == "executeScript")
                             {
-                                var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-                                if (!string.IsNullOrEmpty(startPath) && Directory.Exists(startPath))
+                                string scriptPath = path;
+                                if (!Path.IsPathRooted(scriptPath))
+                                    scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptPath);
+                                if (File.Exists(scriptPath))
                                 {
-                                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                    try
                                     {
-                                        FileName = "explorer.exe",
-                                        Arguments = $"\"{startPath}\"",
-                                        UseShellExecute = true,
-                                    });
+                                        var psi = new System.Diagnostics.ProcessStartInfo
+                                        {
+                                            FileName = scriptPath,
+                                            UseShellExecute = true,
+                                        };
+                                        if (!string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir))
+                                            psi.WorkingDirectory = workingDir;
+                                        System.Diagnostics.Process.Start(psi);
+                                    }
+                                    catch { }
                                 }
                             }
+                            else if (action == "openTerminal")
+                            {
+                                var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+                                if (!string.IsNullOrEmpty(startPath)) {
+                                    try { StartShellProcess(startPath, null, shellElement); } catch { }
+                                }
+                            }
+                            else if (action == "runCommand")
+                            {
+                                string rawCmd = pathElement.ValueKind == JsonValueKind.String
+                                    ? pathElement.GetString() ?? ""
+                                    : path;
+                                if (!string.IsNullOrWhiteSpace(rawCmd))
+                                {
+                                    try
+                                    {
+                                        var startPath = !string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir)
+                                            ? workingDir
+                                            : (Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? "");
+                                        StartShellProcess(startPath, rawCmd, shellElement);
+                                    }
+                                    catch { }
+                                }
+                            }
+                            else if (action == "openExplorer")
+                            {
+                                try
+                                {
+                                    if (File.Exists(path))
+                                    {
+                                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                        {
+                                            FileName = "explorer.exe",
+                                            Arguments = $"/select,\"{path}\"",
+                                            UseShellExecute = true,
+                                        });
+                                    }
+                                    else
+                                    {
+                                        var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+                                        if (!string.IsNullOrEmpty(startPath) && Directory.Exists(startPath))
+                                        {
+                                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                            {
+                                                FileName = "explorer.exe",
+                                                Arguments = $"\"{startPath}\"",
+                                                UseShellExecute = true,
+                                            });
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                            else if (action == "openWith")
+                            {
+                                Dispatcher.BeginInvoke(() => {
+                                    try {
+                                        var processInfo = new System.Diagnostics.ProcessStartInfo("Rundll32.exe", $"shell32.dll,OpenAs_RunDLL {path}");
+                                        processInfo.UseShellExecute = true;
+                                        System.Diagnostics.Process.Start(processInfo);
+                                    } catch {}
+                                });
+                            }
+                            else if (action == "copyPath")
+                            {
+                                string clip = paths.Count > 1 ? string.Join(Environment.NewLine, paths) : path;
+                                Dispatcher.BeginInvoke(() => {
+                                   System.Windows.Clipboard.SetText(clip);
+                                });
+                            }
+                            else if (action == "compress")
+                            {
+                                foreach (var p in paths)
+                                {
+                                    if (File.Exists(p) || Directory.Exists(p))
+                                        _shellIntegrationService.ExecuteFile(p, "compress");
+                                }
+                            }
+                            else if (action == "extract")
+                            {
+                                foreach (var p in paths)
+                                {
+                                    if (File.Exists(p))
+                                        _shellIntegrationService.LaunchSystemTool("extract", p);
+                                }
+                            }
+                            else if (action == "properties")
+                            {
+                                var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                                ShellPropertiesHelper.ShowProperties(path, hwnd);
+                            }
+                            else if (action.StartsWith("launch-") || action is "cmd" or "ps" or "taskmgr" or "regedit" or "map_network_drive" or "share" or "burn_disc" or "extract")
+                            {
+                                _shellIntegrationService.LaunchSystemTool(action, path);
+                            }
                         }
-                        catch { }
-                    }
-                    else if (action == "openWith")
-                    {
-                        // Launch the shell Open With dialog natively
-                        PostToUi(() => {
-                            try {
-                                var processInfo = new System.Diagnostics.ProcessStartInfo("Rundll32.exe", $"shell32.dll,OpenAs_RunDLL {path}");
-                                processInfo.UseShellExecute = true;
-                                System.Diagnostics.Process.Start(processInfo);
-                            } catch {}
-                        });
-                    }
-                    else if (action == "copyPath")
-                    {
-                        string clip = paths.Count > 1 ? string.Join(Environment.NewLine, paths) : path;
-                        Dispatcher.Invoke(() => {
-                           System.Windows.Clipboard.SetText(clip);
-                        });
-                    }
-                    else if (action == "compress")
-                    {
-                        foreach (var p in paths)
+                        catch (Exception ex)
                         {
-                            if (File.Exists(p) || Directory.Exists(p))
-                                _shellIntegrationService.ExecuteFile(p, "compress");
+                            Debug.WriteLine($"[IPC] SHELL_EXECUTE failed: {ex.Message}");
                         }
-                    }
-                    else if (action == "extract")
-                    {
-                        foreach (var p in paths)
-                        {
-                            if (File.Exists(p))
-                                _shellIntegrationService.LaunchSystemTool("extract", p);
-                        }
-                    }
-                    else if (action == "properties")
-                    {
-                        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                        ShellPropertiesHelper.ShowProperties(path, hwnd);
-                    }
-                    else if (action.StartsWith("launch-") || action is "cmd" or "ps" or "taskmgr" or "regedit" or "map_network_drive" or "share" or "burn_disc" or "extract")
-                    {
-                        _shellIntegrationService.LaunchSystemTool(action, path);
-                    }
+                    });
                 }
                 else if (type == "CHECK_PATH_EXISTS")
                 {
@@ -2964,6 +3016,7 @@ namespace BNDZ
                     string path = BNDZ.Services.ShellPathResolver.ResolveForShell(rawTreePath);
                     if (string.IsNullOrEmpty(path)) path = BNDZ.Services.ShellPathResolver.NormalizeIncoming(rawTreePath);
                     bool showHidden = payload.TryGetProperty("showHidden", out var shElement) && shElement.GetBoolean();
+                    bool showSystem = payload.TryGetProperty("showSystem", out var ssElement) && ssElement.GetBoolean();
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
 
                     _ = Task.Run(() => 
@@ -2985,7 +3038,11 @@ namespace BNDZ
                                 foreach (var dir in Directory.GetDirectories(path))
                                 {
                                     var di = new DirectoryInfo(dir);
-                                    if (!showHidden && (di.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden) continue;
+                                    var attrs = di.Attributes;
+                                    var hidden = (attrs & FileAttributes.Hidden) == FileAttributes.Hidden;
+                                    var system = (attrs & FileAttributes.System) == FileAttributes.System;
+                                    if (!showHidden && hidden && !(showSystem && system)) continue;
+                                    if (!showSystem && system) continue;
 
                                     results.Add(new {
                                         id = Guid.NewGuid().ToString(),
@@ -2993,7 +3050,8 @@ namespace BNDZ
                                         type = "directory",
                                         path = dir.Replace("\\", "/"),
                                         size = 0,
-                                        modified = di.LastWriteTime.ToString("O")
+                                        modified = di.LastWriteTime.ToString("O"),
+                                        attributes = DirListingSharedBuffer.AttrNamesFrom(DirListingSharedBuffer.AttrBitsFrom(attrs)),
                                     });
                                 }
                             }
@@ -3202,11 +3260,20 @@ namespace BNDZ
                     
                     string verb = payload.GetProperty("verb").GetString() ?? "";
                     bool bypassRecycle = payload.TryGetProperty("bypassRecycleBin", out var brEl) && brEl.GetBoolean();
+                    string? sendToTarget = payload.TryGetProperty("sendToTarget", out var stEl) ? stEl.GetString() : null;
+                    var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
 
-                    Dispatcher.Invoke(() => {
-                        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                        string? sendToTarget = payload.TryGetProperty("sendToTarget", out var stEl) ? stEl.GetString() : null;
-                        _shellContextMenuService.InvokeVerb(paths, verb, hwnd, bypassRecycle, sendToTarget);
+                    // Never block the IPC / UI pump on ShellExecute — app open felt like a freeze.
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            _shellContextMenuService.InvokeVerb(paths, verb, hwnd, bypassRecycle, sendToTarget);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[IPC] EXECUTE_CONTEXT_MENU_VERB failed: {ex.Message}");
+                        }
                     });
                 }
                 else if (type == "SET_SHELL_CLIPBOARD")
@@ -3384,7 +3451,11 @@ namespace BNDZ
                         var host = JsonSerializer.Deserialize<MeshHostRecord>(hostJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                             ?? throw new InvalidOperationException("Invalid host payload");
                         if (!string.IsNullOrEmpty(host.PasswordPlain))
+                        {
                             host.ProtectedSecret = MeshCredentialVault.Protect(host.PasswordPlain);
+                            if (host.AuthKind == MeshAuthKind.PrivateKey && !string.IsNullOrEmpty(host.KeyPath))
+                                SshSftpMeshProvider.CacheSessionPassphrase(host.KeyPath, host.PasswordPlain);
+                        }
                         host.PasswordPlain = null;
                         var saved = _meshOrchestrator.UpsertHost(host);
                         BroadcastMeshHostsChanged();
@@ -3477,13 +3548,15 @@ namespace BNDZ
                     var hostId = payload.TryGetProperty("hostId", out var hEl) ? hEl.GetString() : null;
                     var cwd = payload.TryGetProperty("cwd", out var cEl) ? cEl.GetString() : null;
                     var local = payload.TryGetProperty("local", out var lEl) && lEl.GetBoolean();
+                    var cols = payload.TryGetProperty("cols", out var colsEl) ? (uint)Math.Clamp(colsEl.GetInt32(), 20, 400) : 120u;
+                    var rows = payload.TryGetProperty("rows", out var rowsEl) ? (uint)Math.Clamp(rowsEl.GetInt32(), 8, 200) : 32u;
                     _ = Task.Run(() =>
                     {
                         try
                         {
                             var session = local || string.IsNullOrEmpty(hostId)
-                                ? _meshOrchestrator.Terminal.OpenLocal(cwd)
-                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd);
+                                ? _meshOrchestrator.Terminal.OpenLocal(cwd, cols, rows)
+                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd, cols, rows);
                             PostMeshIpcResult(idProp, "MESH_TERMINAL_OPEN_RESULT", session);
                         }
                         catch (Exception ex)
@@ -3503,6 +3576,60 @@ namespace BNDZ
                 {
                     var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
                     _meshOrchestrator.Terminal.Close(sessionId);
+                }
+                else if (type == "MESH_TERMINAL_RESIZE")
+                {
+                    var payload = root.GetProperty("payload");
+                    var sessionId = payload.GetProperty("sessionId").GetString() ?? "";
+                    var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
+                    var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
+                    _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_STAT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var panePath = root.GetProperty("payload").TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var attr = await _meshOrchestrator.StatAsync(panePath).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", attr);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", new { error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_WRITE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var panePath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var localFile = payload.TryGetProperty("localFile", out var lfEl) ? lfEl.GetString() : null;
+                    var contentB64 = payload.TryGetProperty("contentBase64", out var b64El) ? b64El.GetString() : null;
+                    DateTimeOffset? expectedMtime = null;
+                    if (payload.TryGetProperty("expectedRemoteMtime", out var mtEl) && mtEl.ValueKind == JsonValueKind.String
+                        && DateTimeOffset.TryParse(mtEl.GetString(), out var parsed))
+                        expectedMtime = parsed;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(localFile) && File.Exists(localFile))
+                                await _meshOrchestrator.WriteBackAsync(panePath, localFile!, expectedMtime).ConfigureAwait(false);
+                            else if (!string.IsNullOrEmpty(contentB64))
+                                await _meshOrchestrator.WriteBytesAsync(panePath, Convert.FromBase64String(contentB64!)).ConfigureAwait(false);
+                            else
+                                throw new InvalidOperationException("MESH_WRITE requires localFile or contentBase64");
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = true, path = panePath });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
                 }
                 else if (type == "MESH_TRANSFER")
                 {
@@ -3788,6 +3915,438 @@ namespace BNDZ
                         }
                     });
                 }
+                else if (type == "MESH_INCUS_LIST_ENDPOINTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var endpoints = _meshOrchestrator.Ephemeral.ListEndpoints();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints = Array.Empty<IncusEndpointRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_UPSERT_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var payloadJson = root.GetProperty("payload").GetRawText();
+                        var endpoint = JsonSerializer.Deserialize<IncusEndpointRecord>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                            ?? throw new InvalidOperationException("Invalid Incus endpoint payload");
+                        var saved = _meshOrchestrator.Ephemeral.UpsertEndpoint(endpoint);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", saved);
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", new { error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_DELETE_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    try
+                    {
+                        _meshOrchestrator.Ephemeral.DeleteEndpoint(endpointId);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = true });
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_TEST_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await _meshOrchestrator.Ephemeral.TestEndpointAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = true, info, endpoints = _meshOrchestrator.Ephemeral.ListEndpoints() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_BOOTSTRAP_TRUST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var payloadJson = root.GetProperty("payload").GetRawText();
+                            var req = System.Text.Json.JsonSerializer.Deserialize<BNDZ.Services.Mesh.Incus.IncusBootstrapRequest>(
+                                payloadJson,
+                                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                                ?? throw new InvalidOperationException("Invalid bootstrap payload");
+                            var (endpoint, info) = await _meshOrchestrator.Ephemeral.BootstrapTrustAsync(req).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_BOOTSTRAP_TRUST_RESULT", new
+                            {
+                                ok = true,
+                                endpoint,
+                                info,
+                                endpoints = _meshOrchestrator.Ephemeral.ListEndpoints(),
+                                hosts = _meshOrchestrator.ListHosts(),
+                            });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_BOOTSTRAP_TRUST_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_EPHEMERAL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var instances = _meshOrchestrator.Ephemeral.ListEphemeral();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances = Array.Empty<IncusEphemeralInstanceRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_RECONCILE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instances = await _meshOrchestrator.Ephemeral.ReconcileAllAsync().ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RECONCILE_RESULT", new { ok = true, instances, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RECONCILE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LAUNCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var req = JsonSerializer.Deserialize<IncusLaunchRequest>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                                ?? throw new InvalidOperationException("Invalid launch payload");
+                            var instance = await _meshOrchestrator.Ephemeral.LaunchAsync(req).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_REFRESH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.RefreshAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_DESTROY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _meshOrchestrator.Ephemeral.DestroyAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = true, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_IMAGES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var aliases = await _meshOrchestrator.Ephemeral.ListImageAliasesAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_IMAGES_RESULT", new { ok = true, aliases });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_IMAGES_RESULT", new { ok = false, aliases = Array.Empty<IncusImageAlias>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_SERVER_INSTANCES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instances = await _meshOrchestrator.Ephemeral.ListServerInstancesAsync(endpointId).ConfigureAwait(false);
+                            var tracked = _meshOrchestrator.Ephemeral.ListEphemeral()
+                                .Where(i => i.EndpointId == endpointId)
+                                .Select(i => i.InstanceName)
+                                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SERVER_INSTANCES_RESULT", new { ok = true, instances, tracked });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SERVER_INSTANCES_RESULT", new { ok = false, instances = Array.Empty<IncusInstanceSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_INSTANCE_ACTION")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var action = payload.TryGetProperty("action", out var actEl) ? actEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.SetInstanceActionAsync(ephemeralId, action).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_INSTANCE_ACTION_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_INSTANCE_ACTION_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_IMPORT_INSTANCE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(payloadJson);
+                            var p = doc.RootElement;
+                            var endpointId = p.TryGetProperty("endpointId", out var epEl) ? epEl.GetString() ?? "" : "";
+                            var instanceName = p.TryGetProperty("instanceName", out var inEl) ? inEl.GetString() ?? "" : "";
+                            var alias = p.TryGetProperty("alias", out var alEl) ? alEl.GetString() : null;
+                            var registerMesh = !p.TryGetProperty("registerMeshHost", out var rmEl) || rmEl.ValueKind != JsonValueKind.False;
+                            var instance = await _meshOrchestrator.Ephemeral.ImportInstanceAsync(endpointId, instanceName, alias, registerMesh).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_IMPORT_INSTANCE_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_IMPORT_INSTANCE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_PROFILES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var profiles = await _meshOrchestrator.Ephemeral.ListProfilesAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_PROFILES_RESULT", new { ok = true, profiles });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_PROFILES_RESULT", new { ok = false, profiles = Array.Empty<IncusProfileSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_NETWORKS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var networks = await _meshOrchestrator.Ephemeral.ListNetworksAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_NETWORKS_RESULT", new { ok = true, networks });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_NETWORKS_RESULT", new { ok = false, networks = Array.Empty<IncusNetworkSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_GET_INSTANCE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.GetInstanceDetailAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_GET_INSTANCE_RESULT", new { ok = true, instance, etag = instance.ETag });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_GET_INSTANCE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_UPDATE_INSTANCE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(payloadJson);
+                            var p = doc.RootElement;
+                            var ephemeralId = p.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                            var etag = p.TryGetProperty("etag", out var etEl) ? etEl.GetString() : null;
+                            var put = new IncusInstancePut();
+                            if (p.TryGetProperty("profiles", out var prEl) && prEl.ValueKind == JsonValueKind.Array)
+                                put.Profiles = prEl.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList();
+                            if (p.TryGetProperty("description", out var dEl) && dEl.ValueKind == JsonValueKind.String)
+                                put.Description = dEl.GetString();
+                            if (p.TryGetProperty("config", out var cfgEl) && cfgEl.ValueKind == JsonValueKind.Object)
+                            {
+                                put.Config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                foreach (var prop in cfgEl.EnumerateObject())
+                                    put.Config[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() ?? "" : prop.Value.ToString();
+                            }
+                            if (p.TryGetProperty("devices", out var devEl) && devEl.ValueKind == JsonValueKind.Object)
+                            {
+                                put.Devices = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+                                foreach (var dev in devEl.EnumerateObject())
+                                {
+                                    if (dev.Value.ValueKind != JsonValueKind.Object) continue;
+                                    var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                    foreach (var prop in dev.Value.EnumerateObject())
+                                        map[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() ?? "" : prop.Value.ToString();
+                                    put.Devices[dev.Name] = map;
+                                }
+                            }
+                            var instance = await _meshOrchestrator.Ephemeral.UpdateInstanceDetailAsync(ephemeralId, put, etag).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_UPDATE_INSTANCE_RESULT", new { ok = true, instance });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_UPDATE_INSTANCE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_SNAPSHOTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var snapshots = await _meshOrchestrator.Ephemeral.ListSnapshotsAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SNAPSHOTS_RESULT", new { ok = true, snapshots });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SNAPSHOTS_RESULT", new { ok = false, snapshots = Array.Empty<IncusSnapshotSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_CREATE_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+                    var stateful = payload.TryGetProperty("stateful", out var sEl) && sEl.ValueKind == JsonValueKind.True;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var snapshots = await _meshOrchestrator.Ephemeral.CreateSnapshotAsync(ephemeralId, name, stateful).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_CREATE_SNAPSHOT_RESULT", new { ok = true, snapshots });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_CREATE_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_DELETE_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var snapshots = await _meshOrchestrator.Ephemeral.DeleteSnapshotAsync(ephemeralId, name).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_SNAPSHOT_RESULT", new { ok = true, snapshots });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_RESTORE_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+                    var diskOnly = payload.TryGetProperty("diskOnly", out var dEl) && dEl.ValueKind == JsonValueKind.True;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _meshOrchestrator.Ephemeral.RestoreSnapshotAsync(ephemeralId, name, diskOnly).ConfigureAwait(false);
+                            var instance = await _meshOrchestrator.Ephemeral.RefreshAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RESTORE_SNAPSHOT_RESULT", new { ok = true, instance });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RESTORE_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+
                 else if (type == "GHOST_LINK_GET_RULES")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -4270,12 +4829,13 @@ namespace BNDZ
                 else if (type == "MAGNET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payload.GetRawText(), IpcJsonOptions)
+                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid magnet payload.");
                             var saved = _dropMagnetService.SaveMagnet(recipe);
                             PostMeshIpcResult(idProp, "MAGNET_SAVE_RESULT", new { ok = true, magnet = saved });
@@ -4606,6 +5166,42 @@ namespace BNDZ
                         catch (Exception ex)
                         {
                             PostMeshIpcResult(idProp, "BRANCH_RESTORE_VSS_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_LIST_SYSTEM_SHADOWS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var path = root.TryGetProperty("payload", out var pl) && pl.TryGetProperty("path", out var pe) ? pe.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var shadows = VssBranchService.Instance.ListSystemShadows(string.IsNullOrWhiteSpace(path) ? "C:\\" : path);
+                            PostMeshIpcResult(idProp, "BRANCH_LIST_SYSTEM_SHADOWS_RESULT", new { ok = true, shadows });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_LIST_SYSTEM_SHADOWS_RESULT", new { ok = false, shadows = Array.Empty<object>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_RESTORE_SYSTEM_SHADOW")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var device = payload.TryGetProperty("deviceObject", out var dev) ? dev.GetString() ?? "" : "";
+                    var origPath = payload.TryGetProperty("originalPath", out var op) ? op.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await VssBranchService.Instance.RestoreSystemShadowAsync(device, origPath).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_SYSTEM_SHADOW_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_SYSTEM_SHADOW_RESULT", new { ok = false, error = ex.Message });
                         }
                     });
                 }
@@ -5275,6 +5871,52 @@ namespace BNDZ
                         }
                     });
                 }
+                // ── Semantic rank (embedding rerank for Fast Search) ──
+                else if (type == "SEMANTIC_RANK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl2) ? idEl2.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var query = payload.TryGetProperty("query", out var qEl) ? qEl.GetString() ?? "" : "";
+                    int limit = payload.TryGetProperty("limit", out var limEl) && limEl.ValueKind == JsonValueKind.Number
+                        ? limEl.GetInt32() : 200;
+                    var candidatePaths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var cpEl) && cpEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in cpEl.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) candidatePaths.Add(s);
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var ranked = BndzEmbeddingService.Instance.SemanticRank(query, candidatePaths, limit);
+                            var items = ranked.Select(r => new { path = r.Path, score = r.Score }).ToList();
+                            PostMeshIpcResult(idProp, "SEMANTIC_RANK_RESULT", new
+                            {
+                                ok = true,
+                                modelPresent = BndzEmbeddingService.Instance.ModelLoaded,
+                                items,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SEMANTIC_RANK_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Embedding model status ──
+                else if (type == "EMBEDDING_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl3) ? idEl3.GetString() : null;
+                    PostMeshIpcResult(idProp, "EMBEDDING_STATUS_RESULT", new
+                    {
+                        ok = true,
+                        status = BndzEmbeddingService.Instance.GetStatus(),
+                    });
+                }
                 // ── Content DNA ──
                 else if (type == "CONTENT_DNA_SCAN")
                 {
@@ -5402,12 +6044,13 @@ namespace BNDZ
                 else if (type == "JOB_TICKET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var ticket = JsonSerializer.Deserialize<JobTicket>(payload.GetRawText(), IpcJsonOptions)
+                            var ticket = JsonSerializer.Deserialize<JobTicket>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid ticket payload.");
                             var saved = JobTicketService.Instance.Save(ticket);
                             PostMeshIpcResult(idProp, "JOB_TICKET_SAVE_RESULT", new { ok = true, ticket = saved });
@@ -5858,7 +6501,6 @@ namespace BNDZ
                 else if (type == "GET_THUMBNAILS_BATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                     int thumbSize = 96;
                     List<string> paths = new();
                     try
@@ -5885,50 +6527,30 @@ namespace BNDZ
 
                     var pathsCopy = paths;
                     var sizeCopy = thumbSize;
+                    var nativeSvc = _nativeShellService;
 
                     _ = Task.Run(async () =>
                     {
-                        var ran = await BndzIpcWorkQueue.TryRunThumbnailAsync(() =>
+                        Dictionary<string, string?> results;
+                        try
                         {
-                            var nativeSvc = _nativeShellService;
-                            foreach (var path in pathsCopy)
-                            {
-                                try
-                                {
-                                    var b64 = BndzHostCaches.ResolveThumbnailDelivery(
-                                        path,
-                                        sizeCopy,
-                                        () => nativeSvc.GetNativeThumbnailBase64(path, sizeCopy) ?? "");
-                                    results[path] = string.IsNullOrEmpty(b64) ? null : b64;
-                                }
-                                catch
-                                {
-                                    results[path] = null;
-                                }
-                            }
-
-                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                            PostToUi(() =>
-                            {
-                                try { DeliverIpcJson(responseJson); }
-                                catch { }
-                            });
-                            return Task.CompletedTask;
-                        }, waitMs: 8000).ConfigureAwait(false);
-
-                        if (!ran)
-                        {
-                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                            PostToUi(() =>
-                            {
-                                try { DeliverIpcJson(responseJson); }
-                                catch { }
-                            });
+                            results = await BndzIconBatchWork.ResolveThumbnailsAsync(pathsCopy, sizeCopy, nativeSvc).ConfigureAwait(false);
                         }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"GET_THUMBNAILS_BATCH failed: {ex.Message}");
+                            results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var path in pathsCopy) results[path] = null;
+                        }
+
+                        var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                        PostToUi(() =>
+                        {
+                            try { DeliverIpcJson(responseJson); }
+                            catch { }
+                        });
                     });
                 }
                 else if (type == "GET_EXTENDED_METADATA")
@@ -6055,6 +6677,42 @@ namespace BNDZ
                         var response = new { type = "GPU_STATUS_RESULT", id = idProp, payload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "GET_MODEL_PREVIEW")
+                {
+                    var payload = root.GetProperty("payload");
+                    string rawPath = payload.GetProperty("path").GetString() ?? "";
+                    string path = MeshPath.IsMeshPath(rawPath) ? rawPath : NormalizeFsPath(rawPath);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        object resultPayload;
+                        try
+                        {
+                            if (MeshPath.IsMeshPath(path))
+                                path = _meshOrchestrator.HydrateToCacheAsync(path).GetAwaiter().GetResult();
+                            var ext = Path.GetExtension(path)?.TrimStart('.').ToLowerInvariant() ?? "";
+                            if (RageModelPreviewService.NeedsHostConversion(ext))
+                            {
+                                var (ok, previewPath, format, kind, verts, tris, error) = RageModelPreviewService.TryGetPreviewObj(path);
+                                resultPayload = ok
+                                    ? new { path = previewPath, format, kind, vertices = verts, triangles = tris, converted = true }
+                                    : new { error = error ?? "RAGE preview failed", kind = ext };
+                            }
+                            else
+                            {
+                                resultPayload = File.Exists(path)
+                                    ? new { path, format = ext, kind = ext, converted = false }
+                                    : new { error = "File not found", kind = ext };
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { error = ex.Message };
+                        }
+                        var response = new { type = "MODEL_PREVIEW_RESULT", id = idProp, payload = resultPayload };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response)));
                     });
                 }
                 else if (type == "GET_MEDIA_BLOB")
@@ -6638,6 +7296,8 @@ namespace BNDZ
                     // Copy values before Task.Run — JsonDocument is disposed when this handler returns.
                     bool enable = payload.TryGetProperty("enable", out var enableEl)
                         && enableEl.ValueKind == JsonValueKind.True;
+                    bool allUsers = payload.TryGetProperty("allUsers", out var allUsersEl)
+                        && allUsersEl.ValueKind == JsonValueKind.True;
                     string? extraArgs = null;
                     if (payload.TryGetProperty("extraArgs", out var extraArgsProp)
                         && extraArgsProp.ValueKind == JsonValueKind.String)
@@ -6651,13 +7311,16 @@ namespace BNDZ
                             switch (action)
                             {
                                 case "setContextMenu":
-                                    resultPayload = _shellIntegrationService.SetInContextMenu(enable);
+                                    resultPayload = _shellIntegrationService.SetInContextMenu(enable, allUsers);
                                     break;
                                 case "setDefault":
                                     resultPayload = _shellIntegrationService.SetAsDefaultFileManager(enable);
                                     break;
                                 case "setWin11MoreOptions":
                                     resultPayload = _shellIntegrationService.SetWin11MoreOptions(enable);
+                                    break;
+                                case "setIconStudioShell":
+                                    resultPayload = _shellIntegrationService.SetIconStudioShellMenu(enable);
                                     break;
                                 case "relaunchAdmin":
                                     resultPayload = _shellIntegrationService.RelaunchAsAdministrator(extraArgs);
@@ -6872,7 +7535,6 @@ namespace BNDZ
                 else if (type == "GET_SHELL_ICONS_BATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                     int batchSize = 48;
                     try
                     {
@@ -6883,46 +7545,46 @@ namespace BNDZ
                     }
                     catch { }
 
-                    var sizeCopy = batchSize;
-                    _ = Task.Run(() =>
+                    var work = new List<BndzIconBatchWork.ShellItem>();
+                    try
                     {
+                        if (root.TryGetProperty("payload", out var batchPayload)
+                            && batchPayload.TryGetProperty("items", out var itemsEl))
+                        {
+                            foreach (var item in itemsEl.EnumerateArray())
+                            {
+                                string rawPath = item.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                                bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
+                                int itemSize = batchSize;
+                                if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
+                                    itemSize = Math.Clamp(isz <= 0 ? batchSize : isz, 16, 512);
+                                string path = ShellPathResolver.ResolveForShell(rawPath);
+                                if (string.IsNullOrEmpty(path)) continue;
+
+                                if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:\\?$"))
+                                    isDir = false;
+
+                                work.Add(new BndzIconBatchWork.ShellItem(path, isDir, itemSize));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Batch icon parse: {ex.Message}");
+                    }
+
+                    var nativeSvc = _nativeShellService;
+                    _ = Task.Run(async () =>
+                    {
+                        Dictionary<string, string?> results;
                         try
                         {
-                            if (root.TryGetProperty("payload", out var batchPayload)
-                                && batchPayload.TryGetProperty("items", out var itemsEl))
-                            {
-                                foreach (var item in itemsEl.EnumerateArray())
-                                {
-                                    string rawPath = item.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
-                                    bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
-                                    int itemSize = sizeCopy;
-                                    if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
-                                        itemSize = Math.Clamp(isz <= 0 ? sizeCopy : isz, 16, 512);
-                                    string path = ShellPathResolver.ResolveForShell(rawPath);
-                                    if (string.IsNullOrEmpty(path)) continue;
-
-                                    if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:\\?$"))
-                                        isDir = false;
-
-                                    string? extracted = null;
-                                    try
-                                    {
-                                        int sz = itemSize;
-                                        extracted = BndzHostCaches.ResolveIconBase64(
-                                            path,
-                                            isDir,
-                                            () => _nativeShellService.GetNativeShellIconBase64(path, isDir, sz) ?? "",
-                                            sz);
-                                    }
-                                    catch { }
-
-                                    results[path] = string.IsNullOrEmpty(extracted) ? null : extracted;
-                                }
-                            }
+                            results = await BndzIconBatchWork.ResolveShellIconsAsync(work, nativeSvc).ConfigureAwait(false);
                         }
                         catch (Exception ex)
                         {
                             System.Diagnostics.Debug.WriteLine($"Batch icon error: {ex.Message}");
+                            results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                         }
 
                         var response = new { type = "SHELL_ICONS_BATCH_RESULT", id = idProp, payload = results };
@@ -7645,6 +8307,26 @@ namespace BNDZ
                         });
                     });
                 }
+                else if (type == "CHECK_LANGUAGE_UPDATES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var languagesRoot = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "BNDZ", "Languages");
+                    var response = new
+                    {
+                        type = "CHECK_LANGUAGE_UPDATES_RESULT",
+                        id = idProp,
+                        payload = new
+                        {
+                            updates = Array.Empty<object>(),
+                            error = (string?)null,
+                            languagesRoot,
+                        },
+                    };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
                 else if (type == "GET_INDEXED_ENTRY")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
@@ -7957,12 +8639,15 @@ namespace BNDZ
                     string openPath = "";
                     if (root.TryGetProperty("payload", out var openPayload) && openPayload.TryGetProperty("path", out var opEl))
                         openPath = NormalizeFsPath(opEl.GetString() ?? "");
-                    try
+                    if (!string.IsNullOrWhiteSpace(openPath))
                     {
-                        if (!string.IsNullOrWhiteSpace(openPath))
-                            BndzFileIndexService.Instance.RecordPathOpen(openPath);
+                        var pathCopy = openPath;
+                        _ = Task.Run(() =>
+                        {
+                            try { BndzFileIndexService.Instance.RecordPathOpen(pathCopy); }
+                            catch { /* best effort */ }
+                        });
                     }
-                    catch { /* best effort */ }
                 }
                 else if (type == "GET_BNDZ_META")
                 {
@@ -8681,6 +9366,45 @@ namespace BNDZ
                     }
                     catch { /* non-critical */ }
                 }
+                else if (type == "PURGE_TAG_FROM_SIDECAR")
+                {
+                    try
+                    {
+                        var tagKey = root.GetProperty("payload").TryGetProperty("tagKey", out var tkEl) ? tkEl.GetString() ?? "" : "";
+                        var purged = _tagSidecarStore.PurgeTagKey(tagKey);
+                        System.Diagnostics.Debug.WriteLine($"[Tags] Purged '{tagKey}' from {purged} sidecar entries");
+                    }
+                    catch { /* non-critical */ }
+                }
+                else if (type == "GET_ALL_TAGGED")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var entries = _tagSidecarStore.GetAll();
+                        var response = new { type = "ALL_TAGGED_RESULT", id = idProp, payload = new { entries } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "ALL_TAGGED_RESULT", id = idProp, payload = new { entries = Array.Empty<TagSidecarEntry>(), error = ex.Message } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                }
+                else if (type == "RENAME_TAG_IN_SIDECAR")
+                {
+                    try
+                    {
+                        var payload = root.GetProperty("payload");
+                        var oldKey = payload.TryGetProperty("oldKey", out var oEl) ? oEl.GetString() ?? "" : "";
+                        var newKey = payload.TryGetProperty("newKey", out var nEl) ? nEl.GetString() ?? "" : "";
+                        var renamed = _tagSidecarStore.RenameTagKey(oldKey, newKey);
+                        System.Diagnostics.Debug.WriteLine($"[Tags] Renamed '{oldKey}'→'{newKey}' on {renamed} entries");
+                    }
+                    catch { /* non-critical */ }
+                }
                 else if (type == "APPLY_TAGS")
                 {
                     var payload = root.GetProperty("payload");
@@ -9267,7 +9991,8 @@ namespace BNDZ
             FileTransferPriority priority = FileTransferPriority.Normal,
             string? ipcIdProp = null,
             string? ipcResultType = null,
-            bool deleteLane = false)
+            bool deleteLane = false,
+            bool forceWaitForIpcResult = false)
         {
             var prefs = FileOperationPreferences.Current;
 
@@ -9283,7 +10008,7 @@ namespace BNDZ
                 }
             }
 
-            if (prefs.BackgroundProcessing && !string.IsNullOrEmpty(ipcIdProp) && !string.IsNullOrEmpty(ipcResultType))
+            if (prefs.BackgroundProcessing && !forceWaitForIpcResult && !string.IsNullOrEmpty(ipcIdProp) && !string.IsNullOrEmpty(ipcResultType))
             {
                 await PostIpcResultAsync(ipcResultType, ipcIdProp, BackgroundIpcAck()).ConfigureAwait(false);
                 _ = RunWorkAsync();
@@ -9315,6 +10040,46 @@ namespace BNDZ
             bool recreateSourceStructure = false,
             string? idProp = null)
         {
+            var meshSources = sources.Where(BndzMeshOrchestrator.LooksLikeMeshFsPath).Select(BndzMeshOrchestrator.ToMeshPanePath).ToList();
+            var targetIsMesh = BndzMeshOrchestrator.LooksLikeMeshFsPath(target);
+            if (meshSources.Count > 0 || (targetIsMesh && action is "create-dir" or "create-file"))
+            {
+                var meshTarget = targetIsMesh ? BndzMeshOrchestrator.ToMeshPanePath(target) : target;
+                var meshLabel = BuildFileOpLabel(action, meshSources.Count > 0 ? meshSources : new List<string> { meshTarget }, labelOverride);
+                _fileTransferQueue.RegisterJob(operationId, action, meshLabel, "mesh", Math.Max(meshSources.Count, 1), "mesh", priority, meshTarget);
+                try
+                {
+                    var opSources = meshSources.Count > 0 ? meshSources : new List<string> { meshTarget };
+                    await _meshOrchestrator.ExecuteFsOperationAsync(action, opSources, string.IsNullOrWhiteSpace(meshTarget) ? null : meshTarget)
+                        .ConfigureAwait(false);
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    if (!string.IsNullOrEmpty(idProp))
+                    {
+                        var createdPanePath = action is "create-dir" or "create-file" ? meshTarget : null;
+                        var createdName = string.IsNullOrEmpty(createdPanePath)
+                            ? null
+                            : System.IO.Path.GetFileName(createdPanePath.TrimEnd('/', '\\'));
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new
+                        {
+                            ok = true,
+                            background = false,
+                            engine = "mesh",
+                            created = createdPanePath != null,
+                            finalPath = createdPanePath,
+                            finalName = createdName,
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    if (!string.IsNullOrEmpty(idProp))
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = ex.Message, engine = "mesh" });
+                }
+                return;
+            }
+
+            var isInstantCreateOp = action is "create-dir" or "create-file";
             var prefs = FileOperationPreferences.Current;
             if (!recreateSourceStructure
                 && string.Equals(prefs.RecreateSourceFolderStructure, "Always", StringComparison.OrdinalIgnoreCase)
@@ -9337,7 +10102,7 @@ namespace BNDZ
                         _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority, target);
                         _fileTransferQueue.MarkFailed(operationId, policyMsg);
                         if (!string.IsNullOrEmpty(idProp))
-                            PostMeshIpcResult(idProp, "EXECUTE_FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
+                            PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
                         return;
                     }
                 }
@@ -9354,8 +10119,11 @@ namespace BNDZ
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
+                string? fsOpCreatedPath = null;
                 void OnProgress(string opId, int percentage, string currentFile, long bytesTransferred, long totalBytes, double speedBytesPerSecond, int itemsCompleted, int totalItems)
                 {
+                    if (action is "create-dir" or "create-file" && !string.IsNullOrEmpty(currentFile))
+                        fsOpCreatedPath = currentFile;
                     _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems, bytesTransferred, totalBytes, speedBytesPerSecond);
                     var evt = new
                     {
@@ -9538,8 +10306,11 @@ namespace BNDZ
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
                     _fileTransferQueue.MarkCompleted(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                    {
+                        var createdName = string.IsNullOrEmpty(fsOpCreatedPath) ? null : Path.GetFileName(fsOpCreatedPath);
+                        await PostFsOperationResultAsync(idProp, true, null, finalPath: fsOpCreatedPath, finalName: createdName, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
+                    }
 
                     foreach (var src in sources)
                     {
@@ -9562,8 +10333,8 @@ namespace BNDZ
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkCancelled(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, "Cancelled", callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
@@ -9586,21 +10357,28 @@ namespace BNDZ
                         try { DeliverIpcJson(JsonSerializer.Serialize(failEvt)); }
                         catch { }
                     });
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, ex.Message, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
             }
 
             // Deletes go to the fast-lane so they are never blocked by an in-progress copy/move.
             var isDeleteOp = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase);
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, priority, idProp, "FS_OPERATION_RESULT", deleteLane: isDeleteOp).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                operationId,
+                ExecuteCoreAsync,
+                priority,
+                idProp,
+                "FS_OPERATION_RESULT",
+                deleteLane: isDeleteOp,
+                forceWaitForIpcResult: isInstantCreateOp).ConfigureAwait(false);
         }
 
-        private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
+        private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false, string? finalPath = null, string? finalName = null, bool callerWaitsForResult = false)
         {
-            if (!background && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
-            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new { ok, error, background, queued = background });
+            if (!callerWaitsForResult && !background && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
+            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new { ok, error, background, queued = background, finalPath, finalName, created = ok && !string.IsNullOrEmpty(finalPath) });
         }
 
         private async Task HandleFolderSyncRunAsync(string? idProp, string jobId)
@@ -9851,16 +10629,21 @@ namespace BNDZ
             {
                 ct.ThrowIfCancellationRequested();
                 var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var ok = RecycleBinService.Empty(hwnd);
+                var (ok, error) = await RecycleBinService.EmptyAsync(hwnd).ConfigureAwait(false);
                 if (ok) _fileTransferQueue.MarkCompleted(operationId);
-                else _fileTransferQueue.MarkFailed(operationId, "Could not empty Recycle Bin");
-                if (ShouldPostDeferredIpcResult())
-                {
-                    await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok }).ConfigureAwait(false);
-                }
+                else _fileTransferQueue.MarkFailed(operationId, error ?? "Could not empty Recycle Bin");
+                await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok, error }).ConfigureAwait(false);
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "EMPTY_RECYCLE_BIN_RESULT", deleteLane: true).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                    operationId,
+                    ExecuteCoreAsync,
+                    FileTransferPriority.High,
+                    idProp,
+                    "EMPTY_RECYCLE_BIN_RESULT",
+                    deleteLane: true,
+                    forceWaitForIpcResult: true)
+                .ConfigureAwait(false);
         }
 
         private async Task HandleRestoreRecycleItemsAsync(string? idProp, List<string> restorePaths)
@@ -9875,17 +10658,17 @@ namespace BNDZ
                 var (restored, failed) = RecycleBinService.Restore(restorePaths);
                 if (failed > 0 && restored == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not restore {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
-                if (ShouldPostDeferredIpcResult())
-                {
-                    var response = new { type = "RESTORE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { restored, failed } };
-                    await PostToUiAsync(() =>
-                    {
-                        try { DeliverIpcJson(JsonSerializer.Serialize(response, IpcJsonOptions)); } catch { }
-                    });
-                }
+                await PostIpcResultAsync("RESTORE_RECYCLE_ITEMS_RESULT", idProp, new { restored, failed }).ConfigureAwait(false);
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "RESTORE_RECYCLE_ITEMS_RESULT").ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                    operationId,
+                    ExecuteCoreAsync,
+                    FileTransferPriority.High,
+                    idProp,
+                    "RESTORE_RECYCLE_ITEMS_RESULT",
+                    forceWaitForIpcResult: true)
+                .ConfigureAwait(false);
         }
 
         private async Task HandlePurgeRecycleItemsAsync(string? idProp, List<string> purgePaths)
@@ -9900,17 +10683,18 @@ namespace BNDZ
                 var (purged, failed) = RecycleBinService.Purge(purgePaths);
                 if (failed > 0 && purged == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not delete {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
-                if (ShouldPostDeferredIpcResult())
-                {
-                    var response = new { type = "PURGE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { purged, failed } };
-                    await PostToUiAsync(() =>
-                    {
-                        try { DeliverIpcJson(JsonSerializer.Serialize(response, IpcJsonOptions)); } catch { }
-                    });
-                }
+                await PostIpcResultAsync("PURGE_RECYCLE_ITEMS_RESULT", idProp, new { purged, failed }).ConfigureAwait(false);
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "PURGE_RECYCLE_ITEMS_RESULT", deleteLane: true).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                    operationId,
+                    ExecuteCoreAsync,
+                    FileTransferPriority.High,
+                    idProp,
+                    "PURGE_RECYCLE_ITEMS_RESULT",
+                    deleteLane: true,
+                    forceWaitForIpcResult: true)
+                .ConfigureAwait(false);
         }
 
         private async Task HandleUndoRedoAsync(bool undo, string? idProp, string? entryId = null)
@@ -9988,7 +10772,7 @@ namespace BNDZ
         {
             try
             {
-                if (!FileOperationPreferences.Current.LogActions) return;
+                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel.
                 action = (action ?? "").ToLowerInvariant();
                 switch (action)
                 {

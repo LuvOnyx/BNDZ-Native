@@ -1,5 +1,55 @@
 import type { VisualFilter } from '../data/configContext';
 
+/**
+ * Default Visual Filter rules seeded when the user has no saved rules.
+ * Updated values are appended by ID so existing rules are never overwritten.
+ */
+export const DEFAULT_VISUAL_FILTERS: VisualFilter[] = [
+  {
+    id: 'seed-symlinks',
+    isActive: true,
+    name: 'Symlinks / Junctions',
+    matchType: 'attribute',
+    matchValue: 'reparse',
+    textColor: '#f472b6', // magenta-pink
+  },
+  {
+    id: 'seed-system',
+    isActive: true,
+    name: 'System files / folders',
+    matchType: 'attribute',
+    matchValue: 'system',
+    textColor: '#3b5bdb', // dark blue
+  },
+  {
+    id: 'seed-empty-dir',
+    isActive: true,
+    name: 'Empty folders',
+    matchType: 'emptyDir',
+    matchValue: '',
+    textColor: '#9ca3af', // grey
+  },
+  {
+    id: 'seed-modified-today',
+    isActive: true,
+    name: 'Just modified (today)',
+    matchType: 'event',
+    matchValue: 'modifiedToday',
+    textColor: '#4ade80', // green
+  },
+];
+
+/**
+ * Merge seed rules into an existing rule list, inserting any missing seed IDs at the start.
+ * Existing rules (including user edits) are untouched.
+ */
+export function mergeSeedVisualFilters(existing: VisualFilter[]): VisualFilter[] {
+  const existingIds = new Set(existing.map(r => r.id));
+  const toAdd = DEFAULT_VISUAL_FILTERS.filter(r => !existingIds.has(r.id));
+  if (!toAdd.length) return existing;
+  return [...toAdd, ...existing];
+}
+
 /** Evaluate visual filter rules against a file list entity. */
 export function applyVisualFilters(entity: any, filters?: VisualFilter[]): VisualFilter | null {
   if (!filters?.length) return null;
@@ -36,11 +86,26 @@ export function applyVisualFilters(entity: any, filters?: VisualFilter[]): Visua
         break;
       case 'attribute': {
         const want = rule.matchValue.toLowerCase().trim();
-        if (!want || !entity.attributes?.length) break;
-        const attrs = (entity.attributes as string[]).map(a => a.toLowerCase());
+        if (!want) break;
+        const attrs = ((entity.attributes as string[] | undefined) || []).map(a => a.toLowerCase());
+        // Also match entity.linkType for reparse-point classification
+        if (want === 'reparse') {
+          if (attrs.includes('reparse') || entity.linkType === 'symlink' || entity.linkType === 'junction') return rule;
+          break;
+        }
+        if (!attrs.length) break;
         if (attrs.includes(want) || attrs.some(a => a.includes(want))) return rule;
         break;
       }
+      case 'emptyDir':
+        // Empty folder: directory with zero children or size of 0
+        if (entity.type === 'directory') {
+          const isEmpty = entity.itemCount === 0
+            || (entity.size === 0 && entity.itemCount == null)
+            || entity.isEmpty === true;
+          if (isEmpty) return rule;
+        }
+        break;
       case 'size':
         if (entity.type !== 'directory' && entity.size != null) {
           const sizeMB = entity.size / (1024 * 1024);
@@ -69,7 +134,7 @@ export function applyVisualFilters(entity: any, filters?: VisualFilter[]): Visua
 export const FILTER_MATCH_HINTS: Record<VisualFilter['matchType'], string> = {
   extension: 'e.g. pdf or .pdf',
   regex: 'e.g. ^report_',
-  attribute: 'readonly, hidden, system, archive',
+  attribute: 'readonly, hidden, system, archive, reparse',
   age: 'e.g. >30 or <7 (days)',
   size: 'e.g. >100 or <5 (MB)',
   event: 'modifiedToday | createdWithin24Hours | isReadOnly',

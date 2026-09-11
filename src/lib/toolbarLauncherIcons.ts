@@ -1,14 +1,21 @@
 /** Bump when PNG/SVG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '20';
+export const LAUNCHER_ICON_REV = '22';
 
-/** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
+/**
+ * DEV ICON MAP — single place to find / swap UI chrome icons.
+ * Drop files in public/launcher-icons/ or public/Media/, change the filename here,
+ * bump LAUNCHER_ICON_REV, run npm run build. See also public/ui-icons.catalog.json.
+ *
+ * Maps toolbar / Emblem / chrome item ids → files under public/launcher-icons/
+ * (or public/Ui/ when path starts with Ui/, or public/Media/ when path starts with Media/).
+ */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   nav_back: 'nav_back.png',
   nav_forward: 'nav_forward.png',
   nav_up: 'nav_up.png',
-  go_home: 'go_home.png',
+  go_home: 'home.svg',
   // Prefer PNG — multi-frame .ico often paints as a blank/white doc in WebView2 at 15–16px.
-  home: 'go_home.png',
+  home: 'home.svg',
   refresh: 'refresh.png',
   folder_size_sync: 'folder_size_sync.png',
   go_recycle_bin: 'go_recycle_bin.png',
@@ -118,6 +125,13 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   send: 'send.png',
   upload: 'upload.png',
   download: 'download.png',
+  download_ui: 'download.png',
+  clipboard_ui: 'clipboard.png',
+  smart_view: 'smart_tools.png',
+  edit_image: 'edit-image.svg',
+  data_warning: 'warning.png',
+  'emblem-symbolic-link': 'emblem-symbolic-link.svg',
+  'emblem-shared': 'emblem-shared.svg',
   plus_ui: 'plus_ui.png',
   minus_ui: 'minus_ui.png',
   lock_ui: 'lock_ui.png',
@@ -162,7 +176,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   monitor_ui: 'monitor_ui.png',
   this_pc: 'computer_mgmt.png',
   cloud_ui: 'cloud_ui.png',
-  cloud_drive: 'Cloud-drive.ico',
+  cloud_drive: 'cloud-folder.png',
   git_branch_ui: 'git_branch_ui.png',
   hard_drive_ui: 'hard_drive_ui.png',
   history_ui: 'history_ui.png',
@@ -209,9 +223,13 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   emblem_symbolic_link: 'emblem-symbolic-link.svg',
   emblem_synchronizing: 'emblem-synchronizing.svg',
   emblem_unlocked: 'emblem-unlocked.svg',
-  media_playback_playing: 'media-playback-playing.svg',
-  media_playback_paused: 'media-playback-paused.svg',
-  media_playback_stop: 'media-playback-stop.svg',
+  media_playback_playing: 'Media/playing.svg',
+  media_playback_paused: 'Media/pause.svg',
+  media_playback_stop: 'Media/stop.svg',
+  media_play: 'Media/play.svg',
+  media_pause: 'Media/pause.svg',
+  media_stop: 'Media/stop.svg',
+  media_playing: 'Media/playing.svg',
   media_record: 'media-record.svg',
   media_repeat_none: 'media-repeat-none.svg',
   media_repeat_single: 'media-repeat-single.svg',
@@ -279,8 +297,10 @@ export const UI_GLYPH_IDS = new Set([
 
 export function launcherIconUrl(id: string): string | undefined {
   const base = id.startsWith('tag__') ? 'tag_manager' : id;
-  const file = TOOLBAR_LAUNCHER_ICONS[base];
+  const snake = base.replace(/-/g, '_');
+  const file = TOOLBAR_LAUNCHER_ICONS[base] ?? TOOLBAR_LAUNCHER_ICONS[snake];
   if (!file) return undefined;
   if (file.startsWith('Ui/')) return `/${file}?v=${LAUNCHER_ICON_REV}`;
+  if (file.startsWith('Media/')) return `/${file}?v=${LAUNCHER_ICON_REV}`;
   return `/launcher-icons/${file}?v=${LAUNCHER_ICON_REV}`;
 }

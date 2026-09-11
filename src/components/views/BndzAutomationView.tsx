@@ -130,6 +130,10 @@ type AutomationFlowPaneProps = {
   panOnScroll: boolean;
   zoomOnScroll: boolean;
   savedViewport: AutomationViewport;
+  /** When true, skip restore so a single fitView owns first paint. */
+  skipViewportRestore: boolean;
+  /** Animate edges while a pipeline run is active. */
+  edgesAnimate: boolean;
   onInit: (inst: ReactFlowInstance) => void;
   onNodesChange: OnNodesChange<Node<NodeData>>;
   onEdgesChange: OnEdgesChange<Edge>;
@@ -144,9 +148,48 @@ type AutomationFlowPaneProps = {
   onNodeClick: (e: React.MouseEvent, node: Node) => void;
   onNodePress: (nodeId: string) => void;
   onPaneClick: () => void;
+  onViewportMoveStart: () => void;
   onViewportMoveEnd: (event: MouseEvent | TouchEvent | null, viewport: Viewport) => void;
-  loadRecipe: (id: string) => void;
+  /** Stable ref callback — must not change identity during fit. */
+  onLoadRecipe: (id: string) => void;
 };
+
+const EVERYDAY_RECIPES = AUTOMATION_RECIPES.filter(r => r.group === 'everyday');
+
+/** Empty-state cards live outside React Flow so recipe spawn cannot remount the graph mid-fit. */
+const AutomationEmptyOverlay = React.memo(function AutomationEmptyOverlay({
+  onLoadRecipe,
+}: {
+  onLoadRecipe: (id: string) => void;
+}) {
+  return (
+    <div className="bndz-automation-empty-overlay">
+      <div className="bndz-automation-empty nodrag nopan nowheel">
+        <h3>Start with a recipe</h3>
+        <p>Pick an everyday job — then edit the folder paths and press Run.</p>
+        <div className="bndz-automation-empty-grid">
+          {EVERYDAY_RECIPES.map(r => (
+            <button
+              key={r.id}
+              type="button"
+              className="bndz-automation-empty-card nodrag nopan nowheel"
+              onPointerDown={e => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                onLoadRecipe(r.id);
+              }}
+              onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+            >
+              <strong>{r.label}</strong>
+              <span>{r.blurb}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 /** Isolated React Flow tree — keeps palette/inspector from re-reconciling every drag frame. */
 const AutomationFlowPane = React.memo(function AutomationFlowPane({
@@ -155,6 +198,8 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
   panOnScroll,
   zoomOnScroll,
   savedViewport,
+  skipViewportRestore,
+  edgesAnimate,
   onInit,
   onNodesChange,
   onEdgesChange,
@@ -169,9 +214,11 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
   onNodeClick,
   onNodePress,
   onPaneClick,
+  onViewportMoveStart,
   onViewportMoveEnd,
-  loadRecipe,
+  onLoadRecipe,
 }: AutomationFlowPaneProps) {
+  const showEmpty = nodes.length === 0;
   return (
     <div
       className="flex-1 min-w-0 relative bndz-automation-canvas-wrap"
@@ -210,6 +257,8 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         elevateNodesOnSelect={false}
         deleteKeyCode={['Delete', 'Backspace']}
         selectNodesOnDrag={false}
+        selectionOnDrag
+        multiSelectionKeyCode={['Meta', 'Control']}
         selectionMode={SelectionMode.Partial}
         panOnDrag={[1]}
         panOnScroll={panOnScroll}
@@ -217,20 +266,21 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         zoomActivationKeyCode="Control"
         panOnScrollSpeed={0.75}
         defaultViewport={savedViewport}
+        onMoveStart={onViewportMoveStart}
         onMoveEnd={onViewportMoveEnd}
         minZoom={0.4}
         maxZoom={1.8}
         defaultEdgeOptions={{
           type: 'smoothstep',
-          animated: true,
-          style: { stroke: '#7eb8e8', strokeWidth: 2.25, filter: 'drop-shadow(0 0 4px rgba(126,184,232,0.4))' },
+          animated: edgesAnimate,
+          style: { stroke: '#34d399', strokeWidth: 2.25 },
         }}
-        connectionLineStyle={{ stroke: '#9ad4ff', strokeWidth: 2, strokeDasharray: '6 4' }}
+        connectionLineStyle={{ stroke: '#6ee7b7', strokeWidth: 2, strokeDasharray: '6 4' }}
         className="bndz-automation-flow"
         proOptions={{ hideAttribution: true }}
       >
-        <AutomationViewportRestore viewport={savedViewport} />
-        <Background gap={24} size={1} color="rgba(56,189,248,0.06)" />
+        {!skipViewportRestore && <AutomationViewportRestore viewport={savedViewport} />}
+        <Background gap={24} size={1} color="rgba(52,211,153,0.07)" />
         <Controls className="bndz-flow-controls" showInteractive={false} />
         {nodes.length > 6 && (
           <MiniMap
@@ -242,25 +292,10 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
           />
         )}
         <Panel position="bottom-center" className="bndz-flow-hint-panel">
-          Ctrl+scroll zoom · Ctrl+C/V blocks · right-click actions
+          Drag empty canvas to marquee · middle-drag pan · Ctrl+scroll zoom · Ctrl+C/V blocks
         </Panel>
-        {nodes.length === 0 && (
-          <Panel position="top-center" className="bndz-automation-empty-panel">
-            <div className="bndz-automation-empty">
-              <h3>Start with a recipe</h3>
-              <p>Pick an everyday job — then edit the folder paths and press Run.</p>
-              <div className="bndz-automation-empty-grid">
-                {AUTOMATION_RECIPES.filter(r => r.group === 'everyday').map(r => (
-                  <button key={r.id} type="button" className="bndz-automation-empty-card" onClick={() => loadRecipe(r.id)}>
-                    <strong>{r.label}</strong>
-                    <span>{r.blurb}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Panel>
-        )}
       </ReactFlow>
+      {showEmpty && <AutomationEmptyOverlay onLoadRecipe={onLoadRecipe} />}
     </div>
   );
 });
@@ -681,6 +716,8 @@ export default function BndzAutomationView() {
   const [runHistory, setRunHistory] = useState<AutomationRunRecord[]>(() => loadAutomationRunHistory());
   const [showRunHistory, setShowRunHistory] = useState(false);
   const [savedViewport, setSavedViewport] = useState<AutomationViewport>(defaultAutomationViewport());
+  /** Recipe/seed spawn: fitView owns viewport — do not also restore. */
+  const [skipViewportRestore, setSkipViewportRestore] = useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const graphMetaRef = useRef({ id: pipelineId, name: graphName, armed });
   const nodesRef = useRef(nodes);
@@ -691,6 +728,8 @@ export default function BndzAutomationView() {
   const chromeFrozenRef = useRef({ nodes: 0, edges: 0 });
   const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rfInstanceRef = useRef<ReactFlowInstance<Node<NodeData>, Edge> | null>(null);
+  const loadRecipeRef = useRef<(id: string) => void>(() => {});
+  const skipViewportRestoreRef = useRef(false);
   graphMetaRef.current = { id: pipelineId, name: graphName, armed };
   if (!nodeDraggingRef.current) {
     nodesRef.current = nodes;
@@ -735,16 +774,26 @@ export default function BndzAutomationView() {
     flowToGraph(graphMetaRef.current, nodesRef.current, edgesRef.current, viewportRef.current)
   ), []);
 
-  const loadGraphIntoEditor = useCallback((g: AutomationGraph) => {
+  const loadGraphIntoEditor = useCallback((g: AutomationGraph, opts?: { preferFit?: boolean }) => {
     setPipelineId(g.id);
     setGraphName(g.name);
     setArmed(!!g.armed);
     const { nodes: n, edges: e } = graphToFlow(g);
+    nodesRef.current = n;
+    edgesRef.current = e;
     setNodes(n);
     setEdges(e);
     const vp = g.viewport ?? defaultAutomationViewport();
     viewportRef.current = vp;
-    setSavedViewport(vp);
+    if (opts?.preferFit) {
+      skipViewportRestoreRef.current = true;
+      setSkipViewportRestore(true);
+      // Do not setSavedViewport — restore would fight fitView on first paint.
+    } else {
+      skipViewportRestoreRef.current = false;
+      setSkipViewportRestore(false);
+      setSavedViewport(vp);
+    }
     seedAutosave(stableGraphJson({ id: g.id, name: g.name, armed: !!g.armed }, n, e, vp));
   }, [setNodes, setEdges, seedAutosave]);
 
@@ -759,6 +808,88 @@ export default function BndzAutomationView() {
     scheduleSave();
   }, [setNodes, closeMenu, scheduleSave]);
 
+  const scheduleViewportSave = useCallback(() => {
+    if (viewportSaveTimer.current) clearTimeout(viewportSaveTimer.current);
+    viewportSaveTimer.current = setTimeout(() => {
+      viewportSaveTimer.current = null;
+      scheduleSave();
+    }, 300);
+  }, [scheduleSave]);
+
+  const setFlowViewportMoving = useCallback((on: boolean) => {
+    const el = surfaceRef.current?.querySelector('.bndz-automation-flow');
+    el?.classList.toggle('is-viewport-moving', on);
+  }, []);
+
+  const onViewportMoveStart = useCallback(() => {
+    setFlowViewportMoving(true);
+  }, [setFlowViewportMoving]);
+
+  const onViewportMoveEnd = useCallback((_: unknown, viewport: Viewport) => {
+    setFlowViewportMoving(false);
+    viewportRef.current = { x: viewport.x, y: viewport.y, zoom: viewport.zoom };
+    if (!skipViewportRestoreRef.current) {
+      scheduleViewportSave();
+    }
+  }, [scheduleViewportSave, setFlowViewportMoving]);
+
+  const runLintNow = useCallback(() => {
+    if (lintTimer.current) {
+      clearTimeout(lintTimer.current);
+      lintTimer.current = null;
+    }
+    const issues = lintAutomationGraph(currentGraph());
+    setLintIssues(issues);
+    const byNode = new Map<string, 'error' | 'warn'>();
+    for (const issue of issues) {
+      if (!issue.nodeId) continue;
+      const prev = byNode.get(issue.nodeId);
+      if (issue.severity === 'error' || prev !== 'error') {
+        byNode.set(issue.nodeId, issue.severity);
+      }
+    }
+    setNodes(nds => {
+      let changed = false;
+      const next = nds.map(n => {
+        const sev = byNode.get(n.id) || null;
+        if ((n.data.lintSeverity || null) === sev) return n;
+        changed = true;
+        return { ...n, data: { ...n.data, lintSeverity: sev } };
+      });
+      return changed ? next : nds;
+    });
+  }, [currentGraph, setNodes]);
+
+  /** Instant fit (no animation), then persist + lint once the viewport has settled. */
+  const fitThenSettle = useCallback((graphForPersist?: AutomationGraph) => {
+    skipViewportRestoreRef.current = true;
+    setSkipViewportRestore(true);
+    requestAnimationFrame(() => {
+      const rf = rfInstanceRef.current;
+      if (rf) {
+        void rf.fitView({ padding: 0.18, duration: 0, maxZoom: 1.25 });
+      }
+      requestAnimationFrame(() => {
+        const vp = rfInstanceRef.current?.getViewport();
+        if (vp) {
+          const next = { x: vp.x, y: vp.y, zoom: vp.zoom };
+          viewportRef.current = next;
+          setSavedViewport(next);
+        }
+        const g = graphForPersist
+          ? { ...graphForPersist, viewport: viewportRef.current, updatedAt: Date.now() }
+          : currentGraph();
+        void saveAutomationGraphNow(g).then(() => flushAutosave(true));
+        runLintNow();
+        // Re-enable restore next frame so remount does not re-apply over fitView.
+        requestAnimationFrame(() => {
+          skipViewportRestoreRef.current = false;
+          setSkipViewportRestore(false);
+        });
+      });
+    });
+  }, [currentGraph, flushAutosave, runLintNow]);
+
   const applySeed = useCallback((seed?: AutomationPendingSeed | null) => {
     const s = seed ?? consumeAutomationSeed();
     if (!s) return;
@@ -772,37 +903,23 @@ export default function BndzAutomationView() {
         armed: false,
         updatedAt: Date.now(),
       } as AutomationGraph;
-      const { nodes: n, edges: e } = graphToFlow(graph);
-      setNodes(n);
-      setEdges(e);
-      nodesRef.current = n;
-      edgesRef.current = e;
-      setGraphName(graph.name);
-      scheduleSave();
+      loadGraphIntoEditor(graph, { preferFit: true });
       setStatus(`Loaded starter: ${graph.name}`);
-      requestAnimationFrame(() => {
-        rfInstanceRef.current?.fitView({ padding: 0.18, duration: 280, maxZoom: 1.25 });
-      });
+      fitThenSettle(graph);
       return;
     }
     if (!s.type) return;
     addNode(s.type, undefined, s.fields || {});
     setStatus(`Added ${NODE_DEFS[s.type].label} block`);
-  }, [setNodes, setEdges, scheduleSave, pipelineId, graphName, addNode]);
+  }, [pipelineId, graphName, addNode, loadGraphIntoEditor, fitThenSettle]);
 
-  const scheduleViewportSave = useCallback(() => {
-    if (viewportSaveTimer.current) clearTimeout(viewportSaveTimer.current);
-    viewportSaveTimer.current = setTimeout(() => {
-      viewportSaveTimer.current = null;
-      scheduleSave();
-    }, 300);
-  }, [scheduleSave]);
+  const applySeedRef = useRef(applySeed);
+  applySeedRef.current = applySeed;
+  const loadGraphIntoEditorRef = useRef(loadGraphIntoEditor);
+  loadGraphIntoEditorRef.current = loadGraphIntoEditor;
 
-  const onViewportMoveEnd = useCallback((_: unknown, viewport: Viewport) => {
-    viewportRef.current = { x: viewport.x, y: viewport.y, zoom: viewport.zoom };
-    scheduleViewportSave();
-  }, [scheduleViewportSave]);
-
+  // Mount-once hydrate — must NOT depend on applySeed (recipe rename recreates it and
+  // re-loads the empty saved graph, wiping the just-applied recipe back to intro).
   useEffect(() => {
     let active = true;
     invalidateAutomationCache();
@@ -810,11 +927,10 @@ export default function BndzAutomationView() {
       if (!active) return;
       setLibrary(lib);
       const g = lib.pipelines.find(p => p.id === lib.activeId) || lib.pipelines[0];
-      loadGraphIntoEditor(g);
+      loadGraphIntoEditorRef.current(g);
       setGraphReady(true);
-      applySeed(consumeAutomationSeed());
+      applySeedRef.current(consumeAutomationSeed());
       if (IPC.isNative) {
-        // Re-sync every armed pipeline so one graph save cannot wipe another's watchers.
         for (const p of lib.pipelines) {
           if (p.armed) void syncAutomationLive(p);
         }
@@ -822,7 +938,23 @@ export default function BndzAutomationView() {
       }
     });
     return () => { active = false; };
-  }, [loadGraphIntoEditor, applySeed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once
+  }, []);
+
+  useEffect(() => {
+    const onExternalDrop = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const paths = (detail.paths as string[] | undefined)?.filter(Boolean);
+      if (!paths?.length) return;
+      const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : window.innerWidth / 2;
+      const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : window.innerHeight / 2;
+      const surface = document.elementFromPoint(clientX, clientY)?.closest('[data-bndz-workspace-surface]');
+      if (!surface) return;
+      setStatus('Drop files on Spatial Canvas or the file list — Automation graph does not accept file drops.');
+    };
+    window.addEventListener('bndz-external-drop', onExternalDrop);
+    return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
+  }, []);
 
   useEffect(() => {
     if (!armed || !IPC.isNative) return;
@@ -841,6 +973,20 @@ export default function BndzAutomationView() {
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [armed]);
+
+  // Pulse pipeline wires while running or while armed watchers are live.
+  useEffect(() => {
+    const animate = running || (armed && (liveStatus?.watchers?.some(w => w.live) ?? false));
+    setEdges(eds => {
+      let changed = false;
+      const next = eds.map(e => {
+        if (!!e.animated === animate) return e;
+        changed = true;
+        return { ...e, animated: animate };
+      });
+      return changed ? next : eds;
+    });
+  }, [running, armed, liveStatus, setEdges]);
 
   useEffect(() => {
     const onSeed = () => applySeed();
@@ -1266,19 +1412,18 @@ export default function BndzAutomationView() {
     const recipe = AUTOMATION_RECIPES.find(r => r.id === recipeId);
     if (!recipe) return;
     const g = recipeToGraph(recipe, pipelineId);
-    const { nodes: n, edges: e } = graphToFlow(g);
-    setNodes(n);
-    setEdges(e);
-    nodesRef.current = n;
-    edgesRef.current = e;
-    setGraphName(g.name);
+    g.armed = false;
+    loadGraphIntoEditor(g, { preferFit: true });
     setSelectedNodeId(null);
     setStatus(`${g.name} ready — edit folder paths then Arm / Run`);
-    scheduleSave();
-    requestAnimationFrame(() => {
-      rfInstanceRef.current?.fitView({ padding: 0.18, duration: 280, maxZoom: 1.25 });
-    });
-  }, [pipelineId, setNodes, setEdges, scheduleSave]);
+    // Defer persist + lint until fit settles — avoids competing restore/autosave/fit.
+    fitThenSettle(g);
+  }, [pipelineId, loadGraphIntoEditor, fitThenSettle]);
+
+  loadRecipeRef.current = loadRecipe;
+  const onLoadRecipeStable = useCallback((id: string) => {
+    loadRecipeRef.current(id);
+  }, []);
 
   const loadTemplate = useCallback((template: 'deploy' | 'backup') => {
     loadRecipe(template === 'deploy' ? 'deploy-rsync' : 'archive-backup');
@@ -1600,7 +1745,7 @@ export default function BndzAutomationView() {
             onClick: () => {
               const rf = rfInstanceRef.current;
               if (!rf) return;
-              void rf.fitView({ padding: 0.18, duration: 280, maxZoom: 1.25 });
+              void rf.fitView({ padding: 0.18, duration: 0, maxZoom: 1.25 });
             },
           },
           {
@@ -1646,6 +1791,8 @@ export default function BndzAutomationView() {
           panOnScroll={panOnScroll}
           zoomOnScroll={zoomOnScroll}
           savedViewport={savedViewport}
+          skipViewportRestore={skipViewportRestore}
+          edgesAnimate={running || (armed && liveWatchers > 0)}
           onInit={onFlowInit}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -1660,8 +1807,9 @@ export default function BndzAutomationView() {
           onNodeClick={onNodeClick}
           onNodePress={onNodePress}
           onPaneClick={onPaneClick}
+          onViewportMoveStart={onViewportMoveStart}
           onViewportMoveEnd={onViewportMoveEnd}
-          loadRecipe={loadRecipe}
+          onLoadRecipe={onLoadRecipeStable}
         />
 
         <AutomationInspector

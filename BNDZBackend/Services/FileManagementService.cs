@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 using BNDZ.Services.Mesh;
@@ -10,7 +12,9 @@ public class FileManagementService
     public Task<List<object>> GetDirContentsAsync(string path)
     {
         if (RecycleBinService.IsRecycleBinPath(path))
-            return RecycleBinService.GetContentsAsync();
+            return RecycleBinService.GetEntriesAsync().ContinueWith(
+                t => t.Result.Cast<object>().ToList(),
+                TaskContinuationOptions.ExecuteSynchronously);
 
         var shellPath = ShellPathResolver.ResolveForShell(path);
         if (!string.IsNullOrEmpty(shellPath) && (
@@ -18,6 +22,16 @@ public class FileManagementService
             || PortableDeviceService.IsPortableDevicePath(shellPath)
             || PortableDeviceService.IsPortableDevicePath(path)))
             return ShellFolderEnumerator.EnumerateAsync(shellPath);
+
+        // Wave 5 — virtual disc image folders (.iso / .vhd / .vhdx)
+        var fsPathForDiscObj = !string.IsNullOrEmpty(shellPath)
+            ? shellPath
+            : ShellPathResolver.NormalizeIncoming(path);
+        if (DiscUtilsVolumeService.IsContainerPath(fsPathForDiscObj))
+        {
+            var discEntries = DiscUtilsVolumeService.TryList(fsPathForDiscObj);
+            if (discEntries != null) return Task.FromResult<List<object>>(discEntries.Cast<object>().ToList());
+        }
 
         return Task.Run(() =>
         {
@@ -29,6 +43,9 @@ public class FileManagementService
                 {
                     fsPath = ShellPathResolver.NormalizeIncoming(path);
                 }
+
+                if (IsWslLocalhostRoot(fsPath))
+                    return EnumerateWslRootDistros().Cast<object>().ToList();
 
                 if (!Directory.Exists(fsPath)) return results;
 
@@ -56,10 +73,7 @@ public class FileManagementService
     public async Task<List<DirListingSharedBuffer.DirEntryDto>> GetDirEntriesAsync(string path, CancellationToken ct = default)
     {
         if (RecycleBinService.IsRecycleBinPath(path))
-        {
-            var raw = await RecycleBinService.GetContentsAsync().ConfigureAwait(false);
-            return MapToDtos(raw);
-        }
+            return await RecycleBinService.GetEntriesAsync().ConfigureAwait(false);
 
         if (Mesh.MeshPath.IsMeshPath(path))
         {
@@ -76,6 +90,16 @@ public class FileManagementService
             return MapToDtos(raw);
         }
 
+        // Wave 5 — virtual disc image folders (.iso / .vhd / .vhdx)
+        var fsPathForDisc = !string.IsNullOrEmpty(shellPath)
+            ? shellPath
+            : ShellPathResolver.NormalizeIncoming(path);
+        if (DiscUtilsVolumeService.IsContainerPath(fsPathForDisc))
+        {
+            var discEntries = await Task.Run(() => DiscUtilsVolumeService.TryList(fsPathForDisc), ct).ConfigureAwait(false);
+            if (discEntries != null) return discEntries;
+        }
+
         return await Task.Run(() =>
         {
             var results = new List<DirListingSharedBuffer.DirEntryDto>();
@@ -84,6 +108,9 @@ public class FileManagementService
                 var fsPath = shellPath;
                 if (string.IsNullOrEmpty(fsPath))
                     fsPath = ShellPathResolver.NormalizeIncoming(path);
+
+                if (IsWslLocalhostRoot(fsPath))
+                    return EnumerateWslRootDistros();
 
                 if (!Directory.Exists(fsPath)) return results;
 
@@ -131,6 +158,28 @@ public class FileManagementService
 
         var shellPath = ShellPathResolver.ResolveForShell(path);
         var fsPath = !string.IsNullOrEmpty(shellPath) ? shellPath : ShellPathResolver.NormalizeIncoming(path);
+
+        // Wave 5 — virtual disc image folders (.iso / .vhd / .vhdx)
+        if (DiscUtilsVolumeService.IsContainerPath(fsPath))
+        {
+            var discEntries = await Task.Run(() => DiscUtilsVolumeService.TryList(fsPath), ct).ConfigureAwait(false);
+            if (discEntries != null)
+            {
+                foreach (var e in discEntries) { ct.ThrowIfCancellationRequested(); yield return e; }
+                yield break;
+            }
+        }
+
+        if (IsWslLocalhostRoot(fsPath))
+        {
+            foreach (var e in EnumerateWslRootDistros())
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return e;
+            }
+            yield break;
+        }
+
         if (!Directory.Exists(fsPath)) yield break;
 
         var opts = new EnumerationOptions
@@ -156,6 +205,62 @@ public class FileManagementService
             ShellPathResolver.IsShellVirtualPath(shellPath)
             || PortableDeviceService.IsPortableDevicePath(shellPath)
             || PortableDeviceService.IsPortableDevicePath(path));
+    }
+
+    private static bool IsWslLocalhostRoot(string? fsPath)
+    {
+        if (string.IsNullOrWhiteSpace(fsPath)) return false;
+        var n = fsPath.Replace('/', '\\').TrimEnd('\\');
+        return n.Equals(@"\\wsl.localhost", StringComparison.OrdinalIgnoreCase)
+            || n.Equals(@"\\wsl$", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>List WSL distros under \\wsl.localhost\ — UNC first, wsl.exe -l -q fallback.</summary>
+    private static List<DirListingSharedBuffer.DirEntryDto> EnumerateWslRootDistros()
+    {
+        const string wslRoot = @"\\wsl.localhost\";
+        var results = new List<DirListingSharedBuffer.DirEntryDto>();
+        try
+        {
+            if (Directory.Exists(wslRoot))
+            {
+                var opts = new EnumerationOptions
+                {
+                    IgnoreInaccessible = true,
+                    RecurseSubdirectories = false,
+                    ReturnSpecialDirectories = false,
+                    AttributesToSkip = 0,
+                };
+                foreach (var info in new DirectoryInfo(wslRoot).EnumerateDirectories("*", opts))
+                {
+                    var dto = DirListingSharedBuffer.FromFileSystemInfo(info, true);
+                    dto.Name = NetworkLocationsService.SanitizeDistroName(dto.Name);
+                    if (string.IsNullOrWhiteSpace(dto.Name)) continue;
+                    dto.Id = dto.Path = (wslRoot + dto.Name).Replace('\\', '/');
+                    results.Add(dto);
+                }
+            }
+        }
+        catch { /* WSL offline */ }
+
+        if (results.Count > 0) return results;
+
+        foreach (var distro in NetworkLocationsService.ListInstalledDistroNames())
+        {
+            var safeName = NetworkLocationsService.SanitizeDistroName(distro);
+            if (string.IsNullOrWhiteSpace(safeName)) continue;
+            var full = wslRoot + safeName;
+            results.Add(new DirListingSharedBuffer.DirEntryDto
+            {
+                Id = full.Replace('\\', '/'),
+                Name = safeName,
+                Type = "directory",
+                Path = full.Replace('\\', '/'),
+                ModifiedUtc = DateTimeOffset.UtcNow,
+                CreatedUtc = DateTimeOffset.UtcNow,
+            });
+        }
+        return results;
     }
 
     private static List<DirListingSharedBuffer.DirEntryDto> MapToDtos(List<object> raw)

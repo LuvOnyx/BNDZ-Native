@@ -67,10 +67,11 @@ function parseRoomIdFromJoinInput(input: string): string | null {
   }
 }
 
-export default function MeshDropDialog({ paths = [], initialMode, onClose }: Props) {
+export default function MeshDropDialog({ paths: initialPaths = [], initialMode, onClose }: Props) {
   const { config } = useAppConfig();
-  const [mode, setMode] = useState<Mode>(initialMode ?? (paths.length ? 'host' : 'receive'));
-  const [shareMode, setShareMode] = useState<MeshDropShareMode>('link');
+  const [sendPaths, setSendPaths] = useState<string[]>(initialPaths.filter(Boolean));
+  const [mode, setMode] = useState<Mode>(initialMode ?? (initialPaths.length ? 'host' : 'receive'));
+  const [shareMode, setShareMode] = useState<MeshDropShareMode>('code');
   const [receiveChannel, setReceiveChannel] = useState<ReceiveChannel>('paste');
 
   const [meshCode, setMeshCode] = useState('');
@@ -94,6 +95,11 @@ export default function MeshDropDialog({ paths = [], initialMode, onClose }: Pro
   const [qrDataUrl, setQrDataUrl] = useState('');
   const relayPollRef = useRef(0);
 
+  useEffect(() => {
+    setSendPaths(initialPaths.filter(Boolean));
+  }, [initialPaths]);
+
+  const paths = sendPaths;
   const webBase = config.meshDropWebLinkBase || 'https://bndz.app/mesh-drop';
   const relayBase = (config.meshDropSignalingRelayUrl || '').trim();
 
@@ -312,7 +318,7 @@ export default function MeshDropDialog({ paths = [], initialMode, onClose }: Pro
         </header>
 
         <div className="bndz-meshdrop-tabs">
-          <button type="button" className={mode === 'host' ? 'is-active' : ''} onClick={() => setMode('host')} disabled={!paths.length}>
+          <button type="button" className={mode === 'host' ? 'is-active' : ''} onClick={() => setMode('host')}>
             Send {paths.length ? `(${paths.length})` : ''}
           </button>
           <button type="button" className={mode === 'receive' ? 'is-active' : ''} onClick={() => setMode('receive')}>Receive</button>
@@ -323,7 +329,7 @@ export default function MeshDropDialog({ paths = [], initialMode, onClose }: Pro
             <div className="bndz-meshdrop-manifest">
               <div className="bndz-meshdrop-manifest-stat">
                 <span className="label">Payload</span>
-                <span className="value">{sessionMeta.label || `${paths.length} path(s)`}</span>
+                <span className="value">{sessionMeta.label || (paths.length ? `${paths.length} path(s)` : 'None yet')}</span>
               </div>
               <div className="bndz-meshdrop-manifest-stat">
                 <span className="label">Files</span>
@@ -340,6 +346,44 @@ export default function MeshDropDialog({ paths = [], initialMode, onClose }: Pro
                 </div>
               )}
             </div>
+
+            {!meshCode && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                <button
+                  type="button"
+                  className="bndz-meshdrop-btn"
+                  disabled={busy}
+                  onClick={() => {
+                    void IPC.openFileDialog('All files (*.*)|*.*').then(picked => {
+                      if (Array.isArray(picked) && picked.length) {
+                        setSendPaths(prev => [...new Set([...prev, ...picked.map(String)])]);
+                        setStatus(`Added ${picked.length} file(s)`);
+                      }
+                    });
+                  }}
+                >
+                  Add files…
+                </button>
+                <button
+                  type="button"
+                  className="bndz-meshdrop-btn"
+                  disabled={busy}
+                  onClick={() => {
+                    void IPC.openFolderDialog('Add folder to Mesh Drop').then(folder => {
+                      if (folder) {
+                        setSendPaths(prev => [...new Set([...prev, String(folder)])]);
+                        setStatus('Folder added');
+                      }
+                    });
+                  }}
+                >
+                  Add folder…
+                </button>
+                {paths.length > 0 && (
+                  <button type="button" className="bndz-meshdrop-btn" onClick={() => setSendPaths([])}>Clear</button>
+                )}
+              </div>
+            )}
 
             {!meshCode ? (
               <button type="button" className="bndz-meshdrop-cta" disabled={busy || !paths.length} onClick={() => void createOffer()}>

@@ -11,7 +11,7 @@ namespace BNDZ.Services;
 
 /// <summary>
 /// Gold-path list/preview thumbnail extraction — small PNG bytes for CAS, never full-file pixels.
-/// Order: Skia stills → TagLib embedded art (audio/video) → Windows shell ThumbnailOnly → icon fallback.
+/// Order: Explorer thumbcache → MagicScaler stills → Skia/SVG → TagLib art → shell ThumbnailOnly → icon fallback.
 /// </summary>
 public static class MediaThumbnailService
 {
@@ -59,7 +59,28 @@ public static class MediaThumbnailService
 
         var ext = Path.GetExtension(filePath);
 
-        // 1) Fast Skia stills (png/jpg/webp/…) + Svg.Skia for vectors — EXIF-oriented.
+        // 0) Explorer thumbcache hit — free warm navigate (Files-style InCacheOnly).
+        var cached = ShellThumbnailCacheService.TryGetCachedBase64(filePath, size);
+        if (!string.IsNullOrEmpty(cached))
+            return cached;
+
+        // 0b) Assimp mesh silhouette (obj/fbx/gltf/stl/…)
+        if (AssimpMeshThumbService.IsMeshPath(filePath))
+        {
+            var meshBytes = AssimpMeshThumbService.TryRenderSilhouette(filePath, size);
+            if (meshBytes is { Length: > 0 })
+                return Convert.ToBase64String(meshBytes);
+        }
+
+        // 1) MagicScaler stills (JPEG/PNG/WEBP/TIFF) — partial decode + EXIF, ahead of Skia.
+        if (MagicScalerThumbnailService.IsSupported(filePath))
+        {
+            var magic = MagicScalerThumbnailService.TryEncodeThumbnailBase64(filePath, size);
+            if (!string.IsNullOrEmpty(magic))
+                return magic;
+        }
+
+        // 2) Fast Skia stills (png/jpg/webp/…) + Svg.Skia for vectors — EXIF-oriented.
         if (ext.Equals(".svg", StringComparison.OrdinalIgnoreCase))
         {
             var svg = SkiaThumbnailService.TryEncodeSvgBase64(filePath, size);
@@ -70,7 +91,7 @@ public static class MediaThumbnailService
         if (!string.IsNullOrEmpty(skia))
             return skia;
 
-        // 2) Video: prefer Windows shell poster frames (fast, mid-clip when provider supports it).
+        // 3) Video: prefer Windows shell poster frames (fast, mid-clip when provider supports it).
         if (VideoExts.Contains(ext))
         {
             var videoShell = TryShellThumbnailBase64(filePath, size, thumbnailOnly: true);
@@ -85,7 +106,7 @@ public static class MediaThumbnailService
             return "";
         }
 
-        // 3) Audio / containers: embedded cover art first (album art is the product signal).
+        // 4) Audio / containers: embedded cover art first (album art is the product signal).
         if (AudioExts.Contains(ext))
         {
             var art = TryTagLibPictureBase64(filePath, size);
@@ -93,12 +114,12 @@ public static class MediaThumbnailService
                 return art;
         }
 
-        // 4) Windows shell thumbnail providers (SVG, archives, Office, HEIC, remaining audio…)
+        // 5) Windows shell thumbnail providers (SVG, archives, Office, HEIC, remaining audio…)
         var shellThumb = TryShellThumbnailBase64(filePath, size, thumbnailOnly: true);
         if (!string.IsNullOrEmpty(shellThumb))
             return shellThumb;
 
-        // 5) Softer shell GetImage — images included (Skia miss / stubborn codecs), plus
+        // 6) Softer shell GetImage — images included (Skia miss / stubborn codecs), plus
         // archives / Office / audio that often only expose icon-or-thumb via GetImage.
         if (SkiaThumbnailService.IsLikelyImage(filePath)
             || ArchiveExts.Contains(ext)
@@ -226,11 +247,7 @@ public static class MediaThumbnailService
                 using var hbmp = item.GetImage(new SIZE(pixelSize, pixelSize), flags);
                 if (hbmp == null || hbmp.IsInvalid)
                     return "";
-                using var bitmap = hbmp.ToBitmap();
-                using var ms = new MemoryStream();
-                bitmap.MakeTransparent();
-                bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                return Convert.ToBase64String(ms.ToArray());
+                return ShellArgbPngEncoder.EncodeHBitmapPngBase64(hbmp.DangerousGetHandle());
             });
             if (!task.Wait(4500))
             {

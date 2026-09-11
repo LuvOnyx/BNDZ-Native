@@ -22,10 +22,10 @@ import {
 export const GhostLinkPluginDef = {
   id: 'ghost-link',
   name: 'Ghost-Link',
-  icon: 'emblem_symbolic_link',
+  icon: 'link',
   description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TabId = 'overview' | 'rules' | 'ghosts';
@@ -465,11 +465,11 @@ export default function GhostLinkPlugin({
 
   return (
     <PluginPanelShell
-      title="Ghost-Link"
+      title="Cold Staging"
       icon="emblem_symbolic_link"
       iconColor="#a78bfa"
       variant="embedded"
-      subtitle="Symlink offloading · cold storage vault"
+      subtitle="Cold tier — reclaim space while keeping a link at the old path"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -493,7 +493,7 @@ export default function GhostLinkPlugin({
               <EmblemIcon id="emblem-symbolic-link" size={48} />
             </div>
           }
-          name="Ghost-Link Storage"
+          name="Cold staging"
           typeLabel="Symlink offloading"
           meta={
             <span className="bndz-panel-muted text-xs">

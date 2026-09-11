@@ -4,6 +4,7 @@ import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
+import TranscodeRackPlugin from './TranscodeRackPlugin';
 import {
   PluginToolbarButton,
   PluginTabStrip,
@@ -22,7 +23,7 @@ export const MetadataPluginDef = {
     id: 'metadata',
     name: 'Metadata Inspector',
     icon: 'metadata',
-    description: 'Deep file metadata, shell properties, and cryptographic hash analysis.',
+    description: 'File intelligence — metadata, media tags, hashes, and image encode queue',
     isNative: true,
     targetPanel: 'bottom' as const,
 };
@@ -60,17 +61,27 @@ export default function MetadataPlugin({
     entity,
     primarySelectedPath,
     selectedItems = [],
+    currentPath,
+    pluginLaunch,
 }: {
     focusedPath?: string;
     entity?: any;
     primarySelectedPath?: string | null;
     selectedItems?: string[];
+    currentPath?: string;
+    pluginLaunch?: { tab?: string };
 }) {
     const [meta, setMeta] = useState<Record<string, string>>({});
     const [hashes, setHashes] = useState<{ md5?: string; sha256?: string }>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'media' | 'system' | 'all'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'media' | 'system' | 'all' | 'encode'>('overview');
+
+    useEffect(() => {
+        const tab = String(pluginLaunch?.tab || '').toLowerCase();
+        if (tab === 'encode' || tab === 'transcode' || tab === 'transcode-rack') setActiveTab('encode');
+        else if (['overview','media','system','all'].includes(tab)) setActiveTab(tab as any);
+    }, [pluginLaunch?.tab]);
     const [fieldFilter, setFieldFilter] = useState('');
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [copyAllFormat, setCopyAllFormat] = useState<'tsv' | 'json' | null>(null);
@@ -241,8 +252,32 @@ export default function MetadataPlugin({
 
     if (!path) {
         return (
-            <PluginPanelShell title="Metadata Inspector" icon="metadata" iconColor="#38bdf8" variant="embedded" subtitle="No selection">
-                <PluginEmptyState icon="metadata" description="Select a file or folder to inspect extended metadata, media tags, and hashes." />
+            <PluginPanelShell
+                title="Metadata"
+                icon="metadata"
+                iconColor="#38bdf8"
+                variant="embedded"
+                subtitle={activeTab === 'encode' ? 'Batch image encode queue' : 'File intelligence — facts, tags, hashes, encode'}
+                toolbar={(
+                    <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+                        <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>
+                        <PluginTab active={activeTab === 'media'} onClick={() => setActiveTab('media')}>Media</PluginTab>
+                        <PluginTab active={activeTab === 'system'} onClick={() => setActiveTab('system')}>System</PluginTab>
+                        <PluginTab active={activeTab === 'all'} onClick={() => setActiveTab('all')}>All fields</PluginTab>
+                        <PluginTab active={activeTab === 'encode'} onClick={() => setActiveTab('encode')}>Encode</PluginTab>
+                    </PluginTabStrip>
+                )}
+            >
+                {activeTab === 'encode' ? (
+                    <TranscodeRackPlugin
+                        selectedItems={selectedItems}
+                        focusedPath={focusedPath || primarySelectedPath || undefined}
+                        currentPath={currentPath || focusedPath}
+                        embedded
+                    />
+                ) : (
+                    <PluginEmptyState icon="metadata" description="Select a file or folder to inspect extended metadata, media tags, and hashes — or open Encode for batch image convert." />
+                )}
             </PluginPanelShell>
         );
     }
@@ -283,7 +318,7 @@ export default function MetadataPlugin({
 
     return (
         <PluginPanelShell
-            title="Metadata Inspector"
+            title="File Intelligence"
             icon="metadata"
             iconColor="#38bdf8"
             variant="embedded"
@@ -327,9 +362,21 @@ export default function MetadataPlugin({
                     <PluginTab active={activeTab === 'media'} onClick={() => setActiveTab('media')}>Media</PluginTab>
                     <PluginTab active={activeTab === 'system'} onClick={() => setActiveTab('system')}>System</PluginTab>
                     <PluginTab active={activeTab === 'all'} onClick={() => setActiveTab('all')}>All fields</PluginTab>
+                    <PluginTab active={activeTab === 'encode'} onClick={() => setActiveTab('encode')}>Encode</PluginTab>
                 </PluginTabStrip>
 
                 <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 space-y-4 min-h-0">
+                    {activeTab === 'encode' ? (
+                        <div className="min-h-0 -m-5 h-[calc(100%+2.5rem)]">
+                            <TranscodeRackPlugin
+                                selectedItems={selectedItems}
+                                focusedPath={focusedPath || primarySelectedPath || undefined}
+                                currentPath={currentPath || focusedPath}
+                                embedded
+                            />
+                        </div>
+                    ) : (
+                    <>
                     {error && (
                         <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg text-red-400 text-xs flex items-center gap-2">
                             <Icons8Icon id="error_ui" size={14} /> {error}
@@ -498,6 +545,8 @@ export default function MetadataPlugin({
                                 />
                             )}
                         </PluginCard>
+                    )}
+                    </>
                     )}
                 </div>
             </div>

@@ -227,7 +227,7 @@ export function buildUiRuntime(config: AppConfig) {
     treePanel: readSettingBool(config, 'treePanelEnabled', true),
     compactMode: readSettingBool(config, 'compactMode'),
     adaptiveColors: readSettingBool(config, 'adaptiveColors'),
-    theme: readSettingString(config, 'theme', 'Dark'),
+    theme: readSettingString(config, 'theme', 'Slate Workstation'),
     applyColors: readSettingBool(config, 'applyColors'),
     applyListStylesGlobally: readSettingBool(config, 'applyListStylesGlobally'),
     applyTextColorsNameOnly: readSettingBool(config, 'applyTextColorsToTheNameColumnOnly'),

@@ -17,6 +17,9 @@ import { WIRED_SETTING_COUNT, DEFERRED_SETTING_COUNT } from './settingsRegistry'
 import { applySettingsBehavior } from './settingsBehavior';
 import type { SortColumnId } from './listColumns';
 import { isNetworkPanePath, isNonFsShellIconPath } from './shellPaths';
+import { TEXT_EDIT_EXTENSIONS, CODE_EXTENSIONS, isHtmlExt, isOfficeExt, isFontExt } from './textFileTypes';
+import { IMAGE_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, MODEL_EXTENSIONS } from './mediaTypes';
+import { ARCHIVE_EXTENSIONS, TORRENT_EXTENSIONS } from './archiveTypes';
 
 export interface PaneSortState {
   sortColumn?: SortColumnId;
@@ -44,6 +47,7 @@ export interface SettingsRuntimeContext {
     useGenericIcons: boolean;
     applyColorFilters: boolean;
     showHiddenInList: boolean;
+    showSystemInList: boolean;
     zebraRows: boolean;
     /** 1 = subtle, 2 = stronger alternate rows */
     zebraIntensity: 1 | 2;
@@ -62,6 +66,7 @@ export interface SettingsRuntimeContext {
   };
   tree: {
     showHidden: boolean;
+    showSystem: boolean;
     expandOnBrowse: boolean;
     expandOnSingleClick: boolean;
     rememberState: boolean;
@@ -143,7 +148,8 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       autoSelectFirst: !!config.autoSelectFirstItem,
       useGenericIcons: !!config.useGenericIconsForSuperFastBrowsing,
       applyColorFilters: config.applyColorFiltersToTheList !== false && config.enableColorFilters !== false,
-    showHiddenInList: !!config.showHiddenSystemFoldersInTree,
+    showHiddenInList: !!(config.showHiddenFiles ?? config.showHiddenSystemFoldersInTree),
+    showSystemInList: !!(config.showSystemFiles ?? config.showHiddenSystemFoldersInTree),
     zebraRows: !!config.listZebraStyle && config.listZebraStyle !== 'Solid Color' && config.listZebraStyle !== false,
     zebraIntensity: String(config.listZebraStyle || '').includes('(2)') ? 2 : 1,
     selectionChrome: (config.listSelectionChrome === 'nameOnly' || config.listSelectionChrome === 'throughSecondColumn')
@@ -169,7 +175,8 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       scrollToTopAfterResort: !!config.scrollToTopAfterResorting,
     },
     tree: {
-      showHidden: !!config.showHiddenSystemFoldersInTree,
+      showHidden: !!(config.showHiddenSystemFoldersInTree || config.showHiddenFiles),
+      showSystem: !!(config.showHiddenSystemFoldersInTree || config.showSystemFiles),
       expandOnBrowse: !!config.expandTreeNodesOnBrowse,
       expandOnSingleClick: !!config.expandTreeNodesOnSingleClick,
       rememberState: !!config.rememberStateOfTree,
@@ -612,6 +619,7 @@ function matchesColorFilter(
   expr: string,
   ctx: { name: string; ext: string; attrs: string[]; size: number; modified: Date | null; entity: any }
 ): boolean {
+  if (typeof expr !== 'string' || !expr) return false;
   const lower = expr.toLowerCase();
 
   if (expr.startsWith('*.') || expr.includes(';')) {
@@ -676,29 +684,62 @@ function parseFilterStyle(style: string): { className?: string; inlineStyle?: Re
 export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean {
   if (!ext) return false;
   const e = ext.toLowerCase().replace(/^\./, '');
-  const categories = config.previewCategories || [];
-  const formats = config.previewFormats || [];
+  const categories = Array.isArray(config.previewCategories) ? config.previewCategories : [];
+  const formats = Array.isArray(config.previewFormats) ? config.previewFormats : [];
+
+  const textExts = Array.from(new Set<string>([...TEXT_EDIT_EXTENSIONS, ...CODE_EXTENSIONS]));
+  // Document / office / pdf — align with docked PDF / DOCX / Office handlers.
+  const documentExts = [
+    'pdf', 'docx', 'docm', 'xlsx', 'xlsm', 'xlsb', 'odt', 'ods', 'odp',
+    'doc', 'xls', 'ppt', 'pptx', 'rtf', 'epub', 'mobi', 'azw', 'cbz', 'cbr', 'vsd', 'vsdx',
+  ];
+  const webExts = ['htm', 'html', 'mht', 'mhtml', 'svg', 'url', 'xml', 'xhtml', 'rss', 'atom'];
+  const fontExts = ['ttf', 'otf', 'fon', 'woff', 'woff2', 'eot', 'ttc', 'pfm', 'pfb'];
+  const imageExts = Array.from(IMAGE_EXTENSIONS);
+  const audioExts = Array.from(AUDIO_EXTENSIONS);
+  const videoExts = Array.from(VIDEO_EXTENSIONS);
+  const archiveExts = Array.from(new Set<string>([...ARCHIVE_EXTENSIONS, ...TORRENT_EXTENSIONS]));
+  const modelExts = Array.from(MODEL_EXTENSIONS);
+
+  // Keep docked-handler predicates aligned with category membership (lint-friendly).
+  void isHtmlExt; void isOfficeExt; void isFontExt;
 
   const categoryMap: Record<string, string[]> = {
-    'Text Files': ['txt', 'ini', 'bat', 'log', 'md', 'csv', 'cfg', 'json', 'xml', 'html', 'css', 'js', 'ts', 'tsx', 'jsx', 'py', 'cpp', 'c', 'h', 'cs', 'yaml', 'yml', 'toml', 'sh', 'ps1', 'rs', 'go', 'java', 'kt', 'sql', 'lua', 'rb', 'php', 'vue', 'svelte'],
-    'Image Files': ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif', 'heic', 'heif', 'psd', 'xcf', 'raw', 'cr2', 'nef', 'dng', 'exr', 'apng', 'jfif'],
-    'Audio Files': ['mp3', 'wav', 'ogg', 'oga', 'flac', 'aac', 'm4a', 'wma', 'opus', 'aiff', 'mid', 'midi', 'ape', 'wv', 'ac3', 'dts', 'caf'],
-    'Video Files': ['mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'm4v', 'mpg', 'mpeg', '3gp', 'ts', 'm2ts', 'flv', 'ogv', 'mts'],
-    'Document Files': ['pdf', 'docx', 'xlsx', 'odt', 'doc', 'xls', 'ppt', 'pptx', 'rtf', 'epub', 'mobi', 'azw', 'cbz', 'cbr'],
-    'Archive Files': ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'jar', 'torrent', 'zst', 'lz', 'arj'],
-    'Web Files': ['htm', 'html', 'svg', 'url', 'xml', 'mhtml', 'xhtml', 'rss', 'atom'],
-    'Font Files': ['ttf', 'otf', 'fon', 'woff', 'woff2', 'eot', 'ttc', 'pfm', 'pfb'],
-    '3D Model Files': ['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds'],
+    'Text Files': textExts,
+    'Image Files': imageExts,
+    'Audio Files': audioExts,
+    'Video Files': videoExts,
+    'Document Files': documentExts,
+    'Archive Files': archiveExts,
+    'Web Files': webExts,
+    'Font Files': fontExts,
+    '3D Model Files': modelExts,
   };
 
-  for (const cat of categories) {
-    if (!cat.c) continue;
-    const exts = categoryMap[cat.n];
-    if (exts?.includes(e)) return true;
+  const inKnownDockedMap = Object.values(categoryMap).some((exts) => exts.includes(e));
+
+  if (formats.some((f) => f.c && typeof f.n === 'string' && f.n.toLowerCase().includes(`*.${e}`))) {
+    return true;
   }
 
-  return formats.some(f => f.c && f.n.toLowerCase().includes(`*.${e}`));
+  // Empty / missing categories → fail-OPEN for known maps that have docked handlers.
+  if (categories.length === 0) {
+    return inKnownDockedMap;
+  }
+
+  // Populated list is opt-out only: covering c:false denies; covering c:true allows.
+  const covering = categories.filter((cat) => categoryMap[cat.n]?.includes(e));
+  if (covering.length > 0) {
+    if (covering.some((cat) => cat.c)) return true;
+    if (covering.every((cat) => cat.c === false)) return false;
+  }
+
+  // Known docked type whose category row is absent from a partial list → fail-open.
+  if (inKnownDockedMap && covering.length === 0) return true;
+
+  return false;
 }
+
 
 const COLOR_CSS_MAP: [string, string][] = [
   ['--tree-text', 'colorConfig1'],
@@ -940,6 +981,67 @@ function clearColorCssVars(root: HTMLElement): void {
   // Do NOT clear --plugin-hero-fill / edge — that flattened heroes to a solid panel.
 }
 
+/**
+ * After applyColors, restore light-theme chrome contrast tokens that color packs
+ * commonly overwrite (dark #252528 menus, black status/breadcrumb text on dark
+ * strips, light tree text on white sidebar). Popup menus stay pale + black ink;
+ * top menubar/toolbar/tabstrip/address stay dark + white ink; footer statusbar is
+ * pale paper + black ink (never white-on-pale).
+ */
+function lockLightThemeChromeContrast(root: HTMLElement): void {
+  if (!root.classList.contains('theme-light')) return;
+
+  const chromeBg = '#1e1e24';
+  const chromeRaised = '#252528';
+  const chromeText = 'rgba(255,255,255,0.9)';
+  const chromeMuted = 'rgba(255,255,255,0.55)';
+
+  // Pale popup menus (white/off-white) + black text — not dark chrome leftovers.
+  root.style.setProperty('--menu-bg', '#ffffff');
+  root.style.setProperty('--menu-text', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--menu-muted', 'rgba(0,0,0,0.55)');
+  root.style.setProperty('--menu-hover', 'rgba(0,0,0,0.06)');
+  root.style.setProperty('--menu-border', 'rgba(0,0,0,0.12)');
+  root.style.setProperty('--tooltip-bg', chromeRaised);
+  root.style.setProperty('--tooltip-text', chromeText);
+  root.style.setProperty('--tooltip-muted', chromeMuted);
+
+  // Footer statusbar: pale + black (do not reuse dark top-chrome tokens).
+  root.style.setProperty('--statusbar-bg', '#eef0f4');
+  root.style.setProperty('--status-text', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--breadcrumb-bg', '#24262c');
+  root.style.setProperty('--breadcrumb-text', chromeText);
+  root.style.setProperty('--chrome-dark-bg', chromeBg);
+  root.style.setProperty('--chrome-dark-raised', chromeRaised);
+  root.style.setProperty('--chrome-dark-text', chromeText);
+  root.style.setProperty('--chrome-dark-muted', chromeMuted);
+
+  root.style.setProperty('--menubar-bg', chromeBg);
+  root.style.setProperty('--toolbar-bg', '#1a1a1f');
+  root.style.setProperty('--toolbar-text', chromeText);
+
+  // Tabs sit on dark tabstrip — keep chips dark + white ink (color packs often force pale chips + black text).
+  root.style.setProperty('--tab-active-bg', '#2a2e36');
+  root.style.setProperty('--tab-active-text', chromeText);
+  root.style.setProperty('--tab-inactive-bg', '#1a1c22');
+  root.style.setProperty('--tab-inactive-text', chromeMuted);
+
+  // Pale panels keep black type
+  root.style.setProperty('--tree-text', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--list-text', 'rgba(0,0,0,0.86)');
+  root.style.setProperty('--text-main', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--text-muted', 'rgba(0,0,0,0.55)');
+  root.style.setProperty('--sidebar-bg', '#ffffff');
+  root.style.setProperty('--tree-bg', '#ffffff');
+  root.style.setProperty('--list-header-bg', '#eef0f3');
+  root.style.setProperty('--list-header-text', 'rgba(0,0,0,0.82)');
+  root.style.setProperty('--list-text-secondary', 'rgba(0,0,0,0.72)');
+  root.style.setProperty('--text-secondary', 'rgba(0,0,0,0.72)');
+  root.style.setProperty('--header-text', 'rgba(0,0,0,0.72)');
+  root.style.setProperty('--panel-preview-text', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--panel-bottom-text', 'rgba(0,0,0,0.88)');
+}
+
 import { buildPanelTypographyCssVars } from './panelTypography';
 
 function readSelectString(config: AppConfig, key: string, fallback: string): string {
@@ -1091,6 +1193,26 @@ export function applySettingsRuntime(config: AppConfig): void {
     applyStatusNeonAndPluginHeroVars(config, root);
   }
 
+  // Selection highlight must stay magenta/purple even when the color pack is off —
+  // otherwise list CSS falls through to :root --accent (#0078d4 Explorer blue).
+  {
+    const listSel = typeof config.listSelectionHighlightColor === 'string'
+      ? config.listSelectionHighlightColor.trim()
+      : '';
+    const solid = listSel
+      ? (listSel.startsWith('#') ? listSel : `#${listSel}`)
+      : '#a855f7';
+    root.style.setProperty('--list-selected-bg', solid);
+    root.style.setProperty('--list-focused-bg', solid);
+    root.style.setProperty('--highlight-bg', solid);
+    root.style.setProperty('--bndz-files-selected', `${solid}57`);
+    root.style.setProperty('--bndz-files-selected-hover', `${solid}66`);
+  }
+
+  // Light themes keep dark top/bottom chrome. Color packs often overwrite those
+  // tokens with pale/dark-theme leftovers — re-lock contrast-critical vars.
+  lockLightThemeChromeContrast(root);
+
   // Column header accents stay personalizable even when the global color pack is off.
   applyColumnAccentCssVars(config, root);
 
@@ -1108,10 +1230,47 @@ export function applySettingsRuntime(config: AppConfig): void {
 
   applyAppearanceVariants(config, root);
   applyListStyleDataset(config, root);
+  applyNativeShellBackdrop(config, root);
 
   import('./shellIntegrationRuntime').then(({ scheduleBackendSettings }) => {
-    scheduleBackendSettings(config);
+    let force = false;
+    try {
+      if (localStorage.getItem('bndz-shell-apply-pending') === '1') {
+        force = true;
+        localStorage.removeItem('bndz-shell-apply-pending');
+      }
+    } catch { /* ignore */ }
+    // Also force when launched elevated with --apply-shell (query / hash mirror from host).
+    try {
+      const q = typeof location !== 'undefined' ? `${location.search} ${location.hash}` : '';
+      if (/apply-shell|elevated/i.test(q)) force = true;
+    } catch { /* ignore */ }
+    scheduleBackendSettings(config, force);
   });
+}
+
+function applyNativeShellBackdrop(config: AppConfig, root: HTMLElement): void {
+  const mica = config.micaBackdrop !== false;
+  const kind = (config.systemBackdropKind as string) || 'mica';
+  root.dataset.micaBackdrop = mica ? '1' : '0';
+  root.dataset.systemBackdropKind = kind;
+  root.classList.toggle('bndz-mica-backdrop', mica);
+
+  try {
+    const chrome = (window as any)?.chrome?.webview;
+    if (chrome?.postMessage) {
+      chrome.postMessage({
+        type: 'SET_SYSTEM_BACKDROP',
+        payload: {
+          enabled: mica,
+          kind,
+          nativeActionCenterToasts: config.nativeActionCenterToasts !== false,
+        },
+      });
+    }
+  } catch {
+    /* web / non-shell */
+  }
 }
 
 export function applyBackendSettings(config: AppConfig): void {

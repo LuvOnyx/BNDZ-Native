@@ -60,7 +60,16 @@ public sealed class DropMagnetService
         if (string.IsNullOrWhiteSpace(recipe.TargetPath))
             throw new ArgumentException("Target path is required.");
 
-        recipe.TargetPath = Path.GetFullPath(recipe.TargetPath.Trim());
+        try
+        {
+            recipe.TargetPath = Path.GetFullPath(recipe.TargetPath.Trim());
+        }
+        catch (Exception ex)
+        {
+            throw new ArgumentException($"Invalid target path: {ex.Message}", ex);
+        }
+        if (recipe.TargetPath.Length < 3)
+            throw new ArgumentException("Target path is too short.");
         recipe.Name = recipe.Name.Trim();
         recipe.RenamePattern = string.IsNullOrWhiteSpace(recipe.RenamePattern) ? "{original}" : recipe.RenamePattern.Trim();
         recipe.Tags = recipe.Tags?

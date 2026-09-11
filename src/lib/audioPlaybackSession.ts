@@ -102,19 +102,24 @@ class AudioPlaybackSession {
    */
   load(path: string, src: string, opts?: { force?: boolean }): boolean {
     const el = this.ensureEl();
-    if (!opts?.force && this.samePath(path) && this.resolvedSrc) {
+    // Same path already live: never tear down the decoder (Quick Look / dual surfaces).
+    // Force is ignored unless the caller is intentionally changing the path.
+    if (this.samePath(path) && this.resolvedSrc) {
       // Never replace a live blob with a stream URL — peaks / decoder break (ERR_FILE_NOT_FOUND).
       if (
         this.resolvedSrc.startsWith('blob:')
-        && src.includes('bndz-stream://')
+        && (src.includes('bndz-stream://') || !src.startsWith('blob:'))
       ) {
         this.error = null;
         this.emit();
         return false;
       }
-      this.error = null;
-      this.emit();
-      return false;
+      // Already on a blob (or identical src) — keep timeline / play state intact.
+      if (!opts?.force || this.resolvedSrc === src || this.resolvedSrc.startsWith('blob:')) {
+        this.error = null;
+        this.emit();
+        return false;
+      }
     }
 
     const wasPlaying = el && !el.paused && !el.ended;

@@ -145,6 +145,9 @@ internal static class ExternalDropHelper
         var count = BitConverter.ToInt32(bytes, 0);
         if (count <= 0 || count > 64) return result;
 
+        // Opportunistic cleanup so prior drops do not accumulate forever under %TEMP%\BNDZDrop.
+        SweepStaleDropTemps(TimeSpan.FromMinutes(30));
+
         // FILEGROUPDESCRIPTORW: DWORD cItems + FILEDESCRIPTORW[cItems]
         // FILEDESCRIPTORW is 592 bytes on x64 with wide names (cFileName[260])
         const int FileDescriptorWSize = 592;
@@ -210,6 +213,43 @@ internal static class ExternalDropHelper
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Delete aged %TEMP%\BNDZDrop\{guid} folders left by virtual-file materialization.
+    /// </summary>
+    public static void SweepStaleDropTemps(TimeSpan? maxAge = null)
+    {
+        var age = maxAge ?? TimeSpan.FromMinutes(30);
+        var root = Path.Combine(Path.GetTempPath(), "BNDZDrop");
+        if (!Directory.Exists(root)) return;
+
+        DateTime cutoff;
+        try { cutoff = DateTime.UtcNow - age; }
+        catch { return; }
+
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories(root))
+            {
+                try
+                {
+                    var info = new DirectoryInfo(dir);
+                    var stamp = info.CreationTimeUtc;
+                    if (info.LastWriteTimeUtc > stamp) stamp = info.LastWriteTimeUtc;
+                    if (stamp > cutoff) continue;
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ExternalDrop] Sweep '{dir}': {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ExternalDrop] Sweep root: {ex.Message}");
+        }
     }
 
     private static string[] DedupPaths(IEnumerable<string> paths, bool requireExists) =>

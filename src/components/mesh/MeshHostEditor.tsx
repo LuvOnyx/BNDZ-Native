@@ -93,10 +93,20 @@ export default function MeshHostEditor({ host, onSave, onCancel, busy }: Props) 
               </select>
             </div>
             {draft.authKind === 1 && (
-              <div className="md:col-span-2">
-                <PluginFieldLabel>Private key path</PluginFieldLabel>
-                <input className={PLUGIN_INPUT_CLASS} value={draft.keyPath || ''} onChange={e => patch({ keyPath: e.target.value })} placeholder="C:\Users\you\.ssh\id_ed25519" />
-              </div>
+              <>
+                <div className="md:col-span-2">
+                  <PluginFieldLabel>Private key path</PluginFieldLabel>
+                  <input className={PLUGIN_INPUT_CLASS} value={draft.keyPath || ''} onChange={e => patch({ keyPath: e.target.value })} placeholder="C:\Users\you\.ssh\id_ed25519" />
+                </div>
+                <div className="md:col-span-2">
+                  <PluginFieldLabel>Key passphrase (optional)</PluginFieldLabel>
+                  <input type="password" className={PLUGIN_INPUT_CLASS} value={draft.passwordPlain || ''} onChange={e => patch({ passwordPlain: e.target.value })} placeholder="Stored with DPAPI for this session/host" autoComplete="new-password" />
+                </div>
+                <div className="md:col-span-2">
+                  <PluginFieldLabel>OpenSSH certificate (optional)</PluginFieldLabel>
+                  <input className={PLUGIN_INPUT_CLASS} value={draft.certificatePath || ''} onChange={e => patch({ certificatePath: e.target.value })} placeholder="C:\Users\you\.ssh\id_ed25519-cert.pub" />
+                </div>
+              </>
             )}
             {draft.authKind === 2 && (
               <div className="md:col-span-2">
@@ -104,6 +114,14 @@ export default function MeshHostEditor({ host, onSave, onCancel, busy }: Props) 
                 <input type="password" className={PLUGIN_INPUT_CLASS} value={draft.passwordPlain || ''} onChange={e => patch({ passwordPlain: e.target.value })} placeholder="Stored securely with DPAPI" autoComplete="new-password" />
               </div>
             )}
+            <div className="md:col-span-2">
+              <PluginFieldLabel>ProxyJump (optional)</PluginFieldLabel>
+              <input className={PLUGIN_INPUT_CLASS} value={draft.proxyJump || ''} onChange={e => patch({ proxyJump: e.target.value })} placeholder="bastion.example.com:22" />
+            </div>
+            <div className="md:col-span-2">
+              <PluginFieldLabel>Host key fingerprint (optional TOFU pin)</PluginFieldLabel>
+              <input className={PLUGIN_INPUT_CLASS} value={draft.hostKeyFingerprint || ''} onChange={e => patch({ hostKeyFingerprint: e.target.value })} placeholder="SHA256 hex or colon form" />
+            </div>
             <div className="md:col-span-2">
               <PluginFieldLabel>Remote root path</PluginFieldLabel>
               <input className={PLUGIN_INPUT_CLASS} value={draft.remoteRootPath || '/'} onChange={e => patch({ remoteRootPath: e.target.value })} placeholder="/home/ubuntu" />

@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { useAppConfig, VisualFilter } from '../../data/configContext';
 import { FILTER_MATCH_HINTS } from '../../lib/visualFilterEngine';
 import PluginPanelShell from './PluginPanelShell';
+import SemanticDeskPlugin from './SemanticDeskPlugin';
 import { requestNativePrompt } from '../../lib/nativeDialog';
 import {
   PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
   PluginSectionTitle,
   PluginCard,
   PluginFieldLabel,
@@ -20,7 +23,7 @@ export const FiltersPluginDef = {
     id: 'filters',
     name: 'Visual Filters',
     icon: 'filters',
-    description: 'Color-code files by extension, regex, age, size, and file attributes.',
+    description: 'Filters & smart groups — color rules plus semantic folder clustering',
     isNative: false,
     targetPanel: 'bottom' as const,
 };
@@ -43,8 +46,25 @@ const MATCH_LABELS: Record<string, string> = {
     event: 'Event',
 };
 
-export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (filters: VisualFilter[]) => void }) {
+export default function FiltersPlugin({
+    onFilterChange,
+    currentPath,
+    focusedPath,
+    pluginLaunch,
+}: {
+    onFilterChange?: (filters: VisualFilter[]) => void;
+    currentPath?: string;
+    focusedPath?: string;
+    pluginLaunch?: { tab?: string };
+}) {
     const { config, updateConfig } = useAppConfig();
+    const [panelTab, setPanelTab] = useState<'rules' | 'groups'>('rules');
+
+    useEffect(() => {
+        const tab = String(pluginLaunch?.tab || '').toLowerCase();
+        if (tab === 'groups' || tab === 'semantic' || tab === 'semantic-desk') setPanelTab('groups');
+        else if (tab === 'rules' || tab === 'filters') setPanelTab('rules');
+    }, [pluginLaunch?.tab]);
     const [editing, setEditing] = useState<VisualFilter | null>(null);
     const filters = config.visualFilters || [];
     const activeCount = filters.filter(f => f.isActive).length;
@@ -89,10 +109,32 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
         name: 'New Rule',
         matchType: 'extension',
         matchValue: '',
-        rowTint: 'rgba(0,122,204,0.12)',
-        textColor: '#6db4e6',
-        badgeColor: '#0078d4',
+        rowTint: 'rgba(168,85,247,0.14)',
+        textColor: '#e9d5ff',
+        badgeColor: '#a855f7',
     });
+
+    const applyQuickTemplate = (tpl: {
+        name: string;
+        matchType: VisualFilter['matchType'];
+        matchValue: string;
+        rowTint: string;
+        textColor: string;
+        badgeColor: string;
+    }) => {
+        const rule: VisualFilter = {
+            id: Date.now().toString(),
+            isActive: true,
+            name: tpl.name,
+            matchType: tpl.matchType,
+            matchValue: tpl.matchValue,
+            rowTint: tpl.rowTint,
+            textColor: tpl.textColor,
+            badgeColor: tpl.badgeColor,
+        };
+        persist([...filters, rule]);
+        setEditing(rule);
+    };
 
     const previewStyle = editing ? {
         color: editing.textColor || '#e8e8ec',
@@ -102,22 +144,36 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
     const isNewRule = editing ? !filters.some(f => f.id === editing.id) : false;
 
     return (
-        <PluginPanelShell
-            title="Visual Filters"
+                <PluginPanelShell
+            title="Filters & Groups"
             icon="filters"
-            iconColor="#38bdf8"
+            iconColor="#a855f7"
             variant="embedded"
-            subtitle={`${activeCount} active of ${filters.length} rules`}
+            subtitle={panelTab === 'groups'
+                ? 'Semantic groups — cluster the folder into piles'
+                : `${activeCount} active of ${filters.length} rules · color-code the list`}
+            toolbar={(
+                <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+                    <PluginTab active={panelTab === 'rules'} onClick={() => setPanelTab('rules')}>Rules</PluginTab>
+                    <PluginTab active={panelTab === 'groups'} onClick={() => setPanelTab('groups')}>Groups</PluginTab>
+                </PluginTabStrip>
+            )}
         >
+            {panelTab === 'groups' ? (
+                <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                    <SemanticDeskPlugin currentPath={currentPath} focusedPath={focusedPath} embedded />
+                </div>
+            ) : (
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
+
                 <PluginHeroStrip
                     icon={<Icons8Icon id="filters" size={52} className="opacity-90" />}
                     name="Rules studio"
-                    typeLabel="Visual filters"
+                    typeLabel="Easy templates · advanced editor"
                     meta={
                         <span className="bndz-panel-muted text-xs">
                             {activeCount} active · {filters.length} total
-                            {editing ? ` · editing “${editing.name}”` : ''}
+                            {editing ? ` · editing “${editing.name}”` : ' · tint rows by type, size, age'}
                         </span>
                     }
                     actions={
@@ -144,6 +200,28 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                     }
                 />
 
+                <div className="px-4 pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
+                    {[
+                        { name: 'Images', matchType: 'extension' as const, matchValue: 'png;jpg;jpeg;gif;webp;svg', rowTint: 'rgba(56,189,248,0.14)', textColor: '#bae6fd', badgeColor: '#38bdf8' },
+                        { name: 'Video', matchType: 'extension' as const, matchValue: 'mp4;mkv;mov;avi;webm', rowTint: 'rgba(244,114,182,0.14)', textColor: '#fbcfe8', badgeColor: '#f472b6' },
+                        { name: 'Large files', matchType: 'size' as const, matchValue: '100', rowTint: 'rgba(251,191,36,0.14)', textColor: '#fde68a', badgeColor: '#f59e0b' },
+                        { name: 'Recent', matchType: 'age' as const, matchValue: '7', rowTint: 'rgba(52,211,153,0.14)', textColor: '#a7f3d0', badgeColor: '#34d399' },
+                    ].map(tpl => (
+                        <button
+                            key={tpl.name}
+                            type="button"
+                            onClick={() => applyQuickTemplate(tpl)}
+                            className="text-left rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent px-3 py-2.5 hover:border-violet-400/35 transition-all"
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full ring-2 ring-white/10" style={{ background: tpl.badgeColor }} />
+                                <span className="text-[12px] font-semibold text-white/95">{tpl.name}</span>
+                            </div>
+                            <p className="text-[10px] bndz-panel-muted mt-0.5">One-click rule · edit after</p>
+                        </button>
+                    ))}
+                </div>
+
             <div className="w-full flex-1 p-4 flex gap-4 overflow-hidden min-h-0">
                 {/* Rules list */}
                 <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
@@ -157,7 +235,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                             <PluginEmptyState
                                 icon="filters"
                                 title="No filter rules"
-                                description="Create a rule to color-code files in the list by extension, size, age, and more."
+                                description="Use a template above or create a rule to color-code files by extension, size, age, and more."
                             />
                         )}
                         {filters.map(f => {
@@ -169,10 +247,10 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                                     onClick={() => setEditing(f)}
                                     className={`w-full text-left bndz-plugin-card !py-3 flex items-center gap-3 transition-colors ${
                                         selected
-                                            ? 'border-sky-400/40 bg-sky-500/[0.08] ring-1 ring-sky-400/20'
+                                            ? 'border-violet-400/40 bg-violet-500/[0.08] ring-1 ring-violet-400/20'
                                             : !f.isActive
                                                 ? 'opacity-55 hover:opacity-80'
-                                                : 'hover:border-sky-400/25'
+                                                : 'hover:border-violet-400/25'
                                     }`}
                                 >
                                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
@@ -338,6 +416,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                 </div>
             </div>
             </div>
+            )}
         </PluginPanelShell>
     );
 }

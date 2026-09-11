@@ -1,0 +1,37 @@
+{
+  "name": "openshop",
+  "version": "0.30.0",
+  "private": true,
+  "description": "Single-file browser image editor test harness",
+  "type": "module",
+  "release": {
+    "shellRevision": 2
+  },
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:coverage": "node tools/coverage-gate.mjs",
+    "test:e2e": "playwright test --project=chromium --project=chromium-http",
+    "css:check": "node tools/css-syntax.mjs",
+    "security:check": "node tools/security.mjs --check",
+    "security:write": "node tools/security.mjs --write",
+    "runtime:sync": "node tools/sync-runtime-assets.mjs",
+    "test:perf": "node --expose-gc tools/performance-budget.mjs --check",
+    "test:mobile": "playwright test --project=mobile-chromium --project=mobile-firefox --project=mobile-webkit",
+    "test:release": "npm run css:check && npm run security:check && npm audit --audit-level=high && npm run test:perf && npm run test:coverage && npm run test:e2e && npm run test:cross-browser && npm run test:mobile",
+    "test:cross-browser": "playwright test --project=firefox --project=webkit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "axe-core": "^4.13.0",
+    "css-tree": "^3.2.1",
+    "jsdom": "^30.0.1",
+    "spdx-license-ids": "^3.0.23",
+    "vitest": "^4.0.15",
+    "vitest-canvas-mock": "^0.3.3"
+  }
+}

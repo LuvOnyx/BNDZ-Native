@@ -100,6 +100,15 @@ export function resolveSingleTargetPath(menu: ContextMenuState): string {
 export const BUILT_IN_CONTEXT_VERBS = new Set([
   'open', 'edit', 'openas', 'openwith', 'cut', 'copy', 'paste', 'delete', 'trash',
   'rename', 'properties', 'settings', 'share', 'grantaccess', 'sendto',
+  'copyaspath', 'copypath', 'pintohome', 'pintostartscreen', 'pintotaskbar',
+]);
+
+/** Labels BNDZ already paints — skip shell duplicates by display name too. */
+const BUILT_IN_CONTEXT_LABELS = new Set([
+  'open', 'open with', 'open with...', 'edit', 'cut', 'copy', 'paste', 'delete',
+  'rename', 'properties', 'share', 'share with', 'give access to', 'give access to...',
+  'send to', 'copy path', 'copy as path', 'copy as path', 'open in new tab',
+  'run as administrator', 'extract', 'extract…', 'quick extract',
 ]);
 
 export type NativeContextMenuItem = {
@@ -119,6 +128,10 @@ function nativeItemKey(item: NativeContextMenuItem): string {
   return (item.id || item.verb || item.label || '').toLowerCase();
 }
 
+function nativeItemLabelKey(item: NativeContextMenuItem): string {
+  return (item.label || item.id || item.verb || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function isShellCascade(item: NativeContextMenuItem): boolean {
   return Array.isArray(item.children) && item.children.length > 0;
 }
@@ -126,6 +139,8 @@ function isShellCascade(item: NativeContextMenuItem): boolean {
 function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem | null {
   if (item.separator) return item;
   if (isShellCascade(item)) {
+    const cascadeLabel = nativeItemLabelKey(item);
+    if (cascadeLabel && BUILT_IN_CONTEXT_LABELS.has(cascadeLabel)) return null;
     const kids = filterSupplementalNativeItems(item.children);
     if (!kids.length) return null;
     return { ...item, children: kids };
@@ -133,12 +148,15 @@ function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem
   // Live IContextMenu extensions — always keep (even without classic verbs).
   if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId >= 0)) {
     const v = nativeItemKey(item);
-    // Skip exact duplicates of BNDZ built-ins (leaf verbs only; cascades stay).
+    const label = nativeItemLabelKey(item);
     if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return null;
+    if (label && BUILT_IN_CONTEXT_LABELS.has(label)) return null;
     return item;
   }
   const v = nativeItemKey(item);
+  const label = nativeItemLabelKey(item);
   if (!v || BUILT_IN_CONTEXT_VERBS.has(v)) return null;
+  if (label && BUILT_IN_CONTEXT_LABELS.has(label)) return null;
   return item;
 }
 
@@ -179,6 +197,54 @@ export function takeShellCascadeByLabel(
     rest.push(item);
   }
   return { cascade, rest: filterSupplementalNativeItems(rest) };
+}
+
+/**
+ * Explorer-style buckets for weaving shell verbs into the BNDZ menu.
+ * Cascades keep their own names (7-Zip, Send to, …) — never a dump "Shell extensions" folder.
+ */
+export type ShellMergeSlot = 'open' | 'clipboard' | 'cascades' | 'tools' | 'footer';
+
+const OPEN_SLOT_RE = /^(open with|edit|play|preview|print|run as)/i;
+const FOOTER_SLOT_RE = /^(pin to|unpin|add to|remove from|always available|restore previous|troubleshoot|cast to|include in library|rotate|set as)/i;
+const CLIPBOARD_SLOT_RE = /^(create shortcut|create link|paste shortcut|undo|redo)/i;
+
+export function partitionShellMergeItems(items: NativeContextMenuItem[]): Record<ShellMergeSlot, NativeContextMenuItem[]> {
+  const buckets: Record<ShellMergeSlot, NativeContextMenuItem[]> = {
+    open: [],
+    clipboard: [],
+    cascades: [],
+    tools: [],
+    footer: [],
+  };
+
+  for (const item of items) {
+    if (item.separator) continue;
+    const label = (item.label || '').trim();
+
+    if (isShellCascade(item)) {
+      if (/^new$/i.test(label)) continue; // promoted elsewhere
+      buckets.cascades.push(item);
+      continue;
+    }
+
+    if (item.isPrimary || OPEN_SLOT_RE.test(label)) {
+      buckets.open.push(item);
+      continue;
+    }
+    if (FOOTER_SLOT_RE.test(label)) {
+      buckets.footer.push(item);
+      continue;
+    }
+    if (CLIPBOARD_SLOT_RE.test(label)) {
+      buckets.clipboard.push(item);
+      continue;
+    }
+    // Remaining leaves = third-party / vendor tools (Scan with…, Upload to…, etc.)
+    buckets.tools.push(item);
+  }
+
+  return buckets;
 }
 
 /** Resolve the verb string to send to the host for a supplemental native item. */

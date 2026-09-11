@@ -9,7 +9,7 @@ export type WorkspaceLaunchCardProps = {
   emblemId?: string;
   accent: string;
   badge?: string;
-  badgeVariant?: 'gold' | 'new' | 'default';
+  badgeVariant?: 'gold' | 'green' | 'new' | 'default';
   features?: string[];
   onClick: () => void;
   className?: string;

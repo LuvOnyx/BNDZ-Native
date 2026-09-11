@@ -15,9 +15,15 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'batch-rename':
       return { kind: 'plugin', pluginId: 'batch-rename' };
     case 'compare':
-      return { kind: 'plugin', pluginId: 'compare' };
+      return { kind: 'plugin', pluginId: 'folder-sync' };
     case 'mesh-drop':
+    case 'mesh-shell-here':
+    case 'mesh-download':
+    case 'mesh-edit-remote':
+    case 'mesh-ephemeral':
       return { kind: 'plugin', pluginId: 'remote-mesh' };
+    case 'archive-extract':
+      return { kind: 'host', tool: id };
     case 'waveform':
     case 'media-tab':
       return { kind: 'preview', tab: 'media' };
@@ -30,7 +36,7 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'storage-cleanup':
       return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'ghost-link':
-      return { kind: 'plugin', pluginId: 'ghost-link' };
+      return { kind: 'plugin', pluginId: 'ram-staging' };
     case 'ram-staging':
     case 'flush-ram-zone':
       return { kind: 'plugin', pluginId: 'ram-staging' };
@@ -43,17 +49,17 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'project-sandbox':
       return { kind: 'plugin', pluginId: 'project-sandbox' };
     case 'library-health':
-      return { kind: 'plugin', pluginId: 'library-health' };
+      return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'capacity-solver':
-      return { kind: 'plugin', pluginId: 'capacity-solver' };
+      return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'inbound-volume':
-      return { kind: 'plugin', pluginId: 'inbound-volume' };
+      return { kind: 'plugin', pluginId: 'dropstack' };
     case 'branching-time':
       return { kind: 'plugin', pluginId: 'branching-time' };
     case 'transcode-rack':
-      return { kind: 'plugin', pluginId: 'transcode-rack' };
+      return { kind: 'plugin', pluginId: 'metadata' };
     case 'semantic-desk':
-      return { kind: 'plugin', pluginId: 'semantic-desk' };
+      return { kind: 'plugin', pluginId: 'filters' };
     case 'shell-menus':
       return { kind: 'plugin', pluginId: 'context-menu-manager' };
     case 'analyze-audio':

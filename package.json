@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "node scripts/audit-bndzui.mjs && node scripts/audit-view-imports.mjs && node scripts/prebuild-icons.mjs && node scripts/copy-legal-docs.mjs && node scripts/copy-monaco-assets.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build:openpencil": "npm run build --prefix tools/openpencil-host",
+    "sync:studio-engines": "powershell -ExecutionPolicy Bypass -File scripts/sync-studio-engines.ps1",
+    "build": "node scripts/audit-bndzui.mjs && node scripts/audit-view-imports.mjs && node scripts/prebuild-icons.mjs && node scripts/copy-legal-docs.mjs && node scripts/copy-monaco-assets.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && powershell -ExecutionPolicy Bypass -File scripts/sync-studio-engines.ps1",
     "build:backend": "dotnet build BNDZBackend/BNDZ.csproj -c Release -p:EnableWindowsTargeting=true",
     "dev:backend": "dotnet run --project BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true",
     "verify": "npm run lint && npm run test:unit && npm run build && npm run build:backend",
@@ -32,7 +34,7 @@
     "audit:wiring": "node scripts/wiring-audit.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts && tsx scripts/test-drop-destination.ts && tsx scripts/test-workspace-engine.ts && tsx scripts/test-workspace-persistence.ts && tsx scripts/test-mesh-drop-signaling.ts && tsx scripts/test-ghost-link-rules.ts && tsx scripts/test-ram-staging-paths.ts && tsx scripts/test-selection-signature.ts && tsx scripts/test-automation-lint.ts"
+    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts && tsx scripts/test-drop-destination.ts && tsx scripts/test-workspace-engine.ts && tsx scripts/test-workspace-persistence.ts && tsx scripts/test-mesh-drop-signaling.ts && tsx scripts/test-ghost-link-rules.ts && tsx scripts/test-ram-staging-paths.ts && tsx scripts/test-outbound-drag-paths.ts && tsx scripts/test-selection-signature.ts && tsx scripts/test-automation-lint.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -73,7 +75,7 @@
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "fuse.js": "^7.4.2",
+    "fabric": "^6.9.1",
     "lucide-react": "^0.546.0",
     "mammoth": "^1.12.0",
     "monaco-editor": "^0.56.0",
@@ -91,6 +93,7 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "three": "^0.185.1",
+    "tldraw": "^5.3.0",
     "vite": "^6.2.3",
     "wavesurfer.js": "^7.12.11"
   },

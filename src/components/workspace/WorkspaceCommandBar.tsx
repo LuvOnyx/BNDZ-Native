@@ -28,7 +28,13 @@ export default function WorkspaceCommandBar({ variant, commands, hint }: Props) 
             aria-label={cmd.label}
             disabled={cmd.disabled}
             className={`bndz-ws-commandbar-btn${cmd.active ? ' is-active' : ''}`}
-            onClick={e => { e.stopPropagation(); cmd.onClick(); }}
+            onPointerDown={e => {
+              if (e.button !== 0 || cmd.disabled) return;
+              e.preventDefault();
+              e.stopPropagation();
+              cmd.onClick();
+            }}
+            onClick={e => { e.preventDefault(); e.stopPropagation(); }}
           >
             {cmd.iconSrc ? (
               <img src={cmd.iconSrc} alt="" className="bndz-ws-commandbar-icon" draggable={false} />

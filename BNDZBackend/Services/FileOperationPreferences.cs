@@ -58,6 +58,10 @@ public sealed class FileOperationPreferences
     public static string ResolveOperationEngine(string action, IReadOnlyList<string> sources, string target)
     {
         var p = Current;
+        // Instant create ops need BNDZ path (unique names, progress path, no IFileOperation modal).
+        if (action is "create-dir" or "create-file")
+            return "bndz";
+
         if (p.CopyHandler == "teracopy" && action is "copy" or "move")
             return "teracopy";
 
@@ -81,6 +85,8 @@ public sealed class FileOperationPreferences
 
     public bool ShouldShowNativeProgress(string action, IReadOnlyList<string> sources, string target)
     {
+        // Background processing owns progress in the BNDZ transfer panel — no Explorer modal.
+        if (BackgroundProcessing) return false;
         if (ProgressDialogModeless) return false;
         if (!NativeShowProgress) return false;
         if (UseCustomCopy && action == "copy" && ForAllCopyOperations && NoProgressDialogOnDuplications)

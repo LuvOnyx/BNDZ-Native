@@ -5,6 +5,11 @@ export type ContextToolId =
   | 'batch-rename'
   | 'compare'
   | 'mesh-drop'
+  | 'mesh-shell-here'
+  | 'mesh-download'
+  | 'mesh-edit-remote'
+  | 'mesh-ephemeral'
+  | 'archive-extract'
   | 'waveform'
   | 'media-tab'
   | 'histogram'
@@ -78,26 +83,58 @@ export function filterToolsForInstalled(
   });
 }
 
+/** Stock context-menu ids → bottom-plugin id (same map as Command Deck). */
+const STOCK_CONTEXT_PLUGIN: Partial<Record<string, string>> = {
+  'mesh-drop': 'remote-mesh',
+  'ghost-link': 'ram-staging',
+  'ram-staging': 'ram-staging',
+  'zk-vault': 'project-sandbox',
+  'photo-studio': 'design-board',
+  'batch-rename': 'batch-rename',
+  'smart-rename': 'batch-rename',
+  'hello-gate': 'project-sandbox',
+  'change-icon': 'icon-studio',
+};
+
+export function pluginIdForStockContext(stockId: string): string | undefined {
+  return STOCK_CONTEXT_PLUGIN[stockId];
+}
+
+/** True when stock row may show — host actions always; plugin-backed need install. */
+export function isStockContextInstalled(
+  stockId: string,
+  installedIds: ReadonlySet<string> | readonly string[] | undefined | null,
+): boolean {
+  const pluginId = pluginIdForStockContext(stockId);
+  if (!pluginId) return true;
+  if (!installedIds) return false;
+  const set = installedIds instanceof Set ? installedIds : new Set(installedIds);
+  return set.has(pluginId);
+}
+
 export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
   if (sig.kind === 'empty') {
     return [];
   }
   if (sig.kind === 'multi') {
     const tools: ContextTool[] = [
-      tool('compare', 'Compare', 'compare', 'compare'),
+      tool('compare', 'Compare', 'compare', 'folder-sync'),
       tool('batch-rename', 'Batch rename', 'batch_rename', 'batch-rename'),
       tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
       tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
       tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
       tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
-      tool('capacity-solver', 'Capacity', 'bar_chart', 'capacity-solver'),
-      tool('inbound-volume', 'Inbound', 'download', 'inbound-volume'),
+      tool('capacity-solver', 'Capacity', 'bar_chart', 'storage-cleanup'),
+      tool('inbound-volume', 'Intake', 'download_ui', 'dropstack'),
       tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
       tool('catalog', 'Catalog', 'catalog', 'catalog'),
       tool('properties', 'Properties', 'sys_properties', 'properties'),
     ];
     if (sig.dominantMedia === 'audio') {
       tools.splice(1, 0, tool('analyze-audio', 'Analyze BPM/Key', 'music_ui', 'metadata'));
+    }
+    if (sig.dominantMedia === 'archive') {
+      tools.splice(0, 0, tool('archive-extract', 'Extract', 'zip', undefined, 'host'));
     }
     return tools;
   }
@@ -113,10 +150,27 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       ];
     case 'image':
       return [
-        tool('transcode-rack', 'Transcode', 'edit_image', 'transcode-rack'),
+        tool('transcode-rack', 'Encode', 'edit_image', 'metadata'),
+        // Loupe / Luma are 2D image tools only — never offered for 3D meshes.
         tool('histogram', 'Luma inspect', 'color', undefined, 'host'),
         tool('loupe', 'Loupe', 'preview', undefined, 'host'),
         tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
+        tool('properties', 'Properties', 'sys_properties', 'properties'),
+      ];
+    case 'model':
+      // 3D / FiveM RAGE (.ydr/.ybn/…) — main preview GpuModelViewport only; no Loupe/Luma.
+      return [
+        tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
+        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
+        tool('properties', 'Properties', 'sys_properties', 'properties'),
+      ];
+    case 'archive':
+      return [
+        tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
+        tool('archive-extract', 'Extract', 'zip', undefined, 'host'),
+        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
+        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
         tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'video':
@@ -127,17 +181,20 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       ];
     case 'folder':
       return [
-        tool('semantic-desk', 'Semantic Desk', 'smart_view', 'semantic-desk'),
+        tool('semantic-desk', 'Groups', 'smart_view', 'filters'),
         tool('index-folder', 'Index', 'search', undefined, 'host'),
         tool('storage-cleanup', 'Cleanup', 'storage_cleanup', 'storage-cleanup'),
         tool('folder-sync', 'Folder Sync', 'sync', 'folder-sync'),
         tool('project-sandbox', 'Sandbox', 'folder_tree', 'project-sandbox'),
-        tool('library-health', 'Health', 'health', 'library-health'),
+        tool('library-health', 'Library Health', 'heart_monitor_ui', 'storage-cleanup'),
         tool('branching-time', 'Branches', 'history_ui', 'branching-time'),
-        tool('ghost-link', 'Ghost-Link', 'emblem-symbolic-link', 'ghost-link'),
+        tool('ghost-link', 'Ghost Offload', 'link_ui', 'ram-staging'),
+        tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
+        tool('mesh-download', 'Download', 'download', 'remote-mesh'),
+        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
         tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
         tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
-        tool('continuum-compose', 'Continuum', 'view_grid', undefined, 'host'),
+        tool('continuum-compose', 'Pillar Board', 'layers_ui', undefined, 'host'),
         tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
         tool('catalog', 'Catalog', 'catalog', 'catalog'),
       ];
@@ -147,6 +204,10 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('batch-rename', 'Rename', 'batch_rename', 'batch-rename'),
         tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
         tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
+        tool('mesh-download', 'Download', 'download', 'remote-mesh'),
+        tool('mesh-edit-remote', 'Edit Remote', 'edit', 'remote-mesh'),
+        tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
         tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
       ];
   }

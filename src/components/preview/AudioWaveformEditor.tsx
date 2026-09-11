@@ -42,10 +42,51 @@ const REGION = 'rgba(255, 255, 255, 0.22)';
 async function blobUrlFromIpc(winPath: string): Promise<string | null> {
   const result = await IPC.getMediaBlob(winPath);
   if (!result.base64 || !result.mime) return null;
-  const binary = atob(result.base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return URL.createObjectURL(new Blob([bytes], { type: result.mime }));
+  const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
+  return URL.createObjectURL(blob);
+}
+
+type PeakCacheEntry = { peaks: number[][]; duration: number };
+const peakCache = new Map<string, PeakCacheEntry>();
+const peakInflight = new Map<string, Promise<PeakCacheEntry | null>>();
+
+async function decodePeaksCached(pathKey: string, blobUrl: string, signal: { cancelled: boolean }): Promise<PeakCacheEntry | null> {
+  const hit = peakCache.get(pathKey);
+  if (hit) return hit;
+  const existing = peakInflight.get(pathKey);
+  if (existing) return existing;
+
+  const job = (async () => {
+    try {
+      const ab = await (await fetch(blobUrl)).arrayBuffer();
+      if (signal.cancelled) return null;
+      // OfflineAudioContext avoids main-thread AudioContext suspend races when switching tracks.
+      const probe = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(ab.slice(0));
+      if (signal.cancelled) return null;
+      const peaks: number[][] = [];
+      const chans = Math.min(2, probe.numberOfChannels);
+      for (let ch = 0; ch < chans; ch++) {
+        peaks.push(channelPeaks(probe.getChannelData(ch)));
+        // Yield so UI stays responsive when hopping songs quickly.
+        await new Promise<void>((r) => setTimeout(r, 0));
+        if (signal.cancelled) return null;
+      }
+      const entry = { peaks, duration: probe.duration };
+      peakCache.set(pathKey, entry);
+      // Bound memory — keep recent tracks only.
+      if (peakCache.size > 12) {
+        const first = peakCache.keys().next().value;
+        if (first) peakCache.delete(first);
+      }
+      return entry;
+    } catch {
+      return null;
+    } finally {
+      peakInflight.delete(pathKey);
+    }
+  })();
+  peakInflight.set(pathKey, job);
+  return job;
 }
 
 /** Downsample channel data so WaveSurfer gets drawable peaks without megabyte arrays. */
@@ -137,11 +178,13 @@ export default function AudioWaveformEditor({ path, title }: Props) {
     const el = containerRef.current;
     if (!el || !path) return;
     let cancelled = false;
+    const cancelToken = { cancelled: false };
     let ws: WaveSurfer | null = null;
 
     const setup = async () => {
       el.replaceChildren();
       setStatus(null);
+      setReady(false);
 
       // Resolve ONE live blob — never bndz-stream for peaks (fetch/decode fails silently).
       let blobUrl = '';
@@ -157,7 +200,8 @@ export default function AudioWaveformEditor({ path, title }: Props) {
             return;
           }
           blobUrl = created;
-          audioPlaybackSession.load(path, blobUrl, { force: true });
+          // Only force when path actually changed — avoids decoder thrash mid-switch.
+          audioPlaybackSession.load(path, blobUrl, { force: !audioPlaybackSession.samePath(path) });
         } catch (e) {
           if (!cancelled) setStatus(e instanceof Error ? e.message : 'Waveform load failed');
           return;
@@ -166,34 +210,14 @@ export default function AudioWaveformEditor({ path, title }: Props) {
 
       if (cancelled || !blobUrl) return;
 
-      // Decode peaks ourselves — WaveSurfer `media`-only does not draw bars.
-      let peaks: number[][] = [];
-      let peakDuration = 0;
-      try {
-        const ab = await (await fetch(blobUrl)).arrayBuffer();
-        if (cancelled) return;
-        const ctx = new AudioContext();
-        try {
-          const audioBuffer = await ctx.decodeAudioData(ab.slice(0));
-          peakDuration = audioBuffer.duration;
-          const chans = Math.min(2, audioBuffer.numberOfChannels);
-          for (let ch = 0; ch < chans; ch++) {
-            peaks.push(channelPeaks(audioBuffer.getChannelData(ch)));
-          }
-        } finally {
-          void ctx.close();
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setStatus(e instanceof Error ? e.message : 'Could not decode waveform peaks');
-        }
+      const pathKey = toWindowsPath(path).toLowerCase();
+      const decoded = await decodePeaksCached(pathKey, blobUrl, cancelToken);
+      if (cancelled || !decoded?.peaks?.length || !(decoded.duration > 0)) {
+        if (!cancelled) setStatus(decoded ? 'Waveform decode produced no peaks' : 'Could not decode waveform peaks');
         return;
       }
-
-      if (cancelled || !peaks.length || !(peakDuration > 0)) {
-        setStatus('Waveform decode produced no peaks');
-        return;
-      }
+      const peaks = decoded.peaks;
+      const peakDuration = decoded.duration;
 
       const media = audioPlaybackSession.getMediaElement();
       const regions = RegionsPlugin.create();
@@ -256,10 +280,21 @@ export default function AudioWaveformEditor({ path, title }: Props) {
 
     return () => {
       cancelled = true;
+      cancelToken.cancelled = true;
       const snap = audioPlaybackSession.getSnapshot();
       const keepPlaying = snap.playing && audioPlaybackSession.samePath(path);
       const t = snap.currentTime;
-      try { ws?.destroy(); } catch { /* */ }
+      // Detach WaveSurfer from the shared <audio> without pausing/clearing src.
+      // destroy() on an external media element can stall Space Quick Look handoff.
+      try {
+        const media = audioPlaybackSession.getMediaElement();
+        const wasPaused = media.paused;
+        try { ws?.unAll?.(); } catch { /* */ }
+        try { ws?.destroy(); } catch { /* */ }
+        if (keepPlaying && wasPaused) {
+          /* media may have been paused by destroy — restore below */
+        }
+      } catch { /* */ }
       wsRef.current = null;
       regionsRef.current = null;
       if (keepPlaying) {
@@ -281,25 +316,37 @@ export default function AudioWaveformEditor({ path, title }: Props) {
   useEffect(() => {
     const root = editorRef.current;
     if (!root) return;
+
+    const zoomTimeline = (deltaY: number) => {
+      const ws = wsRef.current;
+      if (!ws || !ready) return;
+      const dur = ws.getDuration() || 1;
+      const el = containerRef.current;
+      const fit = el ? Math.max(1, Math.floor(el.clientWidth / dur)) : 1;
+      const opts = (ws as unknown as { options?: { minPxPerSec?: number } }).options;
+      const cur = opts?.minPxPerSec || fit;
+      const next = Math.max(fit, Math.min(640, cur * (deltaY > 0 ? 0.82 : 1.22)));
+      try {
+        ws.zoom(next);
+        if (opts) opts.minPxPerSec = next;
+      } catch { /* */ }
+    };
+
+    const zoomVertical = (deltaY: number) => {
+      const dir = deltaY > 0 ? -0.1 : 0.1;
+      setVZoom(z => Math.max(0.55, Math.min(2.8, +(z + dir).toFixed(2))));
+    };
+
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.altKey) return;
+      // Producer desk: Shift+wheel = timeline zoom, Ctrl+Shift+wheel = amplitude zoom.
+      // Also keep Ctrl+wheel (vertical) and Alt+wheel (timeline) as aliases.
+      const timeline = (e.shiftKey && !e.ctrlKey && !e.metaKey) || e.altKey;
+      const vertical = (e.shiftKey && (e.ctrlKey || e.metaKey)) || (e.ctrlKey && !e.shiftKey);
+      if (!timeline && !vertical) return;
       e.preventDefault();
       e.stopPropagation();
-      if (e.ctrlKey) {
-        const dir = e.deltaY > 0 ? -0.08 : 0.08;
-        setVZoom(z => Math.max(0.55, Math.min(2.4, +(z + dir).toFixed(2))));
-        return;
-      }
-      if (e.altKey) {
-        const ws = wsRef.current;
-        if (!ws || !ready) return;
-        const dur = ws.getDuration() || 1;
-        const el = containerRef.current;
-        const fit = el ? Math.max(1, Math.floor(el.clientWidth / dur)) : 1;
-        const cur = (ws as unknown as { options?: { minPxPerSec?: number } }).options?.minPxPerSec || fit;
-        const next = Math.max(fit, Math.min(480, cur * (e.deltaY > 0 ? 0.85 : 1.18)));
-        try { ws.zoom(next); } catch { /* */ }
-      }
+      if (timeline) zoomTimeline(e.deltaY);
+      else zoomVertical(e.deltaY);
     };
     root.addEventListener('wheel', onWheel, { capture: true, passive: false });
     return () => root.removeEventListener('wheel', onWheel, { capture: true });
@@ -400,7 +447,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
           <div className="bndz-wave-editor-title truncate">{displayTitle}</div>
           <div className="bndz-wave-editor-sub">
             {analysis?.artist ? `${analysis.artist} · ` : ''}
-            Ctrl+wheel vertical · Alt+wheel timeline · shared playback
+            Shift+wheel timeline · Ctrl+Shift+wheel amplitude · shared playback
           </div>
         </div>
         <div className="bndz-wave-editor-tools">
@@ -458,7 +505,12 @@ export default function AudioWaveformEditor({ path, title }: Props) {
           −5s
         </button>
         <button type="button" className="bndz-wave-btn is-primary" disabled={!ready} onClick={togglePlay}>
-          <EmblemIcon id={playing ? 'media-playback-paused' : 'media-playback-playing'} size={12} />
+          <EmblemIcon
+            id={playing ? 'media-playback-playing' : 'media-playback-paused'}
+            size={22}
+            progress={duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0}
+            paused={!playing}
+          />
           {playing ? 'Pause' : 'Play'}
         </button>
         <button type="button" className="bndz-wave-btn" disabled={!ready} onClick={() => skip(5)} title="Forward 5s">

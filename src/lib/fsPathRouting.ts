@@ -2,7 +2,7 @@
 
 import { isBndzRamPath } from './bndzVirtualViews';
 import { isMeshPath, normalizeMeshPath, parseMeshPath } from './meshPaths';
-import { normalizePanePath, toWindowsPath } from './pathUtils';
+import { isUriJunkPath, joinPanePath, normalizePanePath, toWindowsPath } from './pathUtils';
 
 export type DropRoute =
   | { kind: 'local'; op: 'copy' | 'move' }
@@ -34,6 +34,36 @@ export function canonicalDropPath(path: string): string {
     return pane;
   }
   return toWindowsPath(path);
+}
+
+function isAbsoluteListingPath(path: string): boolean {
+  const n = normalizePanePath(path.replace(/\\/g, '/'));
+  return /^\/[A-Za-z]:\//.test(n) || /^\/\/[^/]/.test(n);
+}
+
+/** Resolve a listing entity to a drag path — Rain-Explorer uses FileItem.FullPath verbatim. */
+export function resolveEntityDragPath(
+  entity: { name: string; path?: string; id?: string; fsPath?: string },
+  panePath: string,
+): string {
+  const idRaw = entity.id ? String(entity.id).trim() : '';
+  const raw = entity.fsPath
+    ? String(entity.fsPath)
+    : entity.path
+      ? String(entity.path)
+      : idRaw && isAbsoluteListingPath(idRaw)
+        ? idRaw
+        : joinPanePath(panePath, entity);
+  const trimmed = raw.trim();
+  const slashed = trimmed.replace(/\\/g, '/');
+  if (isUriJunkPath(trimmed)) {
+    return canonicalDropPath(joinPanePath(panePath, { name: entity.name, id: entity.id }));
+  }
+  // Corrupted listing path stuck on file%3A artifact while entity is a different item.
+  if (/[/]file%3A$/i.test(slashed) && entity.name !== 'file%3A') {
+    return canonicalDropPath(joinPanePath(panePath, { name: entity.name, id: entity.id }));
+  }
+  return canonicalDropPath(raw);
 }
 
 export function meshRemoteDirFromDest(destPath: string): { hostId: string; remotePath: string } | null {
@@ -77,6 +107,7 @@ export function resolveDropRoute(
   if (!destMesh && srcMesh) {
     const hostId = meshHostIdFromSources(sourcePaths);
     if (!hostId) return { kind: 'local', op };
+    // Dest must be a real local folder — never a virtual smart view.
     return { kind: 'mesh-download', hostId, localDestDir: destCanon };
   }
 

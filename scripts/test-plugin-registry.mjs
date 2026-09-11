@@ -8,7 +8,7 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const REGISTRY = path.join(ROOT, 'src/data/PluginRegistryContext.tsx');
 const src = fs.readFileSync(REGISTRY, 'utf8');
 
-const defaultInstalled = [...src.matchAll(/DEFAULT_INSTALLED_PLUGINS\s*=\s*\[([\s\S]*?)\];/gm)][0]?.[1]
+const defaultInstalled = [...src.matchAll(/DEFAULT_INSTALLED_PLUGINS(?:\s*:\s*[^=]+)?\s*=\s*\[([\s\S]*?)\];/gm)][0]?.[1]
   ?.match(/'([^']+)'/g)
   ?.map(s => s.slice(1, -1)) ?? [];
 
@@ -29,9 +29,14 @@ const defFiles = {
   FolderSyncPluginDef: 'FolderSyncPlugin.tsx',
   CatalogPluginDef: 'CatalogPlugin.tsx',
   ActionLogPluginDef: 'ActionLogPlugin.tsx',
-  ComparePluginDef: 'ComparePlugin.tsx',
   MeshPluginDef: 'MeshPlugin.tsx',
-  GhostLinkPluginDef: 'GhostLinkPlugin.tsx',
+  RamStagingPluginDef: 'RamStagingPlugin.tsx',
+  ProjectSandboxPluginDef: 'ProjectSandboxPlugin.tsx',
+  CapacitySolverPluginDef: 'CapacitySolverPlugin.tsx',
+  BranchingTimePluginDef: 'BranchingTimePlugin.tsx',
+  CaptureInboxPluginDef: 'CaptureInboxPlugin.tsx',
+  RealityCheckPluginDef: 'RealityCheckPlugin.tsx',
+  DesignBoardPluginDef: 'DesignBoardPlugin.tsx',
 };
 
 function readDefId(defName) {
@@ -71,9 +76,14 @@ const componentPaths = {
   FolderSyncPlugin: 'FolderSyncPlugin.tsx',
   CatalogPlugin: 'CatalogPlugin.tsx',
   ActionLogPlugin: 'ActionLogPlugin.tsx',
-  ComparePlugin: 'ComparePlugin.tsx',
   MeshPlugin: 'MeshPlugin.tsx',
-  GhostLinkPlugin: 'GhostLinkPlugin.tsx',
+  RamStagingPlugin: 'RamStagingPlugin.tsx',
+  ProjectSandboxPlugin: 'ProjectSandboxPlugin.tsx',
+  CapacitySolverPlugin: 'CapacitySolverPlugin.tsx',
+  BranchingTimePlugin: 'BranchingTimePlugin.tsx',
+  CaptureInboxPlugin: 'CaptureInboxPlugin.tsx',
+  RealityCheckPlugin: 'RealityCheckPlugin.tsx',
+  DesignBoardPlugin: 'DesignBoardPlugin.tsx',
 };
 
 for (const comp of components) {
@@ -100,6 +110,30 @@ const iconStudio = fs.readFileSync(path.join(pluginDir, 'IconStudio/index.tsx'),
 if (!iconStudio.includes('export default function IconStudioPlugin')) {
   errors.push('IconStudio/index.tsx: missing default export');
 }
+
+
+// Remap table must send retired IDs to living hosts; retired IDs must not remain in Hub catalog.
+const remapBlock = src.match(/RETIRED_PLUGIN_REMAP[\s\S]*?=\s*\{([\s\S]*?)\n\};/)?.[1] ?? '';
+const expectedRemaps = {
+  'drop-magnet': 'batch-rename',
+  compare: 'folder-sync',
+  'transcode-rack': 'metadata',
+  'semantic-desk': 'filters',
+  'policy-packs': 'dropstack',
+  'inbound-volume': 'dropstack',
+  'capture-inbox': 'dropstack',
+  'zk-vault': 'project-sandbox',
+  'ghost-link': 'ram-staging',
+  'library-health': 'storage-cleanup',
+  'reality-check': 'storage-cleanup',
+};
+for (const [from, to] of Object.entries(expectedRemaps)) {
+  const re = new RegExp(String.raw`['"\`]?${from}['"\`]?\s*:\s*['"\`]${to}['"\`]`);
+  if (!re.test(remapBlock)) errors.push(`RETIRED_PLUGIN_REMAP missing ${from} → ${to}`);
+  if (seenIds.has(from)) errors.push(`retired id still in Hub catalog: ${from}`);
+  if (!seenIds.has(to)) errors.push(`remap target missing from Hub catalog: ${to}`);
+}
+if (!defaultInstalled.length) errors.push('DEFAULT_INSTALLED_PLUGINS parsed empty — regex likely broken');
 
 if (errors.length) {
   console.error('plugin registry tests FAILED:\n' + errors.map(e => `  - ${e}`).join('\n'));

@@ -3,15 +3,22 @@
  * double-clicks, marquee selection, and enforces movement threshold.
  */
 
-/** Movement before a list drag can arm — Explorer-like (~SM_CXDRAG). */
-const DRAG_THRESHOLD_PX = 6;
-const DOUBLE_CLICK_GUARD_MS = 280;
 /**
- * Hold after threshold before drag arms. Keep near-zero so drag feels Explorer-instant;
- * click-vs-drag is already separated by movement threshold.
+ * Movement before a list drag can arm — above SM_CXDRAG so a jittery
+ * first click of a double-click does not hijack into fluid-drag.
  */
-const DEFAULT_DRAG_DELAY_MS = 0;
-const SELECTED_DRAG_DELAY_MS = 0;
+const DRAG_THRESHOLD_PX = 12;
+const NATIVE_DRAG_THRESHOLD_PX = 12;
+const DOUBLE_CLICK_GUARD_MS = 400;
+/**
+ * Hold after threshold before drag arms. Explorer-like DragDetect needs both
+ * distance and a brief settle so double-click navigation wins over drag.
+ * Native shell still needs enough settle that click micro-motion does not arm.
+ */
+const DEFAULT_DRAG_DELAY_MS = 140;
+const SELECTED_DRAG_DELAY_MS = 110;
+const NATIVE_DRAG_DELAY_MS = 100;
+const NATIVE_SELECTED_DRAG_DELAY_MS = 85;
 /** Legacy defer slot — row onClick handles clicks directly (0 = instant). */
 export const LIST_CLICK_DEFER_MS = 0;
 
@@ -27,6 +34,8 @@ type DragSession = {
   delayMs: number;
   ready: boolean;
   timer: ReturnType<typeof setTimeout> | null;
+  /** Consecutive move samples past threshold (filters single-sample noise). */
+  thresholdHits: number;
 };
 
 let marqueeActive = false;
@@ -34,6 +43,16 @@ let marqueeDragOccurred = false;
 let lastPointerDownAt = 0;
 let session: DragSession | null = null;
 let dragThresholdMet = false;
+
+let dragThresholdPx = DRAG_THRESHOLD_PX;
+let dragThresholdHitsRequired = 2;
+
+/** WinUI / WebView2 native shell — keep dual-hit + settle so clicks do not become drags. */
+export function configureExplorerGradeDragThreshold(enabled: boolean) {
+  dragThresholdPx = enabled ? NATIVE_DRAG_THRESHOLD_PX : DRAG_THRESHOLD_PX;
+  // Always require two samples past threshold — a single jittery sample arms too early.
+  dragThresholdHitsRequired = 2;
+}
 
 export function hasMetDragThreshold() {
   return dragThresholdMet;
@@ -120,6 +139,7 @@ export function beginDragSession(
     delayMs,
     ready: delayMs <= 0,
     timer: null,
+    thresholdHits: 0,
   };
   if (delayMs > 0) {
     session.timer = setTimeout(() => {
@@ -132,15 +152,39 @@ export function trackDragPointer(clientX: number, clientY: number): boolean {
   if (!session) return false;
   const dx = Math.abs(clientX - session.startX);
   const dy = Math.abs(clientY - session.startY);
-  if (dx > DRAG_THRESHOLD_PX || dy > DRAG_THRESHOLD_PX) {
-    session.moved = true;
-    dragThresholdMet = true;
+  if (dx > dragThresholdPx || dy > dragThresholdPx) {
+    session.thresholdHits += 1;
+    // Require consecutive samples past threshold to ignore single-sample jitter (web default).
+    if (session.thresholdHits >= dragThresholdHitsRequired) {
+      session.moved = true;
+      dragThresholdMet = true;
+      // Threshold = proven drag intent — do not wait out settle delay (WebView2 rim cancel).
+      if (!session.ready) {
+        if (session.timer) {
+          clearTimeout(session.timer);
+          session.timer = null;
+        }
+        session.ready = true;
+      }
+    }
+  } else {
+    session.thresholdHits = 0;
   }
   return session.moved;
 }
 
 export function isDragSessionReady(): boolean {
   return !!session?.ready;
+}
+
+/** Once movement proves drag intent, skip remaining settle delay (native rim cancel race). */
+export function forceDragSessionReady(): void {
+  if (!session) return;
+  if (session.timer) {
+    clearTimeout(session.timer);
+    session.timer = null;
+  }
+  session.ready = true;
 }
 
 /** Block HTML5 drag until pointer movement exceeds threshold (Explorer-style). */
@@ -157,6 +201,18 @@ export function clearDragSession() {
   dragThresholdMet = false;
 }
 
+/** Full reset after drop / cancel / Escape — clears arm state so the next press is clean. */
+export function resetDragInteractionState() {
+  clearDragSession();
+  marqueeActive = false;
+  marqueeDragOccurred = false;
+  try {
+    (window as any)._marqueeDragOccurred = false;
+  } catch { /* ignore */ }
+}
+
 export const DRAG_THRESHOLD = DRAG_THRESHOLD_PX;
 export const DRAG_DELAY_DEFAULT = DEFAULT_DRAG_DELAY_MS;
 export const DRAG_DELAY_SELECTED = SELECTED_DRAG_DELAY_MS;
+export const DRAG_DELAY_NATIVE = NATIVE_DRAG_DELAY_MS;
+export const DRAG_DELAY_NATIVE_SELECTED = NATIVE_SELECTED_DRAG_DELAY_MS;

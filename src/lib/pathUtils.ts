@@ -9,7 +9,8 @@ export function isRecycleBinPath(path: string | null | undefined): boolean {
 
 /** Canonical virtual pane path: `/C:`, `/C:/Users/foo`, never `drive-/C:` or `C:/foo` without leading slash */
 export function normalizePanePath(path: string | null | undefined): string {
-  if (!path || path === '/') return path || '/';
+  if (path == null || path === '/') return path || '/';
+  if (typeof path !== 'string') return '/';
   let p = path.replace(/\\/g, '/');
   if (p.startsWith('drive-')) p = '/' + p.slice(6);
   if (/^[A-Za-z]:/.test(p) && !p.startsWith('/')) p = '/' + p;
@@ -40,10 +41,39 @@ export function joinPanePathForFs(panePath: string, name: string): string {
   return toWindowsPath(`${base}/${name}`);
 }
 
+/** Stream/file URI junk — not literal % in a real Windows path segment (e.g. folder `file%3A`). */
+export function isUriJunkPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const raw = path.trim();
+  if (/^bndz-stream:/i.test(raw)) return true;
+  if (/^file:/i.test(raw)) return true;
+  if (/^file%3A/i.test(raw) && !/^\/[A-Za-z]:/.test(raw) && !/^[A-Za-z]:[/\\]/.test(raw)) return true;
+  return false;
+}
+
+function decodeBndzStreamPath(url: string): string {
+  const m = url.match(/^bndz-stream:\/\/local\/(.+)$/i);
+  if (!m) return url;
+  const segments = m[1].split('/').map((seg, i) => {
+    if (i === 0 && /^[A-Za-z]%3A$/i.test(seg)) return `${seg[0]}:`;
+    try { return decodeURIComponent(seg); } catch { return seg; }
+  });
+  return segments.join('\\');
+}
+
 /** Normalize UI path (/C:/foo/bar) to Windows path (C:\foo\bar) */
 export function toWindowsPath(path: string | null | undefined): string {
   if (!path) return '';
   let p = path.trim();
+  // Never whole-path decodeURIComponent — breaks real folders named file%3A on disk.
+  if (/^bndz-stream:/i.test(p)) {
+    p = decodeBndzStreamPath(p);
+  } else if (/^file:/i.test(p)) {
+    try {
+      const u = new URL(p);
+      if (u.protocol === 'file:') p = decodeURIComponent(u.pathname);
+    } catch { /* keep */ }
+  }
   // UNC / network paths: preserve the leading double separator
   const slashed = p.replace(/\\/g, '/');
   // Mis-parsed drive root (`//C:`) — not a UNC path
@@ -80,6 +110,22 @@ export function isValidShellTarget(path: string | null | undefined): boolean {
   return win.length > 2;
 }
 
+/** Paths safe for native CF_HDROP outbound drag — rejects file: URI junk and virtual pane paths. */
+export function isValidOutboundDragPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const raw = path.trim();
+  if (isUriJunkPath(raw)) return false;
+  const win = toWindowsPath(path);
+  if (!win || /^file:/i.test(win)) return false;
+  const pane = normalizePanePath(path);
+  if (pane.toLowerCase().startsWith('/bndz/')) return false;
+  const leaf = win.split(/[/\\]/).pop() ?? '';
+  // Reject decoded URI junk leaf (file:) — allow literal folder names like file%3A.
+  if (!leaf || leaf === 'file:' || (leaf.includes(':') && !/^[A-Za-z]:$/.test(leaf))) return false;
+  if (!/^[A-Za-z]:\\/.test(win) && !win.startsWith('\\\\')) return false;
+  return true;
+}
+
 /** Encode a Windows path for safe use in WebView2 stream URLs (colon-safe) */
 export function encodeLocalStreamPath(winPath: string): string {
   const normalized = winPath.replace(/\\/g, '/');
@@ -111,7 +157,8 @@ export function joinPanePath(panePath: string, entity: { name: string; path?: st
   if (entity.path) {
     let p = entity.path.replace(/\\/g, '/');
     if (p.startsWith('drive-')) p = '/' + p.slice(6);
-    return normalizePanePath(p);
+    const normalized = normalizePanePath(p);
+    if (!isUriJunkPath(normalized)) return normalized;
   }
   if (entity.id?.startsWith('drive-')) {
     return normalizePanePath('/' + entity.id.slice(6));
@@ -131,6 +178,27 @@ export function findEntityInCache(
     if (found) return found;
   }
   return null;
+}
+
+const WSL_ROOT_PANE = '//wsl.localhost/';
+
+/** True when pane path is the WSL distro root (`//wsl.localhost/`). */
+export function isWslRootPanePath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const p = normalizePanePath(path).replace(/\/+$/, '').toLowerCase();
+  return p === '//wsl.localhost' || p === '//wsl$';
+}
+
+/** True for any `//wsl.localhost/...` pane path. */
+export function isWslPanePath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const p = normalizePanePath(path).toLowerCase();
+  return p.startsWith('//wsl.localhost') || p.startsWith('//wsl$');
+}
+
+/** Canonical WSL root pane path for navigation. */
+export function wslRootPanePath(): string {
+  return WSL_ROOT_PANE;
 }
 
 /** Safe locale date formatting — avoids "Invalid Date" in preview panel */

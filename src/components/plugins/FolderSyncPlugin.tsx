@@ -5,6 +5,7 @@ import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 import DestinationPickerModal from '../DestinationPickerModal';
 import PluginPanelShell from './PluginPanelShell';
+import ComparePlugin from './ComparePlugin';
 import { pushToast } from '../ToastHost';
 import {
   PluginToolbarButton,
@@ -15,14 +16,17 @@ import {
   PluginHeroStrip,
   PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
+  PluginTabStrip,
+  PluginTab,
 } from './PluginPanelPrimitives';
 
 export const FolderSyncPluginDef = {
   id: 'folder-sync',
   name: 'Folder Sync',
   icon: 'sync_folders',
+  description: 'Sync & diff — robocopy jobs plus binary file and recursive folder compare',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 export interface FolderSyncJob {
@@ -89,7 +93,22 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export default function FolderSyncPlugin({ currentPath }: { currentPath?: string }) {
+export default function FolderSyncPlugin({
+  currentPath,
+  selectedPaths,
+  selectedItems,
+  focusedPath,
+  pluginLaunch,
+  onNavigate,
+}: {
+  currentPath?: string;
+  selectedPaths?: string[];
+  selectedItems?: string[];
+  focusedPath?: string;
+  pluginLaunch?: { tab?: string };
+  onNavigate?: (path: string) => void;
+}) {
+  const [panelTab, setPanelTab] = useState<'jobs' | 'diff'>('jobs');
   const [jobs, setJobs] = useState<FolderSyncJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [picker, setPicker] = useState<'source' | 'dest' | null>(null);
@@ -99,6 +118,12 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, { percent: number; message?: string; file?: string }>>({});
   const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = String(pluginLaunch?.tab || '').toLowerCase();
+    if (t === 'diff' || t === 'compare' || t === 'diffs') setPanelTab('diff');
+    else if (t === 'jobs' || t === 'sync') setPanelTab('jobs');
+  }, [pluginLaunch?.tab]);
 
   const loadJobs = useCallback(async () => {
     setLoading(true);
@@ -235,239 +260,263 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
     await persistJobs(jobs.filter(j => j.id !== id));
   };
 
+  const comparePaths = (selectedPaths?.length ? selectedPaths : selectedItems) || [];
+
   return (
     <PluginPanelShell
-      title="Folder Sync"
+      title="Sync & Diff"
       icon="sync_folders"
       iconColor="#0078d4"
       variant="embedded"
-      subtitle="Auto-sync folders via robocopy"
-      toolbar={
-        currentPath ? (
-          <>
-            <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('source')} title="Use current folder as source">Pane → source</PluginToolbarButton>
-            <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('dest')} title="Use current folder as destination">Pane → dest</PluginToolbarButton>
-          </>
-        ) : undefined
-      }
-    >
-    <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <PluginHeroStrip
-        icon={<Icons8Icon id="sync_folders" size={52} className="opacity-90" />}
-        name={jobs.length ? `${jobs.length} sync pair${jobs.length === 1 ? '' : 's'}` : 'Folder sync'}
-        typeLabel="Robocopy engine"
-        path={currentPath ? formatUiPath(currentPath) : undefined}
-        meta={
-          <span className="bndz-panel-muted text-xs">
-            {jobs.filter(j => j.watchEnabled).length} watching · {syncingId ? 'Sync in progress' : 'Ready'}
-          </span>
-        }
-        actions={
-          <>
-            <PluginHeroActionButton
-              icon="sync_folders"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: '/bndz/twin-volume' } }));
-              }}
-            >
-              Cross-volume board
-            </PluginHeroActionButton>
-            <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNewJob}>New sync</PluginHeroActionButton>
-          </>
-        }
-      />
-      <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3 min-h-0">
-        {loading && (
-          <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
-            <Icons8Icon id="loading" size={18} spin /> Loading sync jobs…
-          </div>
-        )}
-
-        {!loading && jobs.length === 0 && !draft && (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <PluginEmptyState
-              icon="sync_folders"
-              title="No sync pairs yet"
-              description="Mirror a project folder to a backup drive, or keep two folders in sync automatically."
-            />
-            <PluginToolbarButton onClick={startNewJob}>Create your first sync</PluginToolbarButton>
-          </div>
-        )}
-
-        {draft && (
-          <PluginCard className="border-[#0078d4]/30 space-y-3">
-            <PluginSectionTitle icon="sync_folders">{editingId ? 'Edit sync pair' : 'New sync pair'}</PluginSectionTitle>
-            <div>
-              <PluginFieldLabel>Sync name</PluginFieldLabel>
-              <input
-                className={PLUGIN_INPUT_CLASS}
-                placeholder="Sync name"
-                value={draft.name || ''}
-                onChange={e => setDraft({ ...draft, name: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
-                onClick={() => setPicker('source')}
-              >
-                {draft.sourcePath ? formatUiPath(draft.sourcePath) : 'Pick source folder…'}
-              </button>
-              <Icons8Icon id="chevron_right" size={14} className="shrink-0 text-gray-500" />
-              <button
-                type="button"
-                className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
-                onClick={() => setPicker('dest')}
-              >
-                {draft.destPath ? formatUiPath(draft.destPath) : 'Pick destination…'}
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-4 text-xs text-gray-300">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={draft.watchEnabled !== false} onChange={e => setDraft({ ...draft, watchEnabled: e.target.checked })} className="accent-[#0078d4]" />
-                <Icons8Icon id="sparkles_ui" size={12} /> Watch for changes
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={!!draft.mirrorMode} onChange={e => setDraft({ ...draft, mirrorMode: e.target.checked })} className="accent-[#0078d4]" />
-                Mirror mode (delete extras in destination)
-              </label>
-            </div>
-            <div className="flex items-center gap-2">
-              <PluginToolbarButton
-                icon="sync"
-                onClick={() => setDraft(d => d ? { ...d, sourcePath: d.destPath, destPath: d.sourcePath } : d)}
-              >
-                Pull (swap source ↔ dest)
-              </PluginToolbarButton>
-            </div>
-            <div>
-              <PluginFieldLabel>Exclude patterns (; or newline)</PluginFieldLabel>
-              <textarea
-                className={`${PLUGIN_INPUT_CLASS} min-h-[52px] resize-y bndz-mono text-[11px]`}
-                placeholder="*.tmp; node_modules; .git"
-                value={(draft as any).excludePatterns || ''}
-                onChange={e => setDraft({ ...draft, excludePatterns: e.target.value } as any)}
-              />
-              <p className="text-[10px] text-white/35 mt-1">Applied client-side to preview lists; stored with the job draft.</p>
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <PluginToolbarButton onClick={() => { setDraft(null); setEditingId(null); }}>Cancel</PluginToolbarButton>
-              <PluginToolbarButton icon="check" active onClick={() => void saveDraft()} disabled={!draft.sourcePath || !draft.destPath}>
-                {editingId ? 'Save changes' : 'Save & enable'}
-              </PluginToolbarButton>
-            </div>
-          </PluginCard>
-        )}
-
-        {jobs.map(job => {
-          const prog = progress[job.id];
-          const isSyncing = syncingId === job.id || job.lastStatus === 'syncing';
-          return (
-            <PluginCard key={job.id} className="relative overflow-hidden">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-white">{job.name}</span>
-                    <StatusBadge status={isSyncing ? 'syncing' : job.watchEnabled ? 'watching' : job.lastStatus} />
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 text-xs bndz-mono bndz-panel-muted">
-                    <span className="truncate max-w-[45%]" title={formatUiPath(job.sourcePath)}>{formatUiPath(job.sourcePath)}</span>
-                    <Icons8Icon id="chevron_right" size={10} className="shrink-0" />
-                    <span className="truncate max-w-[45%]" title={formatUiPath(job.destPath)}>{formatUiPath(job.destPath)}</span>
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-1 text-xs bndz-panel-muted">
-                    <Icons8Icon id="clock_ui" size={10} /> Last sync: {formatWhen(job.lastSyncUtc)}
-                    {job.mirrorMode && <span className="ml-2 text-amber-400/80">• Mirror</span>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <PluginToolbarButton
-                    icon={previewLoading === job.id ? 'loading' : 'table_ui'}
-                    title="Preview diff"
-                    disabled={previewLoading === job.id}
-                    onClick={() => void loadPreview(job.id)}
-                  />
-                  <PluginToolbarButton icon="pencil_ui" title="Edit job" onClick={() => startEditJob(job)} />
-                  <PluginToolbarButton
-                    icon={isSyncing ? 'loading' : 'play_ui'}
-                    title="Sync now"
-                    disabled={isSyncing}
-                    onClick={() => void runSync(job.id)}
-                  />
-                  <PluginToolbarButton
-                    icon={job.watchEnabled ? 'close' : 'toggle_preview'}
-                    title={job.watchEnabled ? 'Pause watching' : 'Enable watching'}
-                    onClick={() => void toggleWatch(job)}
-                  />
-                  <PluginToolbarButton icon="delete" title="Remove" onClick={() => void removeJob(job.id)} />
-                </div>
-              </div>
-
-              {(isSyncing || prog) && (
-                <div className="space-y-1">
-                  <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
-                    <div className="h-full bg-[#0078d4] rounded-full transition-all duration-300" style={{ width: `${prog?.percent ?? 30}%` }} />
-                  </div>
-                  <p className="text-xs bndz-panel-muted truncate">{prog?.message || prog?.file || 'Syncing…'}</p>
-                </div>
-              )}
-
-              {job.lastError && (
-                <p className="mt-2 text-xs text-red-400/90 flex items-center gap-1">
-                  <Icons8Icon id="warning" size={10} /> {job.lastError}
-                </p>
-              )}
-            </PluginCard>
-          );
-        })}
-      </div>
-
-      {preview && (
-        <div className="shrink-0 border-t border-white/10 bg-black/20 max-h-[40%] flex flex-col">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06]">
-            <div className="text-xs font-semibold text-[#99c9f0] flex items-center gap-2">
-              <Icons8Icon id="table_ui" size={13} /> Sync preview
-              <span className="bndz-panel-muted font-normal">{preview.data.summary}</span>
-            </div>
-            <PluginToolbarButton icon="close" onClick={() => setPreview(null)} />
-          </div>
-          <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 grid grid-cols-2 gap-3 bndz-mono text-xs">
-            {([
-              ['New files', preview.data.wouldCopy, 'text-emerald-400'],
-              ['Updates', preview.data.wouldUpdate, 'text-amber-300'],
-              ['Unchanged', preview.data.wouldSkip, 'text-gray-500'],
-              ['Extra (mirror)', preview.data.extraInDest, 'text-rose-300'],
-            ] as const).map(([label, items, color]) => (
-              <PluginCard key={label} className="!p-2 min-h-[80px]">
-                <div className={`bndz-plugin-section-title mb-1.5 ${color}`}>{label} ({items?.length ?? 0})</div>
-                <div className="space-y-0.5 max-h-28 overflow-y-auto bndz-scrollbar bndz-panel-muted">
-                  {(items || []).slice(0, 40).map(p => <div key={p} className="truncate" title={p}>{p}</div>)}
-                  {(items?.length ?? 0) > 40 && <div>…and {(items?.length ?? 0) - 40} more</div>}
-                </div>
-              </PluginCard>
-            ))}
-          </div>
-          <div className="px-4 py-2 border-t border-white/[0.06] flex justify-end gap-2">
-            <PluginToolbarButton onClick={() => setPreview(null)}>Close</PluginToolbarButton>
-            <PluginToolbarButton icon="play_ui" active onClick={() => { void runSync(preview.jobId); setPreview(null); }}>Run sync</PluginToolbarButton>
-          </div>
+      subtitle={panelTab === 'diff'
+        ? 'Binary file compare and recursive folder diff'
+        : 'Auto-sync folders via robocopy'}
+      toolbar={(
+        <div className="flex items-center gap-2 min-w-0">
+          <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+            <PluginTab active={panelTab === 'jobs'} onClick={() => setPanelTab('jobs')}>
+              <span className="inline-flex items-center gap-1"><Icons8Icon id="sync_folders" size={11} />Jobs</span>
+            </PluginTab>
+            <PluginTab active={panelTab === 'diff'} onClick={() => setPanelTab('diff')}>
+              <span className="inline-flex items-center gap-1"><Icons8Icon id="compare_ui" size={11} />Diff</span>
+            </PluginTab>
+          </PluginTabStrip>
+          {panelTab === 'jobs' && currentPath ? (
+            <>
+              <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('source')} title="Use current folder as source">Pane → source</PluginToolbarButton>
+              <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('dest')} title="Use current folder as destination">Pane → dest</PluginToolbarButton>
+            </>
+          ) : null}
         </div>
       )}
+    >
+      {panelTab === 'diff' ? (
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
+          <ComparePlugin
+            selectedPaths={comparePaths}
+            focusedPath={focusedPath || currentPath}
+            onNavigate={onNavigate}
+          />
+        </div>
+      ) : (
+      <div className="flex flex-col h-full min-h-0 overflow-hidden">
+        <PluginHeroStrip
+          icon={<Icons8Icon id="sync_folders" size={52} className="opacity-90" />}
+          name={jobs.length ? `${jobs.length} sync pair${jobs.length === 1 ? '' : 's'}` : 'Folder sync'}
+          typeLabel="Robocopy engine"
+          path={currentPath ? formatUiPath(currentPath) : undefined}
+          meta={
+            <span className="bndz-panel-muted text-xs">
+              {jobs.filter(j => j.watchEnabled).length} watching · {syncingId ? 'Sync in progress' : 'Ready'}
+            </span>
+          }
+          actions={
+            <>
+              <PluginHeroActionButton
+                icon="sync_folders"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: '/bndz/twin-volume' } }));
+                }}
+              >
+                Cross-volume board
+              </PluginHeroActionButton>
+              <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNewJob}>New sync</PluginHeroActionButton>
+            </>
+          }
+        />
+        <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3 min-h-0">
+          {loading && (
+            <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
+              <Icons8Icon id="loading" size={18} spin /> Loading sync jobs…
+            </div>
+          )}
 
-      <DestinationPickerModal
-        open={!!picker}
-        title={picker === 'source' ? 'Source folder' : 'Destination folder'}
-        onCancel={() => setPicker(null)}
-        onConfirm={(path) => {
-          if (!draft) return;
-          const win = toWindowsPath(path);
-          if (picker === 'source') setDraft({ ...draft, sourcePath: win });
-          else setDraft({ ...draft, destPath: win });
-          setPicker(null);
-        }}
-      />
-    </div>
+          {!loading && jobs.length === 0 && !draft && (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <PluginEmptyState
+                icon="sync_folders"
+                title="No sync pairs yet"
+                description="Mirror a project folder to a backup drive, or keep two folders in sync automatically."
+              />
+              <PluginToolbarButton onClick={startNewJob}>Create your first sync</PluginToolbarButton>
+            </div>
+          )}
+
+          {draft && (
+            <PluginCard className="border-[#0078d4]/30 space-y-3">
+              <PluginSectionTitle icon="sync_folders">{editingId ? 'Edit sync pair' : 'New sync pair'}</PluginSectionTitle>
+              <div>
+                <PluginFieldLabel>Sync name</PluginFieldLabel>
+                <input
+                  className={PLUGIN_INPUT_CLASS}
+                  placeholder="Sync name"
+                  value={draft.name || ''}
+                  onChange={e => setDraft({ ...draft, name: e.target.value })}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
+                  onClick={() => setPicker('source')}
+                >
+                  {draft.sourcePath ? formatUiPath(draft.sourcePath) : 'Pick source folder…'}
+                </button>
+                <Icons8Icon id="chevron_right" size={14} className="shrink-0 text-gray-500" />
+                <button
+                  type="button"
+                  className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
+                  onClick={() => setPicker('dest')}
+                >
+                  {draft.destPath ? formatUiPath(draft.destPath) : 'Pick destination…'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-4 text-xs text-gray-300">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={draft.watchEnabled !== false} onChange={e => setDraft({ ...draft, watchEnabled: e.target.checked })} className="accent-[#0078d4]" />
+                  <Icons8Icon id="sparkles_ui" size={12} /> Watch for changes
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!draft.mirrorMode} onChange={e => setDraft({ ...draft, mirrorMode: e.target.checked })} className="accent-[#0078d4]" />
+                  Mirror mode (delete extras in destination)
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <PluginToolbarButton
+                  icon="sync"
+                  onClick={() => setDraft(d => d ? { ...d, sourcePath: d.destPath, destPath: d.sourcePath } : d)}
+                >
+                  Pull (swap source ↔ dest)
+                </PluginToolbarButton>
+              </div>
+              <div>
+                <PluginFieldLabel>Exclude patterns (; or newline)</PluginFieldLabel>
+                <textarea
+                  className={`${PLUGIN_INPUT_CLASS} min-h-[52px] resize-y bndz-mono text-[11px]`}
+                  placeholder="*.tmp; node_modules; .git"
+                  value={(draft as any).excludePatterns || ''}
+                  onChange={e => setDraft({ ...draft, excludePatterns: e.target.value } as any)}
+                />
+                <p className="text-[10px] text-white/35 mt-1">Applied client-side to preview lists; stored with the job draft.</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <PluginToolbarButton onClick={() => { setDraft(null); setEditingId(null); }}>Cancel</PluginToolbarButton>
+                <PluginToolbarButton icon="check" active onClick={() => void saveDraft()} disabled={!draft.sourcePath || !draft.destPath}>
+                  {editingId ? 'Save changes' : 'Save & enable'}
+                </PluginToolbarButton>
+              </div>
+            </PluginCard>
+          )}
+
+          {jobs.map(job => {
+            const prog = progress[job.id];
+            const isSyncing = syncingId === job.id || job.lastStatus === 'syncing';
+            return (
+              <PluginCard key={job.id} className="relative overflow-hidden">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-white">{job.name}</span>
+                      <StatusBadge status={isSyncing ? 'syncing' : job.watchEnabled ? 'watching' : job.lastStatus} />
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-xs bndz-mono bndz-panel-muted">
+                      <span className="truncate max-w-[45%]" title={formatUiPath(job.sourcePath)}>{formatUiPath(job.sourcePath)}</span>
+                      <Icons8Icon id="chevron_right" size={10} className="shrink-0" />
+                      <span className="truncate max-w-[45%]" title={formatUiPath(job.destPath)}>{formatUiPath(job.destPath)}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-1 text-xs bndz-panel-muted">
+                      <Icons8Icon id="clock_ui" size={10} /> Last sync: {formatWhen(job.lastSyncUtc)}
+                      {job.mirrorMode && <span className="ml-2 text-amber-400/80">• Mirror</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <PluginToolbarButton
+                      icon={previewLoading === job.id ? 'loading' : 'table_ui'}
+                      title="Preview diff"
+                      disabled={previewLoading === job.id}
+                      onClick={() => void loadPreview(job.id)}
+                    />
+                    <PluginToolbarButton icon="pencil_ui" title="Edit job" onClick={() => startEditJob(job)} />
+                    <PluginToolbarButton
+                      icon={isSyncing ? 'loading' : 'play_ui'}
+                      title="Sync now"
+                      disabled={isSyncing}
+                      onClick={() => void runSync(job.id)}
+                    />
+                    <PluginToolbarButton
+                      icon={job.watchEnabled ? 'close' : 'toggle_preview'}
+                      title={job.watchEnabled ? 'Pause watching' : 'Enable watching'}
+                      onClick={() => void toggleWatch(job)}
+                    />
+                    <PluginToolbarButton icon="delete" title="Remove" onClick={() => void removeJob(job.id)} />
+                  </div>
+                </div>
+
+                {(isSyncing || prog) && (
+                  <div className="space-y-1">
+                    <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
+                      <div className="h-full bg-[#0078d4] rounded-full transition-all duration-300" style={{ width: `${prog?.percent ?? 30}%` }} />
+                    </div>
+                    <p className="text-xs bndz-panel-muted truncate">{prog?.message || prog?.file || 'Syncing…'}</p>
+                  </div>
+                )}
+
+                {job.lastError && (
+                  <p className="mt-2 text-xs text-red-400/90 flex items-center gap-1">
+                    <Icons8Icon id="warning" size={10} /> {job.lastError}
+                  </p>
+                )}
+              </PluginCard>
+            );
+          })}
+        </div>
+
+        {preview && (
+          <div className="shrink-0 border-t border-white/10 bg-black/20 max-h-[40%] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06]">
+              <div className="text-xs font-semibold text-[#99c9f0] flex items-center gap-2">
+                <Icons8Icon id="table_ui" size={13} /> Sync preview
+                <span className="bndz-panel-muted font-normal">{preview.data.summary}</span>
+              </div>
+              <PluginToolbarButton icon="close" onClick={() => setPreview(null)} />
+            </div>
+            <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 grid grid-cols-2 gap-3 bndz-mono text-xs">
+              {([
+                ['New files', preview.data.wouldCopy, 'text-emerald-400'],
+                ['Updates', preview.data.wouldUpdate, 'text-amber-300'],
+                ['Unchanged', preview.data.wouldSkip, 'text-gray-500'],
+                ['Extra (mirror)', preview.data.extraInDest, 'text-rose-300'],
+              ] as const).map(([label, items, color]) => (
+                <PluginCard key={label} className="!p-2 min-h-[80px]">
+                  <div className={`bndz-plugin-section-title mb-1.5 ${color}`}>{label} ({items?.length ?? 0})</div>
+                  <div className="space-y-0.5 max-h-28 overflow-y-auto bndz-scrollbar bndz-panel-muted">
+                    {(items || []).slice(0, 40).map(p => <div key={p} className="truncate" title={p}>{p}</div>)}
+                    {(items?.length ?? 0) > 40 && <div>…and {(items?.length ?? 0) - 40} more</div>}
+                  </div>
+                </PluginCard>
+              ))}
+            </div>
+            <div className="px-4 py-2 border-t border-white/[0.06] flex justify-end gap-2">
+              <PluginToolbarButton onClick={() => setPreview(null)}>Close</PluginToolbarButton>
+              <PluginToolbarButton icon="play_ui" active onClick={() => { void runSync(preview.jobId); setPreview(null); }}>Run sync</PluginToolbarButton>
+            </div>
+          </div>
+        )}
+
+        <DestinationPickerModal
+          open={!!picker}
+          title={picker === 'source' ? 'Source folder' : 'Destination folder'}
+          onCancel={() => setPicker(null)}
+          onConfirm={(path) => {
+            if (!draft) return;
+            const win = toWindowsPath(path);
+            if (picker === 'source') setDraft({ ...draft, sourcePath: win });
+            else setDraft({ ...draft, destPath: win });
+            setPicker(null);
+          }}
+        />
+      </div>
+      )}
     </PluginPanelShell>
   );
 }

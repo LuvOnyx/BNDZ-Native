@@ -4,7 +4,7 @@
  */
 
 import { nativeCall, dedupeInFlight, registerIpcPushHandler } from './ipcCore';
-import { normalizePanePath } from './pathUtils';
+import { isValidOutboundDragPath, normalizePanePath, toWindowsPath } from './pathUtils';
 import { EMPTY_LICENSE_STATUS, PENDING_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
 import { entityHasTag } from './tagUtils';
 import { formatPathsForClipboard } from './clipboardPathFormat';
@@ -90,6 +90,19 @@ export interface FileTransferQueueState {
   jobs: FileTransferJobDto[];
 }
 
+export interface ConflictPayload {
+  operationId: string;
+  fileName: string;
+  sourcePath?: string;
+  destPath?: string;
+  /** File size in bytes; 0 if not available */
+  sourceSize?: number;
+  /** Unix timestamp (seconds) of source file's last-write UTC */
+  sourceModifiedUtc?: number;
+  destSize?: number;
+  destModifiedUtc?: number;
+}
+
 function _parseWebViewMessage(raw: unknown): any {
   if (raw == null) return null;
   if (typeof raw === 'string') {
@@ -149,6 +162,7 @@ export const IPC = {
   _meshTerminalOutputListeners: [] as Array<(payload: { sessionId: string; data: string }) => void>,
   _meshHostsChangedListeners: [] as Array<(hosts: any[]) => void>,
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
+  _pendingCloseRequest: null as { source?: string } | null,
   _openPathListeners: [] as Array<(path: string) => void>,
   _pendingOpenPaths: [] as string[],
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean; lastActionUtc?: string }) => void>,
@@ -177,8 +191,15 @@ export const IPC = {
           this._drivesListeners.forEach(cb => cb(drives));
         } else if (data.type === 'EXTERNAL_FILES_DROPPED') {
           window.dispatchEvent(new CustomEvent('bndz-external-drop', { detail: data.payload }));
+        } else if (data.type === 'INBOUND_HOST_COMMITTED') {
+          window.dispatchEvent(new CustomEvent('bndz-inbound-host-committed', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DROP_FAILED') {
           window.dispatchEvent(new CustomEvent('bndz-external-drop-failed', { detail: data.payload }));
+        } else if (data.type === 'OLE_DRAG_ESCALATED') {
+          window.dispatchEvent(new CustomEvent('bndz-ole-drag-escalated', { detail: data.payload }));
+        } else if (data.type === 'OLE_DRAG_ENDED') {
+          this.notifyFileDragActive(false);
+          window.dispatchEvent(new CustomEvent('bndz-ole-drag-ended', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DRAG_HOVER') {
           window.dispatchEvent(new CustomEvent('bndz-external-drag-hover', { detail: data.payload }));
         } else if (data.type === 'FOLDER_SIZE_PROGRESS') {
@@ -208,9 +229,24 @@ export const IPC = {
         } else if (data.type === 'GLOBAL_HOTKEY') {
           const id = data.payload?.id ?? '';
           window.dispatchEvent(new CustomEvent('bndz-global-hotkey', { detail: { id } }));
+        } else if (data.type === 'BNDZ_QUICK_LOOK_OPEN') {
+          const paths = Array.isArray(data.payload?.paths) ? data.payload.paths.filter((p: unknown) => typeof p === 'string' && p) : [];
+          const items = Array.isArray(data.payload?.items) ? data.payload.items : null;
+          window.dispatchEvent(new CustomEvent('bndz-quick-look-open', { detail: { paths, items } }));
+        } else if (data.type === 'BNDZ_QUICK_LOOK_CLOSE') {
+          window.dispatchEvent(new CustomEvent('bndz-quick-look-close'));
+        } else if (data.type === 'HOST_OLE_DROP_READY') {
+          window.dispatchEvent(new CustomEvent('bndz-host-ole-drop-ready', { detail: data.payload }));
+        } else if (data.type === 'HOST_DRAG_STARTING') {
+          window.dispatchEvent(new CustomEvent('bndz-host-drag-starting', { detail: data.payload }));
         } else if (data.type === 'CLOSE_REQUEST') {
           const source = data.payload?.source;
-          this._closeRequestListeners.forEach(cb => cb({ source }));
+          const payload = { source };
+          if (!this._closeRequestListeners.length) {
+            this._pendingCloseRequest = payload;
+          } else {
+            this._closeRequestListeners.forEach(cb => cb(payload));
+          }
         } else if (data.type === 'BNDZ_OPEN_PATH') {
           const path = data.payload?.path ?? '';
           if (path) this._dispatchOpenPath(path);
@@ -278,7 +314,7 @@ export const IPC = {
     };
   },
 
-  onConflictContent(callback: (conflict: any) => void) {
+  onConflictContent(callback: (conflict: ConflictPayload) => void) {
     this.init();
     this._conflictListeners.push(callback);
     return () => {
@@ -361,6 +397,11 @@ export const IPC = {
   onCloseRequest(callback: (payload?: { source?: string }) => void) {
     this.init();
     this._closeRequestListeners.push(callback);
+    if (this._pendingCloseRequest) {
+      const pending = this._pendingCloseRequest;
+      this._pendingCloseRequest = null;
+      callback(pending);
+    }
     return () => {
       this._closeRequestListeners = this._closeRequestListeners.filter(cb => cb !== callback);
     };
@@ -390,14 +431,52 @@ export const IPC = {
 
   notifyUiReady() {
     if (!this.isNative) return;
+    let bundle = 'unknown';
+    try {
+      const scriptEl = document.querySelector('script[type="module"][src*="index-"]') as HTMLScriptElement | null;
+      const src = scriptEl?.src ?? '';
+      const tail = src.split('/').pop() ?? '';
+      const m = tail.match(/index-([A-Za-z0-9_-]+)\.js/i);
+      if (m) bundle = m[1];
+    } catch { /* ignore */ }
     (window as any).chrome.webview.postMessage({
       type: 'BNDZ_UI_READY',
       payload: {
         innerWidth: window.innerWidth,
         innerHeight: window.innerHeight,
         devicePixelRatio: window.devicePixelRatio,
+        bundle,
       },
     });
+    // WinUI caption Passthrough often settles after first paint — nudge from FE too.
+    try { this.windowChrome('refreshInputRegions'); } catch { /* ignore */ }
+    // Force WebView2 NonClientRegionSupport to recompute app-region bitmap (sidebar LMB).
+    try { this.forceNativeAppRegionRecompute(); } catch { /* ignore */ }
+  },
+
+  /** Toggle NC epoch + re-stamp no-drag so async app-region bitmap includes the sidebar. */
+  forceNativeAppRegionRecompute() {
+    if (!this.isNative || typeof document === 'undefined') return;
+    try {
+      const root = document.documentElement;
+      const next = String((Number(root.getAttribute('data-bndz-nc-epoch') || '0') || 0) + 1);
+      root.setAttribute('data-bndz-nc-epoch', next);
+      // Brief style flush — WebView2 watches app-region / class mutations.
+      const prev = root.style.getPropertyValue('-webkit-app-region');
+      root.style.setProperty('-webkit-app-region', 'no-drag');
+      void root.offsetHeight;
+      if (prev) root.style.setProperty('-webkit-app-region', prev);
+      else root.style.removeProperty('-webkit-app-region');
+      this.windowChrome('refreshInputRegions');
+    } catch { /* ignore */ }
+  },
+
+  /** Open a path in the main FM list (works from plugin pop-outs). */
+  hostNavigate(path: string): void {
+    if (!this.isNative) return;
+    const p = (path || '').trim();
+    if (!p) return;
+    (window as any).chrome.webview.postMessage({ type: 'HOST_NAVIGATE', payload: { path: p } });
   },
 
   requestClose(source: 'x' | 'menu' | 'tray' | 'exit-without-saving' | 'restart-without-saving' | 'restart' = 'x'): void {
@@ -484,7 +563,7 @@ export const IPC = {
   meshListHosts(): Promise<any[]> {
     if (!this.isNative) return Promise.resolve([]);
     const id = `${Date.now()}_meshHosts`;
-    return _nativeCall<any>('MESH_LIST_HOSTS', 'MESH_LIST_HOSTS_RESULT', id, {}, 15000).then(r => {
+    return _nativeCall<any>('MESH_LIST_HOSTS', 'MESH_LIST_HOSTS_RESULT', id, {}, 45000).then(r => {
       if (Array.isArray(r)) return r;
       if (r && Array.isArray(r.hosts)) return r.hosts;
       if (r?.error) return Promise.reject(new Error(String(r.error)));
@@ -545,7 +624,7 @@ export const IPC = {
     return _nativeCall<any>('MESH_SYNC_RUN', 'MESH_SYNC_RUN_RESULT', id, { ruleId }, 600000);
   },
 
-  meshTerminalOpen(opts: { hostId?: string; cwd?: string; local?: boolean }): Promise<any> {
+  meshTerminalOpen(opts: { hostId?: string; cwd?: string; local?: boolean; cols?: number; rows?: number }): Promise<any> {
     if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
     const id = `${Date.now()}_meshTerm`;
     return _nativeCall<any>('MESH_TERMINAL_OPEN', 'MESH_TERMINAL_OPEN_RESULT', id, opts, 60000);
@@ -559,6 +638,49 @@ export const IPC = {
   meshTerminalClose(sessionId: string): void {
     if (!this.isNative) return;
     (window as any).chrome.webview.postMessage({ type: 'MESH_TERMINAL_CLOSE', payload: { sessionId } });
+  },
+
+  meshTerminalResize(sessionId: string, cols: number, rows: number): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'MESH_TERMINAL_RESIZE',
+      payload: { sessionId, cols, rows },
+    });
+  },
+
+  /** Legacy no-op — local shell is ConPTY→xterm, never HWND SetParent. */
+  meshTerminalLayout(_opts: {
+    sessionId: string;
+    screenX: number;
+    screenY: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  }): void {
+    /* intentionally empty */
+  },
+
+  meshStat(path: string): Promise<any> {
+    if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
+    const id = `${Date.now()}_meshStat`;
+    return _nativeCall<any>('MESH_STAT', 'MESH_STAT_RESULT', id, { path }, 30000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return r;
+    });
+  },
+
+  meshWrite(opts: {
+    path: string;
+    localFile?: string;
+    contentBase64?: string;
+    expectedRemoteMtime?: string;
+  }): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshWrite`;
+    return _nativeCall<any>('MESH_WRITE', 'MESH_WRITE_RESULT', id, opts, 120000).then(r => ({
+      ok: r?.ok !== false && !r?.error,
+      error: r?.error,
+    }));
   },
 
   meshTransfer(payload: {
@@ -714,6 +836,286 @@ export const IPC = {
       meshCode: r?.meshCode,
       error: r?.error,
     }));
+  },
+
+  meshIncusListEndpoints(): Promise<any[]> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_incusEndpoints`;
+    return _nativeCall<any>('MESH_INCUS_LIST_ENDPOINTS', 'MESH_INCUS_LIST_ENDPOINTS_RESULT', id, {}, 15000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return Array.isArray(r?.endpoints) ? r.endpoints : [];
+    });
+  },
+
+  meshIncusUpsertEndpoint(endpoint: Record<string, unknown>): Promise<any> {
+    if (!this.isNative) return Promise.resolve(endpoint);
+    const id = `${Date.now()}_incusUpsert`;
+    return _nativeCall<any>('MESH_INCUS_UPSERT_ENDPOINT', 'MESH_INCUS_UPSERT_ENDPOINT_RESULT', id, endpoint, 30000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return r;
+    });
+  },
+
+  meshIncusDeleteEndpoint(endpointId: string): Promise<void> {
+    if (!this.isNative) return Promise.resolve();
+    const id = `${Date.now()}_incusDelEp`;
+    return _nativeCall<any>('MESH_INCUS_DELETE_ENDPOINT', 'MESH_INCUS_DELETE_ENDPOINT_RESULT', id, { endpointId }, 60000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+    });
+  },
+
+  meshIncusTestEndpoint(endpointId: string): Promise<{ ok: boolean; info?: any; endpoints?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusTest`;
+    return _nativeCall<any>('MESH_INCUS_TEST_ENDPOINT', 'MESH_INCUS_TEST_ENDPOINT_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      info: r?.info,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      error: r?.error,
+    }));
+  },
+
+  /** SSH into the Linux host, install BNDZ client cert, return Trusted — no manual trust token. */
+  meshIncusBootstrapTrust(req: {
+    endpointId?: string;
+    alias?: string;
+    apiUrl?: string;
+    apiPort?: number;
+    allowInsecureTls?: boolean;
+    meshHostId?: string;
+    sshHostname?: string;
+    sshPort?: number;
+    sshUsername?: string;
+    sshKeyPath?: string;
+    sshPassword?: string;
+    persistControlHost?: boolean;
+  }): Promise<{ ok: boolean; endpoint?: any; info?: any; endpoints?: any[]; hosts?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusBootstrap`;
+    return _nativeCall<any>('MESH_INCUS_BOOTSTRAP_TRUST', 'MESH_INCUS_BOOTSTRAP_TRUST_RESULT', id, req, 120000).then(r => ({
+      ok: r?.ok === true,
+      endpoint: r?.endpoint,
+      info: r?.info,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      hosts: Array.isArray(r?.hosts) ? r.hosts : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusLocalStatus(): Promise<{ ok: boolean; status?: { ready?: boolean; runtime?: string; phase?: string; detail?: string; needsElevation?: boolean; error?: string }; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLocalStatus`;
+    return _nativeCall<any>('MESH_INCUS_LOCAL_STATUS', 'MESH_INCUS_LOCAL_STATUS_RESULT', id, {}, 20000).then(r => ({
+      ok: r?.ok === true,
+      status: r?.status,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusLocalEnsure(): Promise<{ ok: boolean; status?: any; endpoints?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLocalEnsure`;
+    return _nativeCall<any>('MESH_INCUS_LOCAL_ENSURE', 'MESH_INCUS_LOCAL_ENSURE_RESULT', id, {}, 600000).then(r => ({
+      ok: r?.ok === true,
+      status: r?.status,
+      endpoints: Array.isArray(r?.endpoints) ? r.endpoints : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListEphemeral(): Promise<any[]> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_incusEph`;
+    return _nativeCall<any>('MESH_INCUS_LIST_EPHEMERAL', 'MESH_INCUS_LIST_EPHEMERAL_RESULT', id, {}, 15000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return Array.isArray(r?.instances) ? r.instances : [];
+    });
+  },
+
+  meshIncusReconcile(): Promise<{ ok: boolean; instances?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusReconcile`;
+    return _nativeCall<any>('MESH_INCUS_RECONCILE', 'MESH_INCUS_RECONCILE_RESULT', id, {}, 300000).then(r => ({
+      ok: r?.ok === true,
+      instances: Array.isArray(r?.instances) ? r.instances : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusLaunch(req: Record<string, unknown>): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusLaunch`;
+    return _nativeCall<any>('MESH_INCUS_LAUNCH', 'MESH_INCUS_LAUNCH_RESULT', id, req, 600000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusRefresh(ephemeralId: string): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusRefresh`;
+    return _nativeCall<any>('MESH_INCUS_REFRESH', 'MESH_INCUS_REFRESH_RESULT', id, { ephemeralId }, 120000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusDestroy(ephemeralId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusDestroy`;
+    return _nativeCall<any>('MESH_INCUS_DESTROY', 'MESH_INCUS_DESTROY_RESULT', id, { ephemeralId }, 300000).then(r => ({
+      ok: r?.ok === true,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListImages(endpointId: string): Promise<{ ok: boolean; aliases: Array<{ name: string; description?: string; type?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, aliases: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusImages`;
+    return _nativeCall<any>('MESH_INCUS_LIST_IMAGES', 'MESH_INCUS_LIST_IMAGES_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      aliases: Array.isArray(r?.aliases) ? r.aliases : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListServerInstances(endpointId: string): Promise<{ ok: boolean; instances: any[]; tracked?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, instances: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusSrvList`;
+    return _nativeCall<any>('MESH_INCUS_LIST_SERVER_INSTANCES', 'MESH_INCUS_LIST_SERVER_INSTANCES_RESULT', id, { endpointId }, 120000).then(r => ({
+      ok: r?.ok === true,
+      instances: Array.isArray(r?.instances) ? r.instances : [],
+      tracked: Array.isArray(r?.tracked) ? r.tracked : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusInstanceAction(ephemeralId: string, action: 'start' | 'stop' | 'restart'): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusAction`;
+    return _nativeCall<any>('MESH_INCUS_INSTANCE_ACTION', 'MESH_INCUS_INSTANCE_ACTION_RESULT', id, { ephemeralId, action }, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusImportInstance(req: { endpointId: string; instanceName: string; alias?: string; registerMeshHost?: boolean }): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusImport`;
+    return _nativeCall<any>('MESH_INCUS_IMPORT_INSTANCE', 'MESH_INCUS_IMPORT_INSTANCE_RESULT', id, req, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListProfiles(endpointId: string): Promise<{ ok: boolean; profiles: Array<{ name: string; description?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, profiles: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusProfiles`;
+    return _nativeCall<any>('MESH_INCUS_LIST_PROFILES', 'MESH_INCUS_LIST_PROFILES_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      profiles: Array.isArray(r?.profiles) ? r.profiles : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListNetworks(endpointId: string): Promise<{ ok: boolean; networks: Array<{ name: string; type?: string; managed?: boolean; status?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, networks: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusNets`;
+    return _nativeCall<any>('MESH_INCUS_LIST_NETWORKS', 'MESH_INCUS_LIST_NETWORKS_RESULT', id, { endpointId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      networks: Array.isArray(r?.networks) ? r.networks : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusGetInstance(ephemeralId: string): Promise<{ ok: boolean; instance?: any; etag?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusGet`;
+    return _nativeCall<any>('MESH_INCUS_GET_INSTANCE', 'MESH_INCUS_GET_INSTANCE_RESULT', id, { ephemeralId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      etag: r?.etag,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusUpdateInstance(req: {
+    ephemeralId: string;
+    profiles?: string[];
+    config?: Record<string, string>;
+    devices?: Record<string, Record<string, string>>;
+    description?: string;
+    etag?: string;
+  }): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusUpd`;
+    return _nativeCall<any>('MESH_INCUS_UPDATE_INSTANCE', 'MESH_INCUS_UPDATE_INSTANCE_RESULT', id, req, 180000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusListSnapshots(ephemeralId: string): Promise<{ ok: boolean; snapshots: Array<{ name: string; stateful?: boolean; createdAt?: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, snapshots: [], error: 'Native host required' });
+    const id = `${Date.now()}_incusSnaps`;
+    return _nativeCall<any>('MESH_INCUS_LIST_SNAPSHOTS', 'MESH_INCUS_LIST_SNAPSHOTS_RESULT', id, { ephemeralId }, 60000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : [],
+      error: r?.error,
+    }));
+  },
+
+  meshIncusCreateSnapshot(ephemeralId: string, name: string, stateful = false): Promise<{ ok: boolean; snapshots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapC`;
+    return _nativeCall<any>('MESH_INCUS_CREATE_SNAPSHOT', 'MESH_INCUS_CREATE_SNAPSHOT_RESULT', id, { ephemeralId, name, stateful }, 300000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusDeleteSnapshot(ephemeralId: string, name: string): Promise<{ ok: boolean; snapshots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapD`;
+    return _nativeCall<any>('MESH_INCUS_DELETE_SNAPSHOT', 'MESH_INCUS_DELETE_SNAPSHOT_RESULT', id, { ephemeralId, name }, 180000).then(r => ({
+      ok: r?.ok === true,
+      snapshots: Array.isArray(r?.snapshots) ? r.snapshots : undefined,
+      error: r?.error,
+    }));
+  },
+
+  meshIncusRestoreSnapshot(ephemeralId: string, name: string, diskOnly = false): Promise<{ ok: boolean; instance?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_incusSnapR`;
+    return _nativeCall<any>('MESH_INCUS_RESTORE_SNAPSHOT', 'MESH_INCUS_RESTORE_SNAPSHOT_RESULT', id, { ephemeralId, name, diskOnly }, 300000).then(r => ({
+      ok: r?.ok === true,
+      instance: r?.instance,
+      error: r?.error,
+    }));
+  },
+
+  getAllTagged(): Promise<Array<{ path: string; tags?: string[]; label?: string; comment?: string }>> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_allTagged`;
+    return _nativeCall<any>('GET_ALL_TAGGED', 'ALL_TAGGED_RESULT', id, {}, 30000).then(r =>
+      Array.isArray(r?.entries) ? r.entries : [],
+    ).catch(() => []);
+  },
+
+  renameTagInSidecar(oldKey: string, newKey: string): void {
+    if (!this.isNative || !oldKey || !newKey) return;
+    (window as any).chrome.webview.postMessage({ type: 'RENAME_TAG_IN_SIDECAR', payload: { oldKey, newKey } });
+  },
+
+  purgeTagFromSidecar(tagKey: string): void {
+    if (!this.isNative || !tagKey) return;
+    (window as any).chrome.webview.postMessage({ type: 'PURGE_TAG_FROM_SIDECAR', payload: { tagKey } });
   },
 
   ghostLinkGetRules(): Promise<{ rules: unknown[] }> {
@@ -1037,10 +1439,10 @@ export const IPC = {
     label?: string,
     priority?: 'low' | 'normal' | 'high',
     recreateSourceStructure?: boolean,
-  ): Promise<{ ok: boolean; error?: string; background?: boolean }> {
+  ): Promise<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }> {
     if (this.isNative) {
       const timeoutMs = action === 'copy' || action === 'move' ? 600_000 : 120_000;
-      return _nativeCall<{ ok: boolean; error?: string; background?: boolean }>(
+      return _nativeCall<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }>(
         'EXECUTE_FS_OPERATION',
         'FS_OPERATION_RESULT',
         operationId,
@@ -1081,16 +1483,70 @@ export const IPC = {
   },
 
   startDrag(paths: string | string[], opts?: { extended?: boolean }) {
-    if (this.isNative) {
+    if (!this.isNative) return;
+    const raw = (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
+    const normalized = raw.map(p => toWindowsPath(String(p)));
+    const list = normalized.filter(isValidOutboundDragPath);
+    const rejected = normalized.filter(p => !isValidOutboundDragPath(p));
+    (window as any).chrome.webview.postMessage({
+      type: 'START_DRAG',
+      payload: {
+        paths: list,
+        rejected: rejected.length ? rejected : undefined,
+        extended: !!opts?.extended,
+      },
+    });
+  },
+
+  /** Forensic drag logging — always on in native shell (ole-dnd.log). */
+  postOleDndDebug(payload: Record<string, unknown>) {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({ type: 'OLE_DND_DEBUG', payload });
+    } catch { /* ignore */ }
+  },
+
+  /** Arm host OLE escalate poll while an in-app file drag is active (leave-WebView → DoDragDrop). */
+  notifyFileDragActive(active: boolean, paths?: string | string[]) {
+    if (!this.isNative) return;
+    const raw = paths == null ? [] : (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
+    const normalized = raw.map(p => toWindowsPath(String(p)));
+    const list = normalized.filter(isValidOutboundDragPath);
+    const rejected = normalized.filter(p => !isValidOutboundDragPath(p));
+    (window as any).chrome.webview.postMessage({
+      type: 'FILE_DRAG_ACTIVE',
+      payload: {
+        active: !!active && list.length > 0,
+        paths: list,
+        rejected: rejected.length ? rejected : undefined,
+      },
+    });
+    this.postOleDndDebug({
+      kind: 'FILE_DRAG_ACTIVE',
+      active: !!active && list.length > 0,
+      rawCount: raw.length,
+      pathCount: list.length,
+      rejectedCount: rejected.length,
+    });
+  },
+
+  /**
+   * Force host OLE handoff now (WebView2 pointercancel at left/right/bottom often fires
+   * before the cursor reaches the host rim poll zone).
+   */
+  requestOleEscalateNow(why = 'fe', screenX?: number, screenY?: number) {
+    if (!this.isNative) return;
+    try {
+      const payload: { why: string; screenX?: number; screenY?: number } = { why };
+      if (typeof screenX === 'number' && typeof screenY === 'number') {
+        payload.screenX = screenX;
+        payload.screenY = screenY;
+      }
       (window as any).chrome.webview.postMessage({
-        type: 'START_DRAG',
-        payload: {
-          paths,
-          // Settings → Extended compatibility for clipboard and drag and drop
-          extended: !!opts?.extended,
-        },
+        type: 'OLE_ESCALATE_NOW',
+        payload,
       });
-    }
+    } catch { /* ignore */ }
   },
 
   clearThumbnailCache(): Promise<{ success: boolean; filesRemoved?: number; bytesFreed?: number; error?: string }> {
@@ -1394,38 +1850,63 @@ export const IPC = {
     if (!this.isNative) return false;
     const id = `${Date.now()}_aiDownload`;
     try {
-      const result = await _nativeCall<{ ok?: boolean }>('AI_DOWNLOAD_MODEL', 'AI_DOWNLOAD_MODEL_RESULT', id, {}, 7_200_000);
-      return !!result?.ok;
-    } catch {
+      const result = await _nativeCall<{ ok?: boolean; error?: string }>('AI_DOWNLOAD_MODEL', 'AI_DOWNLOAD_MODEL_RESULT', id, {}, 7_200_000);
+      if (!result?.ok) {
+        const { pushToast } = await import('../components/ToastHost');
+        pushToast({ kind: 'error', title: 'Model download failed', message: result?.error || 'Host returned failure.' });
+        return false;
+      }
+      return true;
+    } catch (e) {
+      const { pushToast } = await import('../components/ToastHost');
+      pushToast({
+        kind: 'error',
+        title: 'Model download failed',
+        message: e instanceof Error ? e.message : String(e),
+      });
       return false;
     }
   },
 
   async aiGenerate(prompt: string, timeoutMs = 120000): Promise<string> {
-    if (this.isNative) {
-      const { ensureAiModelReady } = await import('./aiModelGate');
-      const ready = await ensureAiModelReady();
-      if (!ready) return '';
-      const id = `${Date.now()}_aiGenerate`;
-      try {
-        const result = await _nativeCall<{ text?: string }>('AI_GENERATE', 'AI_GENERATE_RESULT', id, { prompt }, timeoutMs);
-        return result?.text ?? '';
-      } catch {
-        return '';
-      }
+    if (!this.isNative) {
+      const { pushToast } = await import('../components/ToastHost');
+      pushToast({ kind: 'error', title: 'Assistant unavailable', message: 'Native host required.' });
+      throw new Error('Native host required.');
     }
-    return '';
+    const { ensureAiModelReady } = await import('./aiModelGate');
+    const ready = await ensureAiModelReady();
+    if (!ready) {
+      const { pushToast } = await import('../components/ToastHost');
+      pushToast({ kind: 'warning', title: 'Assistant not ready', message: 'Download or load the local model first.' });
+      throw new Error('AI model not ready.');
+    }
+    const id = `${Date.now()}_aiGenerate`;
+    try {
+      const result = await _nativeCall<{ text?: string; error?: string }>('AI_GENERATE', 'AI_GENERATE_RESULT', id, { prompt }, timeoutMs);
+      if (result?.error) throw new Error(result.error);
+      return result?.text ?? '';
+    } catch (e) {
+      const { pushToast } = await import('../components/ToastHost');
+      const message = e instanceof Error ? e.message : String(e);
+      pushToast({ kind: 'error', title: 'Assistant unavailable', message });
+      throw e instanceof Error ? e : new Error(message);
+    }
   },
 
   aiGenerateStream(prompt: string, onChunk?: (chunk: string) => void, timeoutMs = 120000): Promise<string> {
-    if (!this.isNative) return Promise.resolve('');
+    if (!this.isNative) {
+      return Promise.reject(new Error('Native host required.'));
+    }
     this.init();
     const id = `${Date.now()}_aiStream`;
     return new Promise(async (resolve, reject) => {
       const { ensureAiModelReady } = await import('./aiModelGate');
       const ready = await ensureAiModelReady();
       if (!ready) {
-        resolve('');
+        const { pushToast } = await import('../components/ToastHost');
+        pushToast({ kind: 'warning', title: 'Assistant not ready', message: 'Download or load the local model first.' });
+        reject(new Error('AI model not ready.'));
         return;
       }
       const chunks: string[] = [];
@@ -1808,7 +2289,7 @@ export const IPC = {
   }> {
     if (this.isNative) {
       const id = `${Date.now()}_lensStage`;
-      return _nativeCall('GET_LENS_STAGE', 'LENS_STAGE_RESULT', id, { path }, 20000)
+      return _nativeCall('GET_LENS_STAGE', 'LENS_STAGE_RESULT', id, { path }, 45000)
         .then((payload: any) => {
           if (payload?.error) throw new Error(payload.error);
           return {
@@ -2042,12 +2523,12 @@ export const IPC = {
     return Promise.resolve(path);
   },
 
-  emptyRecycleBin(): Promise<{ success: boolean }> {
+  emptyRecycleBin(): Promise<{ success: boolean; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_emptyRecycleBin`;
-      return _nativeCall<{ success: boolean }>('EMPTY_RECYCLE_BIN', 'EMPTY_RECYCLE_BIN_RESULT', id, {}, 60000);
+      return _nativeCall<{ success: boolean; error?: string }>('EMPTY_RECYCLE_BIN', 'EMPTY_RECYCLE_BIN_RESULT', id, {}, 600000);
     }
-    return Promise.resolve({ success: false });
+    return Promise.resolve({ success: false, error: 'Native host required' });
   },
 
   /** Restore items from the Recycle Bin to their original location (the shell's own "undelete" verb). */
@@ -2191,10 +2672,10 @@ export const IPC = {
     return Promise.resolve([]);
   },
 
-  getSubDirectories(path: string, showHidden: boolean = false): Promise<any[]> {
+  getSubDirectories(path: string, showHidden: boolean = false, showSystem: boolean = false): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_subDirs`;
-      return _nativeCall<any[]>('GET_SUB_DIRECTORIES', 'SUBDIR_RESULT', id, { path, showHidden });
+      return _nativeCall<any[]>('GET_SUB_DIRECTORIES', 'SUBDIR_RESULT', id, { path, showHidden, showSystem });
     }
     return Promise.resolve([]);
   },
@@ -2442,6 +2923,25 @@ export const IPC = {
       );
     }
     return Promise.resolve({ error: 'Not native' });
+  },
+
+  /** Resolve a WebGL-ready preview path for 3D / RAGE assets (.ydr/.ybn → cached GLB). */
+  getModelPreview(path: string): Promise<{
+    path?: string;
+    format?: string;
+    kind?: string;
+    vertices?: number;
+    triangles?: number;
+    converted?: boolean;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_modelPreview`;
+      return _nativeCall(
+        'GET_MODEL_PREVIEW', 'MODEL_PREVIEW_RESULT', id, { path }, 120000
+      );
+    }
+    return Promise.resolve({ error: 'Not native', path });
   },
 
   getIconLibraries(): Promise<any[]> {
@@ -2717,16 +3217,65 @@ export const IPC = {
     return Promise.resolve({ ok: false, output: 'Script runner requires native host' });
   },
 
-  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag'): void {
+  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag' | 'releaseCapture' | 'refreshInputRegions' | 'setMenubarPassWidth', extra?: Record<string, unknown>): void {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action } });
+      (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action, ...(extra || {}) } });
     }
+  },
+
+  /**
+   * Tell the native shell how wide the clickable menubar (logo + triggers) is in CSS px
+   * so WinUI Caption does not steal Scripting/Panes/Tabsets/… clicks as window-drag.
+   */
+  setMenubarPassWidth(cssPx: number): void {
+    if (!Number.isFinite(cssPx) || cssPx < 180) return;
+    this.windowChrome('setMenubarPassWidth', { width: Math.round(cssPx) });
   },
 
   setAlwaysOnTop(enabled: boolean): void {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action: 'alwaysOnTop', enabled } });
     }
+  },
+
+  /** Native WinRT PrintManager / shell print verb for a file path. */
+  printDocument(path?: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_print`;
+      if (path && String(path).trim()) {
+        return _nativeCall<{ ok: boolean; error?: string }>(
+          'PRINT_DOCUMENT',
+          'PRINT_RESULT',
+          id,
+          { path },
+          60000,
+        ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+      }
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'PRINT_UI',
+        'PRINT_RESULT',
+        id,
+        {},
+        60000,
+      ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+    }
+    try {
+      window.print();
+      return Promise.resolve({ ok: true });
+    } catch (err: any) {
+      return Promise.resolve({ ok: false, error: String(err?.message || err) });
+    }
+  },
+
+  /** Drop a toast into Windows Notification Center (AppNotificationBuilder). */
+  showAppNotification(title: string, message: string, tag?: string): void {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({
+        type: 'SHOW_APP_NOTIFICATION',
+        payload: { title, message, tag },
+      });
+    } catch { /* ignore */ }
   },
 
   getWindowState(): Promise<{ maximized?: boolean }> {
@@ -2843,10 +3392,20 @@ export const IPC = {
   getBndzMeta(key: string): Promise<string | null> {
     if (this.isNative) {
       const id = `${Date.now()}_getMeta`;
-      return _nativeCall<{ value?: string | null }>('GET_BNDZ_META', 'BNDZ_META_RESULT', id, { key }, 10000)
+      return _nativeCall<{ value?: string | null }>('GET_BNDZ_META', 'BNDZ_META_RESULT', id, { key }, 20000)
         .then(r => r?.value ?? null);
     }
     return Promise.resolve(localStorage.getItem(`bndz_meta_${key}`));
+  },
+
+  getInstalledFonts(): Promise<string[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_fonts`;
+      return _nativeCall<{ families?: string[] }>('GET_SYSTEM_FONTS', 'SYSTEM_FONTS_RESULT', id, {}, 12000)
+        .then(r => Array.isArray(r?.families) ? r.families.filter(f => typeof f === 'string' && f.trim()) : [])
+        .catch(() => []);
+    }
+    return Promise.resolve([]);
   },
 
   setBndzMeta(key: string, value: string): Promise<boolean> {
@@ -3198,6 +3757,21 @@ export const IPC = {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_branchRestoreVss`;
     return _nativeCall<any>('BRANCH_RESTORE_VSS', 'BRANCH_RESTORE_VSS_RESULT', id, { id: branchId }, 300000);
+  },
+
+  /** List all existing system VSS shadow copies for the volume containing path. */
+  branchListSystemShadows(path: string): Promise<{ ok: boolean; shadows: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: true, shadows: [] });
+    const id = `${Date.now()}_branchListSysShadows`;
+    return _nativeCall<any>('BRANCH_LIST_SYSTEM_SHADOWS', 'BRANCH_LIST_SYSTEM_SHADOWS_RESULT', id, { path }, 30000)
+      .then(r => ({ ok: r?.ok ?? false, shadows: Array.isArray(r?.shadows) ? r.shadows : [], error: r?.error }));
+  },
+
+  /** Restore files from a system shadow copy (identified by its WMI DeviceObject path). */
+  branchRestoreSystemShadow(deviceObject: string, originalPath: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_branchRestoreSysShadow`;
+    return _nativeCall<any>('BRANCH_RESTORE_SYSTEM_SHADOW', 'BRANCH_RESTORE_SYSTEM_SHADOW_RESULT', id, { deviceObject, originalPath }, 300000);
   },
 
   lineageGet(path: string, depth?: number): Promise<{ edges: any[]; inbound?: any[]; outbound?: any[]; timeline?: any[] }> {
@@ -3816,5 +4390,41 @@ export const IPC = {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_nsList`;
     return _nativeCall<any>('NAMESPACE_LIST', 'NAMESPACE_LIST_RESULT', id, {}, 15000);
+  },
+
+  /**
+   * Wave 9 — Semantic search reranking.
+   * Re-orders candidatePaths by cosine similarity of their name embeddings to query.
+   * Returns { ok, modelPresent, items: [{ path, score }] }.
+   * When modelPresent is false the backend returns paths in original order with score 0.
+   */
+  semanticRank(
+    query: string,
+    paths: string[],
+    limit = 200,
+  ): Promise<{ ok: boolean; modelPresent?: boolean; items?: { path: string; score: number }[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_semRank`;
+    return _nativeCall<any>('SEMANTIC_RANK', 'SEMANTIC_RANK_RESULT', id, { query, paths, limit }, 30000);
+  },
+
+  /**
+   * Wave 9 — Get embedding model status (loaded, dimension, file paths).
+   */
+  embeddingStatus(): Promise<{
+    ok: boolean;
+    status?: {
+      modelLoaded: boolean;
+      embeddingDimension: number;
+      modelPath: string;
+      vocabPath: string;
+      modelExists: boolean;
+      vocabExists: boolean;
+    };
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_embStatus`;
+    return _nativeCall<any>('EMBEDDING_STATUS', 'EMBEDDING_STATUS_RESULT', id, {}, 5000);
   },
 };

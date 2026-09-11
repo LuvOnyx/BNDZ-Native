@@ -122,6 +122,25 @@ namespace BNDZ
             if (HasArg(e.Args, "--enable-always-elevated") && IsProcessElevated())
                 PersistAlwaysRunElevated(true);
 
+            // --apply-shell: we were relaunched elevated specifically to write shell settings to
+            // HKLM (All Users scope) or HKCU. Apply synchronously from the saved config before
+            // the WebView / fingerprint system initialises. The process then continues to the
+            // normal window so the user gets BNDZ back immediately after the UAC prompt.
+            if (HasArg(e.Args, "--apply-shell") && IsProcessElevated())
+            {
+                try
+                {
+                    var json = new SettingsManager().LoadSettings();
+                    if (!string.IsNullOrWhiteSpace(json))
+                        new ShellIntegrationService().ApplySettingsFromConfig(json);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[--apply-shell] {ex.Message}");
+                }
+                // Fall through to normal window startup — do NOT exit.
+            }
+
             // Opt-in: Windows UAC Allow/Cancel on every launch when setting is confirmed.
             // Debug builds skip relaunch so `dotnet run` from a terminal works without UAC handoff.
 #if DEBUG
@@ -282,7 +301,8 @@ namespace BNDZ
                 args
                     .Where(a => !string.Equals(a, "--elevated", StringComparison.OrdinalIgnoreCase)
                         && !string.Equals(a, "--enable-always-elevated", StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(a, "--skip-elevation", StringComparison.OrdinalIgnoreCase))
+                        && !string.Equals(a, "--skip-elevation", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(a, "--apply-shell", StringComparison.OrdinalIgnoreCase))
                     .Select(QuoteArg));
             var relaunchArgs = string.IsNullOrWhiteSpace(passthrough)
                 ? "--elevated"

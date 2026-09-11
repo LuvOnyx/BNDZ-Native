@@ -75,7 +75,7 @@ export default function TrialExpiredGate({
         <NativeDialogShell
           open
           title="Your 14-day trial has ended"
-          subtitle="Activate BNDZ to continue using the file manager"
+          subtitle="Activate with your license key to continue"
           tone="warning"
           variant="alert"
           size="sm"
@@ -89,7 +89,7 @@ export default function TrialExpiredGate({
                 onClick={() => setPhase('register')}
                 className="bndz-native-btn bndz-native-btn--primary bndz-native-btn--hero w-full"
               >
-                Enter license key
+                Activate with license key
               </button>
               <p className="text-[10px] bndz-native-dialog-muted text-center leading-relaxed">
                 Help → Register BNDZ · Purchase at your vendor portal

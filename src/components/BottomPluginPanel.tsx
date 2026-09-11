@@ -19,7 +19,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
-import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import { Icons8Icon, DragHandleGlyph, PopOutGlyph } from './Icons8Icon';
+import BndzErrorBoundary from './BndzErrorBoundary';
+import { IPC } from '../lib/ipcBridge';
+import { pushToast } from './ToastHost';
 import type { ContextToolId } from '../workstation/command-deck/contextToolRegistry';
 
 /** Keep tab reorder drags horizontal — no vertical pull on the tab strip. */
@@ -69,6 +72,9 @@ export type BottomPluginLaunchContext = {
   currentPath?: string;
   wizardMode?: string;
   findQuery?: string;
+  tab?: string;
+  sessionId?: string;
+  hostId?: string;
 };
 
 export default function BottomPluginPanel(props: any & {
@@ -249,30 +255,58 @@ export default function BottomPluginPanel(props: any & {
     const tabMap: Partial<Record<ContextToolId, string>> = {
       properties: 'properties',
       'batch-rename': 'batch-rename',
-      compare: 'compare',
+      compare: 'folder-sync',
+      'mesh-drop': 'remote-mesh',
+      'mesh-shell-here': 'remote-mesh',
+      'mesh-download': 'remote-mesh',
+      'mesh-edit-remote': 'remote-mesh',
       'storage-cleanup': 'storage-cleanup',
       'index-folder': 'find',
       waveform: 'metadata',
       'analyze-audio': 'metadata',
       'media-tab': 'metadata',
-      'ghost-link': 'ghost-link',
+      'ghost-link': 'ram-staging',
       'ram-staging': 'ram-staging',
       'flush-ram-zone': 'ram-staging',
       dropstack: 'dropstack',
       catalog: 'catalog',
       'folder-sync': 'folder-sync',
       'project-sandbox': 'project-sandbox',
-      'library-health': 'library-health',
-      'capacity-solver': 'capacity-solver',
-      'inbound-volume': 'inbound-volume',
+      'library-health': 'storage-cleanup',
+      'capacity-solver': 'storage-cleanup',
+      'inbound-volume': 'dropstack',
       'branching-time': 'branching-time',
-      'transcode-rack': 'transcode-rack',
-      'semantic-desk': 'semantic-desk',
-      'shell-verb-forge': 'context-menu-manager',
+      'transcode-rack': 'metadata',
+      'semantic-desk': 'filters',
     };
+    // Absorbed / alias tool ids that are not on ContextToolId — handle via string key.
+    const absorbedDeepLinks: Record<string, { id: string; tab: string }> = {
+      'capacity-solver': { id: 'storage-cleanup', tab: 'capacity' },
+      compare: { id: 'folder-sync', tab: 'diff' },
+      'transcode-rack': { id: 'metadata', tab: 'encode' },
+      'ghost-link': { id: 'ram-staging', tab: 'cold' },
+      'library-health': { id: 'storage-cleanup', tab: 'health' },
+      'reality-check': { id: 'storage-cleanup', tab: 'refs' },
+      'inbound-volume': { id: 'dropstack', tab: 'intake' },
+      'capture-inbox': { id: 'dropstack', tab: 'captures' },
+      'policy-packs': { id: 'dropstack', tab: 'policies' },
+      'zk-vault': { id: 'project-sandbox', tab: 'vault' },
+      'semantic-desk': { id: 'filters', tab: 'groups' },
+      'shell-verb-forge': { id: 'context-menu-manager', tab: 'verbs' },
+    };
+    const deep = absorbedDeepLinks[id];
+    if (deep && orderedPlugins.some((p: any) => p.id === deep.id)) {
+      window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+        detail: { id: deep.id, tab: deep.tab },
+      }));
+      return;
+    }
+
     const tab = tabMap[id];
     // Hard invariant: never switch to a tab for an uninstalled plugin.
-    if (tab && orderedPlugins.some((p: any) => p.id === tab)) handleTabClick(tab);
+    if (tab && orderedPlugins.some((p: any) => p.id === tab)) {
+      handleTabClick(tab);
+    }
   }, [onCommandDeckTool, config.bottomPanelRememberTab, updateConfig, orderedPlugins]);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -379,12 +413,19 @@ export default function BottomPluginPanel(props: any & {
                   title="Pop out plugin into a separate window"
                   onClick={() => {
                     const name = activePlugin?.name;
-                    void import('../lib/ipcBridge').then(({ IPC }) =>
-                      IPC.openPluginWindow(activeTab, { title: name }),
-                    );
+                    void (async () => {
+                      const r = await IPC.openPluginWindow(activeTab, { title: name });
+                      if (!r?.ok) {
+                        pushToast({
+                          kind: 'error',
+                          title: 'Pop-out failed',
+                          message: r?.error || 'Could not open plugin window',
+                        });
+                      }
+                    })();
                   }}
                 >
-                  <Icons8Icon id="external_link" size={12} />
+                  <PopOutGlyph size={12} className="text-sky-200" />
                 </button>
               )}
               {!immersive && onEnterImmersive && (
@@ -426,7 +467,9 @@ export default function BottomPluginPanel(props: any & {
               exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
-              <ActiveComponent {...mergedPluginProps} isPluginTabActive immersive={immersive} />
+              <BndzErrorBoundary isolate label={`Plugin:${activeTab}`} resetKey={activeTab}>
+                <ActiveComponent {...mergedPluginProps} isPluginTabActive immersive={immersive} />
+              </BndzErrorBoundary>
             </motion.div>
             );
           })()}
@@ -437,7 +480,9 @@ export default function BottomPluginPanel(props: any & {
           if (!Component) return null;
           return (
             <div key={plugin.id} className="bndz-bottom-plugin-surface absolute inset-0 z-0 pointer-events-none invisible flex flex-col min-h-0 overflow-hidden" aria-hidden>
-              <Component {...mergedPluginProps} isPluginTabActive={false} immersive={immersive} />
+              <BndzErrorBoundary isolate label={`Plugin:${plugin.id}`} resetKey={plugin.id}>
+                <Component {...mergedPluginProps} isPluginTabActive={false} immersive={immersive} />
+              </BndzErrorBoundary>
             </div>
           );
         })}

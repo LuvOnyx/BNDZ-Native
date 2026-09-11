@@ -58,6 +58,12 @@ public static class DirListingSharedBuffer
         public string? LinkType { get; set; }
         public string? LinkTarget { get; set; }
         public bool IsGhostLink { get; set; }
+        /// <summary>OneDrive/cloud placeholder state: available | online-only | pinned | offline.</summary>
+        public string? CloudStatus { get; set; }
+        public bool IsRecycleItem { get; set; }
+        public string? OriginalLocation { get; set; }
+        public string? OriginalPath { get; set; }
+        public DateTimeOffset? DeletedUtc { get; set; }
     }
 
     private const string LinkMetaPrefix = "BNDZLINK:";
@@ -105,7 +111,23 @@ public static class DirListingSharedBuffer
             ModifiedUtc = info.LastWriteTimeUtc,
             CreatedUtc = info.CreationTimeUtc,
             AttrBits = AttrBitsFrom(info.Attributes),
+            CloudStatus = ResolveCloudStatus(info.Attributes),
         };
+    }
+
+    /// <summary>Map Win32 cloud placeholder bits used by OneDrive / Files On-Demand.</summary>
+    public static string? ResolveCloudStatus(FileAttributes attributes)
+    {
+        const FileAttributes Pinned = (FileAttributes)0x00080000;
+        const FileAttributes Unpinned = (FileAttributes)0x00100000;
+        const FileAttributes RecallOnDataAccess = (FileAttributes)0x00400000;
+        if ((attributes & FileAttributes.Offline) != 0 || (attributes & RecallOnDataAccess) != 0)
+            return "online-only";
+        if ((attributes & Pinned) != 0)
+            return "pinned";
+        if ((attributes & Unpinned) != 0)
+            return "online-only";
+        return null;
     }
 
     public static DirEntryDto FromShellChild(ShellChildItem item)
@@ -187,6 +209,13 @@ public static class DirListingSharedBuffer
             || root.TryGetProperty("IsShellItem", out sh) && sh.ValueKind == JsonValueKind.True;
         if (isShell) attrBits |= AttrShellItem;
 
+        var isRecycle = root.TryGetProperty("isRecycleItem", out var ri) && ri.ValueKind == JsonValueKind.True
+            || root.TryGetProperty("IsRecycleItem", out ri) && ri.ValueKind == JsonValueKind.True;
+        DateTimeOffset? deleted = null;
+        var deletedRaw = GetStr("deleted", "Deleted");
+        if (!string.IsNullOrEmpty(deletedRaw) && DateTimeOffset.TryParse(deletedRaw, out var del))
+            deleted = del.ToUniversalTime();
+
         return new DirEntryDto
         {
             Id = GetStr("id", "Id").Replace('\\', '/') is { Length: > 0 } id ? id : path,
@@ -199,6 +228,10 @@ public static class DirListingSharedBuffer
             CreatedUtc = created,
             AttrBits = attrBits,
             IsShellItem = isShell,
+            IsRecycleItem = isRecycle,
+            OriginalLocation = GetStr("originalLocation", "OriginalLocation") is { Length: > 0 } ol ? ol : null,
+            OriginalPath = GetStr("originalPath", "OriginalPath") is { Length: > 0 } op ? op : null,
+            DeletedUtc = deleted,
         };
     }
 

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
+import { assertIpcOk, runPluginRefresh } from '../../lib/pluginRefresh';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
@@ -33,9 +34,11 @@ type VaultSession = {
 export default function ZkVaultPlugin({
   currentPath,
   selectedPaths,
+  embedded = false,
 }: {
   currentPath?: string;
   selectedPaths?: string[];
+  embedded?: boolean;
 }) {
   const [sessions, setSessions] = useState<VaultSession[]>([]);
   const [vaultCount, setVaultCount] = useState(0);
@@ -48,12 +51,18 @@ export default function ZkVaultPlugin({
     : currentPath ? toWindowsPath(currentPath) : '';
 
   const refresh = useCallback(async () => {
-    const res = await IPC.zkVaultStatus();
-    if (res.ok && res.status) {
+    await runPluginRefresh('ZK Vault', async () => {
+      const res = await IPC.zkVaultStatus();
+      assertIpcOk(res, 'Could not load vault status.');
       const st = res.status as { sessions?: VaultSession[]; vaultCount?: number };
-      setSessions(Array.isArray(st.sessions) ? st.sessions : []);
-      setVaultCount(st.vaultCount ?? 0);
-    }
+      return {
+        sessions: Array.isArray(st.sessions) ? st.sessions : [],
+        vaultCount: st.vaultCount ?? 0,
+      };
+    }, ({ sessions: nextSessions, vaultCount: count }) => {
+      setSessions(nextSessions);
+      setVaultCount(count);
+    });
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -81,6 +90,14 @@ export default function ZkVaultPlugin({
     }
   };
 
+  /** Navigate the BNDZ file browser to a local mount path (e.g. a drive letter or temp dir). */
+  const browseMount = (mountPath: string) => {
+    if (!mountPath) return;
+    // Convert Windows path to BNDZ pane path: C:\foo → /C/foo
+    const pane = mountPath.replace(/^([A-Za-z]):[/\\]/, '/$1/').replace(/\\/g, '/');
+    window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: pane } }));
+  };
+
   const unlockVault = async () => {
     if (!folder) {
       pushToast({ kind: 'warning', title: 'Select vault folder', message: 'Pick the folder containing .bndzvault marker.' });
@@ -94,10 +111,13 @@ export default function ZkVaultPlugin({
     try {
       const res = await IPC.zkVaultUnlock(folder, password);
       if (!res.ok) throw new Error(res.error || 'Unlock failed');
-      const mount = (res.session as VaultSession)?.mountPath;
+      const session = res.session as VaultSession | undefined;
+      const mount = session?.mountPath;
       pushToast({ kind: 'success', title: 'Vault unlocked', message: mount || 'Session mount ready' });
       setPassword('');
       await refresh();
+      // Automatically navigate the file browser to the unlocked session mount.
+      if (mount) browseMount(mount);
     } catch (e) {
       pushToast({ kind: 'error', title: 'Unlock failed', message: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -117,10 +137,10 @@ export default function ZkVaultPlugin({
   };
 
   return (
-    <PluginPanelShell title="ZK Vault" icon="lock_ui">
+    <PluginPanelShell title="Vault" icon="lock_ui" variant={embedded ? "embedded" : "default"}>
       <PluginHeroStrip
         icon={<Icons8Icon id="lock_ui" size={40} />}
-        name="Zero-knowledge vault"
+        name="Encrypted vault"
         typeLabel="Encrypt at rest"
         meta={<span className="text-xs text-gray-400">{vaultCount} vault(s) · {sessions.length} session(s)</span>}
       />
@@ -163,9 +183,27 @@ export default function ZkVaultPlugin({
                     <Icons8Icon id="folder_ui" size={14} />
                     <span className="truncate">{formatUiPath(s.sourcePath)}</span>
                   </div>
-                  <div className="text-[11px] text-sky-300/80 mt-1 bndz-mono truncate">Mount: {formatUiPath(s.mountPath)}</div>
+                  <div className="text-[11px] text-sky-300/80 mt-1 bndz-mono truncate">
+                    Mount: {formatUiPath(s.mountPath)}
+                  </div>
+                  {s.mode && (
+                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wide">{s.mode}</div>
+                  )}
                 </div>
-                <PluginToolbarButton label="Lock" onClick={() => void lockVault(s.vaultId)} disabled={busy} />
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <PluginToolbarButton
+                    label="Browse"
+                    onClick={() => browseMount(s.mountPath)}
+                    disabled={busy}
+                    title="Navigate file browser to this mount"
+                  />
+                  <PluginToolbarButton
+                    label="Lock"
+                    onClick={() => void lockVault(s.vaultId)}
+                    disabled={busy}
+                    title="Shred temp session and lock vault"
+                  />
+                </div>
               </div>
             </PluginCard>
           ))}

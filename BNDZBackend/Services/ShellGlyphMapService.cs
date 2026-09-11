@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
 namespace BNDZ.Services;
@@ -161,7 +159,7 @@ public sealed class ShellGlyphMapService
 
         var key = BndzHostCaches.IconCacheKey(path, isDirectory);
         // Type glyphs for files by extension only.
-        if (!isDirectory && !string.IsNullOrEmpty(key) && key.StartsWith('.')
+        if (!isDirectory && IsExtensionIconCacheKey(key)
             && _byGlyphKey.TryGetValue(key, out var typeHit))
             return typeHit;
 
@@ -174,7 +172,7 @@ public sealed class ShellGlyphMapService
             SHGetFileInfo(path, 0, ref shfi, (uint)Marshal.SizeOf(shfi), flags);
             if (shfi.iIcon >= 0 && _bySysIndex.TryGetValue(shfi.iIcon, out var cached))
             {
-                if (!isDirectory && !string.IsNullOrEmpty(key) && key.StartsWith('.'))
+                if (!isDirectory && IsExtensionIconCacheKey(key))
                     _byGlyphKey.TryAdd(key, cached);
                 return cached;
             }
@@ -204,10 +202,24 @@ public sealed class ShellGlyphMapService
 
             var key = BndzHostCaches.IconCacheKey(path, isDirectory);
             // Extension type glyphs only — NEVER write per-path directories into FolderKey.
-            if (!isDirectory && !string.IsNullOrEmpty(key) && key.StartsWith('.'))
+            if (!isDirectory && IsExtensionIconCacheKey(key))
                 _byGlyphKey[key] = base64Png;
         }
         catch { /* ignore */ }
+    }
+
+
+    /// <summary>
+    /// True for type-glyph keys like "a3:.pdf@48" / legacy ".pdf@48" — not path keys.
+    /// </summary>
+    private static bool IsExtensionIconCacheKey(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return false;
+        int at = key.LastIndexOf('@');
+        string body = at > 0 ? key[..at] : key;
+        int colon = body.LastIndexOf(':');
+        string leaf = colon >= 0 ? body[(colon + 1)..] : body;
+        return leaf.StartsWith('.') && leaf.IndexOfAny(['\\', '/']) < 0;
     }
 
     private static string NormalizeGlyphKey(string extensionOrFolderKey, bool isDirectory)
@@ -277,12 +289,7 @@ public sealed class ShellGlyphMapService
         if (hIcon == IntPtr.Zero) return "";
         try
         {
-            using var icon = Icon.FromHandle(hIcon);
-            using var bitmap = icon.ToBitmap();
-            using var ms = new MemoryStream();
-            bitmap.MakeTransparent();
-            bitmap.Save(ms, ImageFormat.Png);
-            return Convert.ToBase64String(ms.ToArray());
+            return ShellArgbPngEncoder.EncodeHIconPngBase64(hIcon);
         }
         catch
         {

@@ -7,6 +7,7 @@ import { DEFAULT_CUSTOM_COLUMNS, resolveCustomColumns, type CustomColumnDef } fr
 import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/fileInfoTipFields';
 import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib/hoverBoxConfig';
 import { DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES, type TreeListItemType } from '../lib/treeListItemFilter';
+import { mergeSeedVisualFilters } from '../lib/visualFilterEngine';
 import type { CustomEventAction } from '../lib/customEventActions';
 import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, DEFAULT_DUAL_PANE_LAYOUT, DEFAULT_MAIN_ROW_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
 import {
@@ -19,7 +20,7 @@ export interface VisualFilter {
     id: string;
     isActive: boolean;
     name: string;
-    matchType: 'extension' | 'regex' | 'age' | 'size' | 'event' | 'attribute';
+    matchType: 'extension' | 'regex' | 'age' | 'size' | 'event' | 'attribute' | 'emptyDir';
     matchValue: string; // for event: 'modifiedToday', 'createdWithin24Hours', 'isReadOnly'
     hexColor?: string; // legacy support
     rowTint?: string; // Highly transparent background color (e.g. rgba(255,0,0,0.1))
@@ -96,6 +97,10 @@ export interface AppConfig {
     toolbarProfiles?: any[][];
     activeToolbarProfileIndex?: number;
     showHiddenSystemFoldersInTree: boolean;
+    /** Show hidden files/folders in the file list (separate from tree-only toggle). */
+    showHiddenFiles?: boolean;
+    /** Show system-attributed files/folders in the file list. */
+    showSystemFiles?: boolean;
     useCustomContextMenu: boolean;
     previewCategories: Array<{n: string, d: string, c: boolean}>;
     previewFormats: Array<{i: string, n: string, c: boolean}>;
@@ -107,6 +112,21 @@ export interface AppConfig {
     hoverBoxContexts?: string[];
     treeListVisibleItemTypes?: TreeListItemType[];
 }
+
+export const DEFAULT_PREVIEW_CATEGORIES: AppConfig["previewCategories"] = [
+    {n:"Text Files", d:"bat, inf, ini, txt ...", c:true},
+    {n:"Document Files", d:"docx, odt, pdf, xlsx ...", c:true},
+    {n:"Web Files", d:"htm, svg, url, xml, zip ...", c:true},
+    {n:"Font Files", d:"fon, otf, pfm, ttf ...", c:true},
+    {n:"Image Files", d:"gif, jpg, png, raw ...", c:true},
+    {n:"Audio Files", d:"flac, mp3, ogg, wav ...", c:true},
+    {n:"Video Files", d:"avi, mp4, mpg, wmv ...", c:true},
+    {n:"Archive Files", d:"zip, rar, 7z, tar, gz, torrent ...", c:true},
+    {n:"3D Model Files", d:"glb, obj, stl, ydr, yft, ydd, ybn, fbx …", c:true},
+    {n:"Preview as Thumbnail", d:"afphoto, slddrw, webp ...", c:true},
+    {n:"User-Defined Preview Handlers", d:"", c:true}
+];
+
 
 const defaultStructuredConfig: Partial<AppConfig> = {
     visualFilters: [],
@@ -146,6 +166,20 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     tooltipMutedColor: '#9ca3af',
     tooltipCornerRadius: 16,
     whenHoveringOverTheFilename: false,
+    micaBackdrop: true,
+    systemBackdropKind: 'mica',
+    nativeActionCenterToasts: true,
+    toastDelivery: 'both',
+    toastPosition: 'top-right',
+    windowsNotificationCategories: {
+        transfers: true,
+        errors: true,
+        filesystem: true,
+        plugins: false,
+        mesh: true,
+        system: true,
+        progress: false,
+    },
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
@@ -164,7 +198,8 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.useCustomContextMenu = true;
     }
     // Bust stale empty SVG/HEIC thumbnail CAS after Svg.Skia + stream-fallback removal.
-    if ((merged.iconCacheBuster ?? 0) < 20) merged.iconCacheBuster = 20;
+    // 21: alpha-preserving shell PNG encode (no MakeTransparent white plates).
+    if ((merged.iconCacheBuster ?? 0) < 22) merged.iconCacheBuster = 22;
     if (merged.showLensStage === undefined) merged.showLensStage = true;
     if (merged.lensCollapsedByDefault === undefined) merged.lensCollapsedByDefault = false;
     if (merged.permanentHomeTab === undefined) merged.permanentHomeTab = false;
@@ -230,6 +265,15 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         }
         merged.selectionColorMigrationVersion = 1;
     }
+    // v1 wrongly forced shell merge OFF. v2 re-enables merge and weaves verbs into
+    // the BNDZ menu (no dump "Shell extensions" folder).
+    if ((merged.shellMenuPolishVersion ?? 0) < 2) {
+        merged.useNativeOSContextMenu = true;
+        merged.nativeContextMenu = true;
+        merged.hideShellExtensionsFromShellContextMenu = false;
+        merged.useCustomContextMenu = true;
+        merged.shellMenuPolishVersion = 2;
+    }
     if ((merged.xCloseActionVersion ?? 0) < 1) {
         // Reset silent tray-on-X so the close dialog asks again; choice is remembered after.
         merged.xCloseAction = 'ask';
@@ -272,6 +316,58 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
             merged.uiFontFamilyMono = '"Cascadia Code", "Cascadia Mono", Consolas, monospace';
         }
         merged.uiFontFamilyMigrationVersion = 1;
+    }
+    // Corrupted toolbarProfiles (flat array / null) must not blow up chrome `.map`.
+    if (!Array.isArray(merged.toolbarProfiles) || !merged.toolbarProfiles.every((p: unknown) => Array.isArray(p))) {
+        merged.toolbarProfiles = [
+            [
+                { id: 'nav_back' }, { id: 'nav_forward' }, { id: 'nav_up' },
+                { id: 'separator' },
+                { id: 'go_home' },
+                { id: 'spacer' },
+                { id: 'cut' }, { id: 'copy' }, { id: 'paste' }, { id: 'delete' },
+                { id: 'separator' },
+                { id: 'undo' }, { id: 'redo' },
+                { id: 'spacer' },
+                { id: 'view_details' },
+                { id: 'separator' },
+                { id: 'refresh' },
+                { id: 'spacer' },
+                { id: 'config' }, { id: 'extension_hub' }, { id: 'wrench' },
+            ],
+        ];
+    }
+    if (!Array.isArray(merged.previewCategories) || merged.previewCategories.length === 0) {
+        merged.previewCategories = DEFAULT_PREVIEW_CATEGORIES.map((c) => ({ ...c }));
+    }
+    if (!Array.isArray(merged.previewFormats)) {
+        merged.previewFormats = [];
+    }
+    if (!Array.isArray(merged.colorFilters)) {
+        merged.colorFilters = [];
+    }
+    if (!Array.isArray(merged.visualFilters)) {
+        merged.visualFilters = [];
+    }
+    // Seed default filter rules (symlinks, system, empty folders, modified today) when absent.
+    merged.visualFilters = mergeSeedVisualFilters(merged.visualFilters);
+    if (!Array.isArray(merged.installedPlugins)) {
+        merged.installedPlugins = ['properties', 'find', 'filters'];
+    }
+    if (!Array.isArray(merged.bottomPluginTabOrder)) {
+        merged.bottomPluginTabOrder = [];
+    }
+    if (!Array.isArray(merged.customUserCommands)) {
+        merged.customUserCommands = [];
+    }
+    if (!Array.isArray(merged.customEventActions)) {
+        merged.customEventActions = [];
+    }
+    if (!Array.isArray(merged.customColumns)) {
+        merged.customColumns = [];
+    }
+    if (merged.permanentVariables == null || typeof merged.permanentVariables !== 'object' || Array.isArray(merged.permanentVariables)) {
+        merged.permanentVariables = {};
     }
     return merged;
 }
@@ -332,6 +428,8 @@ export const defaultConfig: AppConfig = normalizeConfig({
     bottomPanelLazyUnmount: true,
     alwaysOnTop: false,
     showHiddenSystemFoldersInTree: false,
+    showHiddenFiles: false,
+    showSystemFiles: false,
     useCustomContextMenu: true,
     enableIconContextSubmenu: true,
     enableContextSubmenus: true,
@@ -349,18 +447,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
     autoRotateThumbnails: true,
     showFileIconOnThumbnail: true,
     lockTreeState: false,
-    previewCategories: [
-        {n:"Text Files", d:"bat, inf, ini, txt ...", c:true},
-        {n:"Document Files", d:"docx, odt, pdf, xlsx ...", c:true},
-        {n:"Web Files", d:"htm, svg, url, xml, zip ...", c:true},
-        {n:"Font Files", d:"fon, otf, pfm, ttf ...", c:true},
-        {n:"Image Files", d:"gif, jpg, png, raw ...", c:true},
-        {n:"Audio Files", d:"flac, mp3, ogg, wav ...", c:true},
-        {n:"Video Files", d:"avi, mp4, mpg, wmv ...", c:true},
-        {n:"Archive Files", d:"zip, rar, 7z, tar, gz, torrent ...", c:true},
-        {n:"Preview as Thumbnail", d:"afphoto, slddrw, webp ...", c:true},
-        {n:"User-Defined Preview Handlers", d:"", c:true}
-    ],
+    previewCategories: DEFAULT_PREVIEW_CATEGORIES.map((c) => ({ ...c })),
     previewFormats: [
         {i:"txt", n:"*.accurip, ACCURIP File", c:true},
         {i:"txt", n:"*.adml, ADML File", c:true},

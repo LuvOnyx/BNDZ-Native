@@ -4,8 +4,12 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { IPC } from '../../lib/ipcBridge';
 import { formatUiPath } from '../../lib/displayPath';
+import { isMeshPath, parseMeshPath } from '../../lib/meshPaths';
+import { toWindowsPath } from '../../lib/pathUtils';
 import MeshHostsManager from '../mesh/MeshHostsManager';
 import MeshBucketsSharesPanel from '../mesh/MeshBucketsSharesPanel';
+import MeshEphemeralPanel from '../mesh/MeshEphemeralPanel';
+import MeshDropPanel from '../meshdrop/MeshDropPanel';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -13,66 +17,214 @@ import {
   PluginEmptyState, PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 import { type MeshSyncRule, type MeshHost, normalizeMeshHost } from '../../lib/meshTypes';
+import type { BottomPluginLaunchContext } from '../BottomPluginPanel';
 
-function MeshTerminalPanel({ sessionId, active }: { sessionId: string | null; active: boolean }) {
+function decodeTerminalB64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function encodeTerminalUtf8ToB64(data: string): string {
+  // Prefer TextEncoder — unescape(encodeURIComponent) can mangle some VT sequences in WebView2.
+  const bytes = new TextEncoder().encode(data);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
+  return btoa(bin);
+}
+
+/** Survives MeshSshTerminalPanel remounts — ConPTY often emits before React commits sessionId. */
+const meshTerminalOrphanChunks = new Map<string, string[]>();
+type MeshTermWriter = (sid: string, data: string) => boolean;
+const meshTermWriters = new Set<MeshTermWriter>();
+let meshTermOutputHubUnsub: (() => void) | null = null;
+
+function pushMeshTerminalOrphan(sid: string, b64: string) {
+  const list = meshTerminalOrphanChunks.get(sid) ?? [];
+  list.push(b64);
+  if (list.length > 400) list.splice(0, list.length - 400);
+  meshTerminalOrphanChunks.set(sid, list);
+}
+
+function takeMeshTerminalOrphans(sid: string): string[] {
+  const chunks = meshTerminalOrphanChunks.get(sid) ?? [];
+  meshTerminalOrphanChunks.delete(sid);
+  return chunks;
+}
+
+function ensureMeshTerminalOutputHub() {
+  if (meshTermOutputHubUnsub) return;
+  meshTermOutputHubUnsub = IPC.onMeshTerminalOutput((payload) => {
+    const sid = payload?.sessionId || (payload as { SessionId?: string })?.SessionId;
+    const data = payload?.data || (payload as { Data?: string })?.Data;
+    if (!sid || !data) return;
+    for (const write of meshTermWriters) {
+      if (write(sid, data)) return;
+    }
+    pushMeshTerminalOrphan(sid, data);
+  });
+}
+
+function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null; active: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+
+  const writeBytes = useCallback((bytes: Uint8Array) => {
+    termRef.current?.write(bytes);
+  }, []);
+
+  const flushOrphans = useCallback((sid: string) => {
+    const chunks = takeMeshTerminalOrphans(sid);
+    if (!chunks.length) return;
+    const term = termRef.current;
+    if (!term) {
+      for (const b64 of chunks) pushMeshTerminalOrphan(sid, b64);
+      return;
+    }
+    for (const b64 of chunks) term.write(decodeTerminalB64(b64));
+  }, []);
+
+  const fitAndResize = useCallback(() => {
+    const term = termRef.current;
+    const fit = fitRef.current;
+    const el = containerRef.current;
+    if (!term || !fit || !el) return;
+    if (el.clientWidth < 8 || el.clientHeight < 8) return;
+    try { fit.fit(); } catch { /* ignore */ }
+    const current = sessionIdRef.current;
+    if (current && term.cols > 0 && term.rows > 0) {
+      IPC.meshTerminalResize(current, term.cols, term.rows);
+    }
+  }, []);
+
+  const scheduleFit = useCallback(() => {
+    // Fit after flex/layout settles so ConPTY rows match the visible hole, not under chrome.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fitAndResize();
+        window.setTimeout(fitAndResize, 48);
+        window.setTimeout(fitAndResize, 160);
+      });
+    });
+  }, [fitAndResize]);
 
   useEffect(() => {
-    if (!containerRef.current || termRef.current) return;
+    const host = containerRef.current;
+    if (!host || termRef.current) return;
     const term = new Terminal({
-      theme: { background: '#0a0c10', foreground: '#d4d8e0', cursor: '#7eb8e8' },
-      fontFamily: 'JetBrains Mono, Consolas, monospace',
+      theme: {
+        background: '#07090e',
+        foreground: '#d8dee9',
+        cursor: '#7dd3fc',
+        selectionBackground: 'rgba(56,189,248,0.28)',
+      },
+      fontFamily: 'JetBrains Mono, Cascadia Mono, Consolas, monospace',
       fontSize: 12,
       cursorBlink: true,
+      convertEol: true,
+      allowProposedApi: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    term.open(containerRef.current);
-    fit.fit();
+    term.open(host);
     termRef.current = term;
     fitRef.current = fit;
+    try { fit.fit(); } catch { /* ignore */ }
+    const sid = sessionIdRef.current;
+    if (sid) flushOrphans(sid);
     term.onData(data => {
-      if (!sessionId) return;
-      IPC.meshTerminalInput(sessionId, btoa(unescape(encodeURIComponent(data))));
+      const current = sessionIdRef.current;
+      if (!current) return;
+      try {
+        IPC.meshTerminalInput(current, encodeTerminalUtf8ToB64(data));
+      } catch { /* ignore */ }
     });
-    return () => { term.dispose(); termRef.current = null; };
-  }, []);
+    // Click / focus so keys aren't swallowed by the file list.
+    const focusTerm = () => { try { term.focus(); } catch { /* ignore */ } };
+    host.addEventListener('pointerdown', focusTerm);
+    const ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => scheduleFit())
+      : null;
+    ro?.observe(host);
+    scheduleFit();
+    return () => {
+      ro?.disconnect();
+      host.removeEventListener('pointerdown', focusTerm);
+      term.dispose();
+      termRef.current = null;
+      fitRef.current = null;
+    };
+  }, [flushOrphans, fitAndResize, scheduleFit]);
 
   useEffect(() => {
     if (!active) return;
-    requestAnimationFrame(() => fitRef.current?.fit());
-  }, [active, sessionId]);
+    scheduleFit();
+    try { termRef.current?.focus(); } catch { /* ignore */ }
+  }, [active, sessionId, scheduleFit]);
 
   useEffect(() => {
-    return IPC.onMeshTerminalOutput(({ sessionId: sid, data }) => {
-      if (!sessionId || sid !== sessionId || !termRef.current) return;
-      const bin = atob(data);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      termRef.current.write(bytes);
-    });
-  }, [sessionId]);
+    ensureMeshTerminalOutputHub();
+    const writer: MeshTermWriter = (sid, data) => {
+      if (sid !== sessionIdRef.current || !termRef.current) return false;
+      writeBytes(decodeTerminalB64(data));
+      return true;
+    };
+    meshTermWriters.add(writer);
+    return () => { meshTermWriters.delete(writer); };
+  }, [writeBytes]);
 
-  return <div ref={containerRef} className="w-full h-full min-h-[200px] bndz-mesh-terminal" />;
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    if (!sessionId) return;
+    // Do not reset — that wiped ConPTY banner / early output. Only flush + focus.
+    flushOrphans(sessionId);
+    scheduleFit();
+    try { term.focus(); } catch { /* ignore */ }
+  }, [sessionId, flushOrphans, scheduleFit]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="absolute inset-0 w-full h-full bndz-mesh-terminal"
+      tabIndex={0}
+      role="application"
+      aria-label="Terminal"
+    />
+  );
+}
+
+function MeshTerminalPanel({
+  sessionId,
+  active,
+}: {
+  sessionId: string | null;
+  active: boolean;
+}) {
+  return <MeshSshTerminalPanel sessionId={sessionId} active={active} />;
 }
 
 export const MeshPluginDef = {
   id: 'remote-mesh',
-  name: 'Remote Mesh',
+  name: 'Remote',
   icon: 'cloud_ui',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type Props = {
   onNavigate?: (path: string) => void;
   currentPath?: string;
+  pluginLaunch?: BottomPluginLaunchContext | null;
+  selectedPaths?: string[];
 };
 
-export default function MeshPlugin({ onNavigate, currentPath }: Props) {
-  const [tab, setTab] = useState<'buckets' | 'hosts' | 'mirror' | 'terminal' | 'liveshare'>('buckets');
+export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, selectedPaths }: Props) {
+  const [tab, setTab] = useState<'buckets' | 'hosts' | 'ephemeral' | 'drop' | 'mirror' | 'terminal' | 'liveshare'>('hosts');
   const [hosts, setHosts] = useState<MeshHost[]>([]);
   const [rules, setRules] = useState<MeshSyncRule[]>([]);
   const [busy, setBusy] = useState(false);
@@ -89,6 +241,22 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
   }, []);
 
   useEffect(() => { void refreshRules(); }, [refreshRules]);
+
+  // Buffer ConPTY/SSH output even before the Terminal tab mounts xterm.
+  useEffect(() => { ensureMeshTerminalOutputHub(); }, []);
+
+  useEffect(() => {
+    if (!pluginLaunch) return;
+    if (pluginLaunch.tab === 'terminal') setTab('terminal');
+    if (pluginLaunch.tab === 'ephemeral') setTab('ephemeral');
+    if (pluginLaunch.tab === 'hosts') setTab('hosts');
+    if (pluginLaunch.tab === 'drop' || pluginLaunch.tab === 'mesh-drop') setTab('drop');
+    if (pluginLaunch.tab === 'mirror') setTab('mirror');
+    if (pluginLaunch.tab === 'liveshare') setTab('liveshare');
+    if (pluginLaunch.tab === 'buckets') setTab('buckets');
+    if (pluginLaunch.sessionId) setSessionId(pluginLaunch.sessionId);
+    if (pluginLaunch.hostId) setSelectedHostId(pluginLaunch.hostId);
+  }, [pluginLaunch]);
 
   useEffect(() => {
     return IPC.onMeshSyncProgress(p => {
@@ -136,16 +304,63 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
 
   const openTerminal = async (hostId?: string, local = false) => {
     setBusy(true);
+    // Mount xterm before OpenLocal so early ConPTY/banner chunks can attach (or orphan cleanly).
+    setTab('terminal');
     try {
-      const cwd = currentPath && !currentPath.startsWith('/mesh') ? currentPath : undefined;
-      const session = await IPC.meshTerminalOpen({ hostId, local, cwd });
+      let cwd: string | undefined;
+      if (local) {
+        cwd = currentPath && !isMeshPath(currentPath) ? toWindowsPath(currentPath) : undefined;
+      } else if (currentPath && isMeshPath(currentPath)) {
+        const parsed = parseMeshPath(currentPath);
+        if (parsed.hostId && (!hostId || parsed.hostId === hostId)) {
+          hostId = parsed.hostId;
+          cwd = parsed.remotePath || '/';
+        }
+      }
+      if (!local && hostId) {
+        const conn = await IPC.meshConnect(hostId);
+        if (conn?.error) {
+          setStatus(String(conn.error));
+          return;
+        }
+      }
+      // Prefer live xterm geometry so ConPTY matches the visible hole.
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      const hostEl = document.querySelector('.bndz-mesh-terminal') as HTMLElement | null;
+      const approxCols = hostEl && hostEl.clientWidth > 8
+        ? Math.max(40, Math.floor(hostEl.clientWidth / 7.2))
+        : 120;
+      const approxRows = hostEl && hostEl.clientHeight > 8
+        ? Math.max(12, Math.floor(hostEl.clientHeight / 16))
+        : 32;
+      const session = await IPC.meshTerminalOpen({
+        hostId,
+        local,
+        cwd,
+        cols: approxCols,
+        rows: approxRows,
+      });
       if (session?.error) {
         setStatus(session.error);
         return;
       }
-      setSessionId(session.id);
-      setTab('terminal');
-      setStatus(local ? 'Local PowerShell' : `SSH — ${hostId}`);
+      const sid = session.id || session.Id || session.sessionId;
+      if (!sid) {
+        setStatus('Terminal opened but session id was missing');
+        return;
+      }
+      setSessionId(sid);
+      setStatus(local ? 'Local PowerShell (ConPTY)' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
+      // Fit after paint so ConPTY gets a real size (empty pane often starts 0×0).
+      window.setTimeout(() => {
+        try {
+          const el = document.querySelector('.bndz-mesh-terminal') as HTMLElement | null;
+          if (!el || el.clientWidth < 8) return;
+          const cols = Math.max(40, Math.floor(el.clientWidth / 7.2));
+          const rows = Math.max(12, Math.floor(el.clientHeight / 16));
+          IPC.meshTerminalResize(sid, cols, rows);
+        } catch { /* ignore */ }
+      }, 80);
     } catch (e: any) {
       setStatus(e?.message || 'Terminal failed to open');
     } finally { setBusy(false); }
@@ -162,6 +377,7 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
       pushOnSave: true,
       debounceMs: 800,
       enabled: true,
+      excludeGlob: '',
     }]);
   };
 
@@ -173,43 +389,137 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
     } finally { setBusy(false); }
   };
 
+  const meshBrowseHint = currentPath && isMeshPath(currentPath)
+    ? (() => {
+        const { hostId, remotePath } = parseMeshPath(currentPath);
+        return hostId ? `${hostId}:${remotePath || '/'}` : null;
+      })()
+    : null;
+
+  const terminalMode = tab === 'terminal';
+
+  // Compress bottom tabstrip while Terminal owns the hole (header/footer inset).
+  useEffect(() => {
+    const panel = document.querySelector('.bndz-bottom-panel') as HTMLElement | null;
+    if (!panel) return;
+    if (terminalMode) panel.setAttribute('data-terminal-active', 'true');
+    else if (panel.getAttribute('data-terminal-active') === 'true') panel.removeAttribute('data-terminal-active');
+    return () => {
+      if (panel.getAttribute('data-terminal-active') === 'true') panel.removeAttribute('data-terminal-active');
+    };
+  }, [terminalMode]);
+
   return (
     <PluginPanelShell
-      title="Remote Mesh"
+      title="Remote"
       icon="cloud_ui"
       iconColor="#38bdf8"
-      subtitle="Buckets, shared folders, SSH/SFTP mesh, deploy mirrors, and MeshDrop link sharing"
+      subtitle="Hosts SSH/SFTP · Mesh Drop P2P · Mesh VPS (local temp) · mirrors · Shell Here"
       variant="embedded"
-      toolbar={
-        <PluginToolbarButton onClick={() => {
-          window.dispatchEvent(new CustomEvent('bndz-open-configuration', { detail: { tab: 'Workspace Tools' } }));
-        }}>
-          <Icons8Icon id="config" size={12} /> Settings
-        </PluginToolbarButton>
-      }
-      status={status && <span className="text-xs text-gray-400">{status}</span>}
-    >
-      <div className="flex flex-col h-full min-h-0">
-        <div className="flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
-          {([
-            ['buckets', 'Buckets & Shares'],
-            ['hosts', 'Hosts'],
-            ['mirror', 'Mirror'],
-            ['terminal', 'Terminal'],
-            ['liveshare', 'Live Share'],
-          ] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`px-3 py-1 text-xs font-semibold rounded-md ${tab === id ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              {label}
-            </button>
-          ))}
+      scrollable={!terminalMode}
+      density={terminalMode ? 'terminal' : 'default'}
+      toolbar={terminalMode ? (
+        <div className="bndz-mesh-term-actions flex items-center gap-1 w-full min-h-0">
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto scrollbar-hidden">
+            <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
+              Local
+            </PluginToolbarButton>
+            {hosts.filter(h => h.provider === 0).slice(0, 2).map(h => (
+              <PluginToolbarButton key={h.id} onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }} disabled={busy}>
+                SSH · {h.alias}
+              </PluginToolbarButton>
+            ))}
+            {meshBrowseHint && (
+              <PluginToolbarButton onClick={() => void openTerminal()} disabled={busy}>
+                Shell Here
+              </PluginToolbarButton>
+            )}
+            {sessionId && (
+              <PluginToolbarButton onClick={() => {
+                IPC.meshTerminalClose(sessionId);
+                setSessionId(null);
+              }}>
+                Close
+              </PluginToolbarButton>
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <PluginToolbarButton onClick={() => setTab('hosts')}>Hosts</PluginToolbarButton>
+          </div>
         </div>
+      ) : (
+        <>
+          {meshBrowseHint && (
+            <PluginToolbarButton onClick={() => void openTerminal()}>
+              <Icons8Icon id="terminal" size={12} /> Shell Here
+            </PluginToolbarButton>
+          )}
+          <PluginToolbarButton onClick={() => setTab('drop')}>
+            <Icons8Icon id="cloud_ui" size={12} /> Mesh Drop
+          </PluginToolbarButton>
+          <PluginToolbarButton onClick={() => {
+            window.dispatchEvent(new CustomEvent('bndz-open-configuration', { detail: { tab: 'Workspace Tools' } }));
+          }}>
+            <Icons8Icon id="config" size={12} /> Settings
+          </PluginToolbarButton>
+        </>
+      )}
+      status={!terminalMode && status ? <span className="text-xs text-sky-200/80 bndz-mesh-status-pulse">{status}</span> : undefined}
+    >
+      <div className={`flex flex-col flex-1 min-h-0 h-full bndz-mesh-surface ${terminalMode ? 'bndz-mesh-surface--terminal' : ''}`}>
+        {!terminalMode && (
+          <div className="bndz-mesh-tabrail flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
+            {([
+              ['hosts', 'Hosts'],
+              ['drop', 'Mesh Drop'],
+              ['ephemeral', 'Mesh VPS'],
+              ['buckets', 'Buckets & Shares'],
+              ['mirror', 'Mirror'],
+              ['terminal', 'Terminal'],
+              ['liveshare', 'Live Share'],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`bndz-mesh-tab ${tab === id ? 'is-active' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar p-3">
+        <div
+          className={`flex-1 min-h-0 min-w-0 ${
+            terminalMode
+              ? 'overflow-hidden p-0 flex flex-col relative'
+              : 'relative p-3 overflow-y-auto bndz-scrollbar'
+          }`}
+        >
+          {/* Keep xterm mounted after first open so ConPTY output survives Remote tab switches. */}
+          {(terminalMode || sessionId) && (
+            <div
+              className={`bndz-mesh-terminal-frame bg-[#07090e] ${
+                terminalMode
+                  ? 'relative flex-1 min-h-0 min-w-0 w-full overflow-hidden'
+                  : 'hidden'
+              }`}
+              aria-hidden={!terminalMode}
+            >
+              <MeshTerminalPanel
+                sessionId={sessionId}
+                active={terminalMode}
+              />
+              {!sessionId && terminalMode && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-gray-500 p-6 text-center z-[1]">
+                  Open Local or SSH above. Browse a /mesh folder and use Shell Here to land in that remote path.
+                </div>
+              )}
+            </div>
+          )}
+          {!terminalMode && (
+            <>
           {tab === 'buckets' && (
             <MeshBucketsSharesPanel
               onNavigate={onNavigate}
@@ -225,6 +535,25 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
             />
           )}
 
+          {tab === 'drop' && (
+            <MeshDropPanel
+              selectionPaths={(selectedPaths || []).filter(Boolean)}
+              onStatus={setStatus}
+            />
+          )}
+
+          {tab === 'ephemeral' && (
+            <MeshEphemeralPanel
+              onNavigate={onNavigate}
+              onStatus={setStatus}
+              onOpenTerminal={(sessionId, hostId) => {
+                setSessionId(sessionId);
+                setSelectedHostId(hostId);
+                setTab('terminal');
+              }}
+            />
+          )}
+
           {tab === 'mirror' && (
             <div className="space-y-3">
               <div className="flex gap-2 flex-wrap">
@@ -234,7 +563,7 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
               {rules.length === 0 ? (
                 <PluginEmptyState icon="sync_folders" title="No mirror rules" description="Push local folders to remote hosts on save — ideal for instant deploys." />
               ) : rules.map((r, i) => (
-                <PluginCard key={r.id} className="!p-3 grid gap-2">
+                <PluginCard key={r.id} className="!p-3 grid gap-2 bndz-mesh-mirror-card">
                   <PluginFieldLabel>Name</PluginFieldLabel>
                   <input className={PLUGIN_INPUT_CLASS} value={r.name} onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
                   <PluginFieldLabel>Local folder</PluginFieldLabel>
@@ -248,10 +577,9 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
                     <input className={`flex-1 ${PLUGIN_INPUT_CLASS}`} value={r.remotePath} onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, remotePath: e.target.value } : x))} />
                     <PluginToolbarButton
                       onClick={() => {
-                        const meshMatch = String(currentPath || '').match(/^\/mesh\/[^/]+(\/.*)?$/i);
-                        if (meshMatch) {
-                          const remote = (meshMatch[1] || '/').replace(/\//g, '/');
-                          setRules(prev => prev.map((x, j) => j === i ? { ...x, remotePath: remote || '/' } : x));
+                        if (currentPath && isMeshPath(currentPath)) {
+                          const { remotePath } = parseMeshPath(currentPath);
+                          setRules(prev => prev.map((x, j) => j === i ? { ...x, remotePath: remotePath || '/' } : x));
                         }
                       }}
                     >
@@ -261,22 +589,21 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
                   <PluginFieldLabel>Exclude globs (; separated)</PluginFieldLabel>
                   <input
                     className={PLUGIN_INPUT_CLASS}
-                    value={(r as any).excludeGlobs || ''}
+                    value={r.excludeGlob || ''}
                     placeholder="*.tmp; node_modules; .git"
-                    onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, excludeGlobs: e.target.value } as any : x))}
+                    onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, excludeGlob: e.target.value } : x))}
+                  />
+                  <PluginFieldLabel>Include globs (optional)</PluginFieldLabel>
+                  <input
+                    className={PLUGIN_INPUT_CLASS}
+                    value={r.includeGlob || ''}
+                    placeholder="*.ts; *.tsx"
+                    onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, includeGlob: e.target.value } : x))}
                   />
                   <div className="flex gap-2 items-center flex-wrap">
                     <label className="flex items-center gap-1.5 text-xs text-gray-400">
                       <input type="checkbox" checked={r.pushOnSave} onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, pushOnSave: e.target.checked } : x))} />
                       Push on save
-                    </label>
-                    <label className="flex items-center gap-1.5 text-xs text-gray-400">
-                      <input
-                        type="checkbox"
-                        checked={(r as any).pullMode === true}
-                        onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, pullMode: e.target.checked } as any : x))}
-                      />
-                      Prefer pull (swap on run)
                     </label>
                     <PluginToolbarButton onClick={() => void IPC.meshRunSync(r.id)} disabled={busy}>Run now</PluginToolbarButton>
                   </div>
@@ -285,42 +612,13 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
             </div>
           )}
 
-          {tab === 'terminal' && (
-            <div className="flex flex-col h-full min-h-[280px] gap-2">
-              <div className="flex gap-2 shrink-0 flex-wrap">
-                <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
-                  Local PowerShell
-                </PluginToolbarButton>
-                {hosts.filter(h => h.provider === 0).map(h => (
-                  <PluginToolbarButton key={h.id} onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }} disabled={busy}>
-                    SSH · {h.alias}
-                  </PluginToolbarButton>
-                ))}
-                {sessionId && (
-                  <PluginToolbarButton onClick={() => { IPC.meshTerminalClose(sessionId); setSessionId(null); }}>
-                    Close session
-                  </PluginToolbarButton>
-                )}
-              </div>
-              <div className="flex-1 min-h-0 border border-white/10 rounded-lg overflow-hidden bg-[#0a0c10]">
-                {sessionId ? (
-                  <MeshTerminalPanel sessionId={sessionId} active={tab === 'terminal'} />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-xs text-gray-500 p-6 text-center">
-                    Open a local PowerShell or SSH session. Terminal follows your current folder when possible.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {tab === 'liveshare' && (
             <div className="space-y-3">
-              <PluginCard className="!p-4">
+              <PluginCard className="!p-4 bndz-mesh-liveshare-card">
                 <h3 className="text-sm font-semibold text-gray-100 mb-1">Live Share Cursor</h3>
                 <p className="text-[11px] text-white/45 mb-3 leading-relaxed">
                   Peers browsing the same shared folder see your selection and cursor path highlighted in the list.
-                  State is broadcast via local mesh files under %LocalAppData%\\BNDZ\\LiveShare.
+                  State is broadcast via local mesh files under %LocalAppData%\BNDZ\LiveShare.
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <PluginToolbarButton onClick={() => void toggleLiveShare()} disabled={busy}>
@@ -350,6 +648,8 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
                 </div>
               )}
             </div>
+          )}
+            </>
           )}
         </div>
       </div>

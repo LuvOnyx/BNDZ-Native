@@ -27,7 +27,8 @@ interface Icons8IconProps {
  * Exceptions: tag_manager / tag__ use a tintable tag mask; favorites uses the bookmark glyph.
  */
 export function Icons8Icon({ id, size = 16, className = '', disabled, spin, title, color }: Icons8IconProps) {
-  if (!id) {
+  // Guard: plugins sometimes pass a ReactNode by mistake — never call string methods on it.
+  if (typeof id !== 'string' || !id) {
     return (
       <span
         className={`inline-block rounded-full bg-white/20 ${className}`}
@@ -95,6 +96,28 @@ export function DragHandleGlyph({ size = 14, className = '' }: { size?: number; 
           <circle cx={11} cy={y} r={dot} fill="currentColor" opacity={0.6} />
         </React.Fragment>
       ))}
+    </svg>
+  );
+}
+
+/** Pop-out / open-in-new-window glyph — replaces the misleading chain-link external_link asset. */
+export function PopOutGlyph({ size = 14, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="2.5" y="4.5" width="9" height="9" rx="1.5" opacity={0.85} />
+      <path d="M7 2.5h6.5V9" />
+      <path d="M13.5 2.5 8 8" />
     </svg>
   );
 }

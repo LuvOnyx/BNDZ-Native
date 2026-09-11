@@ -52,6 +52,7 @@ public sealed class MeshSyncEngine : IDisposable
     private void QueueSync(MeshSyncRuleRecord rule, string fullPath)
     {
         if (!File.Exists(fullPath)) return;
+        if (!MatchesGlobs(rule, fullPath)) return;
         var key = rule.Id + ":" + fullPath;
         if (_debounce.TryGetValue(key, out var existing)) { existing.Stop(); existing.Dispose(); }
         var timer = new System.Timers.Timer(rule.DebounceMs) { AutoReset = false };
@@ -64,6 +65,42 @@ public sealed class MeshSyncEngine : IDisposable
         timer.Start();
     }
 
+    private static bool MatchesGlobs(MeshSyncRuleRecord rule, string fullPath)
+    {
+        var name = Path.GetFileName(fullPath);
+        var rel = Path.GetRelativePath(rule.LocalPath, fullPath).Replace('\\', '/');
+        if (!string.IsNullOrWhiteSpace(rule.ExcludeGlob))
+        {
+            foreach (var pat in SplitGlobs(rule.ExcludeGlob))
+            {
+                if (GlobMatch(name, pat) || GlobMatch(rel, pat)) return false;
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(rule.IncludeGlob))
+        {
+            var any = false;
+            foreach (var pat in SplitGlobs(rule.IncludeGlob))
+            {
+                if (GlobMatch(name, pat) || GlobMatch(rel, pat)) { any = true; break; }
+            }
+            if (!any) return false;
+        }
+        return true;
+    }
+
+    private static IEnumerable<string> SplitGlobs(string raw) =>
+        raw.Split([';', '|', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static bool GlobMatch(string input, string pattern)
+    {
+        // Simple glob: * and ?
+        var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
+            .Replace("\\*", ".*")
+            .Replace("\\?", ".") + "$";
+        return System.Text.RegularExpressions.Regex.IsMatch(input, regex,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    }
+
     public async Task<MeshSyncRuleRecord?> RunRuleAsync(string ruleId, CancellationToken ct = default)
     {
         var rule = _db.ListSyncRules().FirstOrDefault(r => r.Id == ruleId);
@@ -74,7 +111,9 @@ public sealed class MeshSyncEngine : IDisposable
         {
             Emit(ruleId, "syncing", 0, null, "Scanning…");
             if (!Directory.Exists(rule.LocalPath)) throw new DirectoryNotFoundException(rule.LocalPath);
-            var files = Directory.EnumerateFiles(rule.LocalPath, "*", SearchOption.AllDirectories).ToList();
+            var files = Directory.EnumerateFiles(rule.LocalPath, "*", SearchOption.AllDirectories)
+                .Where(f => MatchesGlobs(rule, f))
+                .ToList();
             var i = 0;
             foreach (var file in files)
             {

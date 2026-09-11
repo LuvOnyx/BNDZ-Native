@@ -363,7 +363,7 @@ public sealed class ContentDnaService
 
         const int w = 9;
         const int h = 8;
-        using var resized = original.Resize(new SKImageInfo(w, h), SKFilterQuality.Medium);
+        using var resized = original.Resize(new SKImageInfo(w, h), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
         if (resized == null) return "";
 
         ulong hash = 0;

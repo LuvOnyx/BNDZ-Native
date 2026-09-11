@@ -100,6 +100,65 @@ public sealed class TombstoneSnapshotStore
         return snap;
     }
 
+    /// <summary>True when any active tombstone hides this filesystem path (delete/move/rename in flight).</summary>
+    public bool IsPathHidden(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var canon = CanonPath(path);
+        if (string.IsNullOrEmpty(canon)) return false;
+        foreach (var snap in _byOp.Values)
+        {
+            foreach (var e in snap.Entries)
+            {
+                if (string.Equals(CanonPath(e.Path), canon, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>True when name is tombstoned under the given parent folder.</summary>
+    public bool IsNameHiddenInParent(string? parentPath, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var parentCanon = CanonPath(parentPath ?? "");
+        // Empty parent must NOT hide by name globally — that stripped same filenames
+        // from unrelated folder listings (Explorer-grade flicker / wrong hides).
+        if (string.IsNullOrEmpty(parentCanon)) return false;
+        foreach (var snap in _byOp.Values)
+        {
+            foreach (var e in snap.Entries)
+            {
+                if (!string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var entryParent = CanonPath(e.ParentPath ?? ParentOf(e.Path));
+                if (string.Equals(entryParent, parentCanon, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    public bool IsListingEntryHidden(string? entryPath, string? entryName, string? listingFolderPath)
+    {
+        if (IsPathHidden(entryPath)) return true;
+        if (IsNameHiddenInParent(listingFolderPath, entryName)) return true;
+        return false;
+    }
+
+    private static string CanonPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        return path.Replace('/', '\\').TrimEnd('\\').ToLowerInvariant();
+    }
+
+    private static string ParentOf(string path)
+    {
+        var c = path.Replace('/', '\\').TrimEnd('\\');
+        var i = c.LastIndexOf('\\');
+        return i > 0 ? c[..i] : "";
+    }
+
     private static string Sanitize(string id)
     {
         foreach (var c in Path.GetInvalidFileNameChars())

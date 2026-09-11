@@ -88,7 +88,9 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
     syncPack();
     const ro = new ResizeObserver(syncPack);
     ro.observe(scrollEl);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+    };
   }, [mode, scrollEl, gridMinItemWidth, gap]);
 
   const gridCols = gridPack.cols;
@@ -107,7 +109,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
     getScrollElement: () => scrollEl,
     estimateSize,
     /** Extra rows hide recycle flash during fast wheel/trackpad flings. */
-    overscan: mode === 'grid' ? 6 : 18,
+    overscan: mode === 'grid' ? 8 : 24,
     enabled: useVirtual && !!scrollEl,
   });
 
@@ -198,7 +200,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
             }}
           >
             {items.map((item, i) => (
-              <div key={i} style={{ minWidth: 0, maxWidth: '100%' }}>{renderItem(item, i)}</div>
+              <div key={i} style={{ minWidth: 0, width: trackWidth, maxWidth: trackWidth }}>{renderItem(item, i)}</div>
             ))}
           </div>
         );
@@ -241,11 +243,14 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
                 className="bndz-vlist-row"
                 style={{
                   position: 'absolute',
-                  top: vi.start,
+                  top: 0,
                   left: 0,
                   width: '100%',
                   height: vi.size,
+                  transform: `translate3d(0, ${vi.start}px, 0)`,
                   contain: 'layout style paint',
+                  contentVisibility: 'auto',
+                  willChange: 'transform',
                   overflow: 'hidden',
                   pointerEvents: 'none',
                 }}
@@ -259,7 +264,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
                   }}
                 >
                   {rowItems.map((item, i) => (
-                    <div key={startIdx + i} style={{ pointerEvents: 'auto', minWidth: 0, maxWidth: '100%' }}>{renderItem(item, startIdx + i)}</div>
+                    <div key={startIdx + i} style={{ pointerEvents: 'auto', minWidth: 0, width: trackWidth, maxWidth: trackWidth }}>{renderItem(item, startIdx + i)}</div>
                   ))}
                 </div>
               </div>
@@ -295,11 +300,14 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
             className="bndz-vlist-row"
             style={{
               position: 'absolute',
-              top: vi.start,
+              top: 0,
               left: 0,
               width: '100%',
-              height: rowHeight,
+              height: vi.size,
+              transform: `translate3d(0, ${vi.start}px, 0)`,
               contain: 'layout style paint',
+              contentVisibility: 'auto',
+              willChange: 'transform',
               overflow: 'hidden',
               pointerEvents: 'none',
             }}

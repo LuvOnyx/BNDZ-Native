@@ -72,6 +72,10 @@ export default function ClampedFixedMenu({
         maxHeight: 'calc(100vh - 16px)',
         overflowY: 'auto',
         overflowX: 'hidden',
+        opacity: ready ? 1 : 0,
+        transform: ready ? 'translateY(0) scale(1)' : 'translateY(-3px) scale(0.985)',
+        transition: ready ? 'opacity 90ms ease-out, transform 90ms ease-out' : 'none',
+        pointerEvents: ready ? 'auto' : 'none',
       }}
       onMouseDown={onMouseDown}
       onClick={onClick}

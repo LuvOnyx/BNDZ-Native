@@ -88,7 +88,12 @@ export function shouldShowTooltipOnSurface(config: Record<string, any>, surface:
 export function bindFloatingTooltipHandlers(
   content: HoverTooltipContent | null,
   config: Record<string, any>,
-  opts?: { surface?: TooltipSurface; context?: HoverBoxContext },
+  opts?: {
+    surface?: TooltipSurface;
+    context?: HoverBoxContext;
+    /** Lazy content — built on first hover so virtualized rows stay cheap. */
+    resolveContent?: () => HoverTooltipContent | null;
+  },
 ): {
   onMouseEnter: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
@@ -107,25 +112,25 @@ export function bindFloatingTooltipHandlers(
   const zoomScale = Number.isFinite(tipZoom) && tipZoom > 0
     ? Math.min(2.5, Math.max(0.75, tipZoom > 5 ? tipZoom / 100 : tipZoom))
     : 1;
-  void config.visibleTimeInMilliseconds;
-  void config.showVerbatimTooltips;
-  void config.showTipsForClippedTreeAndListItems;
-  void config.forJunctionsAsWell;
+  // visibleTime / verbatim / clipped / junctions are applied in FloatingTooltipHost
+  // and entityTooltip.ts — keep bind path free of dead voids.
+  void opts?.context;
 
   return {
     onMouseEnter: (e) => {
-      if (!content) return;
+      const resolved = content ?? opts?.resolveContent?.() ?? null;
+      if (!resolved) return;
       if (isIconQueueScrolling()) return;
       if (!shouldShowTooltipOnSurface(config, surface)) return;
       const payload = hoverBox
-        ? { ...content, mode: 'hoverbox' as const, zoomScale }
-        : { ...content, zoomScale };
+        ? { ...resolved, mode: 'hoverbox' as const, zoomScale }
+        : { ...resolved, zoomScale };
       // Advanced floating tooltips only appear while Left Shift is held — never on plain hover.
       const showImmediately = false;
       setHoverPending(payload, e.clientX, e.clientY, theme, showImmediately, delayMs);
     },
     onMouseMove: (e) => {
-      if (!content) return;
+      if (!(content || opts?.resolveContent)) return;
       if (getFloatingTooltip() || requireShift || hoverBox) {
         scheduleTooltipMove(e.clientX, e.clientY);
       }

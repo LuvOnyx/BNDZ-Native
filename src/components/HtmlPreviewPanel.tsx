@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { toWindowsPath, toVirtualStreamUrl } from '../lib/pathUtils';
+import { resolveLocalReadPath } from '../lib/meshPreviewResolve';
 import { htmlPreviewBaseUrl, prepareHtmlForPreview } from '../lib/htmlPreview';
 
 type Props = {
@@ -28,14 +28,18 @@ export default function HtmlPreviewPanel({ path, title }: Props) {
 
     (async () => {
       try {
-        const winPath = toWindowsPath(path);
-        let html = '';
         const { IPC } = await import('../lib/ipcBridge');
+        let html = '';
+        let previewBasePath = path;
         if (IPC.isNative) {
-          const result = await IPC.readTextFile(winPath);
+          const resolved = await resolveLocalReadPath(path);
+          if (resolved.error) throw new Error(resolved.error);
+          previewBasePath = resolved.localPath;
+          const result = await IPC.readTextFile(resolved.localPath);
           if (result.error) throw new Error(result.error);
           html = result.content ?? '';
         } else {
+          const { toVirtualStreamUrl } = await import('../lib/pathUtils');
           const response = await fetch(toVirtualStreamUrl(path));
           if (!response.ok) throw new Error('Failed to load HTML file.');
           html = await response.text();
@@ -43,7 +47,7 @@ export default function HtmlPreviewPanel({ path, title }: Props) {
         if (!active) return;
         if (!html.trim()) throw new Error('HTML file is empty.');
 
-        const prepared = prepareHtmlForPreview(html, htmlPreviewBaseUrl(path));
+        const prepared = prepareHtmlForPreview(html, htmlPreviewBaseUrl(previewBasePath));
         setSrcDoc(prepared);
       } catch (err: any) {
         if (active) {

@@ -1,11 +1,17 @@
+using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using BNDZ.Services;
 using BNDZShell.Bndz;
 using Microsoft.UI;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Windows.Graphics;
 using WinRT.Interop;
 
 namespace BNDZShell;
@@ -25,6 +31,13 @@ public sealed partial class MainWindow : Window
     private bool _closing;
     private BndzTrayIcon? _trayIcon;
     private SubclassProc? _subclassProc;
+    private readonly PluginLaunch _launch;
+    /// <summary>
+    /// CSS/DIP width of logo + menu triggers that must stay WebView Passthrough.
+    /// Hardcoding ~560 left Scripting/Panes/Tabsets/Window/Help under WinUI Caption
+    /// (clicks started window-drag). FE measures the real edge and updates this.
+    /// </summary>
+    private double _menubarPassDip = 1180;
 
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, nuint uIdSubclass, nuint dwRefData);
 
@@ -40,10 +53,24 @@ public sealed partial class MainWindow : Window
     private const nuint DeviceChangeSubclassId = 0xB002;
     private const uint WM_DEVICECHANGE = 0x0219;
 
-    public MainWindow()
+    public MainWindow() : this(null)
     {
+    }
+
+    internal MainWindow(PluginLaunch? launch)
+    {
+        _launch = launch ?? PluginLaunch.FromBoot();
         InitializeComponent();
-        Title = "BNDZ";
+        Title = _launch.IsPlugin
+            ? (string.IsNullOrWhiteSpace(_launch.Title) ? "BNDZ Plugin" : _launch.Title!)
+            : "BNDZ";
+        if (_launch.IsPlugin)
+        {
+            ChromeHost.PluginWindowId = _launch.PluginId;
+            ChromeHost.PluginStickyId = _launch.StickyId;
+            ChromeHost.PluginWindowTitle = _launch.Title;
+            try { NativeList.Visibility = Visibility.Collapsed; } catch { /* ignore */ }
+        }
         ConfigureAppWindow();
         TrySetWindowIcon();
         InstallWindowSubclass();
@@ -51,9 +78,15 @@ public sealed partial class MainWindow : Window
 
         ChromeHost.PaneMessage += ChromeHost_PaneMessage;
         NativeList.ContextChanged += (_, _) => { };
-        ChromeHost.WebViewInitialized += (_, _) =>
+            ChromeHost.WebViewInitialized += (_, _) =>
         {
             WireHostLifecycle();
+            // Plugin pop-outs must not overwrite the main FM host HWND (OLE / drag use it).
+            if (!_launch.IsPlugin)
+                ChromeHost.HostWindowHandle = _hwnd;
+            if (!_launch.IsPlugin)
+                ChromeHost.TryRegisterOleDropTarget();
+            ScheduleMenubarInputRegionRefresh("webview-init");
             _ = BootstrapAsync();
         };
 
@@ -61,19 +94,58 @@ public sealed partial class MainWindow : Window
         {
             RemoveWindowSubclass();
             DisposeTray();
+            try
+            {
+                // Plugin pop-outs share the main process OLE target — never revoke it on close
+                // (that hitch/freezes the main FM while the singleton drop target is torn down).
+                if (!_launch.IsPlugin)
+                {
+                    BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
+                    ChromeHost.StopOutboundDragCleanup();
+                    BndzEmbeddedBackendHost.Shutdown();
+                }
+            }
+              catch { /* ignore */ }
+            if (_launch.IsPlugin) return;
             try { BndzEmbeddedBackendHost.SetHostCloseAction(() => { }); } catch { /* ignore */ }
         };
 
-        ChromeHost.Prewarm();
+        // WebView2 init runs from PaneWebView Loaded — calling Prewarm here races before the control is in-tree.
         Activate();
     }
 
     private void WireHostLifecycle()
     {
+        if (_launch.IsPlugin) return;
         if (_hwnd != IntPtr.Zero)
             BndzEmbeddedBackendHost.SetHostWindowHandle(_hwnd);
         BndzEmbeddedBackendHost.SetHostCloseAction(RequestHostClose);
         BndzEmbeddedBackendHost.SetHostTrayActions(HideToTray, RestoreFromTray);
+        BndzEmbeddedBackendHost.SetOpenPluginWindowAction(PluginWindowRegistry.Open);
+        BndzEmbeddedBackendHost.SetHostActivateMainAction(ActivateMainFromHost);
+    }
+
+    private void ActivateMainFromHost()
+    {
+        try
+        {
+            void DoActivate()
+            {
+                try
+                {
+                    AppWindow?.Show();
+                    Activate();
+                }
+                catch { /* ignore */ }
+            }
+            if (DispatcherQueue is not null && !DispatcherQueue.HasThreadAccess)
+            {
+                DispatcherQueue.TryEnqueue(DoActivate);
+                return;
+            }
+            DoActivate();
+        }
+        catch { /* ignore */ }
     }
 
     private void RequestHostClose()
@@ -119,25 +191,43 @@ public sealed partial class MainWindow : Window
         try
         {
             _hwnd = WindowNative.GetWindowHandle(this);
+            if (!_launch.IsPlugin)
+                ChromeHost.HostWindowHandle = _hwnd;
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
 
-            var (w, h) = ResolveDefaultWindowSize(windowId);
+            var (w, h) = _launch.IsSticky
+                ? (340, 390)
+                : _launch.IsPlugin
+                    ? (980, 720)
+                    : ResolveDefaultWindowSize(windowId);
             _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
             if (_appWindow.Presenter is OverlappedPresenter overlapped)
             {
-                overlapped.PreferredMinimumWidth = MinWindowWidth;
-                overlapped.PreferredMinimumHeight = MinWindowHeight;
+                overlapped.PreferredMinimumWidth = _launch.IsSticky ? 220 : _launch.IsPlugin ? 480 : MinWindowWidth;
+                overlapped.PreferredMinimumHeight = _launch.IsSticky ? 180 : _launch.IsPlugin ? 360 : MinWindowHeight;
+                if (_launch.IsSticky)
+                {
+                    try { overlapped.SetBorderAndTitleBar(false, false); } catch { /* older WASDK */ }
+                    overlapped.IsMaximizable = false;
+                    overlapped.IsMinimizable = false;
+                    overlapped.IsAlwaysOnTop = true;
+                    overlapped.IsResizable = true;
+                }
             }
 
             // WinUIEx: persist placement across launches (falls back silently if unavailable).
-            // v54 bumps PersistenceId so a prior 2560×1440 restore does not stick forever.
+            // Plugin pop-outs use a separate PersistenceId so they do not inherit the main FM size.
             try
             {
                 var mgr = WinUIEx.WindowManager.Get(this);
-                mgr.MinWidth = MinWindowWidth;
-                mgr.MinHeight = MinWindowHeight;
-                mgr.PersistenceId = "BNDZShell.MainWindow.v54";
+                mgr.MinWidth = _launch.IsSticky ? 220 : _launch.IsPlugin ? 480 : MinWindowWidth;
+                mgr.MinHeight = _launch.IsSticky ? 180 : _launch.IsPlugin ? 360 : MinWindowHeight;
+                mgr.PersistenceId = _launch.IsSticky
+                    ? "BNDZShell.StickyWidget.v1"
+                    : _launch.IsPlugin
+                        ? "BNDZShell.PluginPopout.v1"
+                        : "BNDZShell.MainWindow.v54";
             }
             catch (Exception winUiEx)
             {
@@ -147,15 +237,8 @@ public sealed partial class MainWindow : Window
             // After persistence restore, clamp into the work area (never larger than the display).
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ClampWindowToWorkArea);
 
-            ExtendsContentIntoTitleBar = true;
-            try
-            {
-                SystemBackdrop = new MicaBackdrop();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[BNDZShell] mica: {ex.Message}");
-            }
+            ExtendsContentIntoTitleBar = !_launch.IsSticky;
+            ApplySystemBackdropFromSettings();
             var tb = _appWindow.TitleBar;
             tb.ButtonBackgroundColor = Colors.Transparent;
             tb.ButtonInactiveBackgroundColor = Colors.Transparent;
@@ -165,11 +248,41 @@ public sealed partial class MainWindow : Window
             tb.ButtonInactiveForegroundColor = ColorHelper.FromArgb(0x99, 0xFF, 0xFF, 0xFF);
             tb.BackgroundColor = Colors.Transparent;
             tb.InactiveBackgroundColor = Colors.Transparent;
+            // File/Edit band must Passthrough so WebView2 gets first click (caption otherwise eats it).
+            ApplyMenubarInputRegions();
+            if (Content is FrameworkElement root)
+            {
+                root.SizeChanged -= OnRootSizeChangedForMenubar;
+                root.SizeChanged += OnRootSizeChangedForMenubar;
+            }
+            if (_launch.IsSticky)
+            {
+                try
+                {
+                    tb.ExtendsContentIntoTitleBar = true;
+                    tb.IconShowOptions = IconShowOptions.HideIconAndSystemMenu;
+                    tb.PreferredHeightOption = TitleBarHeightOption.Collapsed;
+                }
+                catch { /* older WASDK */ }
+                try
+                {
+                    if (RootGrid is not null)
+                        RootGrid.Background = new SolidColorBrush(Colors.Transparent);
+                    SystemBackdrop = null;
+                }
+                catch { /* ignore */ }
+            }
 
             // Caption X / Alt+F4 / taskbar close → same Ask/Tray/Quit flow as File→Exit.
+            // Plugin pop-outs are slim tear-offs — close immediately (no FM quit dialog).
             _appWindow.Closing += (_, args) =>
             {
-                if (_closeConfirmed) return;
+                if (_closeConfirmed || _launch.IsPlugin)
+                {
+                    if (_launch.IsPlugin)
+                        _closeConfirmed = true;
+                    return;
+                }
                 args.Cancel = true;
                 try
                 {
@@ -185,15 +298,116 @@ public sealed partial class MainWindow : Window
                 }
             };
 
+            Activated += (_, _) =>
+            {
+                if (_launch.IsPlugin || _launch.IsSticky || _closing) return;
+                ScheduleMenubarInputRegionRefresh("activated");
+            };
+
             _appWindow.Changed += (_, args) =>
             {
                 if (args.DidPresenterChange || args.DidSizeChange)
+                {
                     BroadcastWindowState();
+                    // Passthrough must re-apply after WinUIEx restore / DPI settle — otherwise
+                    // Drives / Rapid Access / Cloud stay unclickable until a later layout pass.
+                    if (args.DidSizeChange || args.DidPresenterChange)
+                    {
+                        try
+                        {
+                            DispatcherQueue?.TryEnqueue(
+                                Microsoft.UI.Dispatching.DispatcherQueuePriority.High,
+                                ApplyMenubarInputRegions);
+                        }
+                        catch { ApplyMenubarInputRegions(); }
+                    }
+                }
             };
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[BNDZShell] titlebar: {ex.Message}");
+        }
+    }
+
+    private void OnRootSizeChangedForMenubar(object sender, SizeChangedEventArgs e)
+        => ApplyMenubarInputRegions();
+
+    /// <summary>
+    /// WinUI caption covers the top band by default. Passthrough almost the full menubar width
+    /// so every menu trigger (Scripting → Help) reaches WebView2; reserve only the trailing
+    /// drag strip + WinUI min/max/close overlay on the right.
+    /// </summary>
+    private void ApplyMenubarInputRegions()
+    {
+        if (_launch.IsSticky || _appWindow is null || _closing) return;
+        try
+        {
+            var source = InputNonClientPointerSource.GetForWindowId(_appWindow.Id);
+            var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
+            if (scale < 0.5) scale = 1.0;
+            var menuH = (int)Math.Round((_launch.IsPlugin ? 40 : 36) * scale);
+            var winW = _appWindow.Size.Width;
+            if (winW <= 0 || menuH <= 0) return;
+
+            var captionReserve = (int)Math.Round(138 * scale);
+            var capW = Math.Clamp(captionReserve, (int)Math.Round(96 * scale), winW);
+            var passW = Math.Max(0, winW - capW);
+
+            source.ClearRegionRects(NonClientRegionKind.Passthrough);
+            source.ClearRegionRects(NonClientRegionKind.Caption);
+
+            // Plugin pop-outs: whole top chrome is native Caption (press-drag-release).
+            // IPC WM_NCLBUTTONDOWN under Passthrough caused click-to-arm / second-click release.
+            if (_launch.IsPlugin)
+            {
+                var captionRects = new List<RectInt32>();
+                if (passW > 0)
+                    captionRects.Add(new RectInt32(0, 0, passW, menuH));
+                if (capW > 0)
+                    captionRects.Add(new RectInt32(passW, 0, capW, menuH));
+                if (captionRects.Count > 0)
+                    source.SetRegionRects(NonClientRegionKind.Caption, captionRects.ToArray());
+                return;
+            }
+
+            // Logo + menu triggers stay passthrough; drag strip + system buttons are native caption.
+            // Keep a minimum drag strip so the window stays movable when the menu row is long.
+            var minDragDip = 64.0;
+            var passDip = Math.Max(220.0, _menubarPassDip);
+            var menuPassW = Math.Clamp((int)Math.Round(passDip * scale), (int)Math.Round(220 * scale), passW);
+            var minDragPx = (int)Math.Round(minDragDip * scale);
+            if (passW - menuPassW < minDragPx && passW > minDragPx)
+                menuPassW = passW - minDragPx;
+            var dragX = menuPassW;
+            var dragW = Math.Max(0, passW - menuPassW);
+
+            var passthrough = new List<RectInt32>();
+            if (menuPassW > 0)
+                passthrough.Add(new RectInt32(0, 0, menuPassW, menuH));
+
+            // ExtendsContentIntoTitleBar + WinUIEx persistence can leave Caption hit-tests that
+            // eat LMB on the left sidebar (and sometimes the whole client) for seconds after boot.
+            // Stamp the entire client below the menubar as Passthrough — only the top drag strip
+            // and system buttons remain Caption.
+            var winH = _appWindow.Size.Height;
+            if (winH > menuH && passW > 0)
+                passthrough.Add(new RectInt32(0, menuH, passW, winH - menuH));
+
+            if (passthrough.Count > 0)
+                source.SetRegionRects(NonClientRegionKind.Passthrough, passthrough.ToArray());
+
+            var captionRectsMain = new List<RectInt32>();
+            if (dragW > 0)
+                captionRectsMain.Add(new RectInt32(dragX, 0, dragW, menuH));
+            if (capW > 0)
+                captionRectsMain.Add(new RectInt32(passW, 0, capW, menuH));
+            if (captionRectsMain.Count > 0)
+                source.SetRegionRects(NonClientRegionKind.Caption, captionRectsMain.ToArray());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] menubar input regions: {ex.Message}");
         }
     }
 
@@ -219,12 +433,16 @@ public sealed partial class MainWindow : Window
         try
         {
             if (_appWindow is null) return;
+            if (_launch.IsPlugin) return;
+            if (_launch.IsSticky) return;
             var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Nearest);
             var work = area.WorkArea;
             var size = _appWindow.Size;
             var pos = _appWindow.Position;
-            var w = Math.Min(size.Width, Math.Max(MinWindowWidth, work.Width - 16));
-            var h = Math.Min(size.Height, Math.Max(MinWindowHeight, work.Height - 16));
+            var minW = _launch.IsPlugin ? 480 : MinWindowWidth;
+            var minH = _launch.IsPlugin ? 360 : MinWindowHeight;
+            var w = Math.Min(size.Width, Math.Max(minW, work.Width - 16));
+            var h = Math.Min(size.Height, Math.Max(minH, work.Height - 16));
             if (w != size.Width || h != size.Height)
                 _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
 
@@ -391,11 +609,44 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "BNDZ.ico");
-            if (!File.Exists(iconPath) || _appWindow is null) return;
-            _appWindow.SetIcon(iconPath);
+            if (_appWindow is null) return;
+            foreach (var iconPath in ResolveAppIconPaths())
+            {
+                if (string.IsNullOrWhiteSpace(iconPath) || !File.Exists(iconPath)) continue;
+                _appWindow.SetIcon(iconPath);
+                return;
+            }
         }
         catch { /* best effort */ }
+    }
+
+    private static IEnumerable<string> ResolveAppIconPaths()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        yield return Path.Combine(baseDir, "Assets", "BNDZ.ico");
+        var exe = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(exe))
+        {
+            var exeDir = Path.GetDirectoryName(exe);
+            if (!string.IsNullOrWhiteSpace(exeDir))
+                yield return Path.Combine(exeDir, "Assets", "BNDZ.ico");
+        }
+    }
+
+    private void ApplySystemBackdropFromSettings()
+    {
+        BndzSystemBackdrop.Apply(this, BndzShellChromeSettings.MicaBackdrop, BndzShellChromeSettings.BackdropKind);
+        try
+        {
+            // When backdrop is off, keep an opaque root so WebView doesn't flash through.
+            if (RootGrid is not null)
+            {
+                RootGrid.Background = BndzShellChromeSettings.MicaBackdrop
+                    ? new SolidColorBrush(Colors.Transparent)
+                    : new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x0C, 0x0F, 0x14));
+            }
+        }
+        catch { /* ignore */ }
     }
 
     private void ChromeHost_PaneMessage(object? sender, JsonElement root)
@@ -421,8 +672,207 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (type is "SET_SYSTEM_BACKDROP")
+        {
+            HandleSetSystemBackdrop(root);
+            return;
+        }
+
+        if (type is "SHOW_APP_NOTIFICATION")
+        {
+            HandleShowAppNotification(root);
+            return;
+        }
+
+        if (type is "OPEN_FILE_DIALOG" or "SAVE_FILE_DIALOG" or "OPEN_FOLDER_DIALOG")
+        {
+            _ = HandleWinRtDialogAsync(root, type);
+            return;
+        }
+
+        if (type is "PRINT_DOCUMENT" or "PRINT_UI")
+        {
+            _ = HandlePrintAsync(root, type);
+            return;
+        }
+
         if (type is "BNDZ_NATIVE_LIST_BOUNDS" or "BNDZ_PANE_NAVIGATE" or "BNDZ_REQUEST_DIR_LISTING")
             return;
+
+        if (type is "BNDZ_UI_READY")
+        {
+            ScheduleMenubarInputRegionRefresh("ui-ready");
+            return;
+        }
+    }
+
+    private int _menubarRegionRefreshGen;
+
+    /// <summary>
+    /// WinUIEx persistence / DPI settle often wipes InputNonClientPointerSource regions after
+    /// the first Apply — sidebar LMB stays dead until a later layout pass. Re-stamp aggressively.
+    /// </summary>
+    private void ScheduleMenubarInputRegionRefresh(string why)
+    {
+        try
+        {
+            DispatcherQueue?.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.High,
+                ApplyMenubarInputRegions);
+        }
+        catch { ApplyMenubarInputRegions(); }
+
+        var gen = Interlocked.Increment(ref _menubarRegionRefreshGen);
+        try
+        {
+            _ = Task.Run(async () =>
+            {
+                // Dense early stamps (WinUIEx/DPI wipe regions in the first ~1s), then a few late ones.
+                foreach (var delayMs in new[] { 16, 48, 100, 200, 400, 700, 1100, 1800, 2800, 4500 })
+                {
+                    await Task.Delay(delayMs).ConfigureAwait(false);
+                    if (gen != Volatile.Read(ref _menubarRegionRefreshGen)) return;
+                    try
+                    {
+                        DispatcherQueue?.TryEnqueue(
+                            Microsoft.UI.Dispatching.DispatcherQueuePriority.High,
+                            ApplyMenubarInputRegions);
+                    }
+                    catch { /* ignore */ }
+                }
+                System.Diagnostics.Debug.WriteLine($"[BNDZShell] menubar regions refresh done ({why})");
+            });
+        }
+        catch { /* ignore */ }
+    }
+
+    private void HandleSetSystemBackdrop(JsonElement root)
+    {
+        try
+        {
+            if (!root.TryGetProperty("payload", out var payload)) return;
+            var enabled = !payload.TryGetProperty("enabled", out var en) || en.ValueKind != JsonValueKind.False;
+            var kind = payload.TryGetProperty("kind", out var k) ? k.GetString() : null;
+            var nativeToasts = payload.TryGetProperty("nativeActionCenterToasts", out var nt)
+                ? nt.ValueKind != JsonValueKind.False
+                : (bool?)null;
+            BndzShellChromeSettings.Save(enabled, kind, nativeToasts);
+            ApplySystemBackdropFromSettings();
+            ChromeHost.SetBackdropChrome(enabled);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] SET_SYSTEM_BACKDROP: {ex.Message}");
+        }
+    }
+
+    private void HandleShowAppNotification(JsonElement root)
+    {
+        try
+        {
+            if (!root.TryGetProperty("payload", out var payload)) return;
+            var title = payload.TryGetProperty("title", out var t) ? t.GetString() : "BNDZ";
+            var message = payload.TryGetProperty("message", out var m) ? m.GetString() : null;
+            var tag = payload.TryGetProperty("tag", out var g) ? g.GetString() : null;
+            BndzAppNotifications.TryShow(title ?? "BNDZ", message ?? "", tag);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] SHOW_APP_NOTIFICATION: {ex.Message}");
+        }
+    }
+
+    private async Task HandleWinRtDialogAsync(JsonElement root, string? type)
+    {
+        var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+        JsonElement payload = default;
+        _ = root.TryGetProperty("payload", out payload);
+
+        try
+        {
+            if (type == "OPEN_FILE_DIALOG")
+            {
+                var filter = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("filter", out var f)
+                    ? f.GetString()
+                    : null;
+                var files = await BndzWinRtDialogs.PickOpenFilesAsync(_hwnd, filter, multiselect: true).ConfigureAwait(true);
+                ChromeHost.PostHostMessage(new { type = "OPEN_FILE_DIALOG_RESULT", id, payload = files });
+                return;
+            }
+
+            if (type == "SAVE_FILE_DIALOG")
+            {
+                var filter = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("filter", out var f)
+                    ? f.GetString()
+                    : null;
+                var defaultPath = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("defaultPath", out var d)
+                    ? d.GetString()
+                    : null;
+                var selected = await BndzWinRtDialogs.PickSaveFileAsync(_hwnd, defaultPath, filter).ConfigureAwait(true);
+                ChromeHost.PostHostMessage(new { type = "SAVE_FILE_DIALOG_RESULT", id, payload = selected });
+                return;
+            }
+
+            if (type == "OPEN_FOLDER_DIALOG")
+            {
+                var description = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("description", out var desc)
+                    ? desc.GetString()
+                    : null;
+                var folder = await BndzWinRtDialogs.PickFolderAsync(_hwnd, description).ConfigureAwait(true);
+                ChromeHost.PostHostMessage(new
+                {
+                    type = "OPEN_FOLDER_DIALOG_RESULT",
+                    id,
+                    payload = string.IsNullOrWhiteSpace(folder) ? "" : folder,
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] WinRT dialog: {ex.Message}");
+            if (type == "OPEN_FILE_DIALOG")
+                ChromeHost.PostHostMessage(new { type = "OPEN_FILE_DIALOG_RESULT", id, payload = Array.Empty<string>() });
+            else if (type == "SAVE_FILE_DIALOG")
+                ChromeHost.PostHostMessage(new { type = "SAVE_FILE_DIALOG_RESULT", id, payload = (string?)null });
+            else
+                ChromeHost.PostHostMessage(new { type = "OPEN_FOLDER_DIALOG_RESULT", id, payload = "" });
+        }
+    }
+
+    private async Task HandlePrintAsync(JsonElement root, string? type)
+    {
+        var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+        try
+        {
+            bool ok;
+            if (type == "PRINT_DOCUMENT"
+                && root.TryGetProperty("payload", out var payload)
+                && payload.TryGetProperty("path", out var pathEl))
+            {
+                ok = await BndzWinRtPrint.PrintPathAsync(_hwnd, pathEl.GetString()).ConfigureAwait(true);
+            }
+            else
+            {
+                ok = await BndzWinRtPrint.ShowPrintUiAsync(_hwnd).ConfigureAwait(true);
+            }
+
+            ChromeHost.PostHostMessage(new
+            {
+                type = "PRINT_RESULT",
+                id,
+                payload = new { ok },
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] print: {ex.Message}");
+            ChromeHost.PostHostMessage(new
+            {
+                type = "PRINT_RESULT",
+                id,
+                payload = new { ok = false, error = ex.Message },
+            });
+        }
     }
 
     private void HandleWindowChrome(JsonElement root)
@@ -448,6 +898,12 @@ public sealed partial class MainWindow : Window
                     BroadcastWindowState();
                     break;
                 case "close":
+                    if (_launch.IsPlugin)
+                    {
+                        _closeConfirmed = true;
+                        Close();
+                        break;
+                    }
                     try
                     {
                         ChromeHost.PostHostMessage(new
@@ -471,6 +927,27 @@ public sealed partial class MainWindow : Window
                 case "drag":
                     BeginDrag();
                     break;
+                case "releasecapture":
+                case "release_capture":
+                    try { ReleaseCapture(); } catch { /* ignore */ }
+                    break;
+                case "refreshinputregions":
+                case "refresh_input_regions":
+                    ScheduleMenubarInputRegionRefresh("fe-request");
+                    break;
+                case "setmenubarpasswidth":
+                case "set_menubar_pass_width":
+                    // CSS px from FE (getBoundingClientRect) — multiply by scale in ApplyMenubarInputRegions.
+                    if (payload.TryGetProperty("width", out var passWEl)
+                        && passWEl.TryGetDouble(out var passWCss)
+                        && passWCss >= 180
+                        && passWCss <= 4000)
+                    {
+                        // Small pad past the last trigger so hit-tests don't clip glyph edges.
+                        _menubarPassDip = passWCss + 10;
+                        ScheduleMenubarInputRegionRefresh("fe-menu-width");
+                    }
+                    break;
             }
         }
         catch (Exception ex)
@@ -493,5 +970,26 @@ public sealed partial class MainWindow : Window
         if (_hwnd == IntPtr.Zero) return;
         ReleaseCapture();
         SendMessage(_hwnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+    }
+
+    internal void ShowFatalError(string message)
+    {
+        try
+        {
+            ChromeHost.ShowPaneStatus($"BNDZ shell error — see shell-crash.log\n{message}");
+        }
+        catch { /* ignore */ }
+        try
+        {
+            var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+            {
+                Title = "BNDZ shell error",
+                Content = message + "\n\nDetails were written to %LocalAppData%\\BNDZ\\shell-crash.log",
+                CloseButtonText = "Close",
+                XamlRoot = Content?.XamlRoot,
+            };
+            _ = dialog.ShowAsync();
+        }
+        catch { /* ignore */ }
     }
 }

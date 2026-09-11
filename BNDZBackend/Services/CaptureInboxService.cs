@@ -47,8 +47,16 @@ public sealed class CaptureInboxService : IDisposable
     private Thread? _watchThread;
     private volatile bool _watching;
     private volatile bool _disposed;
-    private string? _lastClipHash;
+    private uint _lastClipSeq;
+    private int _burstCount;
+    private DateTime _burstWindowUtc = DateTime.MinValue;
+    private const int MaxStoredCaptures = 48;
+    private const int BurstMax = 6;
+    private static readonly TimeSpan BurstWindow = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan MinWatchCaptureInterval = TimeSpan.FromSeconds(2.5);
     private string _captureFolder;
+    private string? _lastImageFingerprint;
+    private DateTime _lastImageCaptureUtc = DateTime.MinValue;
 
     private CaptureInboxService()
     {
@@ -131,14 +139,14 @@ public sealed class CaptureInboxService : IDisposable
         CaptureInboxEntry? entry = null;
         if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
         {
-            entry = CaptureClipboardCore();
+            entry = CaptureClipboardCore(force: true);
         }
         else
         {
             var done = new ManualResetEventSlim(false);
             var t = new Thread(() =>
             {
-                try { entry = CaptureClipboardCore(); }
+                try { entry = CaptureClipboardCore(force: true); }
                 catch (Exception ex) { Debug.WriteLine($"[CaptureInbox] Capture: {ex.Message}"); }
                 finally { done.Set(); }
             });
@@ -198,8 +206,77 @@ public sealed class CaptureInboxService : IDisposable
         return Directory.EnumerateFiles(_captureFolder, "*.capture.json").Count();
     }
 
+    /// <summary>
+    /// Keep newest N captures. If massively bloated, rename the folder away in O(1).
+    /// </summary>
+    public int CapStoredCaptures(int maxKeep = MaxStoredCaptures)
+    {
+        int removed = 0;
+        if (!Directory.Exists(_captureFolder) || maxKeep < 1) return removed;
+
+        int count = 0;
+        try
+        {
+            foreach (var _ in Directory.EnumerateFiles(_captureFolder, "*.capture.json"))
+            {
+                count++;
+                if (count > maxKeep * 3) break;
+            }
+        }
+        catch { return removed; }
+
+        if (count > maxKeep * 3)
+        {
+            try
+            {
+                var nuke = _captureFolder + ".nuke-" + Guid.NewGuid().ToString("N")[..8];
+                Directory.Move(_captureFolder, nuke);
+                Directory.CreateDirectory(_captureFolder);
+                _ = Task.Run(() =>
+                {
+                    try { Directory.Delete(nuke, true); }
+                    catch (Exception ex) { Debug.WriteLine($"[CaptureInbox] Nuke delete: {ex.Message}"); }
+                });
+                return Math.Max(0, count - maxKeep);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CaptureInbox] Nuke rename failed: {ex.Message}");
+            }
+        }
+
+        FileInfo[] metas;
+        try { metas = new DirectoryInfo(_captureFolder).GetFiles("*.capture.json"); }
+        catch { return removed; }
+
+        Array.Sort(metas, (a, b) => b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc));
+        for (var i = maxKeep; i < metas.Length; i++)
+        {
+            try
+            {
+                var json = File.ReadAllText(metas[i].FullName);
+                var meta = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+                var png = meta is not null && meta.TryGetValue("fullPath", out var fpEl)
+                    ? fpEl.GetString()
+                    : null;
+                if (!string.IsNullOrWhiteSpace(png) && File.Exists(png)
+                    && png.StartsWith(_captureFolder, StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(png); } catch { }
+                }
+                metas[i].Delete();
+                removed++;
+            }
+            catch { }
+        }
+        return removed;
+    }
+
     private void WatchLoop()
     {
+        try { _lastClipSeq = NativeClipboard.GetSequenceNumber(); }
+        catch { _lastClipSeq = 0; }
+
         while (_watching && !_disposed)
         {
             try
@@ -210,35 +287,82 @@ public sealed class CaptureInboxService : IDisposable
             {
                 Debug.WriteLine($"[CaptureInbox] Watch: {ex.Message}");
             }
-            Thread.Sleep(900);
+            Thread.Sleep(2500);
         }
     }
 
     private void CaptureIfChanged()
     {
+        var seq = NativeClipboard.GetSequenceNumber();
+        if (seq == 0 || seq == _lastClipSeq) return;
+        _lastClipSeq = seq;
+
+        // Explorer / BNDZ file copy+cut puts CF_HDROP (often with a thumbnail DIB) — not a screenshot.
+        if (ClipboardHasFilePaths()) return;
+
         if (!WpfClipboard.ContainsImage()) return;
-
-        string? hash = null;
-        try
-        {
-            var img = WpfClipboard.GetImage();
-            if (img is not null)
-                hash = $"image:{img.PixelWidth}x{img.PixelHeight}:{img.GetHashCode()}";
-        }
-        catch { return; }
-
-        if (hash is null || hash == _lastClipHash) return;
-        _lastClipHash = hash;
+        if (!AllowWatchCapture()) return;
         CaptureClipboardCore();
     }
 
-    private CaptureInboxEntry? CaptureClipboardCore()
+    private static bool ClipboardHasFilePaths()
+    {
+        // Prefer Win32 CF_HDROP probe — ContainsFileDropList() can throw/false when clipboard is locked
+        // while Explorer still has a file drop list (plus DIB thumbnail), which re-spam Capture Inbox.
+        try
+        {
+            if (IsClipboardFormatAvailable(CF_HDROP))
+                return true;
+        }
+        catch { /* fall through */ }
+        try { return WpfClipboard.ContainsFileDropList(); }
+        catch { return false; }
+    }
+
+    private const uint CF_HDROP = 15;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool IsClipboardFormatAvailable(uint format);
+
+    private static string BuildImageFingerprint(BitmapSource source)
+        => $"{source.PixelWidth}x{source.PixelHeight}:{source.Format}:{source.DpiX:F0}";
+
+    private bool ShouldSkipDuplicateImage(BitmapSource source)
+    {
+        var fp = BuildImageFingerprint(source);
+        var now = DateTime.UtcNow;
+        if (fp == _lastImageFingerprint && now - _lastImageCaptureUtc < MinWatchCaptureInterval)
+            return true;
+        _lastImageFingerprint = fp;
+        _lastImageCaptureUtc = now;
+        return false;
+    }
+
+    private bool AllowWatchCapture()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _burstWindowUtc > BurstWindow)
+        {
+            _burstWindowUtc = now;
+            _burstCount = 0;
+        }
+        _burstCount++;
+        if (_burstCount <= BurstMax) return true;
+        Debug.WriteLine("[CaptureInbox] Burst cap hit — stopping watcher to protect disk I/O.");
+        StopWatching();
+        return false;
+    }
+
+    private CaptureInboxEntry? CaptureClipboardCore(bool force = false)
     {
         try
         {
+            if (ClipboardHasFilePaths()) return null;
             if (!WpfClipboard.ContainsImage()) return null;
             var source = WpfClipboard.GetImage();
             if (source is null) return null;
+            if (!force && ShouldSkipDuplicateImage(source)) return null;
 
             var ocrText = TryOcrSync(source);
             var suggested = BuildSuggestedName(ocrText);
@@ -276,6 +400,7 @@ public sealed class CaptureInboxService : IDisposable
                 ["fullPath"] = fullPath,
             };
             File.WriteAllText(metaPath, JsonSerializer.Serialize(meta, JsonOpts));
+            try { CapStoredCaptures(MaxStoredCaptures); } catch { /* best effort */ }
             return entry;
         }
         catch (Exception ex)

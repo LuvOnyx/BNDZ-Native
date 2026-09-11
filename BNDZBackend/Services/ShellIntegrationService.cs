@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -30,6 +31,11 @@ public class ShellIntegrationService
     private const uint ShcnfIdList = 0x0000;
 
     private const string MissingSentinel = "__BNDZ_MISSING__";
+
+    /// <summary>
+    /// Native WinUI host close. When null, classic WPF uses Application.Current.Shutdown.
+    /// </summary>
+    public Action? ExitHost { get; set; }
 
     private static readonly (string ShellKey, string[] Verbs)[] DefaultFmShellClasses =
     [
@@ -553,7 +559,13 @@ public class ShellIntegrationService
         catch { }
     }
 
-    public ShellIntegrationResult SetInContextMenu(bool enable)
+    /// <summary>
+    /// Add or remove the "Open with BNDZ" shell context menu verb.
+    /// When <paramref name="allUsers"/> is true and the process is elevated, writes to HKLM
+    /// (machine-wide) and removes any conflicting HKCU entries. When not elevated and
+    /// allUsers is requested, returns NeedsElevation so the caller can relaunch as admin.
+    /// </summary>
+    public ShellIntegrationResult SetInContextMenu(bool enable, bool allUsers = false)
     {
         try
         {
@@ -561,37 +573,63 @@ public class ShellIntegrationService
             if (string.IsNullOrEmpty(exe))
                 return Fail("Could not resolve BNDZ executable path.");
 
-            const string fileRoot = @"Software\Classes\*\shell\BNDZOpen";
-            const string dirRoot = @"Software\Classes\Directory\shell\BNDZOpen";
-            const string bgRoot = @"Software\Classes\Directory\Background\shell\BNDZOpen";
-            const string driveRoot = @"Software\Classes\Drive\shell\BNDZOpen";
-            const string legacyFile = @"*\shell\BNDZOpen";
-            const string legacyDir = @"Directory\shell\BNDZOpen";
+            // All-users scope requires elevation; fail early so the caller can prompt.
+            if (allUsers && !IsElevated())
+            {
+                return new ShellIntegrationResult
+                {
+                    Success = false,
+                    Message = "Writing BNDZ to the All Users shell context menu requires administrator rights.",
+                    NeedsElevation = true
+                };
+            }
+
+            // Choose hive and class root prefix based on scope.
+            var hive = (allUsers && IsElevated()) ? Registry.LocalMachine : Registry.CurrentUser;
+            var classPrefix = (allUsers && IsElevated()) ? @"SOFTWARE\Classes" : @"Software\Classes";
+
+            const string fileSuffix = @"\*\shell\BNDZOpen";
+            const string dirSuffix = @"\Directory\shell\BNDZOpen";
+            const string bgSuffix = @"\Directory\Background\shell\BNDZOpen";
+            const string driveSuffix = @"\Drive\shell\BNDZOpen";
+
+            var suffixes = new[] { fileSuffix, dirSuffix, bgSuffix, driveSuffix };
+            var pathTokens = new[] { "%1", "%1", "%V", "%1" };
 
             if (enable)
             {
-                WriteBndzOpenMenu(Registry.CurrentUser, fileRoot, exe, "Open with BNDZ", "%1");
-                WriteBndzOpenMenu(Registry.CurrentUser, dirRoot, exe, "Open with BNDZ", "%1");
-                WriteBndzOpenMenu(Registry.CurrentUser, bgRoot, exe, "Open with BNDZ", "%V");
-                WriteBndzOpenMenu(Registry.CurrentUser, driveRoot, exe, "Open with BNDZ", "%1");
+                // When writing All-Users (HKLM), remove HKCU shadow entries first so they
+                // don't mask the machine-wide registration.
+                if (allUsers && IsElevated())
+                {
+                    foreach (var s in suffixes)
+                        try { Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes" + s, false); } catch { }
+                }
+
+                for (int i = 0; i < suffixes.Length; i++)
+                    WriteBndzOpenMenu(hive, classPrefix + suffixes[i], exe, "Open with BNDZ", pathTokens[i]);
             }
             else
             {
-                foreach (var root in new[] { fileRoot, dirRoot, bgRoot, driveRoot })
+                // Remove from both hives so a scope change cleans up properly.
+                foreach (var cleanHive in new[] { Registry.CurrentUser, Registry.LocalMachine })
                 {
-                    try { Registry.CurrentUser.DeleteSubKeyTree(root, false); } catch { }
+                    string prefix = (cleanHive == Registry.LocalMachine) ? @"SOFTWARE\Classes" : @"Software\Classes";
+                    foreach (var s in suffixes)
+                        try { cleanHive.DeleteSubKeyTree(prefix + s, false); } catch { }
                 }
             }
 
-            try { Registry.ClassesRoot.DeleteSubKeyTree(legacyFile, false); } catch { }
-            try { Registry.ClassesRoot.DeleteSubKeyTree(legacyDir, false); } catch { }
+            // Remove legacy HKCR stubs from old builds.
+            try { Registry.ClassesRoot.DeleteSubKeyTree(@"*\shell\BNDZOpen", false); } catch { }
+            try { Registry.ClassesRoot.DeleteSubKeyTree(@"Directory\shell\BNDZOpen", false); } catch { }
 
             NotifyShellAssociationChanged();
             return new ShellIntegrationResult
             {
                 Success = true,
                 Message = enable
-                    ? "BNDZ was added to the Windows shell context menu."
+                    ? $"BNDZ was added to the Windows shell context menu ({(allUsers && IsElevated() ? "all users" : "current user")})."
                     : "BNDZ was removed from the Windows shell context menu."
             };
         }
@@ -600,7 +638,9 @@ public class ShellIntegrationService
             return new ShellIntegrationResult
             {
                 Success = false,
-                Message = "Access denied while updating context menu registry.",
+                Message = allUsers
+                    ? "Writing to HKLM for All Users scope requires administrator rights. Restart BNDZ as administrator."
+                    : "Access denied while updating context menu registry.",
                 NeedsElevation = true
             };
         }
@@ -608,6 +648,103 @@ public class ShellIntegrationService
         {
             return Fail(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Show or hide the Icon Studio shell context submenu by toggling the LegacyDisable
+    /// value on each registered HKCU IconStudio key.
+    /// </summary>
+    public ShellIntegrationResult SetIconStudioShellMenu(bool enable)
+    {
+        try
+        {
+            string[] roots =
+            [
+                @"Software\Classes\Folder\shell\IconStudio",
+                @"Software\Classes\Directory\shell\IconStudio",
+                @"Software\Classes\Directory\Background\shell\IconStudio",
+                @"Software\Classes\*\shell\IconStudio",
+            ];
+
+            foreach (var root in roots)
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(root, writable: true);
+                    if (key == null) continue;
+                    if (enable)
+                        key.DeleteValue("LegacyDisable", throwOnMissingValue: false);
+                    else
+                        key.SetValue("LegacyDisable", "", RegistryValueKind.String);
+                }
+                catch { /* Ignore per-key failures; best effort */ }
+            }
+
+            NotifyShellAssociationChanged();
+            return new ShellIntegrationResult
+            {
+                Success = true,
+                Message = enable ? "Icon Studio shell menu shown." : "Icon Studio shell menu hidden."
+            };
+        }
+        catch (Exception ex)
+        {
+            return Fail(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Load persisted config JSON and synchronously apply all shell integration toggles.
+    /// Called on <c>--apply-shell</c> elevated startup so registry writes use admin rights
+    /// before the WebView / fingerprint system initialises.
+    /// </summary>
+    public string ApplySettingsFromConfig(string json)
+    {
+        var errors = new System.Text.StringBuilder();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            bool GetBool(string key, string fallback = "")
+            {
+                if (root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.True) return true;
+                if (!string.IsNullOrEmpty(fallback) &&
+                    root.TryGetProperty(fallback, out var v2) && v2.ValueKind == JsonValueKind.True) return true;
+                return false;
+            }
+
+            bool inContextMenu = GetBool("inContextMenu", "bndzInShellContextMenu");
+            bool isDefaultFm   = GetBool("isDefaultFileManager", "bndzIsDefaultFileManager");
+            bool win11         = GetBool("overrideWin11MoreOptions");
+            // enableIconContextSubmenu defaults to true when absent
+            bool iconStudio = !(root.TryGetProperty("enableIconContextSubmenu", out var icsEl)
+                                && icsEl.ValueKind == JsonValueKind.False);
+
+            bool allUsers = false;
+            if (root.TryGetProperty("shellIntegrationScope", out var scopeEl)
+                && scopeEl.ValueKind == JsonValueKind.String)
+            {
+                allUsers = (scopeEl.GetString() ?? "").IndexOf("All users", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+
+            var ctx = SetInContextMenu(inContextMenu, allUsers);
+            if (!ctx.Success) errors.AppendLine($"ContextMenu: {ctx.Message}");
+
+            var fm = SetAsDefaultFileManager(isDefaultFm);
+            if (!fm.Success) errors.AppendLine($"DefaultFM: {fm.Message}");
+
+            var w11 = SetWin11MoreOptions(win11);
+            if (!w11.Success) errors.AppendLine($"Win11MoreOptions: {w11.Message}");
+
+            var icon = SetIconStudioShellMenu(iconStudio);
+            if (!icon.Success) errors.AppendLine($"IconStudio: {icon.Message}");
+        }
+        catch (Exception ex)
+        {
+            errors.AppendLine($"ApplySettingsFromConfig error: {ex.Message}");
+        }
+        return errors.ToString();
     }
 
     private static void WriteBndzOpenMenu(RegistryKey hive, string rootPath, string exe, string label, string pathToken)
@@ -678,7 +815,18 @@ public class ShellIntegrationService
                 UseShellExecute = true
             });
 
-            System.Windows.Application.Current.Shutdown();
+            try
+            {
+                if (ExitHost != null)
+                    ExitHost();
+                else
+                    System.Windows.Application.Current?.Dispatcher.BeginInvoke(
+                        () => System.Windows.Application.Current?.Shutdown());
+            }
+            catch
+            {
+                Environment.Exit(0);
+            }
             return new ShellIntegrationResult { Success = true, Message = "Restarting with administrator rights." };
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)

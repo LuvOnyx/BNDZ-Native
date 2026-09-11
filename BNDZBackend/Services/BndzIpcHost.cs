@@ -20,9 +20,11 @@ using System.Text;
 using BNDZ;
 using BNDZ.Services;
 using BNDZ.Services.Mesh;
+using BNDZ.Services.Mesh.Incus;
 using BNDZ.Services.MeshDrop;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
+using BNDZ.Services.OsQuickLook;
 using BNDZ.Utilities;
 using Microsoft.Web.WebView2.Core;
 
@@ -49,6 +51,8 @@ namespace BNDZ.Services
         private readonly FolderSyncService _folderSyncService = new();
         private readonly SettingsManager _settingsManager;
         private readonly GlobalHotkeyService _globalHotkeys;
+        private OsQuickLookHookService? _osQuickLook;
+        private volatile bool _osQuickLookOpen;
         private readonly NativeShellService _nativeShellService = new();
         private readonly ShellContextMenuService _shellContextMenuService = new();
         private readonly ArchiveService _archiveService = new();
@@ -108,11 +112,15 @@ namespace BNDZ.Services
         private readonly ConcurrentDictionary<string, TaskCompletionSource<List<DirListingSharedBuffer.DirEntryDto>>> _backendHostListingTasks = new();
         /// <summary>How many rows were already delivered on first-paint (MORE sends the remainder).</summary>
         private readonly ConcurrentDictionary<string, int> _backendHostListingFirstPaintCounts = new();
+        private readonly Queue<string> _pendingUiPushQueue = new();
+        private const int MaxPendingUiPushQueue = 96;
         private readonly Action<string>? _pushWebMessage;
         private IntPtr _hostWindowHandle;
         private Action? _hostCloseAction;
         private Action? _hostHideToTrayAction;
         private Action? _hostRestoreFromTrayAction;
+        private Func<string, string?, string?, bool>? _openPluginWindowAction;
+        private Action? _hostActivateMainAction;
 
         // Headless: no real WebView2 — stub so leftover chrome helpers compile; IPC never uses it.
         private sealed class HeadlessWebViewStub
@@ -170,13 +178,932 @@ namespace BNDZ.Services
         {
             if (hwnd == IntPtr.Zero) return;
             _hostWindowHandle = hwnd;
+            try { ModernShareHelper.SetOwnerHwnd(hwnd); } catch { /* ignore */ }
             try { _automationRunnerDeps.HostWindow = hwnd; } catch { /* ignore */ }
+        }
+
+        /// <summary>
+        /// WinUI shell STA invoke for OLE <c>DoDragDrop</c>. Must be the thread that owns the
+        /// mouse (CraftPaneHost DispatcherQueue) — NOT <see cref="BndzUiDispatcher"/>, which
+        /// has no button-down state and instant-completes outbound drags.
+        /// </summary>
+        private Action<Action>? _hostStaInvoke;
+        /// <summary>Always enqueue on the next dispatcher turn (never run inline).</summary>
+        private Action<Action>? _hostStaInvokeNextTick;
+        /// <summary>Run on WinUI dispatcher after N ms (lets WebView2 ExecuteScript + PostWebMessage finish).</summary>
+        private Action<Action, int>? _hostStaInvokeDelayed;
+        /// <summary>Run FE ghost dismiss (fire-and-forget — never block-wait on UI thread).</summary>
+        private Action? _oleEscalateFeDismiss;
+        /// <summary>
+        /// WinUI: dismiss FE ghost via ExecuteScript, then run OLE on the dispatcher once the
+        /// script completes (or a short timeout). Prevents DoDragDrop from blocking the STA
+        /// before WebView2 paints display:none on the React MOVE card.
+        /// </summary>
+        private Action<Action>? _runOleAfterFeHandoff;
+
+        public void SetHostStaInvoke(Action<Action>? invoke) => _hostStaInvoke = invoke;
+
+        public void SetHostStaInvokeNextTick(Action<Action>? invokeNextTick) => _hostStaInvokeNextTick = invokeNextTick;
+
+        public void SetHostStaInvokeDelayed(Action<Action, int>? invokeDelayed) => _hostStaInvokeDelayed = invokeDelayed;
+
+        public void SetOleEscalateFeDismiss(Action? dismiss) => _oleEscalateFeDismiss = dismiss;
+
+        public void SetRunOleAfterFeHandoff(Action<Action>? runAfterHandoff) => _runOleAfterFeHandoff = runAfterHandoff;
+
+        private void InvokeOnOleDragSta(Action action)
+        {
+            if (action is null) return;
+            if (_hostStaInvoke != null)
+            {
+                _hostStaInvoke(action);
+                return;
+            }
+            // Classic WPF MainWindow / browser-dev fallback.
+            BndzUiDispatcher.Invoke(action);
+        }
+
+        /// <summary>Schedule OLE work on the next dispatcher turn so PostWebMessage / ExecuteScript can run.</summary>
+        private void ScheduleOleDragOnNextTick(Action action)
+        {
+            if (action is null) return;
+            if (_hostStaInvokeNextTick != null)
+            {
+                _hostStaInvokeNextTick(action);
+                return;
+            }
+            if (_hostStaInvoke != null)
+            {
+                _hostStaInvoke(action);
+                return;
+            }
+            BndzUiDispatcher.BeginInvoke(action);
+        }
+
+        /// <summary>Defer modal DoDragDrop until FE ghost dismiss has painted (or timed out).</summary>
+        private void ScheduleOleDragAfterFeHandoff(Action action)
+        {
+            if (action is null) return;
+            // Preferred: await ExecuteScript completion so the MOVE card is gone before DoDragDrop
+            // freezes the UI thread (script completions stall while OLE pumps).
+            if (_runOleAfterFeHandoff != null)
+            {
+                _runOleAfterFeHandoff(action);
+                return;
+            }
+            const int delayMs = 96;
+            if (_hostStaInvokeDelayed != null)
+            {
+                try { _oleEscalateFeDismiss?.Invoke(); } catch { /* ignore */ }
+                _hostStaInvokeDelayed(action, delayMs);
+                return;
+            }
+            // Classic WPF fallback — coarse sleep off UI thread then marshal DoDragDrop.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+                InvokeOnOleDragSta(action);
+            });
+        }
+
+        /// <summary>Screen → WebView2 CSS client coords for headless WinUI hosts (BNDZShell).</summary>
+        public delegate System.Windows.Point HeadlessOleCoordMapper(double screenX, double screenY);
+
+        private HeadlessOleCoordMapper? _headlessOleCoordMapper;
+        private double _headlessWebViewClientWidth;
+        private double _headlessWebViewClientHeight;
+
+        /// <summary>Configure WinUI WebView metrics + coord mapper before <see cref="RegisterHostOleDropTarget"/>.</summary>
+        public void ConfigureHeadlessDropBridge(
+            HeadlessOleCoordMapper? screenToClientMapper,
+            double webViewClientWidth,
+            double webViewClientHeight)
+        {
+            _headlessOleCoordMapper = screenToClientMapper;
+            _headlessWebViewClientWidth = webViewClientWidth;
+            _headlessWebViewClientHeight = webViewClientHeight;
+        }
+
+        /// <summary>Register native OLE drop target on WebView2 child HWND (BNDZShell path).</summary>
+        public void RegisterHostOleDropTarget()
+        {
+            RegisterWebView2OleDropTarget();
+        }
+
+        /// <summary>Revoke OLE drop target (pane unload / WebView process recovery).</summary>
+        public void RevokeHostOleDropTarget()
+        {
+            WebView2DropTargetService.Revoke();
+        }
+
+        private void ClearFileDragSession()
+        {
+            _fileDragSessionActive = false;
+            _fileDragSessionPaths = null;
+            _fileDragButtonUpSinceMs = 0;
+            // Preview overlay is only for the armed FE→OLE gap; DoDragDrop owns Show/Hide after escalate.
+            if (!_bndzOleDragActive)
+            {
+                try { BndzOutboundDragGhostOverlay.Hide(); }
+                catch { /* ignore */ }
+            }
+        }
+
+        private static void OleDndLog(string message)
+        {
+            try
+            {
+                var dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BNDZ");
+                Directory.CreateDirectory(dir);
+                var line = $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}";
+                File.AppendAllText(Path.Combine(dir, "ole-dnd.log"), line);
+            }
+            catch { /* never break drag on logging */ }
+            Debug.WriteLine($"[OleDnd] {message}");
+        }
+
+        private static void LogFileDragFeRejects(JsonElement payload)
+        {
+            if (payload.ValueKind != JsonValueKind.Object) return;
+            if (!payload.TryGetProperty("rejected", out var rejEl) || rejEl.ValueKind != JsonValueKind.Array) return;
+            foreach (var pe in rejEl.EnumerateArray())
+            {
+                var s = pe.GetString();
+                if (!string.IsNullOrWhiteSpace(s))
+                    OleDndLog($"FILE_DRAG_ACTIVE fe-reject={s}");
+            }
+        }
+
+        public bool IsOutboundOleDragActive => _bndzOleDragActive;
+
+        public void LayoutEmbeddedMeshTerminal(string sessionId, IntPtr parentHwnd, int x, int y, int width, int height, bool visible)
+        {
+            try { _meshOrchestrator.Terminal.AttachOrLayoutEmbedded(sessionId, parentHwnd, x, y, width, height, visible); }
+            catch (Exception ex) { Debug.WriteLine($"[BndzIpcHost] LayoutEmbeddedMeshTerminal: {ex.Message}"); }
+        }
+
+        /// <summary>Deprecated — opaque top mask broke the React menubar; ghost hide is CSS-only now.</summary>
+        public bool ShouldShowOleTopGhostMask() => false;
+
+        /// <summary>
+        /// WinUI poll: while FE has an armed file drag, escalate to DoDragDrop when the cursor
+        /// leaves the host window (CSS coords cannot detect this under WebView2).
+        /// </summary>
+        /// <param name="force">
+        /// FE edge/pointercancel backup — WebView2 often cancels before the cursor reaches the
+        /// host rim; escalate immediately while the session is still armed.
+        /// </param>
+        public bool TryEscalateOutboundOleDrag(bool force = false)
+        {
+            // While OLE is live (incl. handoff delay before DoDragDrop), keep killing the FE ghost.
+            if (_bndzOleDragActive)
+            {
+                var nowDismiss = Environment.TickCount64;
+                if (nowDismiss - _lastProactiveGhostDismissMs >= 32)
+                {
+                    _lastProactiveGhostDismissMs = nowDismiss;
+                    try { _oleEscalateFeDismiss?.Invoke(); }
+                    catch { /* ignore */ }
+                }
+                return false;
+            }
+
+            if (!_fileDragSessionActive || _fileDragSessionPaths == null || _fileDragSessionPaths.Length == 0)
+                return true; // idle — stop WinUI poll
+
+            if (!GetCursorPos(out var pt)) return false;
+
+            const int VK_LBUTTON = 0x01;
+            const int VK_CONTROL = 0x11;
+            bool buttonDown = (GetAsyncKeyStateShort(VK_LBUTTON) & 0x8000) != 0;
+
+            bool shouldEscalate = false;
+            if (WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
+                || _hostWindowHandle != IntPtr.Zero)
+            {
+                shouldEscalate = WebView2DropTargetService.ShouldHostEscalateOutboundDrag(pt.X, pt.Y);
+                // FE pointercancel/edge backup: allow a slightly deeper rim so side exits
+                // match the top menubar path without stealing mid-list in-app drops.
+                if (!shouldEscalate && force)
+                {
+                    if (!WebView2DropTargetService.IsCursorInsideWebViewMenubarBand(pt.X, pt.Y)
+                        && !WebView2DropTargetService.IsCursorDeepInsideHost(pt.X, pt.Y, insetPx: 72))
+                    {
+                        shouldEscalate = true;
+                    }
+                }
+            }
+            else if (force)
+            {
+                shouldEscalate = true;
+            }
+
+            // WebView2 cannot paint outside the HWND — arm the host layered ghost as soon as
+            // the cursor leaves the deep interior (before modal DoDragDrop), so wallpaper
+            // drags still show a card instead of only the finger cursor.
+            var outsideDeep = !WebView2DropTargetService.IsCursorDeepInsideHost(pt.X, pt.Y, insetPx: 12);
+            if ((outsideDeep || shouldEscalate) && _fileDragSessionPaths is { Length: > 0 })
+            {
+                try
+                {
+                    var copyHeld = (GetAsyncKeyStateShort(VK_CONTROL) & 0x8000) != 0;
+                    BndzOutboundDragGhostOverlay.Show(_fileDragSessionPaths, copyHeld);
+                    BndzOutboundDragGhostOverlay.FollowCursor();
+                }
+                catch { /* ignore */ }
+            }
+
+            // Hide FE ghost only when escalate is committed — not while dragging over menubar/list.
+            if (shouldEscalate)
+            {
+                var nowDismiss = Environment.TickCount64;
+                if (nowDismiss - _lastProactiveGhostDismissMs >= 32)
+                {
+                    _lastProactiveGhostDismissMs = nowDismiss;
+                    try { _oleEscalateFeDismiss?.Invoke(); }
+                    catch { /* ignore */ }
+                }
+            }
+
+            if (!shouldEscalate)
+            {
+                // Do NOT clear on short button-up flickers after pointercancel — that killed
+                // outbound drags before the cursor left the window. Only disarm after a long
+                // idle (user abandoned) or FILE_DRAG_ACTIVE(false) / successful escalate.
+                // Side exits often lose the button bit before the cursor clears the host.
+                if (!buttonDown)
+                {
+                    if (_fileDragButtonUpSinceMs == 0)
+                        _fileDragButtonUpSinceMs = Environment.TickCount64;
+                    else if (Environment.TickCount64 - _fileDragButtonUpSinceMs >= 4500)
+                    {
+                        OleDndLog($"session idle-clear (button up 4.5s) cursor=({pt.X},{pt.Y})");
+                        ClearFileDragSession();
+                        return true;
+                    }
+                }
+                else
+                {
+                    _fileDragButtonUpSinceMs = 0;
+                }
+                return false;
+            }
+
+            // Do not require VK_LBUTTON — Chromium capture loss often clears the bit while the
+            // user is still holding. QueryContinueDrag owns drop/cancel once DoDragDrop runs.
+            _fileDragButtonUpSinceMs = 0;
+            var paths = _fileDragSessionPaths;
+            // Latch OLE-active BEFORE ClearFileDragSession — otherwise Clear hides the host
+            // ghost that was just Shown for the rim leave, and FollowCursor becomes a no-op
+            // until DoDragDrop Show (ghost "plants" at the window edge).
+            _bndzOleDragActive = true;
+            ClearFileDragSession();
+            var pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
+            var escalateWhy = force
+                ? $"fe-force:{WebView2DropTargetService.DescribeOutboundEscalateReason(pt.X, pt.Y)}"
+                : WebView2DropTargetService.DescribeOutboundEscalateReason(pt.X, pt.Y);
+            OleDndLog($"ESCALATE DoDragDrop count={paths.Length} cursor=({pt.X},{pt.Y}) btnDown={buttonDown} why={escalateWhy} {pathSummary}");
+
+            WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+
+            // 1) Kill FE ghost first — fire-and-forget ExecuteScript (never block-wait on UI thread).
+            try { _oleEscalateFeDismiss?.Invoke(); }
+            catch (Exception dismissEx) { OleDndLog($"FE ghost dismiss error {dismissEx.Message}"); }
+
+            // 2) PostWebMessage so ipcBridge dispatches bndz-ole-drag-escalated in parallel.
+            try
+            {
+                DeliverIpcJson(JsonSerializer.Serialize(new
+                {
+                    type = "OLE_DRAG_ESCALATED",
+                    payload = new { paths, source = "host-leave-webview", why = escalateWhy },
+                }));
+            }
+            catch { /* best-effort FE handoff */ }
+
+            // 3) Time-based defer — dispatcher tick bursts finish before WebView2 runs script.
+            var capturedPaths = paths;
+            ScheduleOleDragAfterFeHandoff(() =>
+            {
+                try { ExecuteNativeFileDrag(capturedPaths); }
+                catch (Exception ex)
+                {
+                    _bndzOleDragActive = false;
+                    _oleDragArmedAtMs = 0;
+                    OleDndLog($"deferred ExecuteNativeFileDrag {ex.Message}");
+                    PostOleDragEndedToUi(false, ex.Message, capturedPaths, default);
+                }
+            });
+            // Keep poll alive through handoff/DoDragDrop so dismiss scripts continue.
+            return false;
+        }
+
+        /// <summary>DoDragDrop on WinUI STA — Explorer requires the host message pump.</summary>
+        private void ExecuteNativeFileDrag(string[] pathArray)
+        {
+            if (pathArray == null || pathArray.Length == 0) return;
+            var pathSummary = BndzOutboundDragHelper.FormatPathSummary(pathArray);
+
+            void FinishOleDrag(
+                bool ok,
+                string? error = null,
+                string[]? paths = null,
+                WebView2DropTargetService.NativeDragDropResult dragResult = default)
+            {
+                _bndzOleDragActive = false;
+                _oleDragArmedAtMs = 0;
+                // Re-register inbound drop target only after the outbound flag clears —
+                // otherwise Register sees ole-active and skips (REGISTER skipped log).
+                try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
+                catch { /* ignore */ }
+                try { ReleaseCapture(); } catch { /* ignore */ }
+                PostOleDragEndedToUi(ok, error, paths, dragResult);
+            }
+
+            try
+            {
+                _bndzOleDragActive = true;
+                _oleDragArmedAtMs = Environment.TickCount64;
+                if (_hostWindowHandle != IntPtr.Zero)
+                {
+                    var capturedHwnd = WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
+                        ? WebView2DropTargetService.RegisteredWebViewHwnd
+                        : _hostWindowHandle;
+                    var capturedPaths = pathArray;
+                    InvokeOnOleDragSta(() =>
+                    {
+                        IDisposable? lifetime = null;
+                        var ok = true;
+                        string? errMsg = null;
+                        var dragResult = default(WebView2DropTargetService.NativeDragDropResult);
+                        try
+                        {
+                            var payload = BndzOutboundDragHelper.CreateDataObjectWithKind(capturedPaths);
+                            lifetime = payload.Lifetime;
+                            var dataObject = payload.Data;
+                            var cleanSummary = BndzOutboundDragHelper.FormatPathSummary(payload.Paths);
+                            OleDndLog($"payload kind={payload.Kind} {cleanSummary}");
+                            try { dataObject = (System.Runtime.InteropServices.ComTypes.IDataObject)AttachShellDragImage(dataObject, payload.Paths); }
+                            catch (Exception imgEx) { Debug.WriteLine($"[START_DRAG] STA drag image: {imgEx.Message}"); }
+                            WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+                            try
+                            {
+                                dragResult = WebView2DropTargetService.RunNativeDragDrop(capturedHwnd, dataObject, cleanSummary, payload.Paths);
+                            }
+                            finally
+                            {
+                                // Do not Resume here — FinishOleDrag clears ole-active first, then resumes.
+                            }
+                            ok = dragResult.Dropped && dragResult.EffectBits is 1 or 2 or 4;
+                            if (!ok && dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                                errMsg = "drop-effect-none";
+                            else if (!ok && !dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                                errMsg = "cancelled";
+                        }
+                        catch (Exception ex)
+                        {
+                            ok = false;
+                            errMsg = ex.Message;
+                            OleDndLog($"ExecuteNativeFileDrag failed {ex.Message} paths={pathSummary}");
+                            Debug.WriteLine($"[START_DRAG] {ex.Message}");
+                        }
+                        finally
+                        {
+                            try { lifetime?.Dispose(); } catch { /* ignore */ }
+                            FinishOleDrag(ok, errMsg, capturedPaths, dragResult);
+                        }
+                    });
+                }
+                else
+                {
+                    if (!IsVisible)
+                    {
+                        Debug.WriteLine("[START_DRAG] refused: headless host with no HWND yet");
+                        FinishOleDrag(false, "no HWND");
+                    }
+                    else
+                    {
+                        // Classic WPF DragDrop path — WPF DataObject; native path uses ShellDataObject above.
+                        var dataObject = new System.Windows.DataObject();
+                        dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
+                        dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(1 | 2 | 4)));
+                        object dragPayload = dataObject;
+                        try { dragPayload = AttachShellDragImage(dataObject, pathArray); }
+                        catch (Exception dragImgEx) { Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}"); }
+                        System.Windows.DragDrop.DoDragDrop(this, dragPayload, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
+                        FinishOleDrag(true, null, pathArray);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                OleDndLog($"ExecuteNativeFileDrag outer {ex.Message} paths={pathSummary}");
+                Debug.WriteLine($"[START_DRAG] {ex.Message}");
+                FinishOleDrag(false, ex.Message, pathArray);
+            }
+        }
+
+        /// <summary>
+        /// WebView2 DragStarting — synchronous DoDragDrop with IDataObject from the page (official path).
+        /// Runs on WinUI STA; no boundary START_DRAG / FE ghost handoff.
+        /// </summary>
+        public void HandleWebView2DragStarting(object dataObject)
+        {
+            if (dataObject is null) return;
+
+            void FinishOleDrag(
+                bool ok,
+                string? error = null,
+                string[]? paths = null,
+                WebView2DropTargetService.NativeDragDropResult dragResult = default)
+            {
+                _bndzOleDragActive = false;
+                _oleDragArmedAtMs = 0;
+                try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
+                catch { /* ignore */ }
+                try { ReleaseCapture(); } catch { /* ignore */ }
+                PostOleDragEndedToUi(ok, error, paths, dragResult);
+            }
+
+            string[] paths = Array.Empty<string>();
+            var pathSummary = "";
+                try
+                {
+                    var oleUnk = Marshal.GetIUnknownForObject(dataObject);
+                    try
+                    {
+                        var comData = (System.Runtime.InteropServices.ComTypes.IDataObject)
+                            Marshal.GetObjectForIUnknown(oleUnk)!;
+                        paths = WebView2DropTargetService.ExtractPathsFromComDataObject(comData);
+                    }
+                    finally
+                    {
+                        Marshal.Release(oleUnk);
+                    }
+                pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
+                OleDndLog($"DragStarting handoff paths={paths.Length} {pathSummary}");
+            }
+            catch (Exception ex)
+            {
+                OleDndLog($"DragStarting extract paths failed {ex.Message}");
+            }
+
+            if (paths.Length == 0)
+            {
+                OleDndLog("DragStarting skip — no CF_HDROP paths in WebView2 IDataObject");
+                return;
+            }
+
+            _bndzOleDragActive = true;
+            _oleDragArmedAtMs = Environment.TickCount64;
+            WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+            try
+            {
+                DeliverIpcJson(JsonSerializer.Serialize(new
+                {
+                    type = "OLE_DRAG_ESCALATED",
+                    payload = new { paths, source = "webview-dragstarting", why = "DragStarting" },
+                }));
+            }
+            catch { /* best-effort */ }
+
+            if (_hostWindowHandle == IntPtr.Zero)
+            {
+                FinishOleDrag(false, "no HWND", paths);
+                return;
+            }
+
+            var capturedHwnd = WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
+                ? WebView2DropTargetService.RegisteredWebViewHwnd
+                : _hostWindowHandle;
+            var capturedPaths = paths;
+            InvokeOnOleDragSta(() =>
+            {
+                var ok = true;
+                string? errMsg = null;
+                var dragResult = default(WebView2DropTargetService.NativeDragDropResult);
+                try
+                {
+                    object dragPayload = dataObject;
+                    // Prefer Explorer-grade payload when WebView2 HDROP is present but lacks shell formats.
+                    if (paths.Length > 0)
+                    {
+                        var owned = BndzOutboundDragHelper.CreateDataObjectWithKind(paths);
+                        using (owned.Lifetime)
+                        {
+                            dragPayload = owned.Data;
+                            var cleanSummary = BndzOutboundDragHelper.FormatPathSummary(owned.Paths);
+                            try
+                            {
+                                dragPayload = AttachShellDragImage(owned.Data, owned.Paths);
+                            }
+                            catch (Exception imgEx)
+                            {
+                                Debug.WriteLine($"[DragStarting] drag image: {imgEx.Message}");
+                            }
+                            dragResult = WebView2DropTargetService.RunNativeDragDrop(
+                                capturedHwnd, dragPayload, cleanSummary, owned.Paths, fromDragStarting: true);
+                        }
+                    }
+                    else
+                    {
+                        dragResult = WebView2DropTargetService.RunNativeDragDrop(
+                            capturedHwnd, dragPayload, pathSummary, capturedPaths, fromDragStarting: true);
+                    }
+
+                    ok = dragResult.Dropped && dragResult.EffectBits is 1 or 2 or 4;
+                    if (!ok && dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                        errMsg = "drop-effect-none";
+                    else if (!ok && !dragResult.Dropped && string.IsNullOrEmpty(errMsg))
+                        errMsg = "cancelled";
+                }
+                catch (Exception ex)
+                {
+                    ok = false;
+                    errMsg = ex.Message;
+                    OleDndLog($"DragStarting DoDragDrop failed {ex.Message} {pathSummary}");
+                }
+                finally
+                {
+                    FinishOleDrag(ok, errMsg, capturedPaths, dragResult);
+                }
+            });
+        }
+
+        private static string DropEffectLabel(uint effectBits) => effectBits switch
+        {
+            1u => "COPY",
+            2u => "MOVE",
+            4u => "LINK",
+            _ => effectBits == 0 ? "NONE" : $"0x{effectBits:X}",
+        };
+
+        private void PostOleDragEndedToUi(
+            bool ok,
+            string? error,
+            string[]? paths,
+            WebView2DropTargetService.NativeDragDropResult dragResult)
+        {
+            var effectBits = dragResult.EffectBits;
+            var effectLabel = DropEffectLabel(effectBits);
+            string[]? sourceDirs = null;
+            // Never File.Exists / Directory.Exists on the STA path here — folder AV scans
+            // freeze the shell for a beat after wallpaper drops. Probe off-thread.
+            if (paths is { Length: > 0 })
+            {
+                sourceDirs = paths
+                    .Select(p => System.IO.Path.GetDirectoryName(p))
+                    .Where(d => !string.IsNullOrWhiteSpace(d))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Cast<string>()
+                    .ToArray();
+            }
+
+            void DeliverEnded(bool sourcesGone)
+            {
+                var bits = effectBits;
+                var label = effectLabel;
+                if (sourcesGone && bits != 1u)
+                {
+                    bits = 2;
+                    label = "MOVE";
+                }
+                try
+                {
+                    object payload = ok
+                        ? new { ok = true, effect = label, paths, sourceDirs, sourcesGone }
+                        : new { ok = false, error = error ?? "unknown", effect = label, paths, sourceDirs, sourcesGone };
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "OLE_DRAG_ENDED",
+                        payload,
+                    }));
+                }
+                catch { /* ignore */ }
+                try { PostFileTransferQueueChanged(); }
+                catch { /* ignore */ }
+                OleDndLog($"OLE_DRAG_ENDED posted ok={ok} effect={label} sourcesGone={sourcesGone}");
+
+                if (ok && paths is { Length: > 0 } && (bits == 2 || sourcesGone))
+                {
+                    try
+                    {
+                        var opId = $"shell-move-{Environment.TickCount64}";
+                        var jobLabel = paths.Length == 1
+                            ? (System.IO.Path.GetFileName(paths[0]) ?? "item")
+                            : $"{paths.Length} items";
+                        var job = _fileTransferQueue.RegisterJob(
+                            opId, "move", jobLabel, "shell", paths.Length, "fs", FileTransferPriority.High);
+                        job.Status = FileTransferJobStatus.Running;
+                        job.StartedUtc = DateTime.UtcNow;
+                        job.CurrentFile = paths[0];
+                        if (sourcesGone)
+                        {
+                            _fileTransferQueue.MarkCompleted(opId);
+                        }
+                        else
+                        {
+                            var watchPaths = paths;
+                            var watchOp = opId;
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    for (var i = 0; i < 40; i++)
+                                    {
+                                        await Task.Delay(150).ConfigureAwait(false);
+                                        var gone = watchPaths.All(p =>
+                                            !string.IsNullOrWhiteSpace(p)
+                                            && !System.IO.File.Exists(p)
+                                            && !System.IO.Directory.Exists(p));
+                                        _fileTransferQueue.UpdateProgress(
+                                            watchOp,
+                                            Math.Min(95, 10 + i * 2),
+                                            watchPaths[0],
+                                            gone ? watchPaths.Length : 0,
+                                            watchPaths.Length);
+                                        if (!gone) continue;
+                                        _fileTransferQueue.MarkCompleted(watchOp);
+                                        try { NotifyOutboundOleListingSync(watchPaths, 2); } catch { /* ignore */ }
+                                        return;
+                                    }
+                                    _fileTransferQueue.MarkFailed(watchOp, "Move did not finish — sources still on disk.");
+                                }
+                                catch { try { _fileTransferQueue.MarkFailed(watchOp, "Move watch failed."); } catch { /* ignore */ } }
+                            });
+                        }
+                        PostFileTransferQueueChanged();
+                    }
+                    catch (Exception ex)
+                    {
+                        OleDndLog($"shell-move queue error {ex.Message}");
+                    }
+                }
+
+                if (paths is { Length: > 0 } && ok)
+                {
+                    var syncPaths = paths;
+                    var syncEffect = bits;
+                    _ = Task.Run(() =>
+                    {
+                        try { NotifyOutboundOleListingSync(syncPaths, syncEffect); }
+                        catch (Exception ex) { OleDndLog($"outbound-ole listing-sync error {ex.Message}"); }
+                    });
+
+                    if (!sourcesGone)
+                    {
+                        var delayedPaths = paths;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                for (var i = 0; i < 24; i++)
+                                {
+                                    await Task.Delay(150).ConfigureAwait(false);
+                                    var gone = delayedPaths.All(p =>
+                                        !string.IsNullOrWhiteSpace(p)
+                                        && !System.IO.File.Exists(p)
+                                        && !System.IO.Directory.Exists(p));
+                                    if (!gone) continue;
+                                    OleDndLog($"outbound-ole delayed sourcesGone=true after {(i + 1) * 150}ms");
+                                    try { NotifyOutboundOleListingSync(delayedPaths, 2); }
+                                    catch (Exception ex) { OleDndLog($"outbound-ole delayed listing-sync error {ex.Message}"); }
+                                    try
+                                    {
+                                        object payload = new
+                                        {
+                                            ok = true,
+                                            effect = "MOVE",
+                                            paths = delayedPaths,
+                                            sourcesGone = true,
+                                            recover = "move",
+                                        };
+                                        // Marshal to UI thread — DeliverIpcJson must not hitch the worker.
+                                        void PostRecover()
+                                        {
+                                            try
+                                            {
+                                                DeliverIpcJson(JsonSerializer.Serialize(new
+                                                {
+                                                    type = "OLE_DRAG_ENDED",
+                                                    payload,
+                                                }));
+                                            }
+                                            catch { /* ignore */ }
+                                        }
+                                        if (_hostStaInvokeNextTick != null) _hostStaInvokeNextTick(PostRecover);
+                                        else if (_hostStaInvoke != null) _hostStaInvoke(PostRecover);
+                                        else PostRecover();
+                                    }
+                                    catch { /* ignore */ }
+                                    return;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                OleDndLog($"outbound-ole delayed sourcesGone poll error {ex.Message}");
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Unblock FE immediately — probe sourcesGone asynchronously.
+            void DeliverImmediate() => DeliverEnded(sourcesGone: false);
+            if (_hostStaInvokeNextTick != null)
+                _hostStaInvokeNextTick(DeliverImmediate);
+            else if (_hostStaInvoke != null)
+                _hostStaInvoke(DeliverImmediate);
+            else
+                DeliverImmediate();
+
+            if (ok && paths is { Length: > 0 })
+            {
+                var probePaths = paths;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        // Brief yield so the UI message paints before disk probes.
+                        await Task.Delay(40).ConfigureAwait(false);
+                        var gone = probePaths.All(p =>
+                            !string.IsNullOrWhiteSpace(p)
+                            && !System.IO.File.Exists(p)
+                            && !System.IO.Directory.Exists(p));
+                        if (!gone) return;
+                        OleDndLog("outbound-ole quick sourcesGone=true");
+                        void PostGone()
+                        {
+                            try
+                            {
+                                DeliverIpcJson(JsonSerializer.Serialize(new
+                                {
+                                    type = "OLE_DRAG_ENDED",
+                                    payload = new
+                                    {
+                                        ok = true,
+                                        effect = "MOVE",
+                                        paths = probePaths,
+                                        sourcesGone = true,
+                                        recover = "move",
+                                    },
+                                }));
+                            }
+                            catch { /* ignore */ }
+                            try { NotifyOutboundOleListingSync(probePaths, 2); }
+                            catch { /* ignore */ }
+                        }
+                        if (_hostStaInvokeNextTick != null) _hostStaInvokeNextTick(PostGone);
+                        else if (_hostStaInvoke != null) _hostStaInvoke(PostGone);
+                        else PostGone();
+                    }
+                    catch (Exception ex)
+                    {
+                        OleDndLog($"outbound-ole quick sourcesGone probe error {ex.Message}");
+                    }
+                });
+            }
+        }
+
+        private void NotifyOutboundOleListingSync(string[] paths, uint effectBits)
+        {
+            if (paths is not { Length: > 0 }) return;
+            var deleted = 0;
+            var batch = new List<object>();
+            foreach (var path in paths)
+            {
+                if (string.IsNullOrWhiteSpace(path)) continue;
+                var dir = System.IO.Path.GetDirectoryName(path);
+                var name = System.IO.Path.GetFileName(path);
+                if (string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(name)) continue;
+                // MOVE always; also remove when source is gone (recover succeeded even if latch was COPY).
+                var gone = !System.IO.File.Exists(path) && !System.IO.Directory.Exists(path);
+                if (effectBits == 2 || gone)
+                {
+                    // Leading-slash pane path so FE watcherDirToPanePath / cache keys match open tabs.
+                    var dirPane = dir.Replace("\\", "/");
+                    if (dirPane.Length >= 2 && char.IsLetter(dirPane[0]) && dirPane[1] == ':' && !dirPane.StartsWith('/'))
+                        dirPane = "/" + dirPane;
+                    batch.Add(new { type = "Deleted", dir = dirPane, name, oldName = (string?)null });
+                    deleted++;
+                }
+            }
+            if (deleted == 0) return;
+
+            // Push FE batch immediately (do not wait for FlushFsEvents debounce / index lock).
+            var payload = new { type = "FS_EVENT_BATCH", payload = batch };
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => DeliverIpcJson(json));
+
+            _ = Task.Run(() =>
+            {
+                foreach (var raw in batch)
+                {
+                    try
+                    {
+                        var evJson = JsonSerializer.Serialize(raw);
+                        using var doc = JsonDocument.Parse(evJson);
+                        var root = doc.RootElement;
+                        var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                        var dir = root.TryGetProperty("dir", out var d) ? d.GetString() : null;
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+                        if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(name))
+                            BndzFileIndexService.Instance.ApplyFsEvent(type, dir, name, null);
+                    }
+                    catch { /* ignore */ }
+                }
+            });
+            OleDndLog($"outbound-ole fs-delete count={deleted} {BndzOutboundDragHelper.FormatPathSummary(paths)}");
+        }
+
+        /// <summary>
+        /// START_DRAG from FE boundary handoff — defer one dispatcher tick so WebView2 can
+        /// process pointer release, then ReleaseCapture + modal DoDragDrop.
+        /// </summary>
+        private void QueueStartDragOnNextTick(string[] paths)
+        {
+            if (paths == null || paths.Length == 0) return;
+            if (_bndzOleDragActive)
+            {
+                OleDndLog("START_DRAG skip already-active");
+                return;
+            }
+            const int VK_LBUTTON = 0x01;
+            var btnDown = (GetAsyncKeyStateShort(VK_LBUTTON) & 0x8000) != 0;
+            var pathSummary = BndzOutboundDragHelper.FormatPathSummary(paths);
+            OleDndLog($"START_DRAG queued paths={paths.Length} btnDown={btnDown} {pathSummary}");
+
+            var captured = paths;
+            ScheduleOleDragOnNextTick(() =>
+            {
+                if (_bndzOleDragActive)
+                {
+                    OleDndLog("START_DRAG skip already-active (dispatch)");
+                    return;
+                }
+                // Do not ReleaseCapture here — that synthesizes WM_LBUTTONUP and poisons wallpaper release.
+
+                OleDndLog("START_DRAG dispatch DoDragDrop");
+                _bndzOleDragActive = true;
+                WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
+                try { _oleEscalateFeDismiss?.Invoke(); }
+                catch (Exception dismissEx) { OleDndLog($"START_DRAG ghost dismiss error {dismissEx.Message}"); }
+
+                try
+                {
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "OLE_DRAG_ESCALATED",
+                        payload = new { paths = captured, source = "start-drag-boundary", why = "boundary" },
+                    }));
+                }
+                catch { /* best-effort FE handoff */ }
+
+                try { ExecuteNativeFileDrag(captured); }
+                catch (Exception ex)
+                {
+                    _bndzOleDragActive = false;
+                    _oleDragArmedAtMs = 0;
+                    OleDndLog($"START_DRAG dispatch failed {ex.Message}");
+                    PostOleDragEndedToUi(false, ex.Message, captured, default);
+                }
+            });
+        }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetCursorPos(out POINT_S pt);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ScreenToClient(IntPtr hWnd, ref POINT_S lpPoint);
+
+        [DllImport("user32.dll", EntryPoint = "GetAsyncKeyState")]
+        private static extern short GetAsyncKeyStateShort(int vKey);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetWindowRect(IntPtr hWnd, out RECT_S lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT_S { public int X; public int Y; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT_S { public int Left; public int Top; public int Right; public int Bottom; }
+
+        /// <summary>Path A fallback: Chromium attempted file: navigation from external drop.</summary>
+        public void NotifyNavigationFileDrop(string localPath)
+        {
+            PostNavigationFileDrop(localPath);
         }
 
         /// <summary>Wire real WinUI Window.Close so File→Exit / Restart / confirm-quit actually quit.</summary>
         public void SetHostCloseAction(Action? closeAction)
         {
             _hostCloseAction = closeAction;
+            try { _shellIntegrationService.ExitHost = closeAction; } catch { /* ignore */ }
         }
 
         /// <summary>WinUI tray hide/restore (NotifyIcon). Replaces WPF SystemTrayService in headless shell.</summary>
@@ -184,6 +1111,18 @@ namespace BNDZ.Services
         {
             _hostHideToTrayAction = hideToTray;
             _hostRestoreFromTrayAction = restoreFromTray;
+        }
+
+        /// <summary>Open plugin/sticky pop-outs in-process so they share the embedded backend.</summary>
+        public void SetOpenPluginWindowAction(Func<string, string?, string?, bool>? action)
+        {
+            _openPluginWindowAction = action;
+        }
+
+        /// <summary>Activate the main FM window (pop-out Browse / HOST_NAVIGATE).</summary>
+        public void SetHostActivateMainAction(Action? activateMain)
+        {
+            _hostActivateMainAction = activateMain;
         }
 
         /// <summary>WinUI forwards WM_DEVICECHANGE so Drives list live-updates on USB insert/eject.</summary>
@@ -199,6 +1138,11 @@ namespace BNDZ.Services
         {
             _pushWebMessage = pushWebMessage;
             _hostWindowHandle = hostWindowHandle;
+            _trayService = null; // WinUI/native shell supplies tray via host callbacks; WPF path sets this in MainWindow.
+            if (hostWindowHandle != IntPtr.Zero)
+            {
+                try { ModernShareHelper.SetOwnerHwnd(hostWindowHandle); } catch { /* ignore */ }
+            }
             _fileService = fileService;
             _aiService = aiService;
             _localAi = localAi;
@@ -212,6 +1156,7 @@ namespace BNDZ.Services
             _ghostLinkService.SetActionLog(_actionLogService);
             _ghostLinkService.StartIdleScanner();
             _ramStagingService = new RamStagingService(_fileTransferQueue);
+            ProjFsSandboxHost.BindRamStaging(_ramStagingService);
             _automationRunnerDeps = new AutomationRunnerDeps
             {
                 GhostLink = _ghostLinkService,
@@ -292,6 +1237,7 @@ namespace BNDZ.Services
             _ = Task.Run(() =>
             {
                 try { UsnHealthWatcherService.Instance.Start(); } catch { }
+                try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
                 try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
             });
             _meshDropService.SetSessionChangedHandler(evt =>
@@ -328,6 +1274,7 @@ namespace BNDZ.Services
                 FileOperationPreferences.ApplyFromJson(bootSettings);
                 ApplyFileOperationPreferences();
                 ApplyGlobalHotkeysFromSettingsJson(bootSettings);
+                ApplyOsQuickLookFromSettingsJson(bootSettings);
                 BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
                 _actionLogService.LoadPersistedIfEnabled();
                 _fileTransferQueue.LoadPersistedHistory();
@@ -369,7 +1316,7 @@ namespace BNDZ.Services
                 var evt = new { type = "MESH_TERMINAL_OUTPUT", payload = new { sessionId, data } };
                 PostToUi(() =>
                 {
-                    try { DeliverIpcJson(JsonSerializer.Serialize(evt)); }
+                    try { DeliverIpcJson(JsonSerializer.Serialize(evt, MeshJsonOpts)); }
                     catch { }
                 });
             };
@@ -527,8 +1474,15 @@ namespace BNDZ.Services
                     ? "Sticky"
                     : (!string.IsNullOrWhiteSpace(_pendingPluginId) ? _pendingPluginId : "Plugin");
             Title = $"BNDZ · {label}";
-            // Sticky widgets behave like desktop notes — stay above other windows.
+            // Sticky widgets behave like desktop notes — stay above other windows, no caption chrome.
             Topmost = stickyMode;
+            if (stickyMode)
+            {
+                WindowStyle = WindowStyle.None;
+                AllowsTransparency = true;
+                ResizeMode = ResizeMode.CanResizeWithGrip;
+                Background = System.Windows.Media.Brushes.Transparent;
+            }
         }
 
         private void PersistWindowPlacementIntoSettings()
@@ -585,7 +1539,8 @@ namespace BNDZ.Services
         {
             try
             {
-                if (!IsVisible || WindowState == WindowState.Minimized)
+                if (!App.IsEmbeddedInWinUiShell && !App.IsBackendHost
+                    && (!IsVisible || WindowState == WindowState.Minimized))
                 {
                     ShowInTaskbar = true;
                     Show();
@@ -712,6 +1667,9 @@ namespace BNDZ.Services
                         {
                             System.Diagnostics.Debug.WriteLine($"[BackendHost] waiter complete id={id} type={msgType}");
                             tcs.TrySetResult(json);
+                            // Invoke/CraftPaneHost delivers this RESULT — do not also PushToUi
+                            // (was double-posting every DIR_CONTENTS_RESULT and freezing the WebView).
+                            return;
                         }
                         else if (!string.IsNullOrEmpty(id)
                             && !string.IsNullOrEmpty(msgType)
@@ -728,16 +1686,55 @@ namespace BNDZ.Services
 
             void Post()
             {
-                try { _pushWebMessage?.Invoke(json); }
-                catch { }
+                try
+                {
+                    if (_pushWebMessage != null)
+                    {
+                        _pushWebMessage.Invoke(json);
+                        return;
+                    }
+                    if (MainWebView.CoreWebView2 != null)
+                    {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(json);
+                        return;
+                    }
+                }
+                catch { /* fall through to queue */ }
+                EnqueuePendingUiPush(json);
             }
 
             try
             {
-                if (true) Post();
-                else PostToUi(Post);
+                Post();
             }
             catch { }
+        }
+
+        private void EnqueuePendingUiPush(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return;
+            _pendingUiPushQueue.Enqueue(json);
+            while (_pendingUiPushQueue.Count > MaxPendingUiPushQueue)
+                _pendingUiPushQueue.Dequeue();
+        }
+
+        private void FlushPendingUiPushQueue()
+        {
+            if (!HasLiveUiTransport()) return;
+            while (_pendingUiPushQueue.Count > 0)
+            {
+                var pending = _pendingUiPushQueue.Dequeue();
+                try
+                {
+                    if (_pushWebMessage != null)
+                        _pushWebMessage.Invoke(pending);
+                    else if (MainWebView.CoreWebView2 != null)
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(pending);
+                    else
+                        break;
+                }
+                catch { break; }
+            }
         }
 
         /// <summary>
@@ -753,10 +1750,185 @@ namespace BNDZ.Services
         }
 
         /// <summary>
+        /// Fire-and-forget FE posts — must ACK immediately so CraftPaneHost does not wait 60s.
+        /// </summary>
+        private static bool IsNotifyOnlyIpcType(string? type)
+        {
+            if (string.IsNullOrEmpty(type)) return false;
+            return NotifyOnlyIpcTypes.Contains(type);
+        }
+
+        private static readonly HashSet<string> NotifyOnlyIpcTypes = new(StringComparer.Ordinal)
+        {
+            "START_DRAG",
+            "FILE_DRAG_ACTIVE",
+            "OLE_ESCALATE_NOW",
+            "FILE_DRAG_ENDED",
+            "OLE_DRAG_ENDED",
+            "OLE_DND_DEBUG",
+            "EXECUTE_CONTEXT_MENU_VERB",
+            "SHELL_EXECUTE",
+            "RECORD_PATH_OPEN",
+            "WATCH_DIR",
+            "UNWATCH_DIR",
+            "CANCEL_FOLDER_SIZE_SCAN",
+            "CANCEL_DUPLICATE_SCAN",
+            "CANCEL_STORAGE_CLEANUP_SCAN",
+            "BNDZ_UI_READY",
+            "UI_READY",
+            "NOTIFY_UI_READY",
+            "EXTERNAL_DRAG_HOVER_REPORT",
+            "BNDZ_QUICK_LOOK_CLOSED",
+            "RESOLVE_CONFLICT",
+            "WINDOW_CHROME",
+            "RESTART_APP",
+            "REQUEST_CLOSE",
+            "TRAY_RESTORE",
+            "SAVE_TAGS_CONFIG",
+            "APPLY_TAGS",
+            "SET_TAG_META",
+            "SET_TAG_META_BATCH",
+            "RENAME_TAG_IN_SIDECAR",
+            "PURGE_TAG_FROM_SIDECAR",
+            "MESH_DISCONNECT",
+            "MESH_TERMINAL_INPUT",
+            "MESH_TERMINAL_CLOSE",
+            "MESH_TERMINAL_RESIZE",
+            "MESH_TERMINAL_LAYOUT",
+            "MESH_DROP_SET_CONFIG",
+            "MESH_DROP_CANCEL",
+            "AI_GENERATE_STREAM",
+            "SHOW_CONTEXT_MENU",
+            "FOLDER_SYNC_SET_WATCH",
+            "SHOW_NATIVE_NOTIFICATION",
+            "WINDOW_CLOSE_RESOLVE",
+            "SET_MEDIA_CACHE_BROWSE_FOLDER",
+            "HOST_NAVIGATE",
+            "BNDZ_NAVIGATE",
+        };
+
+        /// <summary>
         /// Named-pipe host IPC — full WebView message surface via <see cref="ProcessIncomingIpcMessageAsync"/>.
         /// </summary>
         public Task<string> HandleIpcAsync(string requestJson) => HandleBackendHostIpcCoreAsync(requestJson);
         public Task<string> HandleBackendHostIpcAsync(string requestJson) => HandleIpcAsync(requestJson);
+
+        /// <summary>Sync fast-path for drag notify IPC — must not block on async pump (WinUI STA).</summary>
+        public void HandleDragNotifySync(string requestJson)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(requestJson);
+                var root = doc.RootElement;
+                var type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                if (string.IsNullOrEmpty(type)) return;
+
+                if (type == "FILE_DRAG_ACTIVE")
+                {
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag())
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE ignored — native DoDragDrop in progress");
+                        return;
+                    }
+                    var payload = root.TryGetProperty("payload", out var p) ? p : default;
+                    var active = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("active", out var aEl)
+                        && aEl.ValueKind == JsonValueKind.True;
+                    var recvPathCount = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("paths", out var recvPathsEl)
+                        && recvPathsEl.ValueKind == JsonValueKind.Array
+                        ? recvPathsEl.GetArrayLength()
+                        : 0;
+                    var recvRejCount = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("rejected", out var recvRejEl)
+                        && recvRejEl.ValueKind == JsonValueKind.Array
+                        ? recvRejEl.GetArrayLength()
+                        : 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE recv sync active={active} paths={recvPathCount} feRejected={recvRejCount}");
+                    LogFileDragFeRejects(payload);
+                    if (!active)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm — active=false from FE");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pe in pathsEl.EnumerateArray())
+                        {
+                            var s = pe.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) paths.Add(NormalizeFsPath(s));
+                        }
+                    }
+                    if (paths.Count == 0)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm — FE sent zero paths after filter");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var filtered = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejected);
+                    if (filtered.Length == 0)
+                    {
+                        OleDndLog($"FILE_DRAG_ACTIVE disarm — no valid paths (rejected {rejected})");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    _fileDragSessionPaths = filtered;
+                    _fileDragSessionActive = true;
+                    _fileDragButtonUpSinceMs = 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE arm paths={filtered.Length} hwnd=0x{_hostWindowHandle:X} wv=0x{WebView2DropTargetService.RegisteredWebViewHwnd:X}");
+                    return;
+                }
+
+                if (type == "OLE_ESCALATE_NOW")
+                {
+                    var why = "fe";
+                    if (root.TryGetProperty("payload", out var escPayload)
+                        && escPayload.ValueKind == JsonValueKind.Object
+                        && escPayload.TryGetProperty("why", out var whyEl))
+                    {
+                        why = whyEl.GetString() ?? "fe";
+                    }
+                    OleDndLog($"OLE_ESCALATE_NOW ignored (boundary START_DRAG only) why={why}");
+                    return;
+                }
+
+                if (type == "START_DRAG")
+                {
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag()) return;
+                    var payload = root.TryGetProperty("payload", out var p) ? p : default;
+                    if (payload.ValueKind != JsonValueKind.Object) return;
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pe in pathsEl.EnumerateArray())
+                        {
+                            var s = pe.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) paths.Add(NormalizeFsPath(s));
+                        }
+                    }
+                    else if (payload.TryGetProperty("path", out var pathEl))
+                    {
+                        var single = pathEl.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(single)) paths.Add(NormalizeFsPath(single));
+                    }
+                    if (paths.Count == 0) return;
+                    ClearFileDragSession();
+                    var filteredStart = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedStart);
+                    if (filteredStart.Length == 0)
+                    {
+                        OleDndLog($"START_DRAG reject all (rejected {rejectedStart})");
+                        return;
+                    }
+                    QueueStartDragOnNextTick(filteredStart);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OleDrag] HandleDragNotifySync: {ex.Message}");
+            }
+        }
 
         /// <summary>Sync wrapper for callers that still expect a string return on the UI thread.</summary>
         public string HandleBackendHostIpc(string requestJson)
@@ -784,17 +1956,16 @@ namespace BNDZ.Services
                 }
 
                 // Notify-only / fire-and-forget — acknowledge without waiting on a RESULT.
-                if (string.Equals(type, "BNDZ_UI_READY", StringComparison.Ordinal)
-                    || string.Equals(type, "UI_READY", StringComparison.Ordinal)
-                    || string.Equals(type, "NOTIFY_UI_READY", StringComparison.Ordinal)
-                    || string.Equals(type, "EXTERNAL_DRAG_HOVER_REPORT", StringComparison.Ordinal))
+                // Opening apps/files and navigate side-channels post these without expecting a reply;
+                // waiting 60s for a RESULT that never comes freezes the host pipe.
+                if (IsNotifyOnlyIpcType(type))
                 {
                     _ = ProcessIncomingIpcMessageAsync(messageStr);
                     return JsonSerializer.Serialize(new
                     {
                         type = "UI_READY_ACK",
                         id,
-                        payload = new { ok = true, mode = "backend-host" },
+                        payload = new { ok = true, mode = "backend-host", notify = type },
                     }, opts);
                 }
 
@@ -890,6 +2061,7 @@ namespace BNDZ.Services
         {
             try
             {
+                try { _hostActivateMainAction?.Invoke(); } catch { /* best-effort */ }
                 ShowAndActivate();
                 if (!HasLiveUiTransport())
                 {
@@ -970,6 +2142,8 @@ namespace BNDZ.Services
             _automationWatcher.Dispose();
             _automationScheduler.Dispose();
             try { _ramStagingService?.Dispose(); } catch { /* best effort flush */ }
+            try { _osQuickLook?.Dispose(); } catch { /* ignore */ }
+            try { _globalHotkeys.Dispose(); } catch { /* ignore */ }
             _trayService?.Dispose();
             // headless
         }
@@ -1013,15 +2187,34 @@ namespace BNDZ.Services
         private static string NormalizeFsPath(string path)
         {
             if (string.IsNullOrEmpty(path)) return "";
+            // Preserve Remote Mesh virtual paths (/mesh/…) — never mangle to Windows FS shape.
+            var trimmed = path.Trim().Trim('"');
+            var meshProbe = trimmed.Replace('\\', '/');
+            if (!meshProbe.StartsWith('/')) meshProbe = "/" + meshProbe;
+            if (Mesh.MeshPath.IsMeshPath(meshProbe))
+                return Mesh.MeshPath.Normalize(meshProbe);
+
+            // Prefer existence-checked sanitize for drag/FS ops; fall back to shape normalize.
+            var clean = BndzOutboundDragHelper.SanitizeExistingPath(path, out _);
+            if (!string.IsNullOrEmpty(clean)) return clean!;
+
             if (path.StartsWith("::{")) return path;
             if (path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)) return path;
-            if (path.StartsWith("/")) path = path.Substring(1);
-            path = path.Replace("/", "\\");
-            while (path.Contains("\\\\")) path = path.Replace("\\\\", "\\");
-            if (path.StartsWith("\\") && path.Length >= 3 && char.IsLetter(path[1]) && path[2] == ':')
-                path = path.TrimStart('\\');
-            if (path.EndsWith(":") && path.Length == 2) path += "\\";
-            return path;
+            var p = trimmed;
+            try
+            {
+                if (p.StartsWith("file:", StringComparison.OrdinalIgnoreCase)
+                    && Uri.TryCreate(p, UriKind.Absolute, out var uri) && uri.IsFile)
+                    p = uri.LocalPath;
+            }
+            catch { /* keep */ }
+            if (p.StartsWith("/")) p = p.Substring(1);
+            p = p.Replace("/", "\\");
+            while (p.Contains("\\\\")) p = p.Replace("\\\\", "\\");
+            if (p.StartsWith("\\") && p.Length >= 3 && char.IsLetter(p[1]) && p[2] == ':')
+                p = p.TrimStart('\\');
+            if (p.EndsWith(":") && p.Length == 2) p += "\\";
+            return p;
         }
 
         private static string ExpandShellTemplate(string template, string workingDir, string itemPath, string command)
@@ -1131,6 +2324,9 @@ namespace BNDZ.Services
 
         private DateTime _lastExternalDropUtc = DateTime.MinValue;
         private string? _lastExternalDropFingerprint;
+        /// <summary>Last real folder the browser listed — host inbound commit fallback target.</summary>
+        private string? _lastBrowserFolderWinPath;
+        private int _inboundHostFallbackSeq;
         private double? _lastExternalDragWebViewX;
         private double? _lastExternalDragWebViewY;
         /// <summary>Environment.TickCount64 at the last PostExternalFileDragHover call — throttle guard.</summary>
@@ -1149,8 +2345,10 @@ namespace BNDZ.Services
         private void PostNavigationFileDrop(string localPath)
         {
             if (string.IsNullOrWhiteSpace(localPath)) return;
-            var fallbackX = MainWebView.ActualWidth > 0 ? MainWebView.ActualWidth / 2 : 400;
-            var fallbackY = MainWebView.ActualHeight > 0 ? MainWebView.ActualHeight / 2 : 300;
+            var viewW = MainWebView.ActualWidth > 0 ? MainWebView.ActualWidth : _headlessWebViewClientWidth;
+            var viewH = MainWebView.ActualHeight > 0 ? MainWebView.ActualHeight : _headlessWebViewClientHeight;
+            var fallbackX = viewW > 0 ? viewW / 2 : 400;
+            var fallbackY = viewH > 0 ? viewH / 2 : 300;
             var pt = ResolveDropCoords(new System.Windows.Point(
                 _lastExternalDragWebViewX ?? fallbackX,
                 _lastExternalDragWebViewY ?? fallbackY));
@@ -1159,8 +2357,11 @@ namespace BNDZ.Services
 
         private bool IsValidWebViewCoord(double x, double y)
         {
-            if (MainWebView.ActualWidth <= 0 || MainWebView.ActualHeight <= 0) return false;
-            return x >= 0 && y >= 0 && x <= MainWebView.ActualWidth && y <= MainWebView.ActualHeight;
+            var w = MainWebView.ActualWidth > 0 ? MainWebView.ActualWidth : _headlessWebViewClientWidth;
+            var h = MainWebView.ActualHeight > 0 ? MainWebView.ActualHeight : _headlessWebViewClientHeight;
+            if (w <= 0 || h <= 0)
+                return x >= 0 && y >= 0;
+            return x >= 0 && y >= 0 && x <= w && y <= h;
         }
 
         private System.Windows.Point ResolveDropCoords(System.Windows.Point dropPt)
@@ -1235,38 +2436,67 @@ namespace BNDZ.Services
         }
         /// <summary>True while BNDZ-initiated DoDragDrop is running (OLE re-entry into our window).</summary>
         private bool _bndzOleDragActive;
+        private long _oleDragArmedAtMs;
+        private bool _fileDragSessionActive;
+        private string[]? _fileDragSessionPaths;
+        /// <summary>Tick when LBUTTON was first observed up while an armed session stayed inside the host.</summary>
+        private long _fileDragButtonUpSinceMs;
+        private long _lastProactiveGhostDismissMs;
+
+        private bool TryClearStaleOleDrag()
+        {
+            if (!_bndzOleDragActive) return false;
+            if (Environment.TickCount64 - _oleDragArmedAtMs < 8000) return false;
+            OleDndLog("force-clear stale ole drag");
+            _bndzOleDragActive = false;
+            _oleDragArmedAtMs = 0;
+            try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
+            catch { /* ignore */ }
+            return true;
+        }
 
         /// <summary>
-        /// Attach a shell drag image via IDragSourceHelper::InitializeFromWindow (Explorer-class ghost).
+        /// Attach an Explorer-class drag ghost. WebView2 HWNDs do not handle DI_GETDRAGIMAGE,
+        /// so we must use <c>InitializeFromBitmap</c> (not InitializeFromWindow).
+        /// Returns the (possibly wrapped) data object that must be passed to DoDragDrop.
         /// </summary>
-        private void AttachShellDragImage(System.Windows.DataObject dataObject, string[] paths)
+        private object AttachShellDragImage(object dataObject, string[] paths)
         {
-            if (dataObject == null || paths == null || paths.Length == 0) return;
+            if (dataObject == null || paths == null || paths.Length == 0) return dataObject!;
             try
             {
-                var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
-                if (hwnd == IntPtr.Zero) return;
-
-                var clsid = Type.GetTypeFromCLSID(new Guid("DE5BF786-477A-11D2-839D-00C04FD918D0"));
-                if (clsid == null) return;
-                var helperObj = Activator.CreateInstance(clsid);
-                if (helperObj is not Vanara.PInvoke.Shell32.IDragSourceHelper helper) return;
-
-                var oleUnk = System.Runtime.InteropServices.Marshal.GetIUnknownForObject(dataObject);
+                System.Runtime.InteropServices.ComTypes.IDataObject? comData =
+                    dataObject as System.Runtime.InteropServices.ComTypes.IDataObject;
+                IntPtr oleUnk = IntPtr.Zero;
                 try
                 {
-                    var comData = (System.Runtime.InteropServices.ComTypes.IDataObject)
-                        System.Runtime.InteropServices.Marshal.GetObjectForIUnknown(oleUnk);
-                    helper.InitializeFromWindow(new Vanara.PInvoke.HWND(hwnd), IntPtr.Zero, comData);
+                    if (comData is null)
+                    {
+                        oleUnk = System.Runtime.InteropServices.Marshal.GetIUnknownForObject(dataObject);
+                        comData = (System.Runtime.InteropServices.ComTypes.IDataObject)
+                            System.Runtime.InteropServices.Marshal.GetObjectForIUnknown(oleUnk)!;
+                    }
+                    var original = comData;
+                    if (BndzShellDragImage.TryAttach(ref comData, paths))
+                        OleDndLog($"shell drag image attached count={paths.Length}");
+                    else
+                    {
+                        comData = original;
+                        OleDndLog("shell drag image attach skipped/failed — continuing with owned-hdrop IDataObject");
+                    }
+                    return comData;
                 }
                 finally
                 {
-                    System.Runtime.InteropServices.Marshal.Release(oleUnk);
+                    if (oleUnk != IntPtr.Zero)
+                        System.Runtime.InteropServices.Marshal.Release(oleUnk);
                 }
             }
             catch (Exception ex)
             {
+                OleDndLog($"shell drag image error {ex.Message}");
                 Debug.WriteLine($"[START_DRAG] IDragSourceHelper: {ex.Message}");
+                return dataObject;
             }
         }
 
@@ -1324,7 +2554,204 @@ namespace BNDZ.Services
                 },
             };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            PostToUi(() => DeliverIpcJson(json));
+            var pushTargets = 0;
+            try { pushTargets = BndzEmbeddedBackendHost.PushTargetCount; } catch { /* ignore */ }
+            try
+            {
+                WebView2DropTargetService.AppendOleDndLogPublic(
+                    $"Post EXTERNAL_FILES_DROPPED paths={paths.Length} effect={effect} coord={coordSource} wv=({webViewX:F0},{webViewY:F0}) push={(_pushWebMessage != null)} pushTargets={pushTargets} dest={_lastBrowserFolderWinPath ?? "?"}");
+            }
+            catch { /* never break drop on log */ }
+
+            // Dedicated drop path — must not rely on PushTargets alone (push=True ≠ targets>0).
+            try { BndzEmbeddedBackendHost.DeliverExternalDropJson(json); }
+            catch (Exception ex)
+            {
+                try { WebView2DropTargetService.AppendOleDndLogPublic($"DeliverExternalDropJson error {ex.Message}"); }
+                catch { /* ignore */ }
+                PostToUi(() => DeliverIpcJson(json));
+            }
+
+            // If React never commits, host moves/copies into the last listed folder after a short delay.
+            ScheduleInboundHostFallback(paths, effect);
+        }
+
+        private void RememberBrowserFolder(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            try
+            {
+                var win = path.Replace('/', '\\').Trim();
+                if (win.StartsWith("\\\\", StringComparison.Ordinal)) { /* UNC ok */ }
+                else if (win.Length >= 2 && win[1] == ':') { /* drive ok */ }
+                else return;
+                if (win.IndexOfAny(System.IO.Path.GetInvalidPathChars()) >= 0) return;
+                // Only track real filesystem folders (not virtual panes).
+                if (!System.IO.Directory.Exists(win)) return;
+                _lastBrowserFolderWinPath = win.TrimEnd('\\');
+            }
+            catch { /* ignore */ }
+        }
+
+        /// <summary>
+        /// Host-side inbound commit when FE never receives EXTERNAL_FILES_DROPPED.
+        /// Skips if sources already gone (FE committed) or dest already has the leaf.
+        /// </summary>
+        private void ScheduleInboundHostFallback(string[] paths, string effect)
+        {
+            if (paths is not { Length: > 0 }) return;
+            var seq = Interlocked.Increment(ref _inboundHostFallbackSeq);
+            var captured = paths.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var move = string.Equals(effect, "move", StringComparison.OrdinalIgnoreCase);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(450).ConfigureAwait(false);
+                    if (seq != Volatile.Read(ref _inboundHostFallbackSeq)) return;
+
+                    var dest = _lastBrowserFolderWinPath;
+                    if (string.IsNullOrWhiteSpace(dest) || !System.IO.Directory.Exists(dest))
+                    {
+                        try
+                        {
+                            WebView2DropTargetService.AppendOleDndLogPublic(
+                                $"inbound-host-fallback skip — no dest folder (seq={seq})");
+                        }
+                        catch { /* ignore */ }
+                        return;
+                    }
+
+                    var stillThere = new List<string>();
+                    foreach (var src in captured)
+                    {
+                        var exists = System.IO.File.Exists(src) || System.IO.Directory.Exists(src);
+                        if (!exists) continue;
+                        var leaf = System.IO.Path.GetFileName(src.TrimEnd('\\', '/'));
+                        if (string.IsNullOrEmpty(leaf)) continue;
+                        var destPath = System.IO.Path.Combine(dest, leaf);
+                        if (System.IO.File.Exists(destPath) || System.IO.Directory.Exists(destPath))
+                            continue; // FE already landed it
+                        var srcParent = System.IO.Path.GetDirectoryName(src.TrimEnd('\\', '/'));
+                        if (!string.IsNullOrEmpty(srcParent)
+                            && string.Equals(
+                                srcParent.TrimEnd('\\'),
+                                dest.TrimEnd('\\'),
+                                StringComparison.OrdinalIgnoreCase))
+                            continue; // already in dest
+                        stillThere.Add(src);
+                    }
+
+                    if (stillThere.Count == 0)
+                    {
+                        try
+                        {
+                            WebView2DropTargetService.AppendOleDndLogPublic(
+                                $"inbound-host-fallback skip — FE already committed (seq={seq})");
+                        }
+                        catch { /* ignore */ }
+                        return;
+                    }
+
+                    try
+                    {
+                        WebView2DropTargetService.AppendOleDndLogPublic(
+                            $"inbound-host-fallback {(move ? "MOVE" : "COPY")} count={stillThere.Count} -> {dest}");
+                    }
+                    catch { /* ignore */ }
+
+                    var opId = "inbound-host-" + Guid.NewGuid().ToString("N");
+                    await _fileOperationService.ExecuteOperationAsync(
+                        opId,
+                        move ? "move" : "copy",
+                        stillThere,
+                        dest,
+                        bypassRecycleBin: false,
+                        recordActionLog: true).ConfigureAwait(false);
+
+                    // Push Created + Deleted so the list refreshes even when FE never saw the drop.
+                    var batch = new List<object>();
+                    foreach (var src in stillThere)
+                    {
+                        var leaf = System.IO.Path.GetFileName(src.TrimEnd('\\', '/'));
+                        if (string.IsNullOrEmpty(leaf)) continue;
+                        var destPane = dest.Replace("\\", "/");
+                        if (destPane.Length >= 2 && char.IsLetter(destPane[0]) && destPane[1] == ':' && !destPane.StartsWith('/'))
+                            destPane = "/" + destPane;
+                        batch.Add(new { type = "Created", dir = destPane, name = leaf, oldName = (string?)null });
+                        if (move)
+                        {
+                            var srcDir = System.IO.Path.GetDirectoryName(src);
+                            if (!string.IsNullOrEmpty(srcDir))
+                            {
+                                var srcPane = srcDir.Replace("\\", "/");
+                                if (srcPane.Length >= 2 && char.IsLetter(srcPane[0]) && srcPane[1] == ':' && !srcPane.StartsWith('/'))
+                                    srcPane = "/" + srcPane;
+                                batch.Add(new { type = "Deleted", dir = srcPane, name = leaf, oldName = (string?)null });
+                            }
+                        }
+                    }
+                    if (batch.Count > 0)
+                    {
+                        var payload = new { type = "FS_EVENT_BATCH", payload = batch };
+                        var fsJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                        PostToUi(() => DeliverIpcJson(fsJson));
+                    }
+
+                    // Explicit FE nudge — guarantees list refresh even if FS watcher debounce lags.
+                    try
+                    {
+                        var destPane = dest.Replace("\\", "/");
+                        if (destPane.Length >= 2 && char.IsLetter(destPane[0]) && destPane[1] == ':' && !destPane.StartsWith('/'))
+                            destPane = "/" + destPane;
+                        var commitMsg = new
+                        {
+                            type = "INBOUND_HOST_COMMITTED",
+                            payload = new
+                            {
+                                dest = destPane,
+                                destWin = dest,
+                                paths = stillThere.ToArray(),
+                                effect = move ? "move" : "copy",
+                            },
+                        };
+                        var commitJson = JsonSerializer.Serialize(commitMsg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                        PostToUi(() => DeliverIpcJson(commitJson));
+                    }
+                    catch { /* ignore */ }
+
+                    try
+                    {
+                        var destPtr = Marshal.StringToHGlobalUni(dest);
+                        try
+                        {
+                            NativeShellService.SHChangeNotify(
+                                0x00001000 /* SHCNE_UPDATEDIR */,
+                                0x0005 | 0x2000, /* SHCNF_PATHW | SHCNF_FLUSHNOWAIT */
+                                destPtr,
+                                IntPtr.Zero);
+                        }
+                        finally { Marshal.FreeHGlobal(destPtr); }
+                    }
+                    catch { /* ignore */ }
+
+                    try
+                    {
+                        WebView2DropTargetService.AppendOleDndLogPublic(
+                            $"inbound-host-fallback ok count={stillThere.Count} -> {dest}");
+                    }
+                    catch { /* ignore */ }
+                }
+                catch (Exception ex)
+                {
+                    try
+                    {
+                        WebView2DropTargetService.AppendOleDndLogPublic(
+                            $"inbound-host-fallback error {ex.Message}");
+                    }
+                    catch { /* ignore */ }
+                }
+            });
         }
 
         private void SetupNativeFileDrop()
@@ -1345,6 +2772,9 @@ namespace BNDZ.Services
                     && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
                     return "move";
                 if (_bndzOleDragActive && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
+                    return "move";
+                // Same-volume desktop/Explorer drops offer Move — prefer it (Explorer default).
+                if ((e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
                     return "move";
                 return "copy";
             }
@@ -1410,7 +2840,8 @@ namespace BNDZ.Services
             RegisterWebView2OleDropTarget();
 
             // Re-register after navigation that might recreate the HWND, and eagerly on idle.
-            MainWebView.CoreWebView2.NavigationCompleted += (_, __) => SyncAllowExternalDrop();
+            if (MainWebView.CoreWebView2 != null)
+                MainWebView.CoreWebView2.NavigationCompleted += (_, __) => SyncAllowExternalDrop();
             _ = BeginInvokeInline(new Action(RegisterWebView2OleDropTarget),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
@@ -1428,14 +2859,22 @@ namespace BNDZ.Services
             // Screen-coords → WebView2-client-coords (handles DPI + ZoomFactor + JS scale).
             System.Windows.Point OleScreenToWebViewClient(double screenX, double screenY)
             {
-                var wvPt = MainWebView.PointFromScreen(new System.Windows.Point(screenX, screenY));
-                try
+                System.Windows.Point wvPt;
+                if (_headlessOleCoordMapper != null)
                 {
-                    var zoom = MainWebView.ZoomFactor;
-                    if (zoom > 0.01 && Math.Abs(zoom - 1.0) > 0.001)
-                        wvPt = new System.Windows.Point(wvPt.X / zoom, wvPt.Y / zoom);
+                    wvPt = _headlessOleCoordMapper(screenX, screenY);
                 }
-                catch { /* best-effort */ }
+                else
+                {
+                    wvPt = MainWebView.PointFromScreen(new System.Windows.Point(screenX, screenY));
+                    try
+                    {
+                        var zoom = MainWebView.ZoomFactor;
+                        if (zoom > 0.01 && Math.Abs(zoom - 1.0) > 0.001)
+                            wvPt = new System.Windows.Point(wvPt.X / zoom, wvPt.Y / zoom);
+                    }
+                    catch { /* best-effort */ }
+                }
                 if (Math.Abs(_webviewJsScaleX - 1.0) > 0.02 || Math.Abs(_webviewJsScaleY - 1.0) > 0.02)
                     wvPt = new System.Windows.Point(wvPt.X * _webviewJsScaleX, wvPt.Y * _webviewJsScaleY);
                 return wvPt;
@@ -1455,12 +2894,29 @@ namespace BNDZ.Services
             }
 
             // onDrop: convert coords, apply dedup guard, post EXTERNAL_FILES_DROPPED.
+            // Always marshal onto WinUI STA — OLE Drop may run off the dispatcher and
+            // PostWebMessageAsJson then silently fails (desktop→list never reaches React).
             void OleDrop(string[] paths, double screenX, double screenY, uint grfEffect, bool fromBndzOle)
             {
-                var pt = OleScreenToWebViewClient(screenX, screenY);
-                var resolved = ResolveDropCoords(pt);
-                var effect = grfEffect == 2u ? "move" : "copy"; // DROPEFFECT_MOVE=2
-                PostExternalFileDrop(paths, resolved.X, resolved.Y, effect, "ole");
+                void Deliver()
+                {
+                    if (paths == null || paths.Length == 0)
+                    {
+                        PostExternalFileDropFailed(Array.Empty<string>(), "No extractable paths in drop payload (OLE path).");
+                        return;
+                    }
+                    var pt = OleScreenToWebViewClient(screenX, screenY);
+                    var resolved = ResolveDropCoords(pt);
+                    var effect = grfEffect == 2u ? "move" : "copy"; // DROPEFFECT_MOVE=2
+                    PostExternalFileDrop(paths, resolved.X, resolved.Y, effect, "ole");
+                }
+
+                if (_hostStaInvokeNextTick != null)
+                    _hostStaInvokeNextTick(Deliver);
+                else if (_hostStaInvoke != null)
+                    _hostStaInvoke(Deliver);
+                else
+                    Deliver();
             }
 
             WebView2DropTargetService.Register(
@@ -1778,11 +3234,21 @@ namespace BNDZ.Services
                 // Never attach GET_DIR_CONTENTS request id on backend-host (pipe would complete
                 // early). Classic WebView may keep id for optional FE correlation.
                 var glyphId = App.IsBackendHost ? null : idProp;
+                var cleanPath = (path ?? "").Replace('\\', '/');
+
+                // Zero-copy SharedBuffer path: skips JSON base64 envelope entirely.
+                var env = _webViewEnvironment;
+                var wv = MainWebView?.CoreWebView2;
+                if (env != null && wv != null &&
+                    IconGlyphSharedBuffer.TryPost(env, wv, "SHELL_GLYPH_MAP", glyphId, cleanPath, glyphs))
+                    return;
+
+                // JSON fallback (backend-host pipe / WebView not ready).
                 var response = new
                 {
                     type = "SHELL_GLYPH_MAP",
                     id = glyphId,
-                    path = (path ?? "").Replace('\\', '/'),
+                    path = cleanPath,
                     payload = glyphs,
                 };
                 var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -1823,10 +3289,37 @@ namespace BNDZ.Services
             }).ConfigureAwait(false);
         }
 
-        private void EnrichDirListingEntries(List<DirListingSharedBuffer.DirEntryDto> entries)
+        private void EnrichDirListingEntries(List<DirListingSharedBuffer.DirEntryDto> entries, string? listingFolderPath = null)
         {
+            FilterTombstonedListingEntries(entries, listingFolderPath);
             DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
             DirListingSharedBuffer.EnrichWithReparseLinks(entries, p => _ghostLinkService.IsGhostLink(p));
+        }
+
+        /// <summary>Hide delete/move/rename sources still in flight so refetch cannot flicker rows back.</summary>
+        private static void FilterTombstonedListingEntries(
+            List<DirListingSharedBuffer.DirEntryDto> entries,
+            string? listingFolderPath)
+        {
+            if (entries == null || entries.Count == 0) return;
+            var store = TombstoneSnapshotStore.Instance;
+            entries.RemoveAll(e => store.IsListingEntryHidden(e.Path, e.Name, listingFolderPath));
+        }
+
+        private static bool ShouldSkipTombstonedEntry(DirListingSharedBuffer.DirEntryDto entry, string listingFolderPath)
+            => TombstoneSnapshotStore.Instance.IsListingEntryHidden(entry.Path, entry.Name, listingFolderPath);
+
+        /// <summary>
+        /// Explorer-parity visibility for tree enumeration: System+Hidden protected folders
+        /// surface when <paramref name="showSystem"/> is on even if ordinary hidden stays off.
+        /// </summary>
+        private static bool ShouldIncludeListedEntry(FileAttributes attrs, bool showHidden, bool showSystem)
+        {
+            var hidden = (attrs & FileAttributes.Hidden) == FileAttributes.Hidden;
+            var system = (attrs & FileAttributes.System) == FileAttributes.System;
+            if (!showHidden && hidden && !(showSystem && system)) return false;
+            if (!showSystem && system) return false;
+            return true;
         }
 
         private async Task StreamDirContentsAsync(string path, string? idProp, CancellationToken ct)
@@ -1839,6 +3332,19 @@ namespace BNDZ.Services
                 var gatePath = HelloGateService.Instance.GetBlockingGatePath(resolvedForGate) ?? resolvedForGate;
                 await PostToUiAsync(() => PostDirContentsError(idProp, path, $"HELLO_GATE_BLOCKED:{gatePath}")).ConfigureAwait(false);
                 return;
+            }
+
+            // ISO / VHD / VHDX virtual folders via DiscUtils
+            if (DiscUtilsVolumeService.IsContainerPath(resolvedForGate ?? path))
+            {
+                var discEntries = await Task.Run(() => DiscUtilsVolumeService.TryList(resolvedForGate ?? path), ct).ConfigureAwait(false);
+                if (discEntries != null)
+                {
+                    FilterTombstonedListingEntries(discEntries, path);
+                    EnrichDirListingEntries(discEntries, path);
+                    await PostDirListingPageAsync(idProp, path, discEntries, partial: false).ConfigureAwait(false);
+                    return;
+                }
             }
 
             // Backend-host pipe: first-paint at 64 rows with embedded glyphs, then full list via GET_DIR_CONTENTS_MORE.
@@ -1855,13 +3361,15 @@ namespace BNDZ.Services
 
                 try
                 {
-                    // First row ASAP — glyph build is deferred on partial paint so C:\ / Videos unblock in ms.
-                    const int pipeFirstPaint = 1;
+                    // First page ASAP — enough rows to fill the viewport without waiting on MORE.
+                    // Glyphs deferred so C:\ / Videos unblock in ms.
+                    const int pipeFirstPaint = 48;
                     var pipeAll = new List<DirListingSharedBuffer.DirEntryDto>();
                     var pipeFirstPosted = false;
 
                     await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, ct).ConfigureAwait(false))
                     {
+                        if (ShouldSkipTombstonedEntry(entry, path)) continue;
                         pipeAll.Add(entry);
                         if (!pipeFirstPosted && pipeAll.Count >= pipeFirstPaint)
                         {
@@ -1874,14 +3382,20 @@ namespace BNDZ.Services
                         }
                     }
 
-                    EnrichDirListingEntries(pipeAll);
                     if (!pipeFirstPosted)
                     {
+                        EnrichDirListingEntries(pipeAll, path);
                         _backendHostListingFirstPaintCounts[key] = 0;
                         await PostBackendHostDirPageAsync(idProp, path, pipeAll, partial: false).ConfigureAwait(false);
+                        listingTcs.TrySetResult(pipeAll);
                     }
-
-                    listingTcs.TrySetResult(pipeAll);
+                    else
+                    {
+                        // Unblock GET_DIR_CONTENTS_MORE before tag/reparse enrich so folder fill
+                        // is not stuck behind metadata work after first paint.
+                        listingTcs.TrySetResult(pipeAll);
+                        EnrichDirListingEntries(pipeAll, path);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1909,6 +3423,7 @@ namespace BNDZ.Services
 
             await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, ct).ConfigureAwait(false))
             {
+                if (ShouldSkipTombstonedEntry(entry, path)) continue;
                 all.Add(entry);
                 pending.Add(entry);
 
@@ -1927,8 +3442,8 @@ namespace BNDZ.Services
 
             if (!firstPosted)
             {
+                EnrichDirListingEntries(all, path);
                 await PostDirListingPageAsync(idProp, path, all, partial: false).ConfigureAwait(false);
-                EnrichDirListingEntries(all);
                 if (all.Count > 0)
                     await PostDirListingAppendAsync(idProp, path, all).ConfigureAwait(false);
                 return;
@@ -1937,7 +3452,7 @@ namespace BNDZ.Services
             if (pending.Count > 0)
                 await PostDirListingStreamAsync(idProp, path, pending).ConfigureAwait(false);
 
-            EnrichDirListingEntries(all);
+            EnrichDirListingEntries(all, path);
             await PostDirListingAppendAsync(idProp, path, all).ConfigureAwait(false);
         }
 
@@ -2020,30 +3535,30 @@ namespace BNDZ.Services
                 batch.Add(ev);
             }
 
-            foreach (var raw in batch)
-            {
-                try
-                {
-                    var evJson = JsonSerializer.Serialize(raw);
-                    using var doc = JsonDocument.Parse(evJson);
-                    var root = doc.RootElement;
-                    var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
-                    var dir = root.TryGetProperty("dir", out var d) ? d.GetString() : null;
-                    var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
-                    var oldName = root.TryGetProperty("oldName", out var o) ? o.GetString() : null;
-                    if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(name))
-                        BndzFileIndexService.Instance.ApplyFsEvent(type, dir, name, oldName);
-                }
-                catch { }
-            }
-
+            // Deliver to FE first — ApplyFsEvent can block on the index write lock for a long time
+            // and previously delayed OLE MOVE list updates by ~50s.
             var payload = new { type = "FS_EVENT_BATCH", payload = batch };
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => DeliverIpcJson(json));
 
-            PostToUi(() => 
+            _ = Task.Run(() =>
             {
-                // Send batched payload back to the React frontend
-                DeliverIpcJson(json);
+                foreach (var raw in batch)
+                {
+                    try
+                    {
+                        var evJson = JsonSerializer.Serialize(raw);
+                        using var doc = JsonDocument.Parse(evJson);
+                        var root = doc.RootElement;
+                        var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                        var dir = root.TryGetProperty("dir", out var d) ? d.GetString() : null;
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+                        var oldName = root.TryGetProperty("oldName", out var o) ? o.GetString() : null;
+                        if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(name))
+                            BndzFileIndexService.Instance.ApplyFsEvent(type, dir, name, oldName);
+                    }
+                    catch { /* index lag must not block listing */ }
+                }
             });
         }
 
@@ -2105,8 +3620,7 @@ namespace BNDZ.Services
                 }
             }
 
-            if (true) Kickoff();
-            else _ = BeginInvokeInline(Kickoff);
+            Kickoff();
 
             try
             {
@@ -2135,7 +3649,9 @@ namespace BNDZ.Services
             if (!HasLiveUiTransport())
                 throw new InvalidOperationException("CoreWebView2 not ready");
 
-            var raw = await MainWebView.CoreWebView2
+            var coreForGpu = MainWebView.CoreWebView2
+                ?? throw new InvalidOperationException("CoreWebView2 not ready");
+            var raw = await coreForGpu
                 .CallDevToolsProtocolMethodAsync("SystemInfo.getInfo", "{}")
                 .ConfigureAwait(true);
 
@@ -2295,7 +3811,8 @@ namespace BNDZ.Services
                     "--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
                     "--enable-features=CanvasOopRasterization " +
                     "--disable-features=CalculateNativeWinOcclusion " +
-                    "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist",
+                    "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist " +
+                    "--unsafely-treat-insecure-origin-as-secure=http://bndz.local,https://bndz.local",
                 customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme, mediaScheme });
 
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -2317,9 +3834,12 @@ namespace BNDZ.Services
             if (!HasLiveUiTransport())
                 throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
 
+            var coreWv = MainWebView.CoreWebView2
+                ?? throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
+
             // Suppress Edge/WebView2 default context menus — BNDZ uses custom React menus only
-            MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-            MainWebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            coreWv.Settings.AreDefaultContextMenusEnabled = false;
+            coreWv.Settings.AreBrowserAcceleratorKeysEnabled = false;
             // Match chrome so compositor never flashes white behind the UI (native feel).
             try { MainWebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 22, 24, 31); } catch { /* older runtimes */ }
             // Probe Chromium GPU/compositor status once — Perf HUD reports real adapter, not assumed flags.
@@ -2330,7 +3850,7 @@ namespace BNDZ.Services
                 if (Math.Abs(MainWebView.ZoomFactor - 1.0) > 0.001)
                     MainWebView.ZoomFactor = 1.0;
             };
-            MainWebView.CoreWebView2.ContextMenuRequested += (_, e) => e.Handled = true;
+            coreWv.ContextMenuRequested += (_, e) => e.Handled = true;
 
             string uiPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "ui");
             if (!System.IO.Directory.Exists(uiPath)) {
@@ -2338,47 +3858,47 @@ namespace BNDZ.Services
             }
 
             // Map virtual host to the UI folder for all static assets (index.html, JS, CSS, PNG icons)
-            MainWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            coreWv.SetVirtualHostNameToFolderMapping(
                 "bndz.local", uiPath,
                 Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
 
             // Register WebResourceRequested BEFORE navigation so it can intercept asset requests
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "http://bndz.local/assets/3d/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
             var allSources = Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestSourceKinds.All;
             // CAS icons/thumbs via custom scheme (folder mapping on bndz.local cannot serve these).
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 $"{BndzMediaScheme.CustomScheme}:*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
             // Local file streaming via custom scheme (not under bndz.local folder mapping)
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 $"{LocalStreamService.CustomScheme}:*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
             // Legacy filters kept so old cached UI builds still hit the handler if they somehow resolve
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "http://bndz.local/local-stream/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "https://bndz.local/local-stream/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
             // Legacy native-icon under folder map — intercept if Chromium still requests them from stale L1.
-            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+            coreWv.AddWebResourceRequestedFilter(
                 "http://bndz.local/assets/native-icon/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
-            MainWebView.CoreWebView2.WebResourceRequested += CoreWebView2_WebResourceRequested;
+            coreWv.WebResourceRequested += CoreWebView2_WebResourceRequested;
 
-            MainWebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
-            MainWebView.CoreWebView2.ProcessFailed += CoreWebView2_ProcessFailed;
+            coreWv.WebMessageReceived += CoreWebView2_WebMessageReceived;
+            coreWv.ProcessFailed += CoreWebView2_ProcessFailed;
 
             SetupNativeFileDrop();
 
-            MainWebView.CoreWebView2.NavigationStarting += (s, e) =>
+            coreWv.NavigationStarting += (s, e) =>
             {
                 if (!e.Uri.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) return;
                 e.Cancel = true;
@@ -2389,7 +3909,7 @@ namespace BNDZ.Services
                 catch { }
             };
 
-            MainWebView.CoreWebView2.NewWindowRequested += (s, e) =>
+            coreWv.NewWindowRequested += (s, e) =>
             {
                 e.Handled = true;
                 try
@@ -2452,12 +3972,14 @@ namespace BNDZ.Services
                 // the new renderer HWND is live.
                 try
                 {
+                    var core = MainWebView.CoreWebView2;
+                    if (core == null) return;
                     void ReregisterOnNavComplete(object? s, CoreWebView2NavigationCompletedEventArgs _ev)
                     {
-                        MainWebView.CoreWebView2.NavigationCompleted -= ReregisterOnNavComplete;
+                        core.NavigationCompleted -= ReregisterOnNavComplete;
                         RegisterWebView2OleDropTarget();
                     }
-                    MainWebView.CoreWebView2.NavigationCompleted += ReregisterOnNavComplete;
+                    core.NavigationCompleted += ReregisterOnNavComplete;
                     MainWebView.Reload();
                 }
                 catch { }
@@ -2559,15 +4081,21 @@ namespace BNDZ.Services
                     catch { /* best-effort */ }
                     PostToUi(FlushPendingOpenPath);
                     PostToUi(FlushPendingPluginWindow);
+                    PostToUi(FlushPendingUiPushQueue);
                     PushDrivesUpdate();
                     // Offload I/O-bound startup work off the UI/IPC thread to avoid hitching
                     // the WebView message pump at first paint.
                     _ = Task.Run(() =>
                     {
-                        try { InboundVolumeService.Instance.StartWatching(); } catch { }
                         try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
+                        try { InboundVolumeService.Instance.CapStoredEntries(48); } catch { }
+                        try { CaptureInboxService.Instance.CapStoredCaptures(48); } catch { }
                         try { WarmKnownFolderGlyphs(); } catch { }
                     });
+                }
+                else if (type == "BNDZ_QUICK_LOOK_CLOSED")
+                {
+                    _osQuickLookOpen = false;
                 }
                 else if (type == "EXECUTE_BATCH_RENAME")
                 {
@@ -2705,8 +4233,76 @@ namespace BNDZ.Services
                         DeliverIpcJson(JsonSerializer.Serialize(response));
                     });
                 }
+                else if (type == "FILE_DRAG_ACTIVE")
+                {
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag())
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE ignored (async) — native DoDragDrop in progress");
+                        return;
+                    }
+                    var payload = root.TryGetProperty("payload", out var p) ? p : default;
+                    var active = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("active", out var aEl)
+                        && aEl.ValueKind == JsonValueKind.True;
+                    var recvPathCountAsync = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("paths", out var recvPathsElAsync)
+                        && recvPathsElAsync.ValueKind == JsonValueKind.Array
+                        ? recvPathsElAsync.GetArrayLength()
+                        : 0;
+                    var recvRejCountAsync = payload.ValueKind == JsonValueKind.Object
+                        && payload.TryGetProperty("rejected", out var recvRejElAsync)
+                        && recvRejElAsync.ValueKind == JsonValueKind.Array
+                        ? recvRejElAsync.GetArrayLength()
+                        : 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE recv async active={active} paths={recvPathCountAsync} feRejected={recvRejCountAsync}");
+                    LogFileDragFeRejects(payload);
+                    if (!active)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) — active=false from FE");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pe in pathsEl.EnumerateArray())
+                        {
+                            var s = pe.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) paths.Add(NormalizeFsPath(s));
+                        }
+                    }
+                    if (paths.Count == 0)
+                    {
+                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) — FE sent zero paths after filter");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    var filteredAsync = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedAsync);
+                    if (filteredAsync.Length == 0)
+                    {
+                        OleDndLog($"FILE_DRAG_ACTIVE disarm (async) — no valid paths (rejected {rejectedAsync})");
+                        ClearFileDragSession();
+                        return;
+                    }
+                    _fileDragSessionPaths = filteredAsync;
+                    _fileDragSessionActive = true;
+                    _fileDragButtonUpSinceMs = 0;
+                    OleDndLog($"FILE_DRAG_ACTIVE arm (async) paths={filteredAsync.Length}");
+                }
+                else if (type == "OLE_ESCALATE_NOW")
+                {
+                    var whyAsync = "fe";
+                    if (root.TryGetProperty("payload", out var escPayloadAsync)
+                        && escPayloadAsync.ValueKind == JsonValueKind.Object
+                        && escPayloadAsync.TryGetProperty("why", out var whyElAsync))
+                    {
+                        whyAsync = whyElAsync.GetString() ?? "fe";
+                    }
+                    OleDndLog($"OLE_ESCALATE_NOW ignored async (boundary START_DRAG only) why={whyAsync}");
+                }
                 else if (type == "START_DRAG")
                 {
+                    if (_bndzOleDragActive && !TryClearStaleOleDrag()) return;
                     var payload = root.GetProperty("payload");
                     var paths = new List<string>();
                     if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
@@ -2723,45 +4319,14 @@ namespace BNDZ.Services
                         if (!string.IsNullOrWhiteSpace(single)) paths.Add(NormalizeFsPath(single));
                     }
                     if (paths.Count == 0) return;
-                    var pathArray = paths.ToArray();
-
-                    // DoDragDrop must run synchronously while the mouse button is still down.
-                    void RunOleDrag()
+                    ClearFileDragSession();
+                    var filteredStartAsync = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedStartAsync);
+                    if (filteredStartAsync.Length == 0)
                     {
-                        try
-                        {
-                            // _bndzOleDragActive lets our IDropTarget recognise internal re-entry
-                            // and honour move intent when the drag lands back on BNDZ.
-                            _bndzOleDragActive = true;
-                            var dataObject = new System.Windows.DataObject();
-                            dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
-                            // Explorer interop: Preferred DropEffect = Copy|Link (5). Ctrl/Shift still toggle.
-                            dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(5)));
-                            try
-                            {
-                                // Shell multi-file drag image when available (IDragSourceHelper).
-                                AttachShellDragImage(dataObject, pathArray);
-                            }
-                            catch (Exception dragImgEx)
-                            {
-                                Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}");
-                            }
-                            System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"[START_DRAG] {ex.Message}");
-                        }
-                        finally
-                        {
-                            _bndzOleDragActive = false;
-                        }
+                        OleDndLog($"START_DRAG async reject all (rejected {rejectedStartAsync})");
+                        return;
                     }
-
-                    if (true)
-                        RunOleDrag();
-                    else
-                        InvokeInline(RunOleDrag);
+                    PostToUi(() => QueueStartDragOnNextTick(filteredStartAsync));
                 }
                 else if (type == "CLEAR_THUMBNAIL_CACHE")
                 {
@@ -2826,128 +4391,138 @@ namespace BNDZ.Services
                     if (workingDir.StartsWith("/")) workingDir = workingDir.Substring(1);
                     workingDir = workingDir.Replace("/", "\\");
                     
-                    if (action == "open")
-                    {
-                        _shellIntegrationService.ExecuteFile(path);
-                    }
-                    else if (action == "executeScript")
-                    {
-                        string scriptPath = path;
-                        if (!Path.IsPathRooted(scriptPath))
-                            scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptPath);
-                        if (File.Exists(scriptPath))
-                        {
-                            try
-                            {
-                                var psi = new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = scriptPath,
-                                    UseShellExecute = true,
-                                };
-                                if (!string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir))
-                                    psi.WorkingDirectory = workingDir;
-                                System.Diagnostics.Process.Start(psi);
-                            }
-                            catch { }
-                        }
-                    }
-                    else if (action == "openTerminal")
-                    {
-                        var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-                        if (!string.IsNullOrEmpty(startPath)) {
-                            try { StartShellProcess(startPath, null, shellElement); } catch { }
-                        }
-                    }
-                    else if (action == "runCommand")
-                    {
-                        // Raw user command from Shell Menus plugin — must not be path-normalized
-                        string rawCmd = pathElement.ValueKind == JsonValueKind.String
-                            ? pathElement.GetString() ?? ""
-                            : path;
-                        if (!string.IsNullOrWhiteSpace(rawCmd))
-                        {
-                            try
-                            {
-                                var startPath = !string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir)
-                                    ? workingDir
-                                    : (Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? "");
-                                StartShellProcess(startPath, rawCmd, shellElement);
-                            }
-                            catch { }
-                        }
-                    }
-                    else if (action == "openExplorer")
+                    // Off the IPC message pump — ShellExecute/COM must not contend with folder open.
+                    _ = Task.Run(() =>
                     {
                         try
                         {
-                            if (File.Exists(path))
+                            if (action == "open")
                             {
-                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = "explorer.exe",
-                                    Arguments = $"/select,\"{path}\"",
-                                    UseShellExecute = true,
-                                });
+                                _shellIntegrationService.ExecuteFile(path);
                             }
-                            else
+                            else if (action == "executeScript")
                             {
-                                var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-                                if (!string.IsNullOrEmpty(startPath) && Directory.Exists(startPath))
+                                string scriptPath = path;
+                                if (!Path.IsPathRooted(scriptPath))
+                                    scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptPath);
+                                if (File.Exists(scriptPath))
                                 {
-                                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                    try
                                     {
-                                        FileName = "explorer.exe",
-                                        Arguments = $"\"{startPath}\"",
-                                        UseShellExecute = true,
-                                    });
+                                        var psi = new System.Diagnostics.ProcessStartInfo
+                                        {
+                                            FileName = scriptPath,
+                                            UseShellExecute = true,
+                                        };
+                                        if (!string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir))
+                                            psi.WorkingDirectory = workingDir;
+                                        System.Diagnostics.Process.Start(psi);
+                                    }
+                                    catch { }
                                 }
                             }
+                            else if (action == "openTerminal")
+                            {
+                                var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+                                if (!string.IsNullOrEmpty(startPath)) {
+                                    try { StartShellProcess(startPath, null, shellElement); } catch { }
+                                }
+                            }
+                            else if (action == "runCommand")
+                            {
+                                // Raw user command from Shell Menus plugin — must not be path-normalized
+                                string rawCmd = pathElement.ValueKind == JsonValueKind.String
+                                    ? pathElement.GetString() ?? ""
+                                    : path;
+                                if (!string.IsNullOrWhiteSpace(rawCmd))
+                                {
+                                    try
+                                    {
+                                        var startPath = !string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir)
+                                            ? workingDir
+                                            : (Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? "");
+                                        StartShellProcess(startPath, rawCmd, shellElement);
+                                    }
+                                    catch { }
+                                }
+                            }
+                            else if (action == "openExplorer")
+                            {
+                                try
+                                {
+                                    if (File.Exists(path))
+                                    {
+                                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                        {
+                                            FileName = "explorer.exe",
+                                            Arguments = $"/select,\"{path}\"",
+                                            UseShellExecute = true,
+                                        });
+                                    }
+                                    else
+                                    {
+                                        var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+                                        if (!string.IsNullOrEmpty(startPath) && Directory.Exists(startPath))
+                                        {
+                                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                            {
+                                                FileName = "explorer.exe",
+                                                Arguments = $"\"{startPath}\"",
+                                                UseShellExecute = true,
+                                            });
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                            else if (action == "openWith")
+                            {
+                                PostToUi(() => {
+                                    try {
+                                        var processInfo = new System.Diagnostics.ProcessStartInfo("Rundll32.exe", $"shell32.dll,OpenAs_RunDLL {path}");
+                                        processInfo.UseShellExecute = true;
+                                        System.Diagnostics.Process.Start(processInfo);
+                                    } catch {}
+                                });
+                            }
+                            else if (action == "copyPath")
+                            {
+                                string clip = paths.Count > 1 ? string.Join(Environment.NewLine, paths) : path;
+                                InvokeInline(() => {
+                                   System.Windows.Clipboard.SetText(clip);
+                                });
+                            }
+                            else if (action == "compress")
+                            {
+                                foreach (var p in paths)
+                                {
+                                    if (File.Exists(p) || Directory.Exists(p))
+                                        _shellIntegrationService.ExecuteFile(p, "compress");
+                                }
+                            }
+                            else if (action == "extract")
+                            {
+                                foreach (var p in paths)
+                                {
+                                    if (File.Exists(p))
+                                        _shellIntegrationService.LaunchSystemTool("extract", p);
+                                }
+                            }
+                            else if (action == "properties")
+                            {
+                                var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
+                                ShellPropertiesHelper.ShowProperties(path, hwnd);
+                            }
+                            else if (action.StartsWith("launch-") || action is "cmd" or "ps" or "taskmgr" or "regedit" or "map_network_drive" or "share" or "burn_disc" or "extract")
+                            {
+                                _shellIntegrationService.LaunchSystemTool(action, path);
+                            }
                         }
-                        catch { }
-                    }
-                    else if (action == "openWith")
-                    {
-                        // Launch the shell Open With dialog natively
-                        PostToUi(() => {
-                            try {
-                                var processInfo = new System.Diagnostics.ProcessStartInfo("Rundll32.exe", $"shell32.dll,OpenAs_RunDLL {path}");
-                                processInfo.UseShellExecute = true;
-                                System.Diagnostics.Process.Start(processInfo);
-                            } catch {}
-                        });
-                    }
-                    else if (action == "copyPath")
-                    {
-                        string clip = paths.Count > 1 ? string.Join(Environment.NewLine, paths) : path;
-                        InvokeInline(() => {
-                           System.Windows.Clipboard.SetText(clip);
-                        });
-                    }
-                    else if (action == "compress")
-                    {
-                        foreach (var p in paths)
+                        catch (Exception ex)
                         {
-                            if (File.Exists(p) || Directory.Exists(p))
-                                _shellIntegrationService.ExecuteFile(p, "compress");
+                            Debug.WriteLine($"[IPC] SHELL_EXECUTE failed: {ex.Message}");
                         }
-                    }
-                    else if (action == "extract")
-                    {
-                        foreach (var p in paths)
-                        {
-                            if (File.Exists(p))
-                                _shellIntegrationService.LaunchSystemTool("extract", p);
-                        }
-                    }
-                    else if (action == "properties")
-                    {
-                        var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
-                        ShellPropertiesHelper.ShowProperties(path, hwnd);
-                    }
-                    else if (action.StartsWith("launch-") || action is "cmd" or "ps" or "taskmgr" or "regedit" or "map_network_drive" or "share" or "burn_disc" or "extract")
-                    {
-                        _shellIntegrationService.LaunchSystemTool(action, path);
-                    }
+                    });
                 }
                 else if (type == "CHECK_PATH_EXISTS")
                 {
@@ -2993,6 +4568,7 @@ namespace BNDZ.Services
                     var payload = root.GetProperty("payload");
                     string path = payload.GetProperty("path").GetString() ?? "";
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    RememberBrowserFolder(path);
 
                     _ = Task.Run(async () =>
                     {
@@ -3031,7 +4607,7 @@ namespace BNDZ.Services
                                 all = new List<DirListingSharedBuffer.DirEntryDto>();
                                 await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, cts.Token).ConfigureAwait(false))
                                     all.Add(entry);
-                                EnrichDirListingEntries(all);
+                                EnrichDirListingEntries(all, path);
                             }
 
                             var skip = _backendHostListingFirstPaintCounts.TryGetValue(key, out var painted) ? painted : 0;
@@ -3059,6 +4635,7 @@ namespace BNDZ.Services
                     string path = BNDZ.Services.ShellPathResolver.ResolveForShell(rawTreePath);
                     if (string.IsNullOrEmpty(path)) path = BNDZ.Services.ShellPathResolver.NormalizeIncoming(rawTreePath);
                     bool showHidden = payload.TryGetProperty("showHidden", out var shElement) && shElement.GetBoolean();
+                    bool showSystem = payload.TryGetProperty("showSystem", out var ssElement) && ssElement.GetBoolean();
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
 
                     _ = Task.Run(() => 
@@ -3080,7 +4657,7 @@ namespace BNDZ.Services
                                 foreach (var dir in Directory.GetDirectories(path))
                                 {
                                     var di = new DirectoryInfo(dir);
-                                    if (!showHidden && (di.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden) continue;
+                                    if (!ShouldIncludeListedEntry(di.Attributes, showHidden, showSystem)) continue;
 
                                     results.Add(new {
                                         id = Guid.NewGuid().ToString(),
@@ -3088,7 +4665,8 @@ namespace BNDZ.Services
                                         type = "directory",
                                         path = dir.Replace("\\", "/"),
                                         size = 0,
-                                        modified = di.LastWriteTime.ToString("O")
+                                        modified = di.LastWriteTime.ToString("O"),
+                                        attributes = DirListingSharedBuffer.AttrNamesFrom(DirListingSharedBuffer.AttrBitsFrom(di.Attributes)),
                                     });
                                 }
                             }
@@ -3306,11 +4884,20 @@ namespace BNDZ.Services
                     
                     string verb = payload.GetProperty("verb").GetString() ?? "";
                     bool bypassRecycle = payload.TryGetProperty("bypassRecycleBin", out var brEl) && brEl.GetBoolean();
+                    string? sendToTarget = payload.TryGetProperty("sendToTarget", out var stEl) ? stEl.GetString() : null;
+                    var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
 
-                    InvokeInline(() => {
-                        var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
-                        string? sendToTarget = payload.TryGetProperty("sendToTarget", out var stEl) ? stEl.GetString() : null;
-                        _shellContextMenuService.InvokeVerb(paths, verb, hwnd, bypassRecycle, sendToTarget);
+                    // Never block the IPC pump on ShellExecute / COM — app open felt like a freeze.
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            _shellContextMenuService.InvokeVerb(paths, verb, hwnd, bypassRecycle, sendToTarget);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[IPC] EXECUTE_CONTEXT_MENU_VERB failed: {ex.Message}");
+                        }
                     });
                 }
                 else if (type == "SET_SHELL_CLIPBOARD")
@@ -3488,7 +5075,11 @@ namespace BNDZ.Services
                         var host = JsonSerializer.Deserialize<MeshHostRecord>(hostJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                             ?? throw new InvalidOperationException("Invalid host payload");
                         if (!string.IsNullOrEmpty(host.PasswordPlain))
+                        {
                             host.ProtectedSecret = MeshCredentialVault.Protect(host.PasswordPlain);
+                            if (host.AuthKind == MeshAuthKind.PrivateKey && !string.IsNullOrEmpty(host.KeyPath))
+                                SshSftpMeshProvider.CacheSessionPassphrase(host.KeyPath, host.PasswordPlain);
+                        }
                         host.PasswordPlain = null;
                         var saved = _meshOrchestrator.UpsertHost(host);
                         BroadcastMeshHostsChanged();
@@ -3581,13 +5172,15 @@ namespace BNDZ.Services
                     var hostId = payload.TryGetProperty("hostId", out var hEl) ? hEl.GetString() : null;
                     var cwd = payload.TryGetProperty("cwd", out var cEl) ? cEl.GetString() : null;
                     var local = payload.TryGetProperty("local", out var lEl) && lEl.GetBoolean();
+                    var cols = payload.TryGetProperty("cols", out var colsEl) ? (uint)Math.Clamp(colsEl.GetInt32(), 20, 400) : 120u;
+                    var rows = payload.TryGetProperty("rows", out var rowsEl) ? (uint)Math.Clamp(rowsEl.GetInt32(), 8, 200) : 32u;
                     _ = Task.Run(() =>
                     {
                         try
                         {
                             var session = local || string.IsNullOrEmpty(hostId)
-                                ? _meshOrchestrator.Terminal.OpenLocal(cwd)
-                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd);
+                                ? _meshOrchestrator.Terminal.OpenLocal(cwd, cols, rows)
+                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd, cols, rows);
                             PostMeshIpcResult(idProp, "MESH_TERMINAL_OPEN_RESULT", session);
                         }
                         catch (Exception ex)
@@ -3607,6 +5200,64 @@ namespace BNDZ.Services
                 {
                     var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
                     _meshOrchestrator.Terminal.Close(sessionId);
+                }
+                else if (type == "MESH_TERMINAL_RESIZE")
+                {
+                    var payload = root.GetProperty("payload");
+                    var sessionId = payload.GetProperty("sessionId").GetString() ?? "";
+                    var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
+                    var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
+                    _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_TERMINAL_LAYOUT")
+                {
+                    // No-op: never SetParent into WebView2. Local shell is ConPTY → xterm.js.
+                }
+                else if (type == "MESH_STAT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var panePath = root.GetProperty("payload").TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var attr = await _meshOrchestrator.StatAsync(panePath).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", attr);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_STAT_RESULT", new { error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_WRITE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var panePath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var localFile = payload.TryGetProperty("localFile", out var lfEl) ? lfEl.GetString() : null;
+                    var contentB64 = payload.TryGetProperty("contentBase64", out var b64El) ? b64El.GetString() : null;
+                    DateTimeOffset? expectedMtime = null;
+                    if (payload.TryGetProperty("expectedRemoteMtime", out var mtEl) && mtEl.ValueKind == JsonValueKind.String
+                        && DateTimeOffset.TryParse(mtEl.GetString(), out var parsed))
+                        expectedMtime = parsed;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(localFile) && File.Exists(localFile))
+                                await _meshOrchestrator.WriteBackAsync(panePath, localFile!, expectedMtime).ConfigureAwait(false);
+                            else if (!string.IsNullOrEmpty(contentB64))
+                                await _meshOrchestrator.WriteBytesAsync(panePath, Convert.FromBase64String(contentB64!)).ConfigureAwait(false);
+                            else
+                                throw new InvalidOperationException("MESH_WRITE requires localFile or contentBase64");
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = true, path = panePath });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_WRITE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
                 }
                 else if (type == "MESH_TRANSFER")
                 {
@@ -3889,6 +5540,469 @@ namespace BNDZ.Services
                         catch (Exception ex)
                         {
                             PostMeshIpcResult(idProp, "MESH_DROP_RELAY_RESOLVE_OFFER_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_ENDPOINTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var endpoints = _meshOrchestrator.Ephemeral.ListEndpoints();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints = Array.Empty<IncusEndpointRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_UPSERT_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var payloadJson = root.GetProperty("payload").GetRawText();
+                        var endpoint = JsonSerializer.Deserialize<IncusEndpointRecord>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                            ?? throw new InvalidOperationException("Invalid Incus endpoint payload");
+                        var saved = _meshOrchestrator.Ephemeral.UpsertEndpoint(endpoint);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", saved);
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_UPSERT_ENDPOINT_RESULT", new { error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_DELETE_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    try
+                    {
+                        _meshOrchestrator.Ephemeral.DeleteEndpoint(endpointId);
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = true });
+                        try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_TEST_ENDPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await _meshOrchestrator.Ephemeral.TestEndpointAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = true, info, endpoints = _meshOrchestrator.Ephemeral.ListEndpoints() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_TEST_ENDPOINT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_BOOTSTRAP_TRUST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var payloadJson = root.GetProperty("payload").GetRawText();
+                            var req = JsonSerializer.Deserialize<IncusBootstrapRequest>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                                ?? throw new InvalidOperationException("Invalid bootstrap payload");
+                            var (endpoint, info) = await _meshOrchestrator.Ephemeral.BootstrapTrustAsync(req).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_BOOTSTRAP_TRUST_RESULT", new
+                            {
+                                ok = true,
+                                endpoint,
+                                info,
+                                endpoints = _meshOrchestrator.Ephemeral.ListEndpoints(),
+                                hosts = _meshOrchestrator.ListHosts(),
+                            });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_BOOTSTRAP_TRUST_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LOCAL_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var status = _meshOrchestrator.Ephemeral.LocalFactory.Probe();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LOCAL_STATUS_RESULT", new { ok = true, status });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LOCAL_STATUS_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_LOCAL_ENSURE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var status = await _meshOrchestrator.Ephemeral.LocalFactory.EnsureReadyAsync().ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LOCAL_ENSURE_RESULT", new
+                            {
+                                ok = true,
+                                status,
+                                endpoints = _meshOrchestrator.Ephemeral.ListEndpoints(),
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LOCAL_ENSURE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_EPHEMERAL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var instances = _meshOrchestrator.Ephemeral.ListEphemeral();
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances = Array.Empty<IncusEphemeralInstanceRecord>(), error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_INCUS_RECONCILE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instances = await _meshOrchestrator.Ephemeral.ReconcileAllAsync().ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RECONCILE_RESULT", new { ok = true, instances, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RECONCILE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LAUNCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var req = JsonSerializer.Deserialize<IncusLaunchRequest>(payloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                                ?? throw new InvalidOperationException("Invalid launch payload");
+                            var instance = await _meshOrchestrator.Ephemeral.LaunchAsync(req).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LAUNCH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_REFRESH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.RefreshAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_REFRESH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_DESTROY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _meshOrchestrator.Ephemeral.DestroyAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = true, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DESTROY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_IMAGES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var aliases = await _meshOrchestrator.Ephemeral.ListImageAliasesAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_IMAGES_RESULT", new { ok = true, aliases });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_IMAGES_RESULT", new { ok = false, aliases = Array.Empty<IncusImageAlias>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_SERVER_INSTANCES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instances = await _meshOrchestrator.Ephemeral.ListServerInstancesAsync(endpointId).ConfigureAwait(false);
+                            var tracked = _meshOrchestrator.Ephemeral.ListEphemeral()
+                                .Where(i => i.EndpointId == endpointId)
+                                .Select(i => i.InstanceName)
+                                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SERVER_INSTANCES_RESULT", new { ok = true, instances, tracked });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SERVER_INSTANCES_RESULT", new { ok = false, instances = Array.Empty<IncusInstanceSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_INSTANCE_ACTION")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var action = payload.TryGetProperty("action", out var actEl) ? actEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.SetInstanceActionAsync(ephemeralId, action).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_INSTANCE_ACTION_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_INSTANCE_ACTION_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_IMPORT_INSTANCE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(payloadJson);
+                            var p = doc.RootElement;
+                            var endpointId = p.TryGetProperty("endpointId", out var epEl) ? epEl.GetString() ?? "" : "";
+                            var instanceName = p.TryGetProperty("instanceName", out var inEl) ? inEl.GetString() ?? "" : "";
+                            var alias = p.TryGetProperty("alias", out var alEl) ? alEl.GetString() : null;
+                            var registerMesh = !p.TryGetProperty("registerMeshHost", out var rmEl) || rmEl.ValueKind != JsonValueKind.False;
+                            var instance = await _meshOrchestrator.Ephemeral.ImportInstanceAsync(endpointId, instanceName, alias, registerMesh).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_IMPORT_INSTANCE_RESULT", new { ok = true, instance, hosts = _meshOrchestrator.ListHosts() });
+                            try { BroadcastMeshHostsChanged(); } catch { /* optional */ }
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_IMPORT_INSTANCE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_PROFILES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var profiles = await _meshOrchestrator.Ephemeral.ListProfilesAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_PROFILES_RESULT", new { ok = true, profiles });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_PROFILES_RESULT", new { ok = false, profiles = Array.Empty<IncusProfileSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_NETWORKS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var endpointId = root.GetProperty("payload").TryGetProperty("endpointId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var networks = await _meshOrchestrator.Ephemeral.ListNetworksAsync(endpointId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_NETWORKS_RESULT", new { ok = true, networks });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_NETWORKS_RESULT", new { ok = false, networks = Array.Empty<IncusNetworkSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_GET_INSTANCE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var instance = await _meshOrchestrator.Ephemeral.GetInstanceDetailAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_GET_INSTANCE_RESULT", new { ok = true, instance, etag = instance.ETag });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_GET_INSTANCE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_UPDATE_INSTANCE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payloadJson = root.GetProperty("payload").GetRawText();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(payloadJson);
+                            var p = doc.RootElement;
+                            var ephemeralId = p.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                            var etag = p.TryGetProperty("etag", out var etEl) ? etEl.GetString() : null;
+                            var put = new IncusInstancePut();
+                            if (p.TryGetProperty("profiles", out var prEl) && prEl.ValueKind == JsonValueKind.Array)
+                                put.Profiles = prEl.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList();
+                            if (p.TryGetProperty("description", out var dEl) && dEl.ValueKind == JsonValueKind.String)
+                                put.Description = dEl.GetString();
+                            if (p.TryGetProperty("config", out var cfgEl) && cfgEl.ValueKind == JsonValueKind.Object)
+                            {
+                                put.Config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                foreach (var prop in cfgEl.EnumerateObject())
+                                    put.Config[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() ?? "" : prop.Value.ToString();
+                            }
+                            if (p.TryGetProperty("devices", out var devEl) && devEl.ValueKind == JsonValueKind.Object)
+                            {
+                                put.Devices = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+                                foreach (var dev in devEl.EnumerateObject())
+                                {
+                                    if (dev.Value.ValueKind != JsonValueKind.Object) continue;
+                                    var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                    foreach (var prop in dev.Value.EnumerateObject())
+                                        map[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() ?? "" : prop.Value.ToString();
+                                    put.Devices[dev.Name] = map;
+                                }
+                            }
+                            var instance = await _meshOrchestrator.Ephemeral.UpdateInstanceDetailAsync(ephemeralId, put, etag).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_UPDATE_INSTANCE_RESULT", new { ok = true, instance });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_UPDATE_INSTANCE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_LIST_SNAPSHOTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ephemeralId = root.GetProperty("payload").TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var snapshots = await _meshOrchestrator.Ephemeral.ListSnapshotsAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SNAPSHOTS_RESULT", new { ok = true, snapshots });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_LIST_SNAPSHOTS_RESULT", new { ok = false, snapshots = Array.Empty<IncusSnapshotSummary>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_CREATE_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+                    var stateful = payload.TryGetProperty("stateful", out var sEl) && sEl.ValueKind == JsonValueKind.True;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var snapshots = await _meshOrchestrator.Ephemeral.CreateSnapshotAsync(ephemeralId, name, stateful).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_CREATE_SNAPSHOT_RESULT", new { ok = true, snapshots });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_CREATE_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_DELETE_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var snapshots = await _meshOrchestrator.Ephemeral.DeleteSnapshotAsync(ephemeralId, name).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_SNAPSHOT_RESULT", new { ok = true, snapshots });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_DELETE_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_INCUS_RESTORE_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var ephemeralId = payload.TryGetProperty("ephemeralId", out var eidEl) ? eidEl.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+                    var diskOnly = payload.TryGetProperty("diskOnly", out var dEl) && dEl.ValueKind == JsonValueKind.True;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _meshOrchestrator.Ephemeral.RestoreSnapshotAsync(ephemeralId, name, diskOnly).ConfigureAwait(false);
+                            var instance = await _meshOrchestrator.Ephemeral.RefreshAsync(ephemeralId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RESTORE_SNAPSHOT_RESULT", new { ok = true, instance });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_INCUS_RESTORE_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
                         }
                     });
                 }
@@ -4374,12 +6488,13 @@ namespace BNDZ.Services
                 else if (type == "MAGNET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payload.GetRawText(), IpcJsonOptions)
+                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid magnet payload.");
                             var saved = _dropMagnetService.SaveMagnet(recipe);
                             PostMeshIpcResult(idProp, "MAGNET_SAVE_RESULT", new { ok = true, magnet = saved });
@@ -4710,6 +6825,42 @@ namespace BNDZ.Services
                         catch (Exception ex)
                         {
                             PostMeshIpcResult(idProp, "BRANCH_RESTORE_VSS_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_LIST_SYSTEM_SHADOWS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var path = root.TryGetProperty("payload", out var pl) && pl.TryGetProperty("path", out var pe) ? pe.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var shadows = VssBranchService.Instance.ListSystemShadows(string.IsNullOrWhiteSpace(path) ? "C:\\" : path);
+                            PostMeshIpcResult(idProp, "BRANCH_LIST_SYSTEM_SHADOWS_RESULT", new { ok = true, shadows });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_LIST_SYSTEM_SHADOWS_RESULT", new { ok = false, shadows = Array.Empty<object>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_RESTORE_SYSTEM_SHADOW")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var device = payload.TryGetProperty("deviceObject", out var dev) ? dev.GetString() ?? "" : "";
+                    var origPath = payload.TryGetProperty("originalPath", out var op) ? op.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await VssBranchService.Instance.RestoreSystemShadowAsync(device, origPath).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_SYSTEM_SHADOW_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_SYSTEM_SHADOW_RESULT", new { ok = false, error = ex.Message });
                         }
                     });
                 }
@@ -5379,6 +7530,52 @@ namespace BNDZ.Services
                         }
                     });
                 }
+                // ── Semantic rank (embedding rerank for Fast Search) ──
+                else if (type == "SEMANTIC_RANK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl2) ? idEl2.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var query = payload.TryGetProperty("query", out var qEl) ? qEl.GetString() ?? "" : "";
+                    int limit = payload.TryGetProperty("limit", out var limEl) && limEl.ValueKind == JsonValueKind.Number
+                        ? limEl.GetInt32() : 200;
+                    var candidatePaths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var cpEl) && cpEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in cpEl.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) candidatePaths.Add(s);
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var ranked = BndzEmbeddingService.Instance.SemanticRank(query, candidatePaths, limit);
+                            var items = ranked.Select(r => new { path = r.Path, score = r.Score }).ToList();
+                            PostMeshIpcResult(idProp, "SEMANTIC_RANK_RESULT", new
+                            {
+                                ok = true,
+                                modelPresent = BndzEmbeddingService.Instance.ModelLoaded,
+                                items,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SEMANTIC_RANK_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Embedding model status ──
+                else if (type == "EMBEDDING_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl3) ? idEl3.GetString() : null;
+                    PostMeshIpcResult(idProp, "EMBEDDING_STATUS_RESULT", new
+                    {
+                        ok = true,
+                        status = BndzEmbeddingService.Instance.GetStatus(),
+                    });
+                }
                 // ── Content DNA ──
                 else if (type == "CONTENT_DNA_SCAN")
                 {
@@ -5506,12 +7703,13 @@ namespace BNDZ.Services
                 else if (type == "JOB_TICKET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var payload = root.GetProperty("payload");
+                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            var ticket = JsonSerializer.Deserialize<JobTicket>(payload.GetRawText(), IpcJsonOptions)
+                            var ticket = JsonSerializer.Deserialize<JobTicket>(payloadJson, IpcJsonOptions)
                                 ?? throw new InvalidOperationException("Invalid ticket payload.");
                             var saved = JobTicketService.Instance.Save(ticket);
                             PostMeshIpcResult(idProp, "JOB_TICKET_SAVE_RESULT", new { ok = true, ticket = saved });
@@ -5962,7 +8160,6 @@ namespace BNDZ.Services
                 else if (type == "GET_THUMBNAILS_BATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                     int thumbSize = 96;
                     List<string> paths = new();
                     try
@@ -5989,50 +8186,30 @@ namespace BNDZ.Services
 
                     var pathsCopy = paths;
                     var sizeCopy = thumbSize;
+                    var nativeSvc = _nativeShellService;
 
                     _ = Task.Run(async () =>
                     {
-                        var ran = await BndzIpcWorkQueue.TryRunThumbnailAsync(() =>
+                        Dictionary<string, string?> results;
+                        try
                         {
-                            var nativeSvc = _nativeShellService;
-                            foreach (var path in pathsCopy)
-                            {
-                                try
-                                {
-                                    var b64 = BndzHostCaches.ResolveThumbnailDelivery(
-                                        path,
-                                        sizeCopy,
-                                        () => nativeSvc.GetNativeThumbnailBase64(path, sizeCopy) ?? "");
-                                    results[path] = string.IsNullOrEmpty(b64) ? null : b64;
-                                }
-                                catch
-                                {
-                                    results[path] = null;
-                                }
-                            }
-
-                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                            PostToUi(() =>
-                            {
-                                try { DeliverIpcJson(responseJson); }
-                                catch { }
-                            });
-                            return Task.CompletedTask;
-                        }, waitMs: 8000).ConfigureAwait(false);
-
-                        if (!ran)
-                        {
-                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                            PostToUi(() =>
-                            {
-                                try { DeliverIpcJson(responseJson); }
-                                catch { }
-                            });
+                            results = await BndzIconBatchWork.ResolveThumbnailsAsync(pathsCopy, sizeCopy, nativeSvc).ConfigureAwait(false);
                         }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"GET_THUMBNAILS_BATCH failed: {ex.Message}");
+                            results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var path in pathsCopy) results[path] = null;
+                        }
+
+                        var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                        PostToUi(() =>
+                        {
+                            try { DeliverIpcJson(responseJson); }
+                            catch { }
+                        });
                     });
                 }
                 else if (type == "GET_EXTENDED_METADATA")
@@ -6161,6 +8338,42 @@ namespace BNDZ.Services
                         PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
+                else if (type == "GET_MODEL_PREVIEW")
+                {
+                    var payload = root.GetProperty("payload");
+                    string rawPath = payload.GetProperty("path").GetString() ?? "";
+                    string path = MeshPath.IsMeshPath(rawPath) ? rawPath : NormalizeFsPath(rawPath);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        object resultPayload;
+                        try
+                        {
+                            if (MeshPath.IsMeshPath(path))
+                                path = _meshOrchestrator.HydrateToCacheAsync(path).GetAwaiter().GetResult();
+                            var ext = Path.GetExtension(path)?.TrimStart('.').ToLowerInvariant() ?? "";
+                            if (RageModelPreviewService.NeedsHostConversion(ext))
+                            {
+                                var (ok, previewPath, format, kind, verts, tris, error) = RageModelPreviewService.TryGetPreviewObj(path);
+                                resultPayload = ok
+                                    ? new { path = previewPath, format, kind, vertices = verts, triangles = tris, converted = true }
+                                    : new { error = error ?? "RAGE preview failed", kind = ext };
+                            }
+                            else
+                            {
+                                resultPayload = File.Exists(path)
+                                    ? new { path, format = ext, kind = ext, converted = false }
+                                    : new { error = "File not found", kind = ext };
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { error = ex.Message };
+                        }
+                        var response = new { type = "MODEL_PREVIEW_RESULT", id = idProp, payload = resultPayload };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response)));
+                    });
+                }
                 else if (type == "GET_MEDIA_BLOB")
                 {
                     var payload = root.GetProperty("payload");
@@ -6257,8 +8470,15 @@ namespace BNDZ.Services
                     {
                         try
                         {
-                            var stage = await BndzLensService.Instance.BuildLensStageAsync(lensPath).ConfigureAwait(false);
+                            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(18));
+                            var stage = await BndzLensService.Instance.BuildLensStageAsync(lensPath, cts.Token).ConfigureAwait(false);
                             var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = stage };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = new { error = "Lens timed out — try Retry." } };
                             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                             PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                         }
@@ -6337,6 +8557,21 @@ namespace BNDZ.Services
                             error = "Missing pluginId.";
                         else
                         {
+                            var openedInProcess = false;
+                            try
+                            {
+                                openedInProcess = _openPluginWindowAction?.Invoke(pluginId, stickyId, title) == true;
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[IPC] in-process plugin window: {ex.Message}");
+                            }
+                            if (openedInProcess)
+                            {
+                                ok = true;
+                            }
+                            else
+                            {
                             var exe = Environment.ProcessPath
                                 ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
                             if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe))
@@ -6345,19 +8580,71 @@ namespace BNDZ.Services
                             }
                             else
                             {
+                                // Kill zombie / leftover pop-outs for this plugin before spawn so
+                                // End Task leftovers do not leave a locked blank window.
+                                try
+                                {
+                                    var needle = $"--plugin-window \"{pluginId}\"";
+                                    var needleBare = $"--plugin-window={pluginId}";
+                                    foreach (var p in System.Diagnostics.Process.GetProcesses())
+                                    {
+                                        try
+                                        {
+                                            var name = p.ProcessName;
+                                            if (!name.Equals("BNDZShell", StringComparison.OrdinalIgnoreCase)
+                                                && !name.Equals("BNDZ", StringComparison.OrdinalIgnoreCase))
+                                                continue;
+                                            if (p.Id == Environment.ProcessId) continue;
+                                            string? cmd = null;
+                                            try
+                                            {
+                                                using var q = new System.Management.ManagementObjectSearcher(
+                                                    $"SELECT CommandLine FROM Win32_Process WHERE ProcessId={p.Id}");
+                                                foreach (System.Management.ManagementObject mo in q.Get())
+                                                {
+                                                    cmd = mo["CommandLine"]?.ToString();
+                                                    break;
+                                                }
+                                            }
+                                            catch { /* WMI optional */ }
+                                            if (string.IsNullOrEmpty(cmd)) continue;
+                                            if (cmd.IndexOf(needle, StringComparison.OrdinalIgnoreCase) < 0
+                                                && cmd.IndexOf(needleBare, StringComparison.OrdinalIgnoreCase) < 0
+                                                && cmd.IndexOf($"--plugin-window {pluginId}", StringComparison.OrdinalIgnoreCase) < 0)
+                                                continue;
+                                            try { p.Kill(entireProcessTree: true); } catch { try { p.Kill(); } catch { /* ignore */ } }
+                                        }
+                                        catch { /* ignore */ }
+                                        finally { try { p.Dispose(); } catch { /* ignore */ } }
+                                    }
+                                    System.Threading.Thread.Sleep(250);
+                                }
+                                catch { /* non-fatal */ }
+
                                 var args = $"--plugin-window \"{pluginId.Replace("\"", "\\\"")}\"";
                                 if (!string.IsNullOrWhiteSpace(stickyId))
                                     args += $" --sticky-id \"{stickyId.Replace("\"", "\\\"")}\"";
                                 if (!string.IsNullOrWhiteSpace(title))
                                     args += $" --plugin-title \"{title.Replace("\"", "\\\"")}\"";
-                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                var psi = new System.Diagnostics.ProcessStartInfo
                                 {
-                                    FileName = exe,
+                                    FileName = exe!,
                                     Arguments = args,
                                     WorkingDirectory = Path.GetDirectoryName(exe) ?? "",
-                                    UseShellExecute = true,
-                                });
-                                ok = true;
+                                    UseShellExecute = false,
+                                };
+                                System.Diagnostics.Process? proc = null;
+                                try { proc = System.Diagnostics.Process.Start(psi); }
+                                catch
+                                {
+                                    psi.UseShellExecute = true;
+                                    proc = System.Diagnostics.Process.Start(psi);
+                                }
+                                if (proc is null)
+                                    error = "Failed to start plugin window process.";
+                                else
+                                    ok = true;
+                            }
                             }
                         }
                     }
@@ -6742,6 +9029,8 @@ namespace BNDZ.Services
                     // Copy values before Task.Run — JsonDocument is disposed when this handler returns.
                     bool enable = payload.TryGetProperty("enable", out var enableEl)
                         && enableEl.ValueKind == JsonValueKind.True;
+                    bool allUsers = payload.TryGetProperty("allUsers", out var allUsersEl)
+                        && allUsersEl.ValueKind == JsonValueKind.True;
                     string? extraArgs = null;
                     if (payload.TryGetProperty("extraArgs", out var extraArgsProp)
                         && extraArgsProp.ValueKind == JsonValueKind.String)
@@ -6755,13 +9044,16 @@ namespace BNDZ.Services
                             switch (action)
                             {
                                 case "setContextMenu":
-                                    resultPayload = _shellIntegrationService.SetInContextMenu(enable);
+                                    resultPayload = _shellIntegrationService.SetInContextMenu(enable, allUsers);
                                     break;
                                 case "setDefault":
                                     resultPayload = _shellIntegrationService.SetAsDefaultFileManager(enable);
                                     break;
                                 case "setWin11MoreOptions":
                                     resultPayload = _shellIntegrationService.SetWin11MoreOptions(enable);
+                                    break;
+                                case "setIconStudioShell":
+                                    resultPayload = _shellIntegrationService.SetIconStudioShellMenu(enable);
                                     break;
                                 case "relaunchAdmin":
                                     resultPayload = _shellIntegrationService.RelaunchAsAdministrator(extraArgs);
@@ -6864,6 +9156,7 @@ namespace BNDZ.Services
                         FileOperationPreferences.ApplyFromJson(jsonString);
                         ApplyFileOperationPreferences();
                         ApplyGlobalHotkeysFromSettingsJson(jsonString);
+                        ApplyOsQuickLookFromSettingsJson(jsonString);
                         BndzMediaDiskCache.Instance.ApplySettingsJson(jsonString);
                     }
                     catch (Exception ex)
@@ -6889,6 +9182,7 @@ namespace BNDZ.Services
                             BndzMediaDiskCache.Instance.ApplySettingsJson(settingsJson);
                         ApplyFileOperationPreferences();
                         ApplyGlobalHotkeysFromSettingsJson(settingsJson == "null" ? null : settingsJson);
+                        ApplyOsQuickLookFromSettingsJson(settingsJson == "null" ? null : settingsJson);
                         
                         var responseJson = "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":\"" + idProp + "\",\"payload\":" + settingsJson + "}";
                         PostToUi(() => {
@@ -6976,7 +9270,6 @@ namespace BNDZ.Services
                 else if (type == "GET_SHELL_ICONS_BATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                     int batchSize = 48;
                     try
                     {
@@ -6987,46 +9280,46 @@ namespace BNDZ.Services
                     }
                     catch { }
 
-                    var sizeCopy = batchSize;
-                    _ = Task.Run(() =>
+                    var work = new List<BndzIconBatchWork.ShellItem>();
+                    try
                     {
+                        if (root.TryGetProperty("payload", out var batchPayload)
+                            && batchPayload.TryGetProperty("items", out var itemsEl))
+                        {
+                            foreach (var item in itemsEl.EnumerateArray())
+                            {
+                                string rawPath = item.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                                bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
+                                int itemSize = batchSize;
+                                if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
+                                    itemSize = Math.Clamp(isz <= 0 ? batchSize : isz, 16, 512);
+                                string path = ShellPathResolver.ResolveForShell(rawPath);
+                                if (string.IsNullOrEmpty(path)) continue;
+
+                                if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:\\?$"))
+                                    isDir = false;
+
+                                work.Add(new BndzIconBatchWork.ShellItem(path, isDir, itemSize));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Batch icon parse: {ex.Message}");
+                    }
+
+                    var nativeSvc = _nativeShellService;
+                    _ = Task.Run(async () =>
+                    {
+                        Dictionary<string, string?> results;
                         try
                         {
-                            if (root.TryGetProperty("payload", out var batchPayload)
-                                && batchPayload.TryGetProperty("items", out var itemsEl))
-                            {
-                                foreach (var item in itemsEl.EnumerateArray())
-                                {
-                                    string rawPath = item.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
-                                    bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
-                                    int itemSize = sizeCopy;
-                                    if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
-                                        itemSize = Math.Clamp(isz <= 0 ? sizeCopy : isz, 16, 512);
-                                    string path = ShellPathResolver.ResolveForShell(rawPath);
-                                    if (string.IsNullOrEmpty(path)) continue;
-
-                                    if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:\\?$"))
-                                        isDir = false;
-
-                                    string? extracted = null;
-                                    try
-                                    {
-                                        int sz = itemSize;
-                                        extracted = BndzHostCaches.ResolveIconBase64(
-                                            path,
-                                            isDir,
-                                            () => _nativeShellService.GetNativeShellIconBase64(path, isDir, sz) ?? "",
-                                            sz);
-                                    }
-                                    catch { }
-
-                                    results[path] = string.IsNullOrEmpty(extracted) ? null : extracted;
-                                }
-                            }
+                            results = await BndzIconBatchWork.ResolveShellIconsAsync(work, nativeSvc).ConfigureAwait(false);
                         }
                         catch (Exception ex)
                         {
                             System.Diagnostics.Debug.WriteLine($"Batch icon error: {ex.Message}");
+                            results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                         }
 
                         var response = new { type = "SHELL_ICONS_BATCH_RESULT", id = idProp, payload = results };
@@ -7186,6 +9479,15 @@ namespace BNDZ.Services
                             });
                         }
                     });
+                }
+                else if (type == "HOST_NAVIGATE" || type == "BNDZ_NAVIGATE")
+                {
+                    string navPath = "";
+                    if (root.TryGetProperty("payload", out var navPayload)
+                        && navPayload.TryGetProperty("path", out var navPathEl))
+                        navPath = navPathEl.GetString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(navPath))
+                        OpenPathInManager(navPath);
                 }
                 else if (type == "WINDOW_CHROME")
                 {
@@ -7758,6 +10060,26 @@ namespace BNDZ.Services
                         });
                     });
                 }
+                else if (type == "CHECK_LANGUAGE_UPDATES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var languagesRoot = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "BNDZ", "Languages");
+                    var response = new
+                    {
+                        type = "CHECK_LANGUAGE_UPDATES_RESULT",
+                        id = idProp,
+                        payload = new
+                        {
+                            updates = Array.Empty<object>(),
+                            error = (string?)null,
+                            languagesRoot,
+                        },
+                    };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
                 else if (type == "GET_INDEXED_ENTRY")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
@@ -7835,9 +10157,9 @@ namespace BNDZ.Services
                             "portal-capture" => BndzNamespaceService.Instance.ResolvePortalView("capture", safeLimit),
                             _ => [],
                         };
-                        // Skip tag sidecar enrich for media/audio — serialize-per-row + sidecar lookup
-                        // adds latency with no user-visible tags on the photo grid first paint.
-                        object itemsPayload = view is "media" or "audio"
+                        // Skip tag sidecar enrich for media/audio and synthetic smart views —
+                        // serialize-per-row adds latency with no user-visible tags on first paint.
+                        object itemsPayload = view is "media" or "audio" or "problems" or "inbound"
                             ? rawItems
                             : BndzTagSidecarStore.EnrichDirResults(rawItems, _tagSidecarStore);
                         var response = new { type = "VIRTUAL_VIEW_CONTENTS_RESULT", id = idProp, payload = new { items = itemsPayload } };
@@ -8074,12 +10396,15 @@ namespace BNDZ.Services
                     string openPath = "";
                     if (root.TryGetProperty("payload", out var openPayload) && openPayload.TryGetProperty("path", out var opEl))
                         openPath = NormalizeFsPath(opEl.GetString() ?? "");
-                    try
+                    if (!string.IsNullOrWhiteSpace(openPath))
                     {
-                        if (!string.IsNullOrWhiteSpace(openPath))
-                            BndzFileIndexService.Instance.RecordPathOpen(openPath);
+                        var pathCopy = openPath;
+                        _ = Task.Run(() =>
+                        {
+                            try { BndzFileIndexService.Instance.RecordPathOpen(pathCopy); }
+                            catch { /* best effort */ }
+                        });
                     }
-                    catch { /* best effort */ }
                 }
                 else if (type == "GET_BNDZ_META")
                 {
@@ -8100,6 +10425,32 @@ namespace BNDZ.Services
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                     }
+                }
+                else if (type == "GET_SYSTEM_FONTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var families = new List<string>();
+                        try
+                        {
+                            using var col = new System.Drawing.Text.InstalledFontCollection();
+                            foreach (var font in col.Families)
+                            {
+                                if (!string.IsNullOrWhiteSpace(font.Name))
+                                    families.Add(font.Name);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[IPC] GET_SYSTEM_FONTS: {ex.Message}");
+                        }
+                        families.Sort(StringComparer.CurrentCultureIgnoreCase);
+                        var distinct = families.Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
+                        var response = new { type = "SYSTEM_FONTS_RESULT", id = idProp, payload = new { families = distinct } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
                 }
                 else if (type == "SET_BNDZ_META")
                 {
@@ -8798,6 +11149,45 @@ namespace BNDZ.Services
                     }
                     catch { /* non-critical */ }
                 }
+                else if (type == "PURGE_TAG_FROM_SIDECAR")
+                {
+                    try
+                    {
+                        var tagKey = root.GetProperty("payload").TryGetProperty("tagKey", out var tkEl) ? tkEl.GetString() ?? "" : "";
+                        var purged = _tagSidecarStore.PurgeTagKey(tagKey);
+                        System.Diagnostics.Debug.WriteLine($"[Tags] Purged '{tagKey}' from {purged} sidecar entries");
+                    }
+                    catch { /* non-critical */ }
+                }
+                else if (type == "GET_ALL_TAGGED")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var entries = _tagSidecarStore.GetAll();
+                        var response = new { type = "ALL_TAGGED_RESULT", id = idProp, payload = new { entries } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "ALL_TAGGED_RESULT", id = idProp, payload = new { entries = Array.Empty<TagSidecarEntry>(), error = ex.Message } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                }
+                else if (type == "RENAME_TAG_IN_SIDECAR")
+                {
+                    try
+                    {
+                        var payload = root.GetProperty("payload");
+                        var oldKey = payload.TryGetProperty("oldKey", out var oEl) ? oEl.GetString() ?? "" : "";
+                        var newKey = payload.TryGetProperty("newKey", out var nEl) ? nEl.GetString() ?? "" : "";
+                        var renamed = _tagSidecarStore.RenameTagKey(oldKey, newKey);
+                        System.Diagnostics.Debug.WriteLine($"[Tags] Renamed '{oldKey}'→'{newKey}' on {renamed} entries");
+                    }
+                    catch { /* non-critical */ }
+                }
                 else if (type == "APPLY_TAGS")
                 {
                     var payload = root.GetProperty("payload");
@@ -9032,6 +11422,48 @@ namespace BNDZ.Services
                 return true;
             }
 
+            if (type == "MESH_LIST_HOSTS")
+            {
+                try
+                {
+                    var hosts = _meshOrchestrator.ListHosts();
+                    PostMeshIpcResult(idProp, "MESH_LIST_HOSTS_RESULT", hosts);
+                }
+                catch (Exception ex)
+                {
+                    PostMeshIpcResult(idProp, "MESH_LIST_HOSTS_RESULT", new { error = ex.Message, hosts = Array.Empty<MeshHostRecord>() });
+                }
+                return true;
+            }
+
+            if (type == "MESH_INCUS_LIST_EPHEMERAL")
+            {
+                try
+                {
+                    var instances = _meshOrchestrator.Ephemeral.ListEphemeral();
+                    PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances });
+                }
+                catch (Exception ex)
+                {
+                    PostMeshIpcResult(idProp, "MESH_INCUS_LIST_EPHEMERAL_RESULT", new { instances = Array.Empty<IncusEphemeralInstanceRecord>(), error = ex.Message });
+                }
+                return true;
+            }
+
+            if (type == "MESH_INCUS_LIST_ENDPOINTS")
+            {
+                try
+                {
+                    var endpoints = _meshOrchestrator.Ephemeral.ListEndpoints();
+                    PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints });
+                }
+                catch (Exception ex)
+                {
+                    PostMeshIpcResult(idProp, "MESH_INCUS_LIST_ENDPOINTS_RESULT", new { endpoints = Array.Empty<IncusEndpointRecord>(), error = ex.Message });
+                }
+                return true;
+            }
+
             if (type == "GET_DRIVES")
             {
                 var forceRefresh = false;
@@ -9152,20 +11584,23 @@ namespace BNDZ.Services
                     var stream = mapper.GetIconStream(iconName);
                     if (stream != null)
                     {
-                        var env = MainWebView.CoreWebView2.Environment;
+                        var env = MainWebView.CoreWebView2?.Environment;
+                        if (env == null) return;
                         var response = env.CreateWebResourceResponse(stream, 200, "OK", "Content-Type: image/png");
                         e.Response = response;
                     }
                 }
                 else if (BndzMediaScheme.IsMediaRequest(e.Request.Uri))
                 {
-                    var env = MainWebView.CoreWebView2.Environment;
+                    var env = MainWebView.CoreWebView2?.Environment;
+                    if (env == null) return;
                     BndzMediaScheme.Serve(env, e);
                 }
                 else if (LocalStreamService.IsStreamRequest(e.Request.Uri))
                 {
                     string localPath = LocalStreamService.ParseLocalStreamPath(e.Request.Uri);
-                    var env = MainWebView.CoreWebView2.Environment;
+                    var env = MainWebView.CoreWebView2?.Environment;
+                    if (env == null) return;
                     LocalStreamService.ServeLocalFile(env, e, localPath);
                 }
             }
@@ -9177,7 +11612,8 @@ namespace BNDZ.Services
 
         private void PostFileTransferQueueChanged()
         {
-            // Queue notifications fire from worker threads; WebView2 must be touched on the UI thread.
+            // Queue notifications fire from worker threads; DeliverIpcJson is transport-safe.
+            // Never suppress during OLE — paste/copy progress must reach the toast + bottom panel.
             PostToUi(() =>
             {
                 if (!HasLiveUiTransport()) return;
@@ -9240,6 +11676,107 @@ namespace BNDZ.Services
             {
                 _globalHotkeys.ApplyFromSettings("Alt+Space", "Ctrl+Shift+P", "Ctrl+Shift+F");
             }
+        }
+
+        private void ApplyOsQuickLookFromSettingsJson(string? json)
+        {
+            var enabled = true;
+            try
+            {
+                using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) || json == "null" ? "{}" : json);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("osWideQuickLook", out var el))
+                {
+                    if (el.ValueKind == JsonValueKind.False) enabled = false;
+                    else if (el.ValueKind == JsonValueKind.True) enabled = true;
+                }
+                else if (root.TryGetProperty("enableOsWideQuickLook", out var el2))
+                {
+                    if (el2.ValueKind == JsonValueKind.False) enabled = false;
+                }
+            }
+            catch { enabled = true; }
+
+            try
+            {
+                if (_osQuickLook == null)
+                {
+                    _osQuickLook = new OsQuickLookHookService(Dispatcher);
+                    _osQuickLook.ToggleRequested += OnOsQuickLookToggle;
+                    _osQuickLook.CloseRequested += OnOsQuickLookClose;
+                    _osQuickLook.Start();
+                }
+                _osQuickLook.Enabled = enabled;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OsQuickLook] init: {ex.Message}");
+            }
+        }
+
+        private void OnOsQuickLookToggle()
+        {
+            PostToUi(() =>
+            {
+                try
+                {
+                    if (_osQuickLookOpen)
+                    {
+                        _osQuickLookOpen = false;
+                        DeliverIpcJson(JsonSerializer.Serialize(new
+                        {
+                            type = "BNDZ_QUICK_LOOK_CLOSE",
+                            payload = new { },
+                        }));
+                        return;
+                    }
+
+                    var paths = ForegroundShellSelectionService.GetSelectedPaths();
+                    if (paths.Count == 0) return;
+
+                    var items = new List<object>(paths.Count);
+                    foreach (var p in paths)
+                    {
+                        var isDir = Directory.Exists(p);
+                        items.Add(new
+                        {
+                            path = p,
+                            name = Path.GetFileName(p.TrimEnd('\\', '/')) is { Length: > 0 } n ? n : p,
+                            isDirectory = isDir,
+                        });
+                    }
+
+                    ShowAndActivate();
+                    _osQuickLookOpen = true;
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "BNDZ_QUICK_LOOK_OPEN",
+                        payload = new { paths, items },
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[OsQuickLook] toggle: {ex.Message}");
+                }
+            });
+        }
+
+        private void OnOsQuickLookClose()
+        {
+            PostToUi(() =>
+            {
+                try
+                {
+                    if (!_osQuickLookOpen) return;
+                    _osQuickLookOpen = false;
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "BNDZ_QUICK_LOOK_CLOSE",
+                        payload = new { },
+                    }));
+                }
+                catch { }
+            });
         }
 
         /// <summary>
@@ -9399,7 +11936,8 @@ namespace BNDZ.Services
             FileTransferPriority priority = FileTransferPriority.Normal,
             string? ipcIdProp = null,
             string? ipcResultType = null,
-            bool deleteLane = false)
+            bool deleteLane = false,
+            bool forceWaitForIpcResult = false)
         {
             var prefs = FileOperationPreferences.Current;
 
@@ -9415,7 +11953,7 @@ namespace BNDZ.Services
                 }
             }
 
-            if (prefs.BackgroundProcessing && !string.IsNullOrEmpty(ipcIdProp) && !string.IsNullOrEmpty(ipcResultType))
+            if (prefs.BackgroundProcessing && !forceWaitForIpcResult && !string.IsNullOrEmpty(ipcIdProp) && !string.IsNullOrEmpty(ipcResultType))
             {
                 await PostIpcResultAsync(ipcResultType, ipcIdProp, BackgroundIpcAck()).ConfigureAwait(false);
                 _ = RunWorkAsync();
@@ -9447,6 +11985,32 @@ namespace BNDZ.Services
             bool recreateSourceStructure = false,
             string? idProp = null)
         {
+            // Remote Mesh FS ops — FileSSH-class CRUD routed through SFTP/S3 providers.
+            var meshSources = sources.Where(BndzMeshOrchestrator.LooksLikeMeshFsPath).Select(BndzMeshOrchestrator.ToMeshPanePath).ToList();
+            var targetIsMesh = BndzMeshOrchestrator.LooksLikeMeshFsPath(target);
+            if (meshSources.Count > 0 || (targetIsMesh && action is "create-dir" or "create-file"))
+            {
+                var meshTarget = targetIsMesh ? BndzMeshOrchestrator.ToMeshPanePath(target) : target;
+                var meshLabel = BuildFileOpLabel(action, meshSources.Count > 0 ? meshSources : new List<string> { meshTarget }, labelOverride);
+                _fileTransferQueue.RegisterJob(operationId, action, meshLabel, "mesh", Math.Max(meshSources.Count, 1), "mesh", priority, meshTarget);
+                try
+                {
+                    var opSources = meshSources.Count > 0 ? meshSources : new List<string> { meshTarget };
+                    await _meshOrchestrator.ExecuteFsOperationAsync(action, opSources, string.IsNullOrWhiteSpace(meshTarget) ? null : meshTarget)
+                        .ConfigureAwait(false);
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    if (!string.IsNullOrEmpty(idProp))
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = true, background = false, engine = "mesh" });
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    if (!string.IsNullOrEmpty(idProp))
+                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = ex.Message, engine = "mesh" });
+                }
+                return;
+            }
+
             var prefs = FileOperationPreferences.Current;
             if (!recreateSourceStructure
                 && string.Equals(prefs.RecreateSourceFolderStructure, "Always", StringComparison.OrdinalIgnoreCase)
@@ -9469,7 +12033,7 @@ namespace BNDZ.Services
                         _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority, target);
                         _fileTransferQueue.MarkFailed(operationId, policyMsg);
                         if (!string.IsNullOrEmpty(idProp))
-                            PostMeshIpcResult(idProp, "EXECUTE_FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
+                            PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
                         return;
                     }
                 }
@@ -9484,10 +12048,17 @@ namespace BNDZ.Services
             if (prefs.DefaultRepeatOnCollision && (action == "copy" || action == "move"))
                 _conflictBatchResolution[operationId] = "replace";
 
+            var isInstantCreateOp = action is "create-dir" or "create-file";
+            string? fsOpCreatedPath = isInstantCreateOp
+                ? (!string.IsNullOrWhiteSpace(target) ? target : sources.FirstOrDefault())
+                : null;
+
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 void OnProgress(string opId, int percentage, string currentFile, long bytesTransferred, long totalBytes, double speedBytesPerSecond, int itemsCompleted, int totalItems)
                 {
+                    if (isInstantCreateOp && !string.IsNullOrEmpty(currentFile))
+                        fsOpCreatedPath = currentFile;
                     _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems, bytesTransferred, totalBytes, speedBytesPerSecond);
                     var evt = new
                     {
@@ -9553,6 +12124,32 @@ namespace BNDZ.Services
                     }
                     catch { }
 
+                    // Record BEFORE execute so Ctrl+Z works as soon as the optimistic UI hides the row
+                    // (native IFileOperation can take seconds — late Record left "Nothing to undo").
+                    var recordedEarly = false;
+                    if (engine is "native" or "teracopy" || action is "delete" or "copy" or "move" or "rename" or "create-dir" or "create-file")
+                    {
+                        if (engine == "native" && action is "copy" or "move" or "delete")
+                        {
+                            var valid = sources.Where(s =>
+                                !string.IsNullOrWhiteSpace(s)
+                                && (File.Exists(s) || Directory.Exists(s)
+                                    || PortableDeviceService.IsPortableDevicePath(s)
+                                    || ShellPathResolver.IsShellVirtualPath(s))).ToList();
+                            if (valid.Count == 0)
+                                throw new FileNotFoundException("None of the source items exist. The operation could not run.");
+                            sources = valid;
+                            if (action is "copy" or "move")
+                                plannedTargets = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
+                        }
+                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
+                        recordedEarly = true;
+                        try { await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false); }
+                        catch { /* undo affordance is best-effort mid-op */ }
+                    }
+
+                    try
+                    {
                     if (engine == "teracopy" && action is "copy" or "move")
                     {
                         var result = _externalCopyHandler.Execute(
@@ -9570,23 +12167,9 @@ namespace BNDZ.Services
                         }
                         _fileTransferQueue.DetachProcess(operationId);
                         OnProgress(operationId, 99, target, 0, 0, 0, sources.Count, sources.Count);
-                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
                     }
                     else if (engine == "native")
                     {
-                        if (action is "copy" or "move" or "delete")
-                        {
-                            var valid = sources.Where(s =>
-                                !string.IsNullOrWhiteSpace(s)
-                                && (File.Exists(s) || Directory.Exists(s)
-                                    || PortableDeviceService.IsPortableDevicePath(s)
-                                    || ShellPathResolver.IsShellVirtualPath(s))).ToList();
-                            if (valid.Count == 0)
-                                throw new FileNotFoundException("None of the source items exist. The operation could not run.");
-                            sources = valid;
-                            if (action is "copy" or "move")
-                                plannedTargets = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
-                        }
                         await _nativeFileOperationService.ExecuteOperationAsync(
                             operationId,
                             action,
@@ -9596,8 +12179,8 @@ namespace BNDZ.Services
                             OnProgress,
                             ct,
                             prefs.ShouldShowNativeProgress(action, sources, target),
-                            OnAccessDenied).ConfigureAwait(false);
-                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
+                            OnAccessDenied,
+                            _hostWindowHandle).ConfigureAwait(false);
                     }
                     else
                     {
@@ -9613,7 +12196,40 @@ namespace BNDZ.Services
                                 if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
                                     return batchResolution;
 
-                                var evt = new { type = "CONFLICT_DETECTED", payload = new { operationId = opId, fileName, sourcePath = srcPath, destPath } };
+                                // Collect file metadata for the conflict dialog (size, modified date).
+                                long srcSize = 0, srcModUtc = 0, destSize = 0, destModUtc = 0;
+                                try
+                                {
+                                    if (!string.IsNullOrEmpty(srcPath) && File.Exists(srcPath))
+                                    {
+                                        var si = new System.IO.FileInfo(srcPath);
+                                        srcSize = si.Length;
+                                        srcModUtc = new DateTimeOffset(si.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                    }
+                                    if (!string.IsNullOrEmpty(destPath) && File.Exists(destPath))
+                                    {
+                                        var di = new System.IO.FileInfo(destPath);
+                                        destSize = di.Length;
+                                        destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                    }
+                                }
+                                catch { /* metadata collection is best-effort */ }
+
+                                var evt = new
+                                {
+                                    type = "CONFLICT_DETECTED",
+                                    payload = new
+                                    {
+                                        operationId = opId,
+                                        fileName,
+                                        sourcePath = srcPath,
+                                        destPath,
+                                        sourceSize = srcSize,
+                                        sourceModifiedUtc = srcModUtc,
+                                        destSize,
+                                        destModifiedUtc = destModUtc,
+                                    }
+                                };
                                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                                 string conflictKey = $"{opId}:{fileName}";
                                 _conflictResolvers[conflictKey] = tcs;
@@ -9633,10 +12249,35 @@ namespace BNDZ.Services
                                 }
                                 return await tcs.Task.ConfigureAwait(false);
                             },
-                            recordActionLog: true,
+                            // Already recorded above — avoid duplicate undo entries.
+                            recordActionLog: !recordedEarly,
                             onAccessDenied: OnAccessDenied,
                             recreateSourceStructure: recreateSourceStructure,
                             cancellationToken: ct).ConfigureAwait(false);
+                    }
+                    }
+                    catch
+                    {
+                        if (recordedEarly)
+                        {
+                            try
+                            {
+                                var kind = action switch
+                                {
+                                    "delete" => ActionKind.Delete,
+                                    "copy" => ActionKind.Copy,
+                                    "move" or "rename" => ActionKind.Move,
+                                    "create-dir" => ActionKind.CreateDirectory,
+                                    "create-file" => ActionKind.CreateFile,
+                                    _ => (ActionKind?)null,
+                                };
+                                if (kind is { } k)
+                                    _actionLogService.TryDiscardLast(k, sources);
+                                await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                            }
+                            catch { /* ignore */ }
+                        }
+                        throw;
                     }
 
                     if ((action is "copy" or "move") && prefs.CopyTagsOnCopyOperations)
@@ -9669,18 +12310,124 @@ namespace BNDZ.Services
                     catch { }
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
-                    _fileTransferQueue.MarkCompleted(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
 
-                    foreach (var src in sources)
+                    // Verify create/copy landed before declaring success (false "Transfer done" fix).
+                    if (isInstantCreateOp)
                     {
-                        string dir = Directory.Exists(src) ? src : (Path.GetDirectoryName(src) ?? src);
-                        if (!string.IsNullOrEmpty(dir))
-                            QueueFsEvent(action == "delete" ? "Deleted" : "Changed", dir, Path.GetFileName(src) ?? "");
+                        var created = fsOpCreatedPath;
+                        if (string.IsNullOrEmpty(created))
+                        {
+                            created = !string.IsNullOrWhiteSpace(target) ? target : sources.FirstOrDefault();
+                        }
+                        if (string.IsNullOrEmpty(created)
+                            || (!Directory.Exists(created) && !File.Exists(created)))
+                        {
+                            var miss = "Create did not produce a path on disk.";
+                            _fileTransferQueue.MarkFailed(operationId, miss);
+                            if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                                await PostFsOperationResultAsync(idProp, false, miss, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
+                            return;
+                        }
+                        fsOpCreatedPath = created;
                     }
-                    if (!string.IsNullOrEmpty(target) && (action == "copy" || action == "move"))
-                        QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
+                    else if ((action is "copy" or "move") && plannedTargets is { Count: > 0 })
+                    {
+                        var missing = plannedTargets.Count(pt =>
+                            !string.IsNullOrWhiteSpace(pt.Dest)
+                            && !File.Exists(pt.Dest)
+                            && !Directory.Exists(pt.Dest));
+                        if (missing == plannedTargets.Count)
+                        {
+                            var miss = action == "move" ? "Move did not land on disk." : "Copy did not land on disk.";
+                            _fileTransferQueue.MarkFailed(operationId, miss);
+                            if (ShouldPostFsOperationResult())
+                                await PostFsOperationResultAsync(idProp, false, miss).ConfigureAwait(false);
+                            return;
+                        }
+                    }
+
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                    {
+                        var createdName = string.IsNullOrEmpty(fsOpCreatedPath)
+                            ? null
+                            : Path.GetFileName(fsOpCreatedPath.TrimEnd('\\', '/'));
+                        await PostFsOperationResultAsync(
+                            idProp,
+                            true,
+                            null,
+                            finalPath: fsOpCreatedPath,
+                            finalName: createdName,
+                            callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
+                    }
+
+                    // Precise Created/Deleted so FE can patch the open listing immediately.
+                    // "Changed" on wrong paths left wallpaper→list drops invisible until F5.
+                    if (action == "delete" || action == "move")
+                    {
+                        foreach (var src in sources)
+                        {
+                            if (string.IsNullOrWhiteSpace(src)) continue;
+                            var parent = Path.GetDirectoryName(src);
+                            var name = Path.GetFileName(src.TrimEnd('\\', '/'));
+                            if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(name))
+                                QueueFsEvent("Deleted", parent, name);
+                            try
+                            {
+                                // Desktop DefView needs an explicit DELETE pulse (Explorer may keep the icon).
+                                var srcPtr = Marshal.StringToHGlobalUni(src);
+                                try
+                                {
+                                    NativeShellService.SHChangeNotify(
+                                        0x00000004 | 0x00002000, /* SHCNE_DELETE | SHCNE_UPDATEITEM */
+                                        0x0005 | 0x2000, /* SHCNF_PATHW | SHCNF_FLUSHNOWAIT */
+                                        srcPtr, IntPtr.Zero);
+                                }
+                                finally { Marshal.FreeHGlobal(srcPtr); }
+                            }
+                            catch { /* ignore */ }
+                        }
+                    }
+                    if ((action == "copy" || action == "move") && !string.IsNullOrWhiteSpace(target))
+                    {
+                        var created = plannedTargets;
+                        if (created == null || created.Count == 0)
+                        {
+                            try
+                            {
+                                created = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
+                            }
+                            catch { created = null; }
+                        }
+                        if (created != null)
+                        {
+                            foreach (var pt in created)
+                            {
+                                if (string.IsNullOrWhiteSpace(pt.Dest)) continue;
+                                var parent = Path.GetDirectoryName(pt.Dest);
+                                var name = Path.GetFileName(pt.Dest.TrimEnd('\\', '/'));
+                                if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(name))
+                                    QueueFsEvent("Created", parent, name);
+                                try
+                                {
+                                    var destPtr = Marshal.StringToHGlobalUni(pt.Dest);
+                                    try
+                                    {
+                                        NativeShellService.SHChangeNotify(
+                                            0x00000002 | 0x00002000, /* SHCNE_CREATE | SHCNE_UPDATEITEM */
+                                            0x0005 | 0x2000, /* SHCNF_PATHW | SHCNF_FLUSHNOWAIT */
+                                            destPtr, IntPtr.Zero);
+                                    }
+                                    finally { Marshal.FreeHGlobal(destPtr); }
+                                }
+                                catch { /* ignore */ }
+                            }
+                        }
+                        else
+                        {
+                            QueueFsEvent("Changed", target, "");
+                        }
+                    }
                     FlushFsEvents();
                     try
                     {
@@ -9694,8 +12441,8 @@ namespace BNDZ.Services
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkCancelled(operationId);
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, "Cancelled", callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
@@ -9718,21 +12465,46 @@ namespace BNDZ.Services
                         try { DeliverIpcJson(JsonSerializer.Serialize(failEvt)); }
                         catch { }
                     });
-                    if (ShouldPostFsOperationResult())
-                        await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult() || isInstantCreateOp)
+                        await PostFsOperationResultAsync(idProp, false, ex.Message, callerWaitsForResult: isInstantCreateOp).ConfigureAwait(false);
                     throw;
                 }
             }
 
             // Deletes go to the fast-lane so they are never blocked by an in-progress copy/move.
+            // Instant create-dir/create-file wait for a real result (finalPath) — background ack
+            // left New Folder looking successful while nothing landed on disk.
             var isDeleteOp = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase);
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, priority, idProp, "FS_OPERATION_RESULT", deleteLane: isDeleteOp).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                operationId,
+                ExecuteCoreAsync,
+                priority,
+                idProp,
+                "FS_OPERATION_RESULT",
+                deleteLane: isDeleteOp,
+                forceWaitForIpcResult: isInstantCreateOp).ConfigureAwait(false);
         }
 
-        private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
+        private Task PostFsOperationResultAsync(
+            string? idProp,
+            bool ok,
+            string? error,
+            bool background = false,
+            string? finalPath = null,
+            string? finalName = null,
+            bool callerWaitsForResult = false)
         {
-            if (!background && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
-            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new { ok, error, background, queued = background });
+            if (!background && !callerWaitsForResult && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
+            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new
+            {
+                ok,
+                error,
+                background,
+                queued = background,
+                finalPath,
+                finalName,
+                created = ok && !string.IsNullOrEmpty(finalPath),
+            });
         }
 
         private async Task HandleFolderSyncRunAsync(string? idProp, string jobId)
@@ -9986,13 +12758,20 @@ namespace BNDZ.Services
                 var ok = RecycleBinService.Empty(hwnd);
                 if (ok) _fileTransferQueue.MarkCompleted(operationId);
                 else _fileTransferQueue.MarkFailed(operationId, "Could not empty Recycle Bin");
-                if (ShouldPostDeferredIpcResult())
-                {
-                    await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok }).ConfigureAwait(false);
-                }
+                // Always post — forceWait path. BackgroundProcessing makes ShouldPostDeferredIpcResult()
+                // false, which previously swallowed the RESULT and left FE timed out / "doesn't work".
+                await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok }).ConfigureAwait(false);
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "EMPTY_RECYCLE_BIN_RESULT", deleteLane: true).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                    operationId,
+                    ExecuteCoreAsync,
+                    FileTransferPriority.High,
+                    idProp,
+                    "EMPTY_RECYCLE_BIN_RESULT",
+                    deleteLane: true,
+                    forceWaitForIpcResult: true)
+                .ConfigureAwait(false);
         }
 
         private async Task HandleRestoreRecycleItemsAsync(string? idProp, List<string> restorePaths)
@@ -10007,17 +12786,17 @@ namespace BNDZ.Services
                 var (restored, failed) = RecycleBinService.Restore(restorePaths);
                 if (failed > 0 && restored == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not restore {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
-                if (ShouldPostDeferredIpcResult())
-                {
-                    var response = new { type = "RESTORE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { restored, failed } };
-                    await PostToUiAsync(() =>
-                    {
-                        try { DeliverIpcJson(JsonSerializer.Serialize(response, IpcJsonOptions)); } catch { }
-                    });
-                }
+                await PostIpcResultAsync("RESTORE_RECYCLE_ITEMS_RESULT", idProp, new { restored, failed }).ConfigureAwait(false);
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "RESTORE_RECYCLE_ITEMS_RESULT").ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                    operationId,
+                    ExecuteCoreAsync,
+                    FileTransferPriority.High,
+                    idProp,
+                    "RESTORE_RECYCLE_ITEMS_RESULT",
+                    forceWaitForIpcResult: true)
+                .ConfigureAwait(false);
         }
 
         private async Task HandlePurgeRecycleItemsAsync(string? idProp, List<string> purgePaths)
@@ -10032,17 +12811,18 @@ namespace BNDZ.Services
                 var (purged, failed) = RecycleBinService.Purge(purgePaths);
                 if (failed > 0 && purged == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not delete {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
-                if (ShouldPostDeferredIpcResult())
-                {
-                    var response = new { type = "PURGE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { purged, failed } };
-                    await PostToUiAsync(() =>
-                    {
-                        try { DeliverIpcJson(JsonSerializer.Serialize(response, IpcJsonOptions)); } catch { }
-                    });
-                }
+                await PostIpcResultAsync("PURGE_RECYCLE_ITEMS_RESULT", idProp, new { purged, failed }).ConfigureAwait(false);
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "PURGE_RECYCLE_ITEMS_RESULT", deleteLane: true).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(
+                    operationId,
+                    ExecuteCoreAsync,
+                    FileTransferPriority.High,
+                    idProp,
+                    "PURGE_RECYCLE_ITEMS_RESULT",
+                    deleteLane: true,
+                    forceWaitForIpcResult: true)
+                .ConfigureAwait(false);
         }
 
         private async Task HandleUndoRedoAsync(bool undo, string? idProp, string? entryId = null)
@@ -10120,7 +12900,8 @@ namespace BNDZ.Services
         {
             try
             {
-                if (!FileOperationPreferences.Current.LogActions) return;
+                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel,
+                // not the undo stack (matches Settings copy: Ctrl+Z always undoes).
                 action = (action ?? "").ToLowerInvariant();
                 switch (action)
                 {
@@ -10306,9 +13087,29 @@ namespace BNDZ.Services
                         if (move)
                         {
                             if (File.Exists(entry.Source))
-                                File.Move(entry.Source, entry.Destination, overwrite: true);
+                            {
+                                try
+                                {
+                                    File.Move(entry.Source, entry.Destination, overwrite: true);
+                                }
+                                catch (IOException)
+                                {
+                                    File.Copy(entry.Source, entry.Destination, overwrite: true);
+                                    File.Delete(entry.Source);
+                                }
+                            }
                             else if (Directory.Exists(entry.Source))
-                                Directory.Move(entry.Source, entry.Destination);
+                            {
+                                try
+                                {
+                                    Directory.Move(entry.Source, entry.Destination);
+                                }
+                                catch (IOException)
+                                {
+                                    CopyDirectoryForMagnet(entry.Source, entry.Destination);
+                                    Directory.Delete(entry.Source, recursive: true);
+                                }
+                            }
                         }
                         else
                         {
@@ -10352,13 +13153,16 @@ namespace BNDZ.Services
             await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "MAGNET_APPLY_DROP_RESULT").ConfigureAwait(false);
         }
 
-        private static void CopyDirectoryForMagnet(string sourceDir, string destDir)
+        private static void CopyDirectoryForMagnet(string sourceDir, string destDir, HashSet<string>? visited = null)
         {
+            visited ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var sourceFull = Path.GetFullPath(sourceDir);
+            if (!visited.Add(sourceFull)) return;
             Directory.CreateDirectory(destDir);
             foreach (var file in Directory.GetFiles(sourceDir))
                 File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite: true);
             foreach (var dir in Directory.GetDirectories(sourceDir))
-                CopyDirectoryForMagnet(dir, Path.Combine(destDir, Path.GetFileName(dir)));
+                CopyDirectoryForMagnet(dir, Path.Combine(destDir, Path.GetFileName(dir)), visited);
         }
 
         private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp, bool mirrorMode = false)

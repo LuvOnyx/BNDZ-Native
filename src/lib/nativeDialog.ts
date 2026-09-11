@@ -82,9 +82,18 @@ export type ElevationPromptOptions = {
   message?: string;
 };
 
+/**
+ * Show an elevation confirm dialog and, if approved, relaunch BNDZ as administrator.
+ *
+ * @param relaunchArgs Extra CLI args forwarded to the elevated process. Pass
+ *   `'--apply-shell --elevated'` when the elevation is needed to write shell
+ *   integration registry keys, so the elevated instance force-applies all
+ *   pending shell settings from config before the WebView starts.
+ */
 export async function promptElevationIfNeeded(
   result: { success?: boolean; needsElevation?: boolean; message?: string },
   options: ElevationPromptOptions = {},
+  relaunchArgs?: string,
 ): Promise<boolean> {
   if (result.success || !result.needsElevation) return !!result.success;
 
@@ -103,7 +112,13 @@ export async function promptElevationIfNeeded(
 
   if (!approved) return false;
 
+  try {
+    // Persist intent so the elevated WebView force-applies shell settings even if
+    // the native --apply-shell host path already ran (fingerprint / race safety).
+    localStorage.setItem('bndz-shell-apply-pending', '1');
+  } catch { /* ignore */ }
+
   const { IPC } = await import('./ipcBridge');
-  const relaunch = await IPC.relaunchAsAdmin();
+  const relaunch = await IPC.relaunchAsAdmin(relaunchArgs);
   return relaunch.success;
 }

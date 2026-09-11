@@ -76,10 +76,11 @@ function normalizeStatus(raw: Record<string, unknown>): RackStatus {
   };
 }
 
-export default function TranscodeRackPlugin({ selectedItems, focusedPath, currentPath }: {
+export default function TranscodeRackPlugin({ selectedItems, focusedPath, currentPath, embedded = false }: {
   selectedItems?: string[];
   focusedPath?: string;
   currentPath?: string;
+  embedded?: boolean;
 }) {
   const [format, setFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
   const [quality, setQuality] = useState(90);
@@ -146,7 +147,8 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
 
   return (
     <PluginPanelShell
-      title="Transcode Rack"
+      title="Encode"
+      variant={embedded ? 'embedded' : 'default'}
       icon="edit_image"
       toolbar={
         <PluginToolbarButton icon="play_ui" onClick={enqueue} disabled={running || !imagePaths.length}>
@@ -155,7 +157,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
       }
     >
       <PluginHeroStrip
-        title="Format transcode rack"
+        title="Image encode queue"
         subtitle="SkiaSharp batch encode — JPEG, PNG, or WebP with visible queue progress."
         actions={
           <PluginHeroActionButton icon="refresh_ui" onClick={pollStatus}>

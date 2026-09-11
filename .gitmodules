@@ -1,0 +1,6 @@
+[submodule "external/open-pencil"]
+	path = external/open-pencil
+	url = https://github.com/open-pencil/open-pencil.git
+[submodule "external/openshop"]
+	path = external/openshop
+	url = https://github.com/SysAdminDoc/Openshop.git
