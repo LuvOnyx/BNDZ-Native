@@ -1660,6 +1660,8 @@ export default function BNDZUI() {
       'reality-check': { id: 'library-health', tab: 'refs' },
       'drop-magnet': { id: 'batch-rename', tab: 'magnets' },
       compare: { id: 'folder-sync', tab: 'diff' },
+      'transcode-rack': { id: 'metadata', tab: 'encode' },
+      'semantic-desk': { id: 'filters', tab: 'groups' },
     };
     const absorb = absorbMap[pluginId];
     const resolvedId = absorb?.id ?? pluginId;

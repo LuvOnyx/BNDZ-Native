@@ -57,9 +57,9 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'branching-time':
       return { kind: 'plugin', pluginId: 'branching-time' };
     case 'transcode-rack':
-      return { kind: 'plugin', pluginId: 'transcode-rack' };
+      return { kind: 'plugin', pluginId: 'metadata' };
     case 'semantic-desk':
-      return { kind: 'plugin', pluginId: 'semantic-desk' };
+      return { kind: 'plugin', pluginId: 'filters' };
     case 'shell-menus':
       return { kind: 'plugin', pluginId: 'context-menu-manager' };
     case 'analyze-audio':

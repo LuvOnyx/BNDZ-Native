@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { useAppConfig, VisualFilter } from '../../data/configContext';
 import { FILTER_MATCH_HINTS } from '../../lib/visualFilterEngine';
 import PluginPanelShell from './PluginPanelShell';
+import SemanticDeskPlugin from './SemanticDeskPlugin';
 import { requestNativePrompt } from '../../lib/nativeDialog';
 import {
   PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
   PluginSectionTitle,
   PluginCard,
   PluginFieldLabel,
@@ -43,8 +46,25 @@ const MATCH_LABELS: Record<string, string> = {
     event: 'Event',
 };
 
-export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (filters: VisualFilter[]) => void }) {
+export default function FiltersPlugin({
+    onFilterChange,
+    currentPath,
+    focusedPath,
+    pluginLaunch,
+}: {
+    onFilterChange?: (filters: VisualFilter[]) => void;
+    currentPath?: string;
+    focusedPath?: string;
+    pluginLaunch?: { tab?: string };
+}) {
     const { config, updateConfig } = useAppConfig();
+    const [panelTab, setPanelTab] = useState<'rules' | 'groups'>('rules');
+
+    useEffect(() => {
+        const tab = String(pluginLaunch?.tab || '').toLowerCase();
+        if (tab === 'groups' || tab === 'semantic' || tab === 'semantic-desk') setPanelTab('groups');
+        else if (tab === 'rules' || tab === 'filters') setPanelTab('rules');
+    }, [pluginLaunch?.tab]);
     const [editing, setEditing] = useState<VisualFilter | null>(null);
     const filters = config.visualFilters || [];
     const activeCount = filters.filter(f => f.isActive).length;
@@ -124,14 +144,28 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
     const isNewRule = editing ? !filters.some(f => f.id === editing.id) : false;
 
     return (
-        <PluginPanelShell
+                <PluginPanelShell
             title="Visual Filters"
             icon="filters"
             iconColor="#a855f7"
             variant="embedded"
-            subtitle={`${activeCount} active of ${filters.length} rules · color-code the list`}
+            subtitle={panelTab === 'groups'
+                ? 'Semantic groups — cluster the folder into piles'
+                : `${activeCount} active of ${filters.length} rules · color-code the list`}
+            toolbar={(
+                <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+                    <PluginTab active={panelTab === 'rules'} onClick={() => setPanelTab('rules')}>Rules</PluginTab>
+                    <PluginTab active={panelTab === 'groups'} onClick={() => setPanelTab('groups')}>Groups</PluginTab>
+                </PluginTabStrip>
+            )}
         >
+            {panelTab === 'groups' ? (
+                <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                    <SemanticDeskPlugin currentPath={currentPath} focusedPath={focusedPath} embedded />
+                </div>
+            ) : (
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
+
                 <PluginHeroStrip
                     icon={<Icons8Icon id="filters" size={52} className="opacity-90" />}
                     name="Rules studio"
@@ -382,6 +416,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                 </div>
             </div>
             </div>
+            )}
         </PluginPanelShell>
     );
 }

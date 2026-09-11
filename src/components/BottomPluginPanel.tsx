@@ -295,6 +295,18 @@ export default function BottomPluginPanel(props: any & {
         }));
         return;
       }
+      if (id === 'transcode-rack') {
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+          detail: { id: 'metadata', tab: 'encode' },
+        }));
+        return;
+      }
+      if (id === 'semantic-desk') {
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+          detail: { id: 'filters', tab: 'groups' },
+        }));
+        return;
+      }
       handleTabClick(tab);
     }
   }, [onCommandDeckTool, config.bottomPanelRememberTab, updateConfig, orderedPlugins]);

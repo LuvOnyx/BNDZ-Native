@@ -4,6 +4,7 @@ import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
+import TranscodeRackPlugin from './TranscodeRackPlugin';
 import {
   PluginToolbarButton,
   PluginTabStrip,
@@ -60,17 +61,27 @@ export default function MetadataPlugin({
     entity,
     primarySelectedPath,
     selectedItems = [],
+    currentPath,
+    pluginLaunch,
 }: {
     focusedPath?: string;
     entity?: any;
     primarySelectedPath?: string | null;
     selectedItems?: string[];
+    currentPath?: string;
+    pluginLaunch?: { tab?: string };
 }) {
     const [meta, setMeta] = useState<Record<string, string>>({});
     const [hashes, setHashes] = useState<{ md5?: string; sha256?: string }>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'media' | 'system' | 'all'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'media' | 'system' | 'all' | 'encode'>('overview');
+
+    useEffect(() => {
+        const tab = String(pluginLaunch?.tab || '').toLowerCase();
+        if (tab === 'encode' || tab === 'transcode' || tab === 'transcode-rack') setActiveTab('encode');
+        else if (['overview','media','system','all'].includes(tab)) setActiveTab(tab as any);
+    }, [pluginLaunch?.tab]);
     const [fieldFilter, setFieldFilter] = useState('');
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [copyAllFormat, setCopyAllFormat] = useState<'tsv' | 'json' | null>(null);
@@ -327,9 +338,21 @@ export default function MetadataPlugin({
                     <PluginTab active={activeTab === 'media'} onClick={() => setActiveTab('media')}>Media</PluginTab>
                     <PluginTab active={activeTab === 'system'} onClick={() => setActiveTab('system')}>System</PluginTab>
                     <PluginTab active={activeTab === 'all'} onClick={() => setActiveTab('all')}>All fields</PluginTab>
+                    <PluginTab active={activeTab === 'encode'} onClick={() => setActiveTab('encode')}>Encode</PluginTab>
                 </PluginTabStrip>
 
                 <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 space-y-4 min-h-0">
+                    {activeTab === 'encode' ? (
+                        <div className="min-h-0 -m-5 h-[calc(100%+2.5rem)]">
+                            <TranscodeRackPlugin
+                                selectedItems={selectedItems}
+                                focusedPath={focusedPath || primarySelectedPath || undefined}
+                                currentPath={currentPath || focusedPath}
+                                embedded
+                            />
+                        </div>
+                    ) : (
+                    <>
                     {error && (
                         <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg text-red-400 text-xs flex items-center gap-2">
                             <Icons8Icon id="error_ui" size={14} /> {error}
@@ -498,6 +521,8 @@ export default function MetadataPlugin({
                                 />
                             )}
                         </PluginCard>
+                    )}
+                    </>
                     )}
                 </div>
             </div>

@@ -160,8 +160,8 @@ absorb → professionalize hosts → About/Register polish → launch
 
 - [x] Drop Magnets → Batch Rename (Magnets tab + Hub remap + strip kept)
 - [x] Compare → Folder Sync (Diff tab + Hub remap)
-- [ ] Transcode → Metadata
-- [ ] Semantic Desk → Visual Filters
+- [x] Transcode → Metadata
+- [x] Semantic Desk → Visual Filters
 - [ ] Policy Packs + Inbound → Drop Stack
 - [ ] ZK Vault → Project Sandbox
 - [ ] Ghost-Link → RAM Staging

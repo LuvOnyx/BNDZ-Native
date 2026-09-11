@@ -20,8 +20,6 @@ import InboundVolumePlugin, { InboundVolumePluginDef } from '../components/plugi
 import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
 import PolicyPackPlugin, { PolicyPackPluginDef } from '../components/plugins/PolicyPackPlugin';
 import ZkVaultPlugin, { ZkVaultPluginDef } from '../components/plugins/ZkVaultPlugin';
-import TranscodeRackPlugin, { TranscodeRackPluginDef } from '../components/plugins/TranscodeRackPlugin';
-import SemanticDeskPlugin, { SemanticDeskPluginDef } from '../components/plugins/SemanticDeskPlugin';
 import DesignBoardPlugin, { DesignBoardPluginDef } from '../components/plugins/DesignBoardPlugin';
 import { useAppConfig } from './configContext';
 
@@ -33,6 +31,8 @@ const RETIRED_PLUGIN_REMAP: Record<string, string> = {
     'reality-check': 'library-health',
     'drop-magnet': 'batch-rename',
     compare: 'folder-sync',
+    'transcode-rack': 'metadata',
+    'semantic-desk': 'filters',
 };
 
 export type PluginManifest = {
@@ -214,22 +214,6 @@ const ALL_PLUGINS: PluginManifest[] = [
         component: BranchingTimePlugin,
     },
 
-    {
-        ...TranscodeRackPluginDef,
-        description: 'Batch image transcode rack — JPEG, PNG, WebP encode queue with live progress.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: TranscodeRackPlugin,
-    },
-    {
-        ...SemanticDeskPluginDef,
-        description: 'Semantic desk overlay — cluster folder items into 3–8 piles with list group headers.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: SemanticDeskPlugin,
-    },
     {
         ...PolicyPackPluginDef,
         isInstalled: false,

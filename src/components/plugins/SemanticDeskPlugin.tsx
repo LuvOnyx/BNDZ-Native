@@ -53,9 +53,10 @@ function normalizeCluster(raw: Record<string, unknown>): ClusterPile {
   };
 }
 
-export default function SemanticDeskPlugin({ currentPath, focusedPath }: {
+export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded = false }: {
   currentPath?: string;
   focusedPath?: string;
+  embedded?: boolean;
 }) {
   const [active, setActive] = useState(isSemanticDeskActive());
   const [clusterCount, setClusterCount] = useState(5);
@@ -138,6 +139,7 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath }: {
   return (
     <PluginPanelShell
       title="Semantic Desk"
+      variant={embedded ? "embedded" : "default"}
       icon="smart_view"
       toolbar={
         <>

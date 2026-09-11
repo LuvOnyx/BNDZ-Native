@@ -76,10 +76,11 @@ function normalizeStatus(raw: Record<string, unknown>): RackStatus {
   };
 }
 
-export default function TranscodeRackPlugin({ selectedItems, focusedPath, currentPath }: {
+export default function TranscodeRackPlugin({ selectedItems, focusedPath, currentPath, embedded = false }: {
   selectedItems?: string[];
   focusedPath?: string;
   currentPath?: string;
+  embedded?: boolean;
 }) {
   const [format, setFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
   const [quality, setQuality] = useState(90);
@@ -147,6 +148,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
   return (
     <PluginPanelShell
       title="Transcode Rack"
+      variant={embedded ? 'embedded' : 'default'}
       icon="edit_image"
       toolbar={
         <PluginToolbarButton icon="play_ui" onClick={enqueue} disabled={running || !imagePaths.length}>

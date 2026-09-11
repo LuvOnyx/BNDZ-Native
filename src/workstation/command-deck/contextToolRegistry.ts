@@ -150,7 +150,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       ];
     case 'image':
       return [
-        tool('transcode-rack', 'Transcode', 'edit_image', 'transcode-rack'),
+        tool('transcode-rack', 'Encode', 'edit_image', 'metadata'),
         // Loupe / Luma are 2D image tools only — never offered for 3D meshes.
         tool('histogram', 'Luma inspect', 'color', undefined, 'host'),
         tool('loupe', 'Loupe', 'preview', undefined, 'host'),
@@ -181,7 +181,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       ];
     case 'folder':
       return [
-        tool('semantic-desk', 'Semantic Desk', 'smart_view', 'semantic-desk'),
+        tool('semantic-desk', 'Groups', 'smart_view', 'filters'),
         tool('index-folder', 'Index', 'search', undefined, 'host'),
         tool('storage-cleanup', 'Cleanup', 'storage_cleanup', 'storage-cleanup'),
         tool('folder-sync', 'Folder Sync', 'sync', 'folder-sync'),

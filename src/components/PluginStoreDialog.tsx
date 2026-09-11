@@ -111,11 +111,6 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Checkpoint, commit, and discard workflows',
       'Safe experimentation on live trees',
     ],
-    'semantic-desk': [
-      'Cluster files by content and filename signals',
-      'Optional ONNX embeddings when a model is present',
-      'Desk-style grouping for large libraries',
-    ],
     'policy-packs': [
       'Drop-time validation rules',
       'Block, warn, or reroute risky transfers',
@@ -125,11 +120,6 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Encrypt-at-rest with session unlock',
       'Folder-level vault mounts',
       'Native crypto without cloud keys',
-    ],
-    'transcode-rack': [
-      'SkiaSharp JPEG/PNG/WebP batch queue',
-      'Resize and quality presets',
-      'Background transcode with progress',
     ],
     'branching-time': [
       'Content branches and VSS shadows',
