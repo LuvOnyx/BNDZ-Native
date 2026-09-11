@@ -129,7 +129,7 @@ export default function LibraryHealthPlugin({
 
   useEffect(() => {
     const launchTab = String(pluginLaunch?.tab || '').toLowerCase();
-    if (launchTab === 'refs' || launchTab === 'missing' || launchTab === 'reality') {
+    if (['refs', 'missing', 'reality', 'reality-check'].includes(launchTab)) {
       setActiveTab('refs');
     }
   }, [pluginLaunch?.tab]);
@@ -289,11 +289,11 @@ export default function LibraryHealthPlugin({
 
   return (
     <PluginPanelShell
-      title="Library Health"
+      title="Health"
       icon="shield_ui"
       iconColor="#f59e0b"
       variant="embedded"
-      subtitle="Integrity scanner · broken links · missing project refs"
+      subtitle="Integrity scan · broken links · missing project refs"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -322,7 +322,7 @@ export default function LibraryHealthPlugin({
               <EmblemIcon id="emblem-warning" size={48} />
             </div>
           }
-          name="Library Health"
+          name="Library health"
           typeLabel="Integrity scanner"
           meta={
             <span className="bndz-panel-muted text-xs">

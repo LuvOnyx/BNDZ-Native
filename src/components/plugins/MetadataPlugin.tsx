@@ -23,7 +23,7 @@ export const MetadataPluginDef = {
     id: 'metadata',
     name: 'Metadata Inspector',
     icon: 'metadata',
-    description: 'Deep file metadata, shell properties, and cryptographic hash analysis.',
+    description: 'File intelligence — metadata, media tags, hashes, and image encode queue',
     isNative: true,
     targetPanel: 'bottom' as const,
 };
@@ -252,8 +252,32 @@ export default function MetadataPlugin({
 
     if (!path) {
         return (
-            <PluginPanelShell title="Metadata Inspector" icon="metadata" iconColor="#38bdf8" variant="embedded" subtitle="No selection">
-                <PluginEmptyState icon="metadata" description="Select a file or folder to inspect extended metadata, media tags, and hashes." />
+            <PluginPanelShell
+                title="Metadata"
+                icon="metadata"
+                iconColor="#38bdf8"
+                variant="embedded"
+                subtitle={activeTab === 'encode' ? 'Batch image encode queue' : 'File intelligence — facts, tags, hashes, encode'}
+                toolbar={(
+                    <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+                        <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>
+                        <PluginTab active={activeTab === 'media'} onClick={() => setActiveTab('media')}>Media</PluginTab>
+                        <PluginTab active={activeTab === 'system'} onClick={() => setActiveTab('system')}>System</PluginTab>
+                        <PluginTab active={activeTab === 'all'} onClick={() => setActiveTab('all')}>All fields</PluginTab>
+                        <PluginTab active={activeTab === 'encode'} onClick={() => setActiveTab('encode')}>Encode</PluginTab>
+                    </PluginTabStrip>
+                )}
+            >
+                {activeTab === 'encode' ? (
+                    <TranscodeRackPlugin
+                        selectedItems={selectedItems}
+                        focusedPath={focusedPath || primarySelectedPath || undefined}
+                        currentPath={currentPath || focusedPath}
+                        embedded
+                    />
+                ) : (
+                    <PluginEmptyState icon="metadata" description="Select a file or folder to inspect extended metadata, media tags, and hashes — or open Encode for batch image convert." />
+                )}
             </PluginPanelShell>
         );
     }
@@ -294,7 +318,7 @@ export default function MetadataPlugin({
 
     return (
         <PluginPanelShell
-            title="Metadata Inspector"
+            title="File Intelligence"
             icon="metadata"
             iconColor="#38bdf8"
             variant="embedded"

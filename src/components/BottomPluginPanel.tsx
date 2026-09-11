@@ -265,48 +265,46 @@ export default function BottomPluginPanel(props: any & {
       waveform: 'metadata',
       'analyze-audio': 'metadata',
       'media-tab': 'metadata',
-      'ghost-link': 'ghost-link',
+      'ghost-link': 'ram-staging',
       'ram-staging': 'ram-staging',
       'flush-ram-zone': 'ram-staging',
       dropstack: 'dropstack',
       catalog: 'catalog',
       'folder-sync': 'folder-sync',
       'project-sandbox': 'project-sandbox',
-      'library-health': 'library-health',
+      'library-health': 'storage-cleanup',
       'capacity-solver': 'storage-cleanup',
-      'inbound-volume': 'inbound-volume',
+      'inbound-volume': 'dropstack',
       'branching-time': 'branching-time',
-      'transcode-rack': 'transcode-rack',
-      'semantic-desk': 'semantic-desk',
-      'shell-verb-forge': 'context-menu-manager',
+      'transcode-rack': 'metadata',
+      'semantic-desk': 'filters',
     };
+    // Absorbed / alias tool ids that are not on ContextToolId — handle via string key.
+    const absorbedDeepLinks: Record<string, { id: string; tab: string }> = {
+      'capacity-solver': { id: 'storage-cleanup', tab: 'capacity' },
+      compare: { id: 'folder-sync', tab: 'diff' },
+      'transcode-rack': { id: 'metadata', tab: 'encode' },
+      'ghost-link': { id: 'ram-staging', tab: 'cold' },
+      'library-health': { id: 'storage-cleanup', tab: 'health' },
+      'reality-check': { id: 'storage-cleanup', tab: 'refs' },
+      'inbound-volume': { id: 'dropstack', tab: 'intake' },
+      'capture-inbox': { id: 'dropstack', tab: 'captures' },
+      'policy-packs': { id: 'dropstack', tab: 'policies' },
+      'zk-vault': { id: 'project-sandbox', tab: 'vault' },
+      'semantic-desk': { id: 'filters', tab: 'groups' },
+      'shell-verb-forge': { id: 'context-menu-manager', tab: 'verbs' },
+    };
+    const deep = absorbedDeepLinks[id];
+    if (deep && orderedPlugins.some((p: any) => p.id === deep.id)) {
+      window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+        detail: { id: deep.id, tab: deep.tab },
+      }));
+      return;
+    }
+
     const tab = tabMap[id];
     // Hard invariant: never switch to a tab for an uninstalled plugin.
     if (tab && orderedPlugins.some((p: any) => p.id === tab)) {
-      if (id === 'capacity-solver') {
-        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
-          detail: { id: 'storage-cleanup', tab: 'capacity' },
-        }));
-        return;
-      }
-      if (id === 'compare') {
-        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
-          detail: { id: 'folder-sync', tab: 'diff' },
-        }));
-        return;
-      }
-      if (id === 'transcode-rack') {
-        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
-          detail: { id: 'metadata', tab: 'encode' },
-        }));
-        return;
-      }
-      if (id === 'semantic-desk') {
-        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
-          detail: { id: 'filters', tab: 'groups' },
-        }));
-        return;
-      }
       handleTabClick(tab);
     }
   }, [onCommandDeckTool, config.bottomPanelRememberTab, updateConfig, orderedPlugins]);

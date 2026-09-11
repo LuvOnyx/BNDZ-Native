@@ -6,8 +6,11 @@ import { bndzRamVirtualPath, BNDZ_RAM_ROOT } from '../../lib/bndzVirtualViews';
 import { invalidateRamZoneMountCache } from '../../lib/ramStagingPaths';
 import { readBndzFileDragData, hasBndzFileDrag } from '../../lib/bndzDrag';
 import PluginPanelShell from './PluginPanelShell';
+import GhostLinkPlugin from './GhostLinkPlugin';
 import {
   PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
   PluginCard,
   PluginEmptyState,
   PluginHeroStrip,
@@ -21,7 +24,7 @@ export const RamStagingPluginDef = {
   id: 'ram-staging',
   name: 'RAM Staging',
   icon: 'hard_drive_ui',
-  description: 'Staging zones — RAM disk when the driver is ready, otherwise fast disk staging. Flush back on eject.',
+  description: 'Staging — hot RAM zones plus cold offload that keeps a link at the old path',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -58,11 +61,20 @@ type Props = {
   onNavigate?: (path: string) => void;
   onStatus?: (msg: string | null) => void;
   selectedItems?: string[];
+  selectedPaths?: string[];
+  currentPath?: string;
   config?: { ramStagingPreferImDisk?: boolean };
-  pluginLaunch?: { paths?: string[] } | null;
+  pluginLaunch?: { paths?: string[]; tab?: string } | null;
 };
 
-export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, config, pluginLaunch }: Props) {
+export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, selectedPaths, currentPath, config, pluginLaunch }: Props) {
+  type PanelTab = 'hot' | 'cold';
+  const [panelTab, setPanelTab] = useState<PanelTab>('hot');
+  useEffect(() => {
+    const tab = String(pluginLaunch?.tab || '').toLowerCase();
+    if (['cold', 'ghost', 'ghost-link', 'offload'].includes(tab)) setPanelTab('cold');
+    else if (['hot', 'ram', 'ram-staging'].includes(tab)) setPanelTab('hot');
+  }, [pluginLaunch?.tab]);
   const preferRam = config?.ramStagingPreferImDisk !== false;
   const [zones, setZones] = useState<Zone[]>([]);
   const [stageZoneId, setStageZoneId] = useState('');
@@ -272,18 +284,33 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
 
   return (
     <PluginPanelShell
-      title="RAM Staging"
+      title="Staging"
       icon="hard_drive_ui"
       iconColor="#a78bfa"
       variant="embedded"
-      subtitle={
-        ramZones > 0
-          ? `${ramZones} RAM zone${ramZones === 1 ? '' : 's'} active`
-          : zones.length > 0
-            ? `${zones.length} fast staging zone${zones.length === 1 ? '' : 's'}`
-            : 'Create a zone to stage projects'
-      }
+      subtitle={panelTab === 'cold'
+        ? 'Cold offload — reclaim space while keeping a link at the old path'
+        : 'Hot RAM / fast disk staging zones · flush on eject'}
+      toolbar={(
+        <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+          <PluginTab active={panelTab === 'hot'} onClick={() => setPanelTab('hot')}>
+            <span className="inline-flex items-center gap-1"><Icons8Icon id="hard_drive_ui" size={11} />Hot</span>
+          </PluginTab>
+          <PluginTab active={panelTab === 'cold'} onClick={() => setPanelTab('cold')}>
+            <span className="inline-flex items-center gap-1"><Icons8Icon id="link_ui" size={11} />Cold</span>
+          </PluginTab>
+        </PluginTabStrip>
+      )}
     >
+      {panelTab === 'cold' ? (
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
+          <GhostLinkPlugin
+            currentPath={currentPath}
+            selectedPaths={selectedPaths || selectedItems}
+          />
+        </div>
+      ) : (
+
       <div className="flex flex-col gap-3 min-h-0 bndz-ram-panel px-4 pb-4">
         {memoryPressure && (
           <div className="shrink-0 px-3 py-2 rounded-lg border border-amber-400/30 bg-amber-500/10 text-[10px] text-amber-200/90">
@@ -446,6 +473,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
           )}
         </div>
       </div>
+      )}
     </PluginPanelShell>
   );
 }

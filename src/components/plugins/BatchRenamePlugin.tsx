@@ -22,7 +22,8 @@ import {
 export const BatchRenamePluginDef = {
     id: "batch-rename",
     name: "Batch Rename",
-    icon: 'batch_rename'
+    icon: 'batch_rename',
+    description: 'Rename & magnets — pattern renames plus drop recipes for rename, tag, and route',
 };
 
 type PanelTabId = 'rename' | 'magnets';
@@ -386,7 +387,7 @@ export default function BatchRenamePlugin({
 
     return (
         <PluginPanelShell
-            title="Batch Rename"
+            title="Rename & Magnets"
             icon="batch_rename"
             iconColor="#34d399"
             variant="embedded"

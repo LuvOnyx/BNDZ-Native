@@ -7,7 +7,7 @@ const STACKS_KEY = 'bndz-dropstacks-v2';
 
 export type NamedDropStack = { id: string; name: string; items: string[] };
 
-function uid() {
+export function uid() {
   return `stk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 

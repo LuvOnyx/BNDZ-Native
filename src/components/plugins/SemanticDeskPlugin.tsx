@@ -138,7 +138,7 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
 
   return (
     <PluginPanelShell
-      title="Semantic Desk"
+      title="Groups"
       variant={embedded ? "embedded" : "default"}
       icon="smart_view"
       toolbar={
@@ -153,7 +153,7 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
       }
     >
       <PluginHeroStrip
-        title="Semantic desk overlay"
+        title="Smart groups"
         subtitle={onnxReady
           ? 'ONNX embeddings loaded — cluster by meaning, then group the list.'
           : 'Local feature vectors (extension, size, name tokens) → 3–8 piles. Drop ONNX model for richer ranking.'}

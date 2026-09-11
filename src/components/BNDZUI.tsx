@@ -1656,12 +1656,17 @@ export default function BNDZUI() {
     const absorbMap: Record<string, { id: string; tab?: string }> = {
       'shell-verb-forge': { id: 'context-menu-manager' },
       'capacity-solver': { id: 'storage-cleanup', tab: 'capacity' },
-      'capture-inbox': { id: 'inbound-volume', tab: 'captures' },
-      'reality-check': { id: 'library-health', tab: 'refs' },
       'drop-magnet': { id: 'batch-rename', tab: 'magnets' },
       compare: { id: 'folder-sync', tab: 'diff' },
       'transcode-rack': { id: 'metadata', tab: 'encode' },
       'semantic-desk': { id: 'filters', tab: 'groups' },
+      'policy-packs': { id: 'dropstack', tab: 'policies' },
+      'inbound-volume': { id: 'dropstack', tab: 'intake' },
+      'capture-inbox': { id: 'dropstack', tab: 'captures' },
+      'zk-vault': { id: 'project-sandbox', tab: 'vault' },
+      'ghost-link': { id: 'ram-staging', tab: 'cold' },
+      'library-health': { id: 'storage-cleanup', tab: 'health' },
+      'reality-check': { id: 'storage-cleanup', tab: 'refs' },
     };
     const absorb = absorbMap[pluginId];
     const resolvedId = absorb?.id ?? pluginId;

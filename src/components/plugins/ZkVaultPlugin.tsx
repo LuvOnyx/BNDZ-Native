@@ -34,9 +34,11 @@ type VaultSession = {
 export default function ZkVaultPlugin({
   currentPath,
   selectedPaths,
+  embedded = false,
 }: {
   currentPath?: string;
   selectedPaths?: string[];
+  embedded?: boolean;
 }) {
   const [sessions, setSessions] = useState<VaultSession[]>([]);
   const [vaultCount, setVaultCount] = useState(0);
@@ -135,10 +137,10 @@ export default function ZkVaultPlugin({
   };
 
   return (
-    <PluginPanelShell title="ZK Vault" icon="lock_ui">
+    <PluginPanelShell title="Vault" icon="lock_ui" variant={embedded ? "embedded" : "default"}>
       <PluginHeroStrip
         icon={<Icons8Icon id="lock_ui" size={40} />}
-        name="Zero-knowledge vault"
+        name="Encrypted vault"
         typeLabel="Encrypt at rest"
         meta={<span className="text-xs text-gray-400">{vaultCount} vault(s) · {sessions.length} session(s)</span>}
       />

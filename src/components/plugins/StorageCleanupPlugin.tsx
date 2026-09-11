@@ -20,6 +20,7 @@ import StorageCleanupWizard, { type StorageWizardMode } from './StorageCleanupWi
 import StorageAdvancedScanWizard from './StorageAdvancedScanWizard';
 import InstalledAppsPanel from './InstalledAppsPanel';
 import CapacitySolverPlugin from './CapacitySolverPlugin';
+import LibraryHealthPlugin from './LibraryHealthPlugin';
 import {
   ORGANIZE_BUCKETS,
   bucketForFile,
@@ -34,12 +35,17 @@ export const StorageCleanupPluginDef = {
   id: 'storage-cleanup',
   name: 'Storage Cleanup',
   icon: 'storage_cleanup',
-  description: 'Professional disk cleanup with capacity what-if planning, deep clean, duplicates, and app uninstall.',
+  description: 'Cleanup & health — deep clean, capacity planning, duplicates, and library repair',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
 
-type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize' | 'capacity';
+function launchTabIsRefs(launch: any) {
+  const tab = String(launch?.tab || '').toLowerCase();
+  return tab === 'refs' || tab === 'reality-check' || tab === 'reality' || tab === 'missing';
+}
+
+type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize' | 'capacity' | 'health';
 
 export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap, pluginLaunch }: any) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -87,6 +93,9 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       openWizard(mode, pluginLaunch?.currentPath);
     }
     const launchTab = String(pluginLaunch?.tab || '').toLowerCase();
+    if (['health', 'library-health', 'refs', 'reality-check', 'reality', 'missing'].includes(launchTab)) {
+      setActiveTab('health');
+    }
     if (launchTab === 'capacity' || launchTab === 'whatif' || launchTab === 'budget') {
       setActiveTab('capacity');
     }
@@ -195,17 +204,18 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
     { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
     { id: 'organize', label: 'Organize', icon: 'folder_plus_ui' },
+    { id: 'health', label: 'Health', icon: 'heart_monitor_ui' },
   ];
 
   const folderLabel = currentPath?.split('/').filter(Boolean).pop() || 'This PC';
 
   return (
     <PluginPanelShell
-      title="Storage Cleanup"
+      title="Cleanup & Health"
       icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Professional disk cleanup · capacity what-if · review before delete"
+      subtitle="Cleanup · capacity · library health · review before delete"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -220,6 +230,13 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       {activeTab === 'capacity' ? (
         <div className="flex-1 min-h-0 overflow-hidden">
           <CapacitySolverPlugin currentPath={pluginLaunch?.currentPath || currentPath} />
+        </div>
+      ) : activeTab === 'health' ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <LibraryHealthPlugin
+            currentPath={pluginLaunch?.currentPath || pluginLaunch?.rootPath || currentPath}
+            pluginLaunch={launchTabIsRefs(pluginLaunch) ? { tab: 'refs', currentPath: pluginLaunch?.currentPath || pluginLaunch?.rootPath || currentPath } : pluginLaunch}
+          />
         </div>
       ) : (
         <>

@@ -109,12 +109,12 @@ export function buildDefaultQuickActions(handlers: {
   if (handlers.onRamStaging && pluginOn('ram-staging')) {
     extra.push({ id: 'ram', label: 'RAM Stage', icon: 'hard_drive_ui', onClick: handlers.onRamStaging, accent: 'amber' });
   }
-  if (handlers.onGhostLink && pluginOn('ghost-link')) {
-    extra.push({ id: 'ghost', label: 'Ghost-Link', icon: 'emblem-symbolic-link', onClick: handlers.onGhostLink });
+  if (handlers.onGhostLink && pluginOn('ram-staging')) {
+    extra.push({ id: 'ghost', label: 'Cold Stage', icon: 'emblem-symbolic-link', onClick: handlers.onGhostLink });
   }
   if (handlers.onTag) extra.push({ id: 'tag', label: 'Tag', icon: 'tag_manager', onClick: handlers.onTag, accent: 'emerald' });
-  if (handlers.onCompare && pluginOn('compare')) {
-    extra.push({ id: 'compare', label: 'Compare', icon: 'compare', onClick: handlers.onCompare });
+  if (handlers.onCompare && pluginOn('folder-sync')) {
+    extra.push({ id: 'compare', label: 'Diff', icon: 'compare', onClick: handlers.onCompare });
   }
 
   const core: QuickAction[] = [

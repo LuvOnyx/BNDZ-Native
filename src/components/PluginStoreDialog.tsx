@@ -52,8 +52,9 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     ],
     dropstack: [
       'Stage files from many folders',
+      'Inbound intake — clipboard, OCR captures, folder watchers',
+      'Drop policies that block, warn, or reroute',
       'Batch copy or move into the active pane',
-      'Clear or reorder the stack mid-session',
     ],
     'design-board': [
       'Infinite Fabric canvas with ProDesign chrome',
@@ -62,18 +63,18 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     ],
     filters: [
       'Visual color filters for list rows',
-      'Quick toggles from the bottom panel',
+      'Smart groups — cluster the folder into piles',
       'Persisted with workspace settings',
     ],
     metadata: [
       'Sidecar tags and custom columns',
       'Bulk edit across selections',
-      'Surfaces in list and preview panes',
+      'Image encode queue — JPEG, PNG, WebP',
     ],
     'storage-cleanup': [
       'Large-file discovery and deep clean',
-      'Capacity what-if planning and budget governor',
-      'Safe delete with recycle / permanent paths',
+      'Capacity what-if planning',
+      'Library health — broken links, orphans, and repairs',
     ],
     'folder-sync': [
       'Robocopy-backed folder sync jobs',
@@ -96,45 +97,20 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Mesh VPS launch, import, start/stop, and Mesh bridge',
       'Ephemeral and persistent instances with cloud-init SSH',
     ],
-    'ghost-link': [
-      'Cold-storage offload with transparent reparse points',
-      'Rules-based scan and restore to original paths',
-      'Capacity relief without breaking app paths',
-    ],
     'ram-staging': [
-      'ImDisk / AIM-backed RAM volumes for staging',
-      'Fast scratch space for batch file work',
-      'Native host integration — no separate installer',
+      'Hot RAM / fast-disk staging zones',
+      'Cold staging that keeps a link at the old path',
+      'One Staging tool — hot and cold tiers',
     ],
     'project-sandbox': [
-      'ProjFS isolated project sandboxes',
-      'Checkpoint, commit, and discard workflows',
+      'Isolated sandbox sessions with checkpoint/commit/discard',
+      'Encrypted vault unlock/browse beside sandbox work',
       'Safe experimentation on live trees',
-    ],
-    'policy-packs': [
-      'Drop-time validation rules',
-      'Block, warn, or reroute risky transfers',
-      'Enforced in the main file manager drop path',
-    ],
-    'zk-vault': [
-      'Encrypt-at-rest with session unlock',
-      'Folder-level vault mounts',
-      'Native crypto without cloud keys',
     ],
     'branching-time': [
       'Content branches and VSS shadows',
       'Compare and restore timeline paths',
       'Non-destructive experimentation',
-    ],
-    'inbound-volume': [
-      'Clipboard and watcher intake volume',
-      'OCR screenshot capture inbox',
-      'Stage downloads before filing',
-    ],
-    'library-health': [
-      'Library scan with repair plans',
-      'Broken alias, path, and missing project refs',
-      'One-click fix actions where safe',
     ],
   };
   return byId[plugin.id] || [

@@ -98,7 +98,7 @@ export default function InboundVolumePlugin({
 
   useEffect(() => {
     const launchTab = String(pluginLaunch?.tab || '').toLowerCase();
-    if (launchTab === 'captures' || launchTab === 'capture' || launchTab === 'ocr') {
+    if (['captures', 'capture', 'ocr', 'capture-inbox'].includes(launchTab)) {
       setActiveTab('captures');
     }
   }, [pluginLaunch?.tab]);
@@ -238,11 +238,11 @@ export default function InboundVolumePlugin({
 
   return (
     <PluginPanelShell
-      title="Inbound Volume"
+      title="Intake"
       icon="download_ui"
       iconColor="#60a5fa"
       variant="embedded"
-      subtitle="Clipboard catcher · OCR captures · inbound file watcher"
+      subtitle="Clipboard · OCR captures · folder watchers"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -271,7 +271,7 @@ export default function InboundVolumePlugin({
               <EmblemIcon id="emblem-downloads" size={48} />
             </div>
           }
-          name="Inbound Volume"
+          name="Intake"
           typeLabel="Clipboard catcher"
           meta={
             <span className="bndz-panel-muted text-xs">

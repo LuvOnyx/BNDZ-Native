@@ -12,12 +12,17 @@ import {
 import {
   loadDropStackLibrary,
   saveDropStackLibrary,
+  uid,
   type NamedDropStack,
 } from '../../lib/dropStackStore';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
+import InboundVolumePlugin from './InboundVolumePlugin';
+import PolicyPackPlugin from './PolicyPackPlugin';
 import {
   PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
   PluginCard,
   PluginEmptyState,
   PluginHeroStrip,
@@ -29,7 +34,7 @@ export const DropStackPluginDef = {
   id: 'dropstack',
   name: 'Drop Stack',
   icon: 'dropstack',
-  description: 'Stage files from multiple directories, then batch copy or move to the active pane.',
+  description: 'Intake & stage — stash transfers, inbound capture, and drop policies in one place',
   targetPanel: 'bottom',
 };
 
@@ -38,7 +43,28 @@ function splitPath(full: string): { leaf: string; parent: string } {
   return { leaf, parent };
 }
 
-export default function DropStackPlugin({ focusedPath, selectedItems }: { focusedPath?: string; selectedItems?: string[] }) {
+export default function DropStackPlugin({
+  focusedPath,
+  selectedItems,
+  currentPath,
+  selectedPaths,
+  pluginLaunch,
+}: {
+  focusedPath?: string;
+  selectedItems?: string[];
+  currentPath?: string;
+  selectedPaths?: string[];
+  pluginLaunch?: { tab?: string; currentPath?: string } | null;
+}) {
+  type PanelTab = 'stack' | 'intake' | 'policies';
+  const [panelTab, setPanelTab] = useState<PanelTab>('stack');
+  useEffect(() => {
+    const tab = String(pluginLaunch?.tab || '').toLowerCase();
+    if (['intake', 'inbound', 'inbound-volume', 'captures', 'capture-inbox'].includes(tab)) setPanelTab('intake');
+    else if (['policies', 'policy', 'policy-packs'].includes(tab)) setPanelTab('policies');
+    else if (tab === 'stack' || tab === 'dropstack') setPanelTab('stack');
+  }, [pluginLaunch?.tab]);
+
   const initial = useMemo(() => loadDropStackLibrary(), []);
   const [stacks, setStacks] = useState<NamedDropStack[]>(initial.stacks);
   const [activeId, setActiveId] = useState(initial.activeId);
@@ -230,7 +256,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
   };
 
   const newStack = () => {
-    const s: NamedStack = { id: uid(), name: `Stack ${stacks.length + 1}`, items: [] };
+    const s: NamedDropStack = { id: uid(), name: `Stack ${stacks.length + 1}`, items: [] };
     setStacks(prev => [...prev, s]);
     setActiveId(s.id);
     setSelected(new Set());
@@ -268,12 +294,40 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
 
   return (
     <PluginPanelShell
-      title="Drop Stack"
+      title="Intake & Stage"
       icon="dropstack"
       iconColor="#a78bfa"
       variant="embedded"
-      subtitle="Named stashes · selective transfer"
+    
+      subtitle={panelTab === 'intake'
+        ? 'Clipboard, OCR captures, and folder watchers'
+        : panelTab === 'policies'
+          ? 'Block, warn, or reroute on drop'
+          : 'Named stashes · selective transfer'}
+      toolbar={(
+        <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+          <PluginTab active={panelTab === 'stack'} onClick={() => setPanelTab('stack')}>
+            <span className="inline-flex items-center gap-1"><Icons8Icon id="dropstack" size={11} />Stack</span>
+          </PluginTab>
+          <PluginTab active={panelTab === 'intake'} onClick={() => setPanelTab('intake')}>
+            <span className="inline-flex items-center gap-1"><Icons8Icon id="download_ui" size={11} />Intake</span>
+          </PluginTab>
+          <PluginTab active={panelTab === 'policies'} onClick={() => setPanelTab('policies')}>
+            <span className="inline-flex items-center gap-1"><Icons8Icon id="shield_ui" size={11} />Policies</span>
+          </PluginTab>
+        </PluginTabStrip>
+      )}
     >
+      {panelTab === 'intake' ? (
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
+          <InboundVolumePlugin currentPath={pluginLaunch?.currentPath || currentPath || focusedPath} pluginLaunch={pluginLaunch} />
+        </div>
+      ) : panelTab === 'policies' ? (
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
+          <PolicyPackPlugin currentPath={currentPath || focusedPath} selectedPaths={selectedPaths || selectedItems} embedded />
+        </div>
+      ) : (
+
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <PluginHeroStrip
           icon={<Icons8Icon id="dropstack" size={52} className="opacity-90" />}
@@ -426,6 +480,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
           </div>
         </div>
       </div>
+      )}
     </PluginPanelShell>
   );
 }

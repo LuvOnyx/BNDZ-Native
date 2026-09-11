@@ -86,13 +86,13 @@ export function filterToolsForInstalled(
 /** Stock context-menu ids → bottom-plugin id (same map as Command Deck). */
 const STOCK_CONTEXT_PLUGIN: Partial<Record<string, string>> = {
   'mesh-drop': 'remote-mesh',
-  'ghost-link': 'ghost-link',
+  'ghost-link': 'ram-staging',
   'ram-staging': 'ram-staging',
-  'zk-vault': 'zk-vault',
+  'zk-vault': 'project-sandbox',
   'photo-studio': 'design-board',
   'batch-rename': 'batch-rename',
   'smart-rename': 'batch-rename',
-  'hello-gate': 'zk-vault',
+  'hello-gate': 'project-sandbox',
   'change-icon': 'icon-studio',
 };
 
@@ -125,7 +125,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
       tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
       tool('capacity-solver', 'Capacity', 'bar_chart', 'storage-cleanup'),
-      tool('inbound-volume', 'Inbound', 'download', 'inbound-volume'),
+      tool('inbound-volume', 'Intake', 'download_ui', 'dropstack'),
       tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
       tool('catalog', 'Catalog', 'catalog', 'catalog'),
       tool('properties', 'Properties', 'sys_properties', 'properties'),
@@ -186,9 +186,9 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('storage-cleanup', 'Cleanup', 'storage_cleanup', 'storage-cleanup'),
         tool('folder-sync', 'Folder Sync', 'sync', 'folder-sync'),
         tool('project-sandbox', 'Sandbox', 'folder_tree', 'project-sandbox'),
-        tool('library-health', 'Health', 'health', 'library-health'),
+        tool('library-health', 'Library Health', 'heart_monitor_ui', 'storage-cleanup'),
         tool('branching-time', 'Branches', 'history_ui', 'branching-time'),
-        tool('ghost-link', 'Ghost-Link', 'link', 'ghost-link'),
+        tool('ghost-link', 'Ghost Offload', 'link_ui', 'ram-staging'),
         tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
         tool('mesh-download', 'Download', 'download', 'remote-mesh'),
         tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),

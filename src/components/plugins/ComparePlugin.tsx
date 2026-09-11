@@ -304,10 +304,10 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
 
   return (
     <PluginPanelShell
-      title="Compare"
+      title="Diff"
       icon="compare_ui"
       iconColor="#34d399"
-      subtitle="Binary file and folder diff"
+      subtitle="Binary file compare · recursive folder diff"
       variant="embedded"
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">

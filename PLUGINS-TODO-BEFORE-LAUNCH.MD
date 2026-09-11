@@ -162,7 +162,16 @@ absorb → professionalize hosts → About/Register polish → launch
 - [x] Compare → Folder Sync (Diff tab + Hub remap)
 - [x] Transcode → Metadata
 - [x] Semantic Desk → Visual Filters
-- [ ] Policy Packs + Inbound → Drop Stack
-- [ ] ZK Vault → Project Sandbox
-- [ ] Ghost-Link → RAM Staging
-- [ ] Library Health → Storage Cleanup
+- [x] Policy Packs + Inbound → Drop Stack
+- [x] ZK Vault → Project Sandbox
+- [x] Ghost-Link → RAM Staging
+- [x] Library Health → Storage Cleanup
+
+## Professionalize progress
+
+- [x] Remap plumbing hardened (Command Deck, Quick Actions, work-intent, deep-links)
+- [x] Drop Stack new-stack crash fixed
+- [x] Host product titles/stories + Hub capability copy
+- [x] Embedded child chrome renamed to host language (Magnets, Diff, Encode, Groups, Intake, Policies, Vault, Cold, Health)
+- [x] About + Register dialog polish
+- [ ] User smoke: install remaps, open each absorbed tab, Command Deck gating

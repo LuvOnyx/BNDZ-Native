@@ -182,8 +182,8 @@ export default function DropMagnetPlugin({
 
   return (
     <PluginPanelShell
-      title="Drop Magnets"
-      subtitle="Translucent landing pads for external drops — rename, tag, and route in one release."
+      title="Magnets"
+      subtitle="Landing pads — rename, tag, and route on Explorer → BNDZ release"
       icon="magnet_ui"
       variant={embedded ? 'embedded' : 'default'}
       toolbar={(
@@ -194,7 +194,7 @@ export default function DropMagnetPlugin({
     >
       <PluginHeroStrip
         icon={<Icons8Icon id="magnet_ui" size={40} />}
-        name="Drop Magnets"
+        name="Magnets"
         typeLabel="Landing pads"
         meta={(
           <span className="text-xs text-gray-400">

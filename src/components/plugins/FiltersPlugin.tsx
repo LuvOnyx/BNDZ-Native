@@ -23,7 +23,7 @@ export const FiltersPluginDef = {
     id: 'filters',
     name: 'Visual Filters',
     icon: 'filters',
-    description: 'Color-code files by extension, regex, age, size, and file attributes.',
+    description: 'Filters & smart groups — color rules plus semantic folder clustering',
     isNative: false,
     targetPanel: 'bottom' as const,
 };
@@ -145,7 +145,7 @@ export default function FiltersPlugin({
 
     return (
                 <PluginPanelShell
-            title="Visual Filters"
+            title="Filters & Groups"
             icon="filters"
             iconColor="#a855f7"
             variant="embedded"

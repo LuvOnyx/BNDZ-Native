@@ -12,14 +12,9 @@ import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/Fol
 import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
 import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
-import GhostLinkPlugin, { GhostLinkPluginDef } from '../components/plugins/GhostLinkPlugin';
 import RamStagingPlugin, { RamStagingPluginDef } from '../components/plugins/RamStagingPlugin';
 import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plugins/ProjectSandboxPlugin';
-import LibraryHealthPlugin, { LibraryHealthPluginDef } from '../components/plugins/LibraryHealthPlugin';
-import InboundVolumePlugin, { InboundVolumePluginDef } from '../components/plugins/InboundVolumePlugin';
 import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
-import PolicyPackPlugin, { PolicyPackPluginDef } from '../components/plugins/PolicyPackPlugin';
-import ZkVaultPlugin, { ZkVaultPluginDef } from '../components/plugins/ZkVaultPlugin';
 import DesignBoardPlugin, { DesignBoardPluginDef } from '../components/plugins/DesignBoardPlugin';
 import { useAppConfig } from './configContext';
 
@@ -27,12 +22,17 @@ import { useAppConfig } from './configContext';
 const RETIRED_PLUGIN_REMAP: Record<string, string> = {
     'shell-verb-forge': 'context-menu-manager',
     'capacity-solver': 'storage-cleanup',
-    'capture-inbox': 'inbound-volume',
-    'reality-check': 'library-health',
     'drop-magnet': 'batch-rename',
     compare: 'folder-sync',
     'transcode-rack': 'metadata',
     'semantic-desk': 'filters',
+    'policy-packs': 'dropstack',
+    'inbound-volume': 'dropstack',
+    'capture-inbox': 'dropstack',
+    'zk-vault': 'project-sandbox',
+    'ghost-link': 'ram-staging',
+    'library-health': 'storage-cleanup',
+    'reality-check': 'storage-cleanup',
 };
 
 export type PluginManifest = {
@@ -126,7 +126,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...StorageCleanupPluginDef,
-        description: 'Smart folder organization, large-file discovery, and storage cleanup workflows.',
+        description: 'Cleanup, capacity planning, and library health repair in one ops surface.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -165,17 +165,10 @@ const ALL_PLUGINS: PluginManifest[] = [
         targetPanel: 'bottom',
         component: MeshPlugin,
     },
-    {
-        ...GhostLinkPluginDef,
-        description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: GhostLinkPlugin,
-    },
+
     {
         ...RamStagingPluginDef,
-        description: 'RAM-disk staging zones — stage projects at memory speed, flush on eject. Browse at /bndz/ram.',
+        description: 'Staging continuum — hot RAM zones and cold ghost offload that keeps path links.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -183,28 +176,14 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ProjectSandboxPluginDef,
-        description: 'Isolated sandbox sessions — experiment freely, checkpoint, commit or discard changes.',
+        description: 'Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: ProjectSandboxPlugin,
     },
-    {
-        ...LibraryHealthPluginDef,
-        description: 'Scan libraries for broken links, naming conflicts, permission issues, orphans, and missing project refs.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: LibraryHealthPlugin,
-    },
-    {
-        ...InboundVolumePluginDef,
-        description: 'Clipboard catcher, OCR capture inbox, and inbound file watcher — capture, review, and copy into your library.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: InboundVolumePlugin,
-    },
+
+
     {
         ...BranchingTimePluginDef,
         description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
@@ -214,20 +193,6 @@ const ALL_PLUGINS: PluginManifest[] = [
         component: BranchingTimePlugin,
     },
 
-    {
-        ...PolicyPackPluginDef,
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: PolicyPackPlugin,
-    },
-    {
-        ...ZkVaultPluginDef,
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: ZkVaultPlugin,
-    },
     {
         ...DesignBoardPluginDef,
         isInstalled: false,

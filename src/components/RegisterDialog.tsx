@@ -30,7 +30,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
         setMessage({ kind: 'err', text: result.message || 'Activation failed.' });
       }
     } catch {
-      setMessage({ kind: 'err', text: 'Could not contact the license service.' });
+      setMessage({ kind: 'err', text: 'Could not contact the license service. Check your connection and try again.' });
     } finally {
       setBusy(false);
     }
@@ -43,17 +43,19 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       const next = await IPC.getLicenseStatus();
       setStatus(next);
       setSerial('');
-      setMessage({ kind: 'ok', text: 'License removed from this device.' });
+      setMessage({ kind: 'ok', text: 'License removed from this device. The seat is free for another PC.' });
     } finally {
       setBusy(false);
     }
   };
 
+  const canActivate = Boolean(serial.trim() && email.trim()) && !busy;
+
   return (
     <NativeDialogShell
       open
       title="Register BNDZ"
-      subtitle="Online activation — one PC per serial"
+      subtitle="Online activation — one Windows PC per serial"
       tone="info"
       variant="sheet"
       onClose={onClose}
@@ -72,7 +74,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
               {
                 label: busy ? 'Activating…' : 'Activate online',
                 style: 'primary',
-                onClick: () => { if (!busy && serial.trim() && email.trim()) void activate(); },
+                onClick: () => { if (canActivate) void activate(); },
               },
             ]
       }
@@ -82,7 +84,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
           <img src="/bndz-light.png" alt="" className="bndz-register-brand-mark" draggable={false} />
           <div className="bndz-register-brand-copy">
             <div className="bndz-register-brand-name">BNDZ</div>
-            <div className="bndz-register-brand-tag">Native file manager for Windows</div>
+            <div className="bndz-register-brand-tag">Unlock the full native file manager</div>
           </div>
         </div>
 
@@ -90,12 +92,12 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
           <div className="bndz-native-status-ok flex items-start gap-3">
             <Icons8Icon id="checksquare_ui" size={18} className="shrink-0 mt-0.5" />
             <div>
-              <div className="font-semibold">Licensed</div>
+              <div className="font-semibold">Licensed on this PC</div>
               <div className="bndz-native-dialog-muted mt-1">{status.name || 'Registered user'}</div>
               <div className="bndz-native-dialog-muted">{status.email}</div>
               <div className="bndz-native-dialog-muted font-mono text-[10px] mt-1">{status.serialMasked}</div>
               {status.onlineBound && (
-                <div className="bndz-native-dialog-muted text-[10px] mt-1">Online seat bound to this PC</div>
+                <div className="bndz-native-dialog-muted text-[10px] mt-1">Online seat is bound here</div>
               )}
             </div>
           </div>
@@ -104,16 +106,16 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
             {!status?.trialExpired && status && (
               <div className="bndz-native-status-warn">
                 {status.trialDaysRemaining} day{status.trialDaysRemaining === 1 ? '' : 's'} left in your trial.
-                Enter your license key to activate permanently (requires internet).
+                Enter your license key to activate permanently (internet required).
               </div>
             )}
             {status?.trialExpired && (
               <div className="bndz-native-status-error">
-                Your 14-day trial has ended. Activate online to continue using BNDZ.
+                Your 14-day trial has ended. Activate online to keep using BNDZ.
               </div>
             )}
             <p className="text-[11px] bndz-native-dialog-muted leading-relaxed">
-              Each serial activates on one Windows PC. Use Deactivate to free the seat before moving to another machine.
+              One serial = one PC. Deactivate here before activating on another machine so the seat moves cleanly.
             </p>
             <div className="bndz-register-fields">
               <div>
@@ -122,8 +124,13 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
                   value={serial}
                   onChange={e => setSerial(e.target.value.toUpperCase())}
                   placeholder="BNDZ-XXXX-XXXX-XXXX"
-                  className="bndz-native-input font-mono"
+                  className="bndz-native-input font-mono tracking-wider"
                   autoFocus
+                  spellCheck={false}
+                  autoComplete="off"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && canActivate) void activate();
+                  }}
                 />
               </div>
               <div>
@@ -134,15 +141,17 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
                   placeholder="you@company.com"
                   type="email"
                   className="bndz-native-input"
+                  autoComplete="email"
                 />
               </div>
               <div>
-                <label className="bndz-native-field-label">Name / Organization</label>
+                <label className="bndz-native-field-label">Name / Organization <span className="opacity-50">(optional)</span></label>
                 <input
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="Your name or company"
                   className="bndz-native-input"
+                  autoComplete="organization"
                 />
               </div>
             </div>

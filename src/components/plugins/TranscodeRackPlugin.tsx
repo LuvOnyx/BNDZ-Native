@@ -147,7 +147,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
 
   return (
     <PluginPanelShell
-      title="Transcode Rack"
+      title="Encode"
       variant={embedded ? 'embedded' : 'default'}
       icon="edit_image"
       toolbar={
@@ -157,7 +157,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
       }
     >
       <PluginHeroStrip
-        title="Format transcode rack"
+        title="Image encode queue"
         subtitle="SkiaSharp batch encode — JPEG, PNG, or WebP with visible queue progress."
         actions={
           <PluginHeroActionButton icon="refresh_ui" onClick={pollStatus}>

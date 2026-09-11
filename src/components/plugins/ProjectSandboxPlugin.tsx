@@ -6,6 +6,7 @@ import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
+import ZkVaultPlugin from './ZkVaultPlugin';
 import {
   PluginToolbarButton,
   PluginTabStrip,
@@ -23,12 +24,12 @@ export const ProjectSandboxPluginDef = {
   id: 'project-sandbox',
   name: 'Project Sandbox',
   icon: 'layers_ui',
-  description: 'Journal + shadow sandbox sessions — experiment in BNDZ, commit or discard changes (no OS volume mount).',
+  description: 'Safe workspaces — sandbox checkpoints plus encrypted vault sessions',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
 
-type TabId = 'active' | 'history' | 'checkpoints';
+type TabId = 'active' | 'history' | 'checkpoints' | 'vault';
 
 type Session = {
   id: string;
@@ -89,11 +90,19 @@ function formatBytes(bytes: number): string {
 
 export default function ProjectSandboxPlugin({
   currentPath,
+  selectedPaths,
+  pluginLaunch,
 }: {
   selectedPaths?: string[];
   currentPath?: string;
+  pluginLaunch?: { tab?: string } | null;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('active');
+
+  React.useEffect(() => {
+    const tab = String(pluginLaunch?.tab || '').toLowerCase();
+    if (tab === 'vault' || tab === 'zk-vault' || tab === 'zk') setActiveTab('vault');
+  }, [pluginLaunch?.tab]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
@@ -250,15 +259,16 @@ export default function ProjectSandboxPlugin({
     { id: 'active', label: 'Active', icon: 'zap_ui', badge: activeSessions.length },
     { id: 'history', label: 'History', icon: 'clock_ui', badge: sessions.length },
     { id: 'checkpoints', label: 'Checkpoints', icon: 'bookmark_ui', badge: checkpoints.length },
+    { id: 'vault', label: 'Vault', icon: 'lock_ui' },
   ];
 
   return (
     <PluginPanelShell
-      title="Project Sandbox"
+      title="Safe Workspaces"
       icon="layers_ui"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Journal + shadow sessions · commit or discard (not an OS volume)"
+      subtitle="Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -275,7 +285,13 @@ export default function ProjectSandboxPlugin({
         </PluginTabStrip>
       }
     >
-      <div className="flex flex-col min-h-0">
+      <div className="flex flex-col min-h-0 h-full">
+        {activeTab === 'vault' ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <ZkVaultPlugin currentPath={currentPath} selectedPaths={selectedPaths} embedded />
+          </div>
+        ) : (
+        <>
         <PluginHeroStrip
           icon={
             <div className="flex items-center justify-center">
@@ -486,6 +502,8 @@ export default function ProjectSandboxPlugin({
             </div>
           )}
         </div>
+      </>
+        )}
       </div>
     </PluginPanelShell>
   );

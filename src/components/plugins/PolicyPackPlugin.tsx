@@ -55,11 +55,9 @@ function formatBytes(n: number): string {
 
 export default function PolicyPackPlugin({
   currentPath,
-  selectedPaths,
-}: {
+  selectedPaths, embedded = false}: {
   currentPath?: string;
-  selectedPaths?: string[];
-}) {
+  selectedPaths?: string[]; embedded?: boolean}) {
   const [packs, setPacks] = useState<PolicyPackRow[]>([]);
   const [editing, setEditing] = useState<PolicyPackRow | null>(null);
   const [busy, setBusy] = useState(false);
@@ -128,10 +126,10 @@ export default function PolicyPackPlugin({
   });
 
   return (
-    <PluginPanelShell title="Policy Packs" icon="shield_ui">
+    <PluginPanelShell title="Policies" icon="shield_ui" variant={embedded ? "embedded" : "default"}>
       <PluginHeroStrip
         icon={<Icons8Icon id="shield_ui" size={40} />}
-        name="Folder policy lint"
+        name="Drop policies"
         typeLabel="Policy packs"
         meta={<span className="text-xs text-gray-400">eslint for directories — enforce on drop/move</span>}
         actions={

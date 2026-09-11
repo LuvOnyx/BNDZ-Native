@@ -36,7 +36,7 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'storage-cleanup':
       return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'ghost-link':
-      return { kind: 'plugin', pluginId: 'ghost-link' };
+      return { kind: 'plugin', pluginId: 'ram-staging' };
     case 'ram-staging':
     case 'flush-ram-zone':
       return { kind: 'plugin', pluginId: 'ram-staging' };
@@ -49,11 +49,11 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'project-sandbox':
       return { kind: 'plugin', pluginId: 'project-sandbox' };
     case 'library-health':
-      return { kind: 'plugin', pluginId: 'library-health' };
+      return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'capacity-solver':
       return { kind: 'plugin', pluginId: 'storage-cleanup' };
     case 'inbound-volume':
-      return { kind: 'plugin', pluginId: 'inbound-volume' };
+      return { kind: 'plugin', pluginId: 'dropstack' };
     case 'branching-time':
       return { kind: 'plugin', pluginId: 'branching-time' };
     case 'transcode-rack':
