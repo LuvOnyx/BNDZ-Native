@@ -118,7 +118,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
   }
   if (sig.kind === 'multi') {
     const tools: ContextTool[] = [
-      tool('compare', 'Compare', 'compare', 'compare'),
+      tool('compare', 'Compare', 'compare', 'folder-sync'),
       tool('batch-rename', 'Batch rename', 'batch_rename', 'batch-rename'),
       tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
       tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),

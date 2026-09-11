@@ -255,7 +255,7 @@ export default function BottomPluginPanel(props: any & {
     const tabMap: Partial<Record<ContextToolId, string>> = {
       properties: 'properties',
       'batch-rename': 'batch-rename',
-      compare: 'compare',
+      compare: 'folder-sync',
       'mesh-drop': 'remote-mesh',
       'mesh-shell-here': 'remote-mesh',
       'mesh-download': 'remote-mesh',
@@ -286,6 +286,12 @@ export default function BottomPluginPanel(props: any & {
       if (id === 'capacity-solver') {
         window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
           detail: { id: 'storage-cleanup', tab: 'capacity' },
+        }));
+        return;
+      }
+      if (id === 'compare') {
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+          detail: { id: 'folder-sync', tab: 'diff' },
         }));
         return;
       }

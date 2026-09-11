@@ -154,3 +154,15 @@ absorb → professionalize hosts → About/Register polish → launch
 | Hosts read as one product each, not dumped tabs | |
 | About + Register feel launch-ready | |
 | Archive + Text Editor are only listed under Later — not fake-shipped | |
+
+
+## Absorption progress
+
+- [x] Drop Magnets → Batch Rename (Magnets tab + Hub remap + strip kept)
+- [x] Compare → Folder Sync (Diff tab + Hub remap)
+- [ ] Transcode → Metadata
+- [ ] Semantic Desk → Visual Filters
+- [ ] Policy Packs + Inbound → Drop Stack
+- [ ] ZK Vault → Project Sandbox
+- [ ] Ghost-Link → RAM Staging
+- [ ] Library Health → Storage Cleanup

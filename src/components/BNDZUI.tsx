@@ -1129,7 +1129,7 @@ export default function BNDZUI() {
       patches.logActionsAndEnableUndoRedo = true;
       const legacyPlugins = [
         'properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters',
-        'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare',
+        'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log',
         'ghost-link', 'ram-staging',
       ];
       const installed = config.installedPlugins as string[] | undefined;
@@ -1147,7 +1147,7 @@ export default function BNDZUI() {
       patches.applyColors = true;
       const legacyPlugins = [
         'properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters',
-        'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare',
+        'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log',
         'ghost-link', 'ram-staging',
       ];
       const installed = config.installedPlugins as string[] | undefined;
@@ -1658,6 +1658,8 @@ export default function BNDZUI() {
       'capacity-solver': { id: 'storage-cleanup', tab: 'capacity' },
       'capture-inbox': { id: 'inbound-volume', tab: 'captures' },
       'reality-check': { id: 'library-health', tab: 'refs' },
+      'drop-magnet': { id: 'batch-rename', tab: 'magnets' },
+      compare: { id: 'folder-sync', tab: 'diff' },
     };
     const absorb = absorbMap[pluginId];
     const resolvedId = absorb?.id ?? pluginId;

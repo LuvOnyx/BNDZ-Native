@@ -11,7 +11,6 @@ import StorageCleanupPlugin, { StorageCleanupPluginDef } from '../components/plu
 import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/FolderSyncPlugin';
 import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
-import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
 import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
 import GhostLinkPlugin, { GhostLinkPluginDef } from '../components/plugins/GhostLinkPlugin';
 import RamStagingPlugin, { RamStagingPluginDef } from '../components/plugins/RamStagingPlugin';
@@ -21,7 +20,6 @@ import InboundVolumePlugin, { InboundVolumePluginDef } from '../components/plugi
 import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
 import PolicyPackPlugin, { PolicyPackPluginDef } from '../components/plugins/PolicyPackPlugin';
 import ZkVaultPlugin, { ZkVaultPluginDef } from '../components/plugins/ZkVaultPlugin';
-import DropMagnetPlugin, { DropMagnetPluginDef } from '../components/plugins/DropMagnetPlugin';
 import TranscodeRackPlugin, { TranscodeRackPluginDef } from '../components/plugins/TranscodeRackPlugin';
 import SemanticDeskPlugin, { SemanticDeskPluginDef } from '../components/plugins/SemanticDeskPlugin';
 import DesignBoardPlugin, { DesignBoardPluginDef } from '../components/plugins/DesignBoardPlugin';
@@ -33,6 +31,8 @@ const RETIRED_PLUGIN_REMAP: Record<string, string> = {
     'capacity-solver': 'storage-cleanup',
     'capture-inbox': 'inbound-volume',
     'reality-check': 'library-health',
+    'drop-magnet': 'batch-rename',
+    compare: 'folder-sync',
 };
 
 export type PluginManifest = {
@@ -92,7 +92,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...BatchRenamePluginDef,
-        description: 'Batch rename files with pattern matching, numbering, and AI-assisted suggestions.',
+        description: 'Batch rename with patterns, numbering, AI suggestions, and drop magnets (rename/tag/route on release).',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -134,7 +134,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...FolderSyncPluginDef,
-        description: 'Automatic folder sync with live watching — keeps backup folders up to date using robocopy.',
+        description: 'Folder sync with robocopy jobs plus binary file and recursive folder diff.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -156,14 +156,7 @@ const ALL_PLUGINS: PluginManifest[] = [
         targetPanel: 'bottom',
         component: ActionLogPlugin,
     },
-    {
-        ...ComparePluginDef,
-        description: 'Binary file compare and recursive folder diff for dual-pane verification.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: ComparePlugin,
-    },
+
     {
         ...MeshPluginDef,
         description: 'Zero-config SSH/SFTP mesh — remote browsing, live deploy mirrors, and integrated terminal. Power-user optional plugin.',
@@ -220,14 +213,7 @@ const ALL_PLUGINS: PluginManifest[] = [
         targetPanel: 'bottom',
         component: BranchingTimePlugin,
     },
-    {
-        ...DropMagnetPluginDef,
-        description: 'Named landing pads — drop files to rename, tag, and route in one release.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: DropMagnetPlugin,
-    },
+
     {
         ...TranscodeRackPluginDef,
         description: 'Batch image transcode rack — JPEG, PNG, WebP encode queue with live progress.',

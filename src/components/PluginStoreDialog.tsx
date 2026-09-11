@@ -42,6 +42,7 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     'batch-rename': [
       'Pattern, numbering, and case transforms',
       'Live preview against the current selection',
+      'Drop magnets — rename, tag, and route on Explorer → BNDZ release',
       'Safe undo via the action log',
     ],
     find: [
@@ -53,11 +54,6 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Stage files from many folders',
       'Batch copy or move into the active pane',
       'Clear or reorder the stack mid-session',
-    ],
-    'drop-magnet': [
-      'Named landing pads during Explorer → BNDZ drops',
-      'Rename patterns, tags, and target folders in one release',
-      'Test recipes against the current list selection',
     ],
     'design-board': [
       'Infinite Fabric canvas with ProDesign chrome',
@@ -82,6 +78,7 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     'folder-sync': [
       'Robocopy-backed folder sync jobs',
       'Live watch and mirror modes',
+      'Binary file compare and recursive folder diff',
       'Transfer queue integration',
     ],
     catalog: [
@@ -93,11 +90,6 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Reversible copy / move / rename history',
       'Undo and redo across sessions',
       'Browse and restore past file operations',
-    ],
-    compare: [
-      'Binary file compare',
-      'Recursive folder diff',
-      'Side-by-side differences for dual pane',
     ],
     'remote-mesh': [
       'SSH/SFTP browse, terminal, sync, and LAN drop',

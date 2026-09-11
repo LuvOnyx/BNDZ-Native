@@ -15,7 +15,7 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
     case 'batch-rename':
       return { kind: 'plugin', pluginId: 'batch-rename' };
     case 'compare':
-      return { kind: 'plugin', pluginId: 'compare' };
+      return { kind: 'plugin', pluginId: 'folder-sync' };
     case 'mesh-drop':
     case 'mesh-shell-here':
     case 'mesh-download':

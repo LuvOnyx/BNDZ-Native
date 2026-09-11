@@ -5,6 +5,7 @@ import { isQueuedIpcResult } from '../../lib/transferIpc';
 import { requestNativeConfirm, requestNativePrompt } from '../../lib/nativeDialog';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
+import DropMagnetPlugin from './DropMagnetPlugin';
 import {
   PluginToolbarButton,
   PluginControlSection,
@@ -12,6 +13,8 @@ import {
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
+  PluginTabStrip,
+  PluginTab,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
@@ -21,6 +24,8 @@ export const BatchRenamePluginDef = {
     name: "Batch Rename",
     icon: 'batch_rename'
 };
+
+type PanelTabId = 'rename' | 'magnets';
 
 type RenameTarget = {
     sourcePath: string;
@@ -48,10 +53,27 @@ function normalizeTargets(selectedItems: string[], focusedPath?: string): Rename
     });
 }
 
-export default function BatchRenamePlugin({ activeTab, drives, config, entity, focusedPath, selectedItems }: any) {
+export default function BatchRenamePlugin({
+    activeTab,
+    drives,
+    config,
+    entity,
+    focusedPath,
+    selectedItems,
+    selectedPaths,
+    currentPath,
+    pluginLaunch,
+}: any) {
+    const [panelTab, setPanelTab] = useState<PanelTabId>('rename');
     const [findStr, setFindStr] = useState("");
     const [replaceStr, setReplaceStr] = useState("");
     const [useRegex, setUseRegex] = useState(false);
+
+    useEffect(() => {
+        const t = String(pluginLaunch?.tab || '').toLowerCase();
+        if (t === 'magnets' || t === 'magnet' || t === 'drop-magnet') setPanelTab('magnets');
+        else if (t === 'rename' || t === 'batch-rename') setPanelTab('rename');
+    }, [pluginLaunch?.tab]);
     
     const [prefix, setPrefix] = useState("");
     const [suffix, setSuffix] = useState("");
@@ -359,262 +381,287 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         }
     };
 
+    const magnetPaths = (selectedPaths?.length ? selectedPaths : selectedItems) || [];
+    const magnetPath = currentPath || focusedPath;
+
     return (
         <PluginPanelShell
             title="Batch Rename"
             icon="batch_rename"
             iconColor="#34d399"
             variant="embedded"
-            subtitle={`${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
+            subtitle={panelTab === 'magnets'
+                ? 'Drop magnets — rename, tag, and route on release'
+                : `${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
+            toolbar={(
+                <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+                    <PluginTab active={panelTab === 'rename'} onClick={() => setPanelTab('rename')}>
+                        <span className="inline-flex items-center gap-1"><Icons8Icon id="batch_rename" size={11} />Rename</span>
+                    </PluginTab>
+                    <PluginTab active={panelTab === 'magnets'} onClick={() => setPanelTab('magnets')}>
+                        <span className="inline-flex items-center gap-1"><Icons8Icon id="magnet_ui" size={11} />Magnets</span>
+                    </PluginTab>
+                </PluginTabStrip>
+            )}
         >
-            <div className="flex flex-col h-full min-h-0 overflow-hidden">
-                <PluginHeroStrip
-                    icon={<Icons8Icon id="batch_rename" size={52} className="opacity-90" />}
-                    name={targets.length ? `${targets.length} item${targets.length === 1 ? '' : 's'} to rename` : 'Batch rename'}
-                    typeLabel="Rename engine"
-                    meta={
-                        <span className="bndz-panel-muted text-xs">
-                            {collisions.length ? `${collisions.length} pending change(s)` : 'Select files in the list'}
-                            {batchNameConflicts.size > 0 ? ` · ${batchNameConflicts.size} collision(s)` : ''}
-                        </span>
-                    }
-                    actions={
-                        <>
-                            <PluginHeroActionButton
-                                icon={committing ? 'loading' : 'check'}
-                                variant="primary"
-                                onClick={() => void handleCommit()}
-                                disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
-                            >
-                                Apply renames
-                            </PluginHeroActionButton>
-                            {targets.length > 0 && (
-                                <PluginHeroActionButton icon="reset_ui" onClick={() => { setAiOverrides({}); setFindStr(''); setReplaceStr(''); }}>
-                                    Reset rules
-                                </PluginHeroActionButton>
-                            )}
-                        </>
-                    }
-                />
-            <div className="px-4 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-2 shrink-0">
-                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 cursor-pointer">
-                    <input type="checkbox" checked={autoSuffixCollisions} onChange={e => setAutoSuffixCollisions(e.target.checked)} />
-                    Auto-suffix collisions
-                </label>
-                <span className="text-[10px] text-white/30">Tokens: {'{name}'} {'{ext}'} {'{parent}'} {'{date}'} {'{index}'}</span>
-                <div className="flex-1" />
-                <PluginToolbarButton icon="bookmark" onClick={savePreset}>Save preset</PluginToolbarButton>
-                {presets.length > 0 && (
-                    <select
-                        className={PLUGIN_SELECT_CLASS}
-                        defaultValue=""
-                        onChange={e => {
-                            const p = presets.find(x => x.name === e.target.value);
-                            if (p) loadPreset(p);
-                            e.target.value = '';
-                        }}
-                    >
-                        <option value="">Load preset…</option>
-                        {presets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                    </select>
-                )}
-            </div>
-            <div className="w-full flex-1 flex text-gray-200 overflow-hidden min-h-0">
-                <div className="bndz-plugin-sidebar max-w-[300px] flex flex-col overflow-y-auto bndz-scrollbar p-0">
-                    <PluginControlSection title="Find & replace" icon="search">
-                        <div>
-                            <PluginFieldLabel>Find</PluginFieldLabel>
-                            <div className="flex gap-1">
-                                <input type="text" value={findStr} onChange={e => setFindStr(e.target.value)} placeholder="Text to find…" className={`${PLUGIN_INPUT_CLASS} flex-1`} />
-                                <button type="button" onClick={() => setUseRegex(!useRegex)} className={`px-2 py-1 rounded-md border text-xs ${useRegex ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-white/[0.03] text-gray-400 border-white/10'}`} title="Regular expressions">.*</button>
-                            </div>
-                        </div>
-                        <div>
-                            <PluginFieldLabel>Replace with</PluginFieldLabel>
-                            <input type="text" value={replaceStr} onChange={e => setReplaceStr(e.target.value)} placeholder="Replacement text…" className={PLUGIN_INPUT_CLASS} />
-                        </div>
-                    </PluginControlSection>
-
-                    <PluginControlSection title="Affixes" icon="file_ui">
-                        <div className="flex gap-2">
-                            <div className="flex-1">
-                                <PluginFieldLabel>Prefix</PluginFieldLabel>
-                                <input type="text" value={prefix} onChange={e => setPrefix(e.target.value)} placeholder="prepend_" className={PLUGIN_INPUT_CLASS} />
-                            </div>
-                            <div className="flex-1">
-                                <PluginFieldLabel>Suffix</PluginFieldLabel>
-                                <input type="text" value={suffix} onChange={e => setSuffix(e.target.value)} placeholder="_append" className={PLUGIN_INPUT_CLASS} />
-                            </div>
-                        </div>
-                    </PluginControlSection>
-
-                    <PluginControlSection title="Formatting" icon="category_ui">
-                        <PluginFieldLabel>Casing</PluginFieldLabel>
-                        <select value={casing} onChange={e => setCasing(e.target.value as any)} className={`${PLUGIN_SELECT_CLASS} w-full`}>
-                            <option value="none">No change</option>
-                            <option value="lower">lowercase</option>
-                            <option value="upper">UPPERCASE</option>
-                            <option value="title">Title Case</option>
-                            <option value="camel">camelCase</option>
-                        </select>
-                    </PluginControlSection>
-
-                    <PluginControlSection
-                        title="Sequential numbering"
-                        icon="category_ui"
-                        action={
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={useSequence} onChange={e => setUseSequence(e.target.checked)} className="sr-only peer" />
-                                <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full" />
-                            </label>
-                        }
-                    >
-                        {useSequence && (
-                            <div className="space-y-2 bndz-plugin-card !p-2">
-                                <div className="flex gap-2">
-                                    <div className="flex-1">
-                                        <PluginFieldLabel>Start at</PluginFieldLabel>
-                                        <input type="number" min="0" value={seqStart} onChange={e => setSeqStart(parseInt(e.target.value) || 0)} className={PLUGIN_INPUT_CLASS} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <PluginFieldLabel>Padding</PluginFieldLabel>
-                                        <input type="number" min="1" max="10" value={seqPad} onChange={e => setSeqPad(parseInt(e.target.value) || 1)} className={PLUGIN_INPUT_CLASS} />
-                                    </div>
-                                </div>
-                                <div>
-                                    <PluginFieldLabel>Separator</PluginFieldLabel>
-                                    <input type="text" value={seqSeparator} onChange={e => setSeqSeparator(e.target.value)} className={PLUGIN_INPUT_CLASS} />
-                                </div>
-                            </div>
-                        )}
-                    </PluginControlSection>
-
-                    <PluginControlSection
-                        title="Date tokens"
-                        icon="clock_ui"
-                        action={
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={useDateTokens} onChange={e => setUseDateTokens(e.target.checked)} className="sr-only peer" />
-                                <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full" />
-                            </label>
-                        }
-                    >
-                        {useDateTokens && (
-                            <p className="text-xs bndz-panel-muted leading-relaxed">
-                                Use <code className="text-emerald-400">{'{date}'}</code>, <code className="text-emerald-400">{'{time}'}</code>, <code className="text-emerald-400">{'{datetime}'}</code>, <code className="text-emerald-400">{'{index}'}</code> in fields above.
-                            </p>
-                        )}
-                    </PluginControlSection>
-
-                    <PluginControlSection title="AI rename" icon="sparkles_ui">
-                        <textarea
-                            value={aiPrompt}
-                            onChange={e => setAiPrompt(e.target.value)}
-                            placeholder="e.g. Add date prefix, lowercase, remove spaces…"
-                            className={`${PLUGIN_INPUT_CLASS} min-h-[64px] resize-y`}
-                        />
-                        <PluginToolbarButton
-                            icon={aiLoading ? 'loading' : 'sparkles_ui'}
-                            onClick={() => void runAiRename()}
-                            disabled={!targets.length || !aiPrompt.trim() || aiLoading}
-                            active
-                        >
-                            Generate AI names
-                        </PluginToolbarButton>
-                    </PluginControlSection>
+            {panelTab === 'magnets' ? (
+                <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                    <DropMagnetPlugin
+                        currentPath={magnetPath}
+                        selectedPaths={magnetPaths}
+                        embedded
+                    />
                 </div>
-
-                <div className="flex-1 overflow-y-auto relative bndz-scrollbar p-3">
-                    {targets.length === 0 ? (
-                        <PluginEmptyState icon="batch_rename" title="Select files to preview renames" description="Hold Ctrl or Shift in the list to select multiple files." />
-                    ) : (
-                        <div className="flex flex-col gap-2">
-                            {previews.map((p, i) => {
-                                const changed = p.oldName !== p.newName;
-                                const emptyName = !p.newName?.trim();
-                                const conflictKey = `${p.parentDir.toLowerCase()}\\${p.newName.toLowerCase()}`;
-                                const hasConflict = changed && !emptyName && batchNameConflicts.has(conflictKey);
-                                const skipReason = emptyName
-                                    ? 'Empty name'
-                                    : !changed
-                                        ? 'Unchanged — skipped'
-                                        : null;
-                                return (
-                                    <div
-                                        key={`${p.sourcePath}-${i}`}
-                                        className={`bndz-plugin-card !py-2.5 !px-3 flex items-center gap-3 border border-white/[0.06] ${
-                                            hasConflict || emptyName
-                                                ? 'border-rose-500/35 bg-rose-950/15'
-                                                : !changed
-                                                    ? 'opacity-70'
-                                                    : 'hover:border-emerald-500/25'
-                                        }`}
-                                    >
-                                        <div className="flex-1 min-w-0 space-y-1">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <span
-                                                    className={`text-xs truncate ${changed ? 'text-slate-500 line-through decoration-rose-500/40' : 'text-slate-300'}`}
-                                                    title={p.sourcePath}
-                                                >
-                                                    {p.oldName}
-                                                </span>
-                                                {hasConflict && (
-                                                    <span className="bndz-plugin-kind-pill !text-[9px] shrink-0 text-rose-300 border-rose-500/30 bg-rose-500/10">
-                                                        Conflict
-                                                    </span>
-                                                )}
-                                                {skipReason && (
-                                                    <span
-                                                        className={`bndz-plugin-kind-pill !text-[9px] shrink-0 ${
-                                                            emptyName
-                                                                ? 'text-rose-300 border-rose-500/30 bg-rose-500/10'
-                                                                : 'text-slate-400 border-white/10 bg-white/[0.03]'
-                                                        }`}
-                                                    >
-                                                        {skipReason}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <Icons8Icon
-                                                    id="chevron_right"
-                                                    size={12}
-                                                    className={`shrink-0 ${changed && !skipReason ? 'text-emerald-500/60' : 'text-slate-600'}`}
-                                                />
-                                                <input
-                                                    type="text"
-                                                    value={p.newName}
-                                                    onChange={e => {
-                                                        const next = e.target.value;
-                                                        setAiOverrides(prev => {
-                                                            const copy = { ...prev };
-                                                            if (next === processItemFromRules(p.oldName, i)) {
-                                                                delete copy[p.oldName];
-                                                            } else {
-                                                                copy[p.oldName] = next;
-                                                            }
-                                                            return copy;
-                                                        });
-                                                    }}
-                                                    title={`${p.parentDir}\\${p.newName}`}
-                                                    className={`${PLUGIN_INPUT_CLASS} !py-1 flex-1 min-w-0 ${
-                                                        hasConflict || emptyName
-                                                            ? 'border-rose-500/40 text-rose-200'
-                                                            : changed
-                                                                ? 'text-emerald-300'
-                                                                : 'text-slate-400'
-                                                    }`}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+            ) : (
+                <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                    <PluginHeroStrip
+                        icon={<Icons8Icon id="batch_rename" size={52} className="opacity-90" />}
+                        name={targets.length ? `${targets.length} item${targets.length === 1 ? '' : 's'} to rename` : 'Batch rename'}
+                        typeLabel="Rename engine"
+                        meta={
+                            <span className="bndz-panel-muted text-xs">
+                                {collisions.length ? `${collisions.length} pending change(s)` : 'Select files in the list'}
+                                {batchNameConflicts.size > 0 ? ` · ${batchNameConflicts.size} collision(s)` : ''}
+                            </span>
+                        }
+                        actions={
+                            <>
+                                <PluginHeroActionButton
+                                    icon={committing ? 'loading' : 'check'}
+                                    variant="primary"
+                                    onClick={() => void handleCommit()}
+                                    disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
+                                >
+                                    Apply renames
+                                </PluginHeroActionButton>
+                                {targets.length > 0 && (
+                                    <PluginHeroActionButton icon="reset_ui" onClick={() => { setAiOverrides({}); setFindStr(''); setReplaceStr(''); }}>
+                                        Reset rules
+                                    </PluginHeroActionButton>
+                                )}
+                            </>
+                        }
+                    />
+                <div className="px-4 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-2 shrink-0">
+                    <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 cursor-pointer">
+                        <input type="checkbox" checked={autoSuffixCollisions} onChange={e => setAutoSuffixCollisions(e.target.checked)} />
+                        Auto-suffix collisions
+                    </label>
+                    <span className="text-[10px] text-white/30">Tokens: {'{name}'} {'{ext}'} {'{parent}'} {'{date}'} {'{index}'}</span>
+                    <div className="flex-1" />
+                    <PluginToolbarButton icon="bookmark" onClick={savePreset}>Save preset</PluginToolbarButton>
+                    {presets.length > 0 && (
+                        <select
+                            className={PLUGIN_SELECT_CLASS}
+                            defaultValue=""
+                            onChange={e => {
+                                const p = presets.find(x => x.name === e.target.value);
+                                if (p) loadPreset(p);
+                                e.target.value = '';
+                            }}
+                        >
+                            <option value="">Load preset…</option>
+                            {presets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                        </select>
                     )}
                 </div>
-            </div>
-            </div>
+                <div className="w-full flex-1 flex text-gray-200 overflow-hidden min-h-0">
+                    <div className="bndz-plugin-sidebar max-w-[300px] flex flex-col overflow-y-auto bndz-scrollbar p-0">
+                        <PluginControlSection title="Find & replace" icon="search">
+                            <div>
+                                <PluginFieldLabel>Find</PluginFieldLabel>
+                                <div className="flex gap-1">
+                                    <input type="text" value={findStr} onChange={e => setFindStr(e.target.value)} placeholder="Text to find…" className={`${PLUGIN_INPUT_CLASS} flex-1`} />
+                                    <button type="button" onClick={() => setUseRegex(!useRegex)} className={`px-2 py-1 rounded-md border text-xs ${useRegex ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-white/[0.03] text-gray-400 border-white/10'}`} title="Regular expressions">.*</button>
+                                </div>
+                            </div>
+                            <div>
+                                <PluginFieldLabel>Replace with</PluginFieldLabel>
+                                <input type="text" value={replaceStr} onChange={e => setReplaceStr(e.target.value)} placeholder="Replacement text…" className={PLUGIN_INPUT_CLASS} />
+                            </div>
+                        </PluginControlSection>
+
+                        <PluginControlSection title="Affixes" icon="file_ui">
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <PluginFieldLabel>Prefix</PluginFieldLabel>
+                                    <input type="text" value={prefix} onChange={e => setPrefix(e.target.value)} placeholder="prepend_" className={PLUGIN_INPUT_CLASS} />
+                                </div>
+                                <div className="flex-1">
+                                    <PluginFieldLabel>Suffix</PluginFieldLabel>
+                                    <input type="text" value={suffix} onChange={e => setSuffix(e.target.value)} placeholder="_append" className={PLUGIN_INPUT_CLASS} />
+                                </div>
+                            </div>
+                        </PluginControlSection>
+
+                        <PluginControlSection title="Formatting" icon="category_ui">
+                            <PluginFieldLabel>Casing</PluginFieldLabel>
+                            <select value={casing} onChange={e => setCasing(e.target.value as any)} className={`${PLUGIN_SELECT_CLASS} w-full`}>
+                                <option value="none">No change</option>
+                                <option value="lower">lowercase</option>
+                                <option value="upper">UPPERCASE</option>
+                                <option value="title">Title Case</option>
+                                <option value="camel">camelCase</option>
+                            </select>
+                        </PluginControlSection>
+
+                        <PluginControlSection
+                            title="Sequential numbering"
+                            icon="category_ui"
+                            action={
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={useSequence} onChange={e => setUseSequence(e.target.checked)} className="sr-only peer" />
+                                    <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full" />
+                                </label>
+                            }
+                        >
+                            {useSequence && (
+                                <div className="space-y-2 bndz-plugin-card !p-2">
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <PluginFieldLabel>Start at</PluginFieldLabel>
+                                            <input type="number" min="0" value={seqStart} onChange={e => setSeqStart(parseInt(e.target.value) || 0)} className={PLUGIN_INPUT_CLASS} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <PluginFieldLabel>Padding</PluginFieldLabel>
+                                            <input type="number" min="1" max="10" value={seqPad} onChange={e => setSeqPad(parseInt(e.target.value) || 1)} className={PLUGIN_INPUT_CLASS} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <PluginFieldLabel>Separator</PluginFieldLabel>
+                                        <input type="text" value={seqSeparator} onChange={e => setSeqSeparator(e.target.value)} className={PLUGIN_INPUT_CLASS} />
+                                    </div>
+                                </div>
+                            )}
+                        </PluginControlSection>
+
+                        <PluginControlSection
+                            title="Date tokens"
+                            icon="clock_ui"
+                            action={
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={useDateTokens} onChange={e => setUseDateTokens(e.target.checked)} className="sr-only peer" />
+                                    <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full" />
+                                </label>
+                            }
+                        >
+                            {useDateTokens && (
+                                <p className="text-xs bndz-panel-muted leading-relaxed">
+                                    Use <code className="text-emerald-400">{'{date}'}</code>, <code className="text-emerald-400">{'{time}'}</code>, <code className="text-emerald-400">{'{datetime}'}</code>, <code className="text-emerald-400">{'{index}'}</code> in fields above.
+                                </p>
+                            )}
+                        </PluginControlSection>
+
+                        <PluginControlSection title="AI rename" icon="sparkles_ui">
+                            <textarea
+                                value={aiPrompt}
+                                onChange={e => setAiPrompt(e.target.value)}
+                                placeholder="e.g. Add date prefix, lowercase, remove spaces…"
+                                className={`${PLUGIN_INPUT_CLASS} min-h-[64px] resize-y`}
+                            />
+                            <PluginToolbarButton
+                                icon={aiLoading ? 'loading' : 'sparkles_ui'}
+                                onClick={() => void runAiRename()}
+                                disabled={!targets.length || !aiPrompt.trim() || aiLoading}
+                                active
+                            >
+                                Generate AI names
+                            </PluginToolbarButton>
+                        </PluginControlSection>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto relative bndz-scrollbar p-3">
+                        {targets.length === 0 ? (
+                            <PluginEmptyState icon="batch_rename" title="Select files to preview renames" description="Hold Ctrl or Shift in the list to select multiple files." />
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {previews.map((p, i) => {
+                                    const changed = p.oldName !== p.newName;
+                                    const emptyName = !p.newName?.trim();
+                                    const conflictKey = `${p.parentDir.toLowerCase()}\\${p.newName.toLowerCase()}`;
+                                    const hasConflict = changed && !emptyName && batchNameConflicts.has(conflictKey);
+                                    const skipReason = emptyName
+                                        ? 'Empty name'
+                                        : !changed
+                                            ? 'Unchanged — skipped'
+                                            : null;
+                                    return (
+                                        <div
+                                            key={`${p.sourcePath}-${i}`}
+                                            className={`bndz-plugin-card !py-2.5 !px-3 flex items-center gap-3 border border-white/[0.06] ${
+                                                hasConflict || emptyName
+                                                    ? 'border-rose-500/35 bg-rose-950/15'
+                                                    : !changed
+                                                        ? 'opacity-70'
+                                                        : 'hover:border-emerald-500/25'
+                                            }`}
+                                        >
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <span
+                                                        className={`text-xs truncate ${changed ? 'text-slate-500 line-through decoration-rose-500/40' : 'text-slate-300'}`}
+                                                        title={p.sourcePath}
+                                                    >
+                                                        {p.oldName}
+                                                    </span>
+                                                    {hasConflict && (
+                                                        <span className="bndz-plugin-kind-pill !text-[9px] shrink-0 text-rose-300 border-rose-500/30 bg-rose-500/10">
+                                                            Conflict
+                                                        </span>
+                                                    )}
+                                                    {skipReason && (
+                                                        <span
+                                                            className={`bndz-plugin-kind-pill !text-[9px] shrink-0 ${
+                                                                emptyName
+                                                                    ? 'text-rose-300 border-rose-500/30 bg-rose-500/10'
+                                                                    : 'text-slate-400 border-white/10 bg-white/[0.03]'
+                                                            }`}
+                                                        >
+                                                            {skipReason}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <Icons8Icon
+                                                        id="chevron_right"
+                                                        size={12}
+                                                        className={`shrink-0 ${changed && !skipReason ? 'text-emerald-500/60' : 'text-slate-600'}`}
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={p.newName}
+                                                        onChange={e => {
+                                                            const next = e.target.value;
+                                                            setAiOverrides(prev => {
+                                                                const copy = { ...prev };
+                                                                if (next === processItemFromRules(p.oldName, i)) {
+                                                                    delete copy[p.oldName];
+                                                                } else {
+                                                                    copy[p.oldName] = next;
+                                                                }
+                                                                return copy;
+                                                            });
+                                                        }}
+                                                        title={`${p.parentDir}\\${p.newName}`}
+                                                        className={`${PLUGIN_INPUT_CLASS} !py-1 flex-1 min-w-0 ${
+                                                            hasConflict || emptyName
+                                                                ? 'border-rose-500/40 text-rose-200'
+                                                                : changed
+                                                                    ? 'text-emerald-300'
+                                                                    : 'text-slate-400'
+                                                        }`}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                </div>
+            )}
         </PluginPanelShell>
     );
 }

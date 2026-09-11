@@ -59,9 +59,12 @@ const ACCENT_PRESETS = ['#38bdf8', '#34d399', '#fbbf24', '#c084fc', '#f472b6', '
 export default function DropMagnetPlugin({
   currentPath,
   selectedPaths,
+  embedded = false,
 }: {
   currentPath?: string;
   selectedPaths?: string[];
+  /** When hosted inside Batch Rename Magnets tab — skip outer chrome. */
+  embedded?: boolean;
 }) {
   const [magnets, setMagnets] = useState<MagnetRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -182,6 +185,7 @@ export default function DropMagnetPlugin({
       title="Drop Magnets"
       subtitle="Translucent landing pads for external drops — rename, tag, and route in one release."
       icon="magnet_ui"
+      variant={embedded ? 'embedded' : 'default'}
       toolbar={(
         <PluginToolbarButton onClick={startNew} icon="plus_ui">
           New magnet
