@@ -49,7 +49,7 @@ export interface AppConfig {
     iconLibrariesInitialized?: boolean;
     customContextMenuActions?: any[];
     globalContextMenuActions?: any[];
-    /** Optional BNDZ stock context rows (Shell Menus). Empty = short core menu. */
+    /** Optional BNDZ stock context rows (Context Menus). Empty = short core menu. */
     enabledStockContextMenuIds?: string[];
     shellMenuHiddenIds?: string[];
     shellMenuPinnedIds?: string[];
@@ -244,9 +244,9 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.customColumnsVersion = 2;
     }
     if (merged.inTreeAsWell === undefined) merged.inTreeAsWell = true;
-    if ((merged.folderSizeViewVersion ?? 0) < 1) {
-        merged.folderSizeVisualization = 'list';
-        merged.folderSizeViewVersion = 1;
+    if ((merged.folderSizeViewVersion ?? 0) < 2) {
+        merged.folderSizeVisualization = 'treemap';
+        merged.folderSizeViewVersion = 2;
     }
     if (merged.fileTaggingFeature === undefined) {
         merged.fileTaggingFeature = merged.fileTagging !== false;

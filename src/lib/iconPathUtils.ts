@@ -30,7 +30,7 @@ export function isAbsoluteFsPath(p: string): boolean {
 }
 
 /**
- * Pre-apply pipeline shared by Icon Studio grid and the Change Icon context menu:
+ * Pre-apply pipeline shared by Icons grid and the Change Icon context menu:
  * iconify: virtual paths are downloaded + converted to .ico on the backend; raster
  * images (.png/.jpg/...) are converted to .ico. Returns a Windows path ready for
  * SET_SYSTEM_ICON, or null when preparation failed.

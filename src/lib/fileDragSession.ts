@@ -416,7 +416,7 @@ export function isPointerOverMenubar(clientX: number, clientY: number): boolean 
 /**
  * True when an in-app drag should hand off to native OLE at the WebView rim.
  * WebView2 clamps clientX/Y — use side/bottom edge + screen leave, not outside-viewport.
- * Never escalate while over real in-app drop chrome (sidebar / preview / Drop Stack / etc.).
+ * Never escalate while over real in-app drop chrome (sidebar / preview / Drop Zone / etc.).
  */
 export function shouldTriggerOutboundOleBoundaryHandoff(
   clientX: number,
@@ -433,7 +433,7 @@ export function shouldTriggerOutboundOleBoundaryHandoff(
     return true;
   }
   if (isPointerOverMenubar(clientX, clientY)) return false;
-  // Sidebar / bottom / preview / Drop Stack / RAM — keep FE ghosts + in-app drop.
+  // Sidebar / bottom / preview / Drop Zone / RAM — keep FE ghosts + in-app drop.
   if (isOleEdgeChromeAtPoint(clientX, clientY)) return false;
   const w = typeof window !== 'undefined' ? window.innerWidth : 0;
   const h = typeof window !== 'undefined' ? window.innerHeight : 0;

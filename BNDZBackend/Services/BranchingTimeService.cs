@@ -11,7 +11,7 @@ using System.Text.Json.Serialization;
 namespace BNDZ.Services;
 
 /// <summary>
-/// Content-addressed folder time machine (Branching Time Impl B).
+/// Content-addressed folder time machine (Snapshots Impl B).
 /// Blobs under %LocalAppData%/BNDZ/TimeMachine/blobs; named branches point at manifests.
 /// </summary>
 public sealed class BranchingTimeService

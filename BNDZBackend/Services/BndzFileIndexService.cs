@@ -1323,7 +1323,7 @@ public sealed class BndzFileIndexService : IDisposable
 
     public void TrySetMeta(string key, string value) => SetMeta(key, value);
 
-    /// <summary>USN/FSW hook — soft-invalidate touched leaf names so Fast Search refreshes soon.</summary>
+    /// <summary>USN/FSW hook — soft-invalidate touched leaf names so Search refreshes soon.</summary>
     public void NotifyUsnTouch(string volumeRoot, IEnumerable<string> names)
     {
         try

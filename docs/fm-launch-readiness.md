@@ -106,10 +106,10 @@ Build gate after code changes: `npm run build` → `dotnet build BNDZBackend/BND
 | 72 | Audio waveform | ☐ |
 | 73 | 3D model viewport | ☐ |
 | 74 | Quick Look spacebar | ☐ |
-| 75 | Fast Search plugin indexes | ☐ |
+| 75 | Search plugin indexes | ☐ |
 | 76 | Search results navigate | ☐ |
 | 77 | Metadata inspector columns | ☐ |
-| 78 | System Properties plugin correct paths | ☐ |
+| 78 | Properties plugin correct paths | ☐ |
 
 ## Mesh / VPS / terminal (79–88)
 

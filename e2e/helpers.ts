@@ -46,7 +46,7 @@ export async function openStorageWizard(page: Page, mode: 'organize' | 'cleanup'
   await page.evaluate((m) => {
     window.dispatchEvent(new CustomEvent('bndz-storage-wizard', { detail: { mode: m } }));
   }, mode);
-  await expect(page.getByRole('heading', { name: mode === 'organize' ? 'Smart Organize Wizard' : 'Storage Cleanup Wizard' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: mode === 'organize' ? 'Smart Organize Wizard' : 'Cleanup Wizard' })).toBeVisible({ timeout: 15_000 });
 }
 
 export async function useCurrentFolderInWizard(page: Page) {

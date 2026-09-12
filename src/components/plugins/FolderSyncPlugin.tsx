@@ -24,7 +24,7 @@ export const FolderSyncPluginDef = {
   id: 'folder-sync',
   name: 'Folder Sync',
   icon: 'sync_folders',
-  description: 'Sync & diff — robocopy jobs plus binary file and recursive folder compare',
+  description: 'Sync folders and compare files or directory trees',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -264,7 +264,7 @@ export default function FolderSyncPlugin({
 
   return (
     <PluginPanelShell
-      title="Sync & Diff"
+      title="Folder Sync"
       icon="sync_folders"
       iconColor="#0078d4"
       variant="embedded"

@@ -21,9 +21,9 @@ import {
 
 export const MetadataPluginDef = {
     id: 'metadata',
-    name: 'Metadata Inspector',
+    name: 'Metadata',
     icon: 'metadata',
-    description: 'File intelligence — metadata, media tags, hashes, and image encode queue',
+    description: 'File details, media tags, hashes, and image encoding',
     isNative: true,
     targetPanel: 'bottom' as const,
 };
@@ -257,7 +257,7 @@ export default function MetadataPlugin({
                 icon="metadata"
                 iconColor="#38bdf8"
                 variant="embedded"
-                subtitle={activeTab === 'encode' ? 'Batch image encode queue' : 'File intelligence — facts, tags, hashes, encode'}
+                subtitle={activeTab === 'encode' ? 'Image encode queue' : 'Details, tags, hashes, and encode'}
                 toolbar={(
                     <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
                         <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>
@@ -318,7 +318,7 @@ export default function MetadataPlugin({
 
     return (
         <PluginPanelShell
-            title="File Intelligence"
+            title="Metadata"
             icon="metadata"
             iconColor="#38bdf8"
             variant="embedded"

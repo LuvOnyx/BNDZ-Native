@@ -39,7 +39,7 @@ Output: `BNDZBackend/Assets/launcher-ui/` — loaded by `LauncherShellWindow` (W
 | **B Clipboard** | Live (text history) |
 | **B Snippets / Quick links** | Live — Raycast-style managers + JSON stores |
 | **C AI** | Live — SuperCmd AiChatView + Gemini streaming |
-| **D Extensions** | Live — Flow plugin aggregation + Extension Hub |
+| **D Extensions** | Live — Flow plugin aggregation + Plugins |
 
 ## Theme
 

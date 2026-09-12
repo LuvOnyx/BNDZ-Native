@@ -10,7 +10,7 @@ import {
 
 export const DesignBoardPluginDef = {
   id: 'design-board',
-  name: 'Design Board',
+  name: 'Design',
   icon: 'layers_ui',
   description:
     'Hosted design canvas (Fabric / optional OpenPencil) — shapes, pen, and layers inside BNDZ chrome.',
@@ -162,7 +162,7 @@ export default function DesignBoardPlugin({
       if (d.source === 'bndz-design-board' && d.type === 'ready') {
         boardReadyRef.current = true;
         flushPending();
-        setStatus('Design Board ready');
+        setStatus('Design ready');
         return;
       }
       if (d.source !== 'bndz-openpencil') return;
@@ -263,7 +263,7 @@ export default function DesignBoardPlugin({
         key={boardKey}
         ref={iframeRef}
         className="bndz-design-board-frame"
-        title="BNDZ Design Board"
+        title="BNDZ Design"
         tabIndex={0}
         src={editorSrc(useOpenPencil)}
         sandbox="allow-scripts allow-same-origin allow-downloads allow-modals"
@@ -288,7 +288,7 @@ export default function DesignBoardPlugin({
           type="button"
           className="bndz-design-board-dock-fab"
           onClick={() => setExpanded(false)}
-          title="Dock Design Board"
+          title="Dock Design"
         >
           Dock
         </button>
@@ -307,7 +307,7 @@ export default function DesignBoardPlugin({
   // Single tree: expand via CSS fixed viewport — iframe never remounts.
   return (
     <PluginPanelShell
-      title="Design Board"
+      title="Design"
       icon="layers_ui"
       iconColor="#0d99ff"
       subtitle="Hosted canvas engine · Fabric / OpenPencil"
@@ -321,7 +321,7 @@ export default function DesignBoardPlugin({
               window.setTimeout(() => postResize({ forceFit: true }), 40);
               window.setTimeout(() => postResize({ forceFit: true }), 200);
             }}
-            title="Expand Design Board to fill workspace"
+            title="Expand Design to fill workspace"
           >
             Expand
           </PluginToolbarButton>

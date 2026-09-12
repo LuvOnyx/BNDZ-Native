@@ -312,7 +312,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     void IPC.ramStagingStagePaths(ramZoneId, paths.map(toWindowsPath)).then(r => {
       if (!r?.ok) {
         void import('../components/ToastHost').then(({ pushToast }) => {
-          pushToast({ kind: 'error', title: 'RAM Staging', message: r?.error || 'Could not stage files.' });
+          pushToast({ kind: 'error', title: 'Staging', message: r?.error || 'Could not stage files.' });
         }).catch(() => { /* ignore */ });
       }
     }).catch(() => { /* ignore */ });
@@ -351,7 +351,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     return true;
   }
 
-  // Icon Studio / Design Board / Photo Studio — defer OLE to plugin handlers
+  // Icons / Design / Photo Studio — defer OLE to plugin handlers
   if (ctx.bottomPluginTab === 'icon-studio') {
     const hit = document.elementFromPoint(clientX, clientY);
     if (hit?.closest('[data-icon-studio]') || hit?.closest('.icon-studio')) {

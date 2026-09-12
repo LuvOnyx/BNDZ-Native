@@ -19,7 +19,7 @@ import {
 
 export const DropMagnetPluginDef = {
   id: 'drop-magnet',
-  name: 'Drop Magnets',
+  name: 'Magnets',
   icon: 'magnet_ui',
   description: 'Named landing pads — drop files to rename, tag, and route in one release.',
   targetPanel: 'bottom' as const,
@@ -72,7 +72,7 @@ export default function DropMagnetPlugin({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const ok = await runPluginRefresh('Drop Magnets', async () => {
+    const ok = await runPluginRefresh('Magnets', async () => {
       const res = await IPC.magnetList();
       return (res.magnets || []).map((m: Record<string, unknown>) => normalizeMagnet(m));
     }, (rows) => {

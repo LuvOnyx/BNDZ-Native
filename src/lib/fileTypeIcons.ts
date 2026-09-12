@@ -125,7 +125,7 @@ export function parseIconifyLibraryPath(path: string): string | null {
   return path.slice(ICONIFY_PATH_PREFIX.length) || null;
 }
 
-/** Unique devicon entries for Icon Studio starter library */
+/** Unique devicon entries for Icons starter library */
 export function listDeviconLibraryEntries(): Array<{ name: string; iconId: string }> {
   const seen = new Set<string>();
   const out: Array<{ name: string; iconId: string }> = [];
@@ -138,7 +138,7 @@ export function listDeviconLibraryEntries(): Array<{ name: string; iconId: strin
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Unique skill-icons entries for Icon Studio starter library */
+/** Unique skill-icons entries for Icons starter library */
 export function listSkillIconLibraryEntries(): Array<{ name: string; iconId: string }> {
   const seen = new Set<string>();
   const out: Array<{ name: string; iconId: string }> = [];

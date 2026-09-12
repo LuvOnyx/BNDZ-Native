@@ -72,8 +72,8 @@ export function formatTransferCategory(category: string): string {
     case 'folder-sync': return 'Sync';
     case 'mesh': return 'Mesh';
     case 'mesh-drop': return 'Mesh Drop';
-    case 'ghost-link': return 'Ghost-Link';
-    case 'ram-staging': return 'RAM Staging';
+    case 'ghost-link': return 'Offload';
+    case 'ram-staging': return 'Staging';
     default: return category;
   }
 }

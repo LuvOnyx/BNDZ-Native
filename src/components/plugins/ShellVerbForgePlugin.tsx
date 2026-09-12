@@ -45,7 +45,7 @@ function normalizeVerb(raw: Record<string, unknown>): VerbEntry {
   };
 }
 
-/** Explorer verb forge UI — lives inside Shell Menus (not a sibling plugin). */
+/** Explorer verb forge UI — lives inside Context Menus (not a sibling plugin). */
 export function ShellVerbForgePanel() {
   const [verbs, setVerbs] = useState<VerbEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,10 +227,10 @@ export function ShellVerbForgePanel() {
   );
 }
 
-/** @deprecated Use Shell Menus → Explorer verbs tab. Kept only for stale install redirects. */
+/** @deprecated Use Context Menus → Explorer verbs tab. Kept only for stale install redirects. */
 export const ShellVerbForgePluginDef = {
   id: 'shell-verb-forge',
-  name: 'Shell Verb Forge',
+  name: 'Shell Verbs',
   icon: 'shell_menus',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,

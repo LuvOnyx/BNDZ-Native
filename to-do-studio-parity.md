@@ -1,10 +1,10 @@
 # BNDZ Studio Parity — Engines Under Existing UIs
 
-**Strategy (locked):** Keep the Figma/ProDesign Design Board chrome and Photoshop Photo Studio chrome.
+**Strategy (locked):** Keep the Figma/ProDesign Design chrome and Photoshop Photo Studio chrome.
 Replace fake Fabric / hand-rolled canvas2d **tool cores** with real engines from GitHub.
 Do **not** mark a tool done because an icon, menu, or checkbox exists.
 
-**Excalidraw:** Never shipped in this repo (only a SuperCmd keyword). Design Board stays Figma-class vector — not a whiteboard swap.
+**Excalidraw:** Never shipped in this repo (only a SuperCmd keyword). Design stays Figma-class vector — not a whiteboard swap.
 
 ---
 
@@ -27,7 +27,7 @@ Checkbox theater is forbidden. Unchecked = not done.
 
 | Engine | Path | License | Role |
 |--------|------|---------|------|
-| [OpenPencil](https://github.com/open-pencil/open-pencil) | `external/open-pencil` | MIT | Design Board vector core (scene-graph, pen, CanvasKit) under existing Figma chrome |
+| [OpenPencil](https://github.com/open-pencil/open-pencil) | `external/open-pencil` | MIT | Design vector core (scene-graph, pen, CanvasKit) under existing Figma chrome |
 | [OpenShop](https://github.com/SysAdminDoc/Openshop) | `external/openshop` | MIT | Photo Studio raster core (layers, brushes, pen, PSD) under existing PS chrome |
 
 BNDZ hosts keep React wrappers: `DesignBoardPlugin.tsx`, `BndzPhotoStudio.tsx`, key bridge, pop-out, open/save IPC.
@@ -35,7 +35,7 @@ No sidecar admin UIs; no iframe of foreign default chrome as the product face.
 
 ---
 
-## Design Board (Figma chrome + OpenPencil engine)
+## Design (Figma chrome + OpenPencil engine)
 
 **Chrome (keep):** [`public/editors/bndz-design-board.html`](public/editors/bndz-design-board.html), [`src/components/plugins/DesignBoardPlugin.tsx`](src/components/plugins/DesignBoardPlugin.tsx)
 
@@ -82,7 +82,7 @@ No sidecar admin UIs; no iframe of foreign default chrome as the product face.
 ## Host / pop-out
 
 - [x] Pop-out full-bleed; hard-kill matching `--plugin-window` before spawn; toast on fail
-- [x] Key bridge traps studio shortcuts (`editorIframeKeys` + Design Board → OpenPencil forward)
+- [x] Key bridge traps studio shortcuts (`editorIframeKeys` + Design → OpenPencil forward)
 - [x] `scripts/build-bndz-native.ps1` hard-kills `BNDZShell` / `BNDZ` before copy (throws if still locked)
 - [x] `http://bndz.local` treated as secure for Web Crypto (OpenShop / CanvasKit)
 
@@ -92,9 +92,9 @@ No sidecar admin UIs; no iframe of foreign default chrome as the product face.
 
 | Date | Surface | Tool | Result | Notes |
 |------|---------|------|--------|-------|
-| 2026-08-14 | Design Board / OpenPencil | engine ready + setTool(pen) + setStyle | PASS (smoke) | `scripts/smoke-studio-engines.mjs` — 15 host tools mapped; status `style · OpenPencil` |
+| 2026-08-14 | Design / OpenPencil | engine ready + setTool(pen) + setStyle | PASS (smoke) | `scripts/smoke-studio-engines.mjs` — 15 host tools mapped; status `style · OpenPencil` |
 | 2026-08-14 | Photo Studio / OpenShop | embed hello/export + 34 tools | PASS (smoke) | Local `vendor/` Fabric/ag-psd/jsPDF; runtime capabilities exportFormats=7 |
-| _(user hand-proof)_ | Design Board | Pen nodes/bends Figma test | pending | Place 4 nodes, drag handles, close, undo, inspector stroke |
+| _(user hand-proof)_ | Design | Pen nodes/bends Figma test | pending | Place 4 nodes, drag handles, close, undo, inspector stroke |
 | _(user hand-proof)_ | Photo Studio | Brush FG/BG | pending | FG flyout → next stroke; soft vs hard tip |
 
 ---
@@ -102,7 +102,7 @@ No sidecar admin UIs; no iframe of foreign default chrome as the product face.
 ## Build order
 
 1. Hard-kill → `npm run build` → Debug backend → `build-bndz-native.ps1`
-2. Design Board: OpenPencil under chrome → Pen audit first
+2. Design: OpenPencil under chrome → Pen audit first
 3. Photo Studio: OpenShop under chrome → Brush + FG/BG audit first
 4. Pop-out + keys
 5. Only then tick boxes above

@@ -23,7 +23,7 @@ export const BatchRenamePluginDef = {
     id: "batch-rename",
     name: "Batch Rename",
     icon: 'batch_rename',
-    description: 'Rename & magnets — pattern renames plus drop recipes for rename, tag, and route',
+    description: 'Batch rename files and optional drop rules',
 };
 
 type PanelTabId = 'rename' | 'magnets';
@@ -387,12 +387,12 @@ export default function BatchRenamePlugin({
 
     return (
         <PluginPanelShell
-            title="Rename & Magnets"
+            title="Batch Rename"
             icon="batch_rename"
             iconColor="#34d399"
             variant="embedded"
             subtitle={panelTab === 'magnets'
-                ? 'Drop magnets — rename, tag, and route on release'
+                ? 'Drop rules for rename, tag, or move'
                 : `${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
             toolbar={(
                 <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">

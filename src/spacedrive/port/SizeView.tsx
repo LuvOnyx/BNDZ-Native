@@ -1,6 +1,6 @@
 /**
  * Spacedrive SizeView port — d3 pack bubble chart for folder size visualization.
- * Craft adapted to BNDZ glass/squircle FM language (not a raw vendor dump).
+ * Adapted to BNDZ flat size-map chrome (not a raw vendor dump).
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
@@ -101,9 +101,9 @@ export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props
       .append('circle')
       .attr('class', 'bubble')
       .attr('fill', d => bubbleColor(d.data.item))
-      .attr('stroke', 'rgba(255,255,255,0.14)')
-      .attr('stroke-width', 1.25)
-      .style('filter', 'drop-shadow(0 4px 10px rgba(0,0,0,0.35))')
+      .attr('stroke', 'rgba(0,0,0,0.35)')
+      .attr('stroke-width', 1)
+      .style('filter', null)
       .style('cursor', d => d.data.item.type === 'directory' ? 'pointer' : 'default')
       .on('click', (_, d) => {
         if (d.data.item.type === 'directory' && d.data.item.path) onNavigate(d.data.item.path);

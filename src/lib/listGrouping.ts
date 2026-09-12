@@ -148,7 +148,7 @@ export const LIST_GROUP_BY_OPTIONS: { value: ListGroupBy; label: string }[] = [
   { value: 'date', label: 'Date modified' },
   { value: 'size', label: 'Size' },
   { value: 'name', label: 'Name' },
-  { value: 'semantic', label: 'Semantic Desk' },
+  { value: 'semantic', label: 'Groups' },
 ];
 
 /** Active sticky group for a scroll position (uniform row height virtualizer). */

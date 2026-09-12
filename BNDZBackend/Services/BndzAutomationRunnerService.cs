@@ -479,12 +479,12 @@ public sealed class BndzAutomationRunnerService
         var cold = BndzAutomationExtensions.GetField(node.Data, "coldStorageRoot");
         if (string.IsNullOrWhiteSpace(cold))
         {
-            log.Add("  ! Ghost-Link cold storage root missing.");
+            log.Add("  ! Offload cold storage root missing.");
             return;
         }
         if (_deps.GhostLink == null)
         {
-            log.Add("  ! Ghost-Link service unavailable.");
+            log.Add("  ! Offload service unavailable.");
             return;
         }
         var targets = BndzAutomationExtensions.ExistingFiles(files);
@@ -496,11 +496,11 @@ public sealed class BndzAutomationRunnerService
         try
         {
             var reclaimed = _deps.GhostLink.OffloadPathsAsync(targets, cold).GetAwaiter().GetResult();
-            log.Add($"  · Ghost-Link offloaded {targets.Count} file(s), reclaimed {reclaimed} bytes");
+            log.Add($"  · Offloaded {targets.Count} file(s), reclaimed {reclaimed} bytes");
         }
         catch (Exception ex)
         {
-            log.Add($"  ! Ghost-Link offload failed: {ex.Message}");
+            log.Add($"  ! Offload failed: {ex.Message}");
         }
     }
 
@@ -508,7 +508,7 @@ public sealed class BndzAutomationRunnerService
     {
         if (_deps.RamStaging == null)
         {
-            log.Add("  ! RAM Staging service unavailable.");
+            log.Add("  ! Staging service unavailable.");
             return;
         }
         var targets = files.Where(p => File.Exists(p) || Directory.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

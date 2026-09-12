@@ -100,7 +100,7 @@ Status should be **Valid**. After EV signing, distribute the same build widely s
 - [ ] First-run tutorial spotlights align with sidebar, filter bar, workspace, toolbar
 - [ ] Virtualized navigation tree with deep folder expansion
 - [ ] Everything search (`>` prefix) when Everything is installed
-- [ ] Icon Studio: no IPC timeout spam after library edits
+- [ ] Icons: no IPC timeout spam after library edits
 - [ ] Dual pane + column resize persistence
 - [ ] Settings export/import on a second machine
 - [ ] Install + uninstall on clean VM without WebView2

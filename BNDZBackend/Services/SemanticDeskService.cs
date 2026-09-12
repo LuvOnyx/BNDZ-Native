@@ -22,7 +22,7 @@ public sealed class SemanticDeskClusterResult
 }
 
 /// <summary>
-/// Semantic Desk clustering service.
+/// Groups clustering service.
 ///
 /// Wave 10: when BndzEmbeddingService has a loaded ONNX model the feature vector is
 /// replaced by the model's 384-dim (or whatever dim) embedding of the filename/path,

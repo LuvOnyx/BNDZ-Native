@@ -16,7 +16,7 @@ import {
 
 export const ZkVaultPluginDef = {
   id: 'zk-vault',
-  name: 'ZK Vault',
+  name: 'Vault',
   icon: 'lock_ui',
   description: 'Encrypt folders at rest; unlock decrypted session mounts inside BNDZ only.',
   targetPanel: 'bottom' as const,
@@ -51,7 +51,7 @@ export default function ZkVaultPlugin({
     : currentPath ? toWindowsPath(currentPath) : '';
 
   const refresh = useCallback(async () => {
-    await runPluginRefresh('ZK Vault', async () => {
+    await runPluginRefresh('Vault', async () => {
       const res = await IPC.zkVaultStatus();
       assertIpcOk(res, 'Could not load vault status.');
       const st = res.status as { sessions?: VaultSession[]; vaultCount?: number };

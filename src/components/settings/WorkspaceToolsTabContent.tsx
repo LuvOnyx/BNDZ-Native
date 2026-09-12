@@ -19,8 +19,8 @@ type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automati
 const TOOL_TABS: { id: ToolTab; label: string; icon: string; desc: string }[] = [
   { id: 'remote-mesh', label: 'Remote', icon: 'cloud_ui', desc: 'SSH/SFTP hosts & S3 buckets' },
   { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared', desc: 'P2P WebRTC transfer' },
-  { id: 'ghost-link', label: 'Ghost-Link', icon: 'emblem-symbolic-link', desc: 'Cold storage symlinks' },
-  { id: 'ram-staging', label: 'RAM Staging', icon: 'hard_drive_ui', desc: 'RAM-disk staging zones' },
+  { id: 'ghost-link', label: 'Offload', icon: 'emblem-symbolic-link', desc: 'Cold storage symlinks' },
+  { id: 'ram-staging', label: 'Staging', icon: 'hard_drive_ui', desc: 'RAM-disk staging zones' },
   { id: 'live-mirror', label: 'Live Mirror', icon: 'sync_folders', desc: 'Push folders on save' },
   { id: 'folder-sync', label: 'Folder Sync', icon: 'sync', desc: 'Bidirectional jobs' },
   { id: 'spatial-automation', label: 'Spatial & Pipelines', icon: 'view_grid', desc: 'Canvas and automations' },
@@ -508,10 +508,10 @@ export default function WorkspaceToolsTabContent({
                     />
                     <PluginToolbarButton onClick={() => void pickColdRoot()}>Browse…</PluginToolbarButton>
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-2">Used by context-menu offload and Automation Ghost-Link blocks. Original paths stay as symlinks.</p>
+                  <p className="text-[11px] text-gray-500 mt-2">Used by context-menu offload and Automation Offload blocks. Original paths stay as symlinks.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <PluginToolbarButton onClick={() => void refreshGhost()}>Refresh stats</PluginToolbarButton>
-                    <PluginToolbarButton onClick={() => openBottomPlugin?.('ghost-link')}>Open Ghost-Link plugin</PluginToolbarButton>
+                    <PluginToolbarButton onClick={() => openBottomPlugin?.('ghost-link')}>Open Offload plugin</PluginToolbarButton>
                   </div>
                 </SettingsSection>
 
@@ -520,7 +520,7 @@ export default function WorkspaceToolsTabContent({
                     <PluginEmptyState
                       icon="emblem-symbolic-link"
                       title="No ghost links yet"
-                      description="Offload cold files from the list context menu or the Ghost-Link plugin — originals become symlinks."
+                      description="Offload cold files from the list context menu or the Offload plugin — originals become symlinks."
                     />
                   ) : ghostRecent.map(g => (
                     <div key={g.path} className="bndz-ws-tools-row">
@@ -562,7 +562,7 @@ export default function WorkspaceToolsTabContent({
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <PluginToolbarButton onClick={() => void refreshRam()}>Refresh zones</PluginToolbarButton>
-                    <PluginToolbarButton onClick={() => openBottomPlugin?.('ram-staging')}>Open RAM Staging plugin</PluginToolbarButton>
+                    <PluginToolbarButton onClick={() => openBottomPlugin?.('ram-staging')}>Open Staging plugin</PluginToolbarButton>
                   </div>
                 </SettingsSection>
 
@@ -571,7 +571,7 @@ export default function WorkspaceToolsTabContent({
                     <PluginEmptyState
                       icon="hard_drive_ui"
                       title="No staging zones"
-                      description="Create a zone in the RAM Staging plugin, then stage projects and flush when you are done."
+                      description="Create a zone in the Staging plugin, then stage projects and flush when you are done."
                     />
                   ) : ramZones.map(z => {
                     const pct = z.sizeBudgetMb > 0

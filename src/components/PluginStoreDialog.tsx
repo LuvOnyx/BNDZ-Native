@@ -190,13 +190,13 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           if (!builtIn?.component && json.isNative !== false) {
             showNativeAlert(
               'This manifest describes a built-in extension that must ship with BNDZ — use Install in the catalog instead of JSON import.',
-              'Extension Hub',
+              'Plugins',
               'error',
             );
             return;
           }
           if (!builtIn && json.isNative === true) {
-            showNativeAlert('Imported manifests cannot register native host plugins — set isNative to false or use a built-in id.', 'Extension Hub', 'error');
+            showNativeAlert('Imported manifests cannot register native host plugins — set isNative to false or use a built-in id.', 'Plugins', 'error');
             return;
           }
           const newPlugin: PluginManifest = { ...json, isInstalled: true };
@@ -204,10 +204,10 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           setSelectedPluginId(newPlugin.id);
           setFilter('installed');
         } else {
-          showNativeAlert('Invalid plugin manifest schema.', 'Extension Hub', 'error');
+          showNativeAlert('Invalid plugin manifest schema.', 'Plugins', 'error');
         }
       } catch {
-        showNativeAlert('Invalid JSON file.', 'Extension Hub', 'error');
+        showNativeAlert('Invalid JSON file.', 'Plugins', 'error');
       }
     };
     reader.readAsText(file);
@@ -281,7 +281,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           available
         </span>
         <span className="ml-auto text-[10px] tracking-[0.08em] uppercase text-white/20 font-medium">
-          BNDZ Extension Hub
+          BNDZ Plugins
         </span>
       </div>
 
@@ -564,7 +564,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
 
   return (
     <BndzWindowFrame
-      title="Extension Hub"
+      title="Plugins"
       subtitle="Install, manage, and import BNDZ panel extensions"
       iconId="extension_hub"
       onClose={onClose ?? (() => {})}

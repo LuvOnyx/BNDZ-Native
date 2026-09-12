@@ -1861,9 +1861,9 @@ export default function BndzAutomationView() {
           <WorkspaceMenuItem label="Add log block" icon="notepad" onClick={() => addNode('log')} />
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Open Sandbox" icon="layers_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'project-sandbox' } })); closeMenu(); }} />
-          <WorkspaceMenuItem label="Open Library Health" icon="shield_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'library-health' } })); closeMenu(); }} />
-          <WorkspaceMenuItem label="Open Inbound Volume" icon="download_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'inbound-volume' } })); closeMenu(); }} />
-          <WorkspaceMenuItem label="Open Branching Time" icon="history_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'branching-time' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Health" icon="shield_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'library-health' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Intake" icon="download_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'inbound-volume' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Snapshots" icon="history_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'branching-time' } })); closeMenu(); }} />
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Clear pipeline" icon="delete" danger disabled={nodes.length === 0 && edges.length === 0} onClick={clearPipeline} />
         </WorkspaceMenuPanel>

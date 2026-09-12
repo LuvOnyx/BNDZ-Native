@@ -22,9 +22,9 @@ import {
 
 export const RamStagingPluginDef = {
   id: 'ram-staging',
-  name: 'RAM Staging',
+  name: 'Staging',
   icon: 'hard_drive_ui',
-  description: 'Staging — hot RAM zones plus cold offload that keeps a link at the old path',
+  description: 'Stage files in RAM and offload cold data while keeping links',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -86,7 +86,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
   }, [zones, stageZoneId]);
   const [status, setStatus] = useState<Status>({});
   const [busy, setBusy] = useState(false);
-  const [newName, setNewName] = useState('RAM Staging');
+  const [newName, setNewName] = useState('Staging');
   const [newSizeMb, setNewSizeMb] = useState(4096);
   const [memoryPressure, setMemoryPressure] = useState(false);
 
@@ -115,7 +115,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
     setBusy(true);
     onStatus?.(preferRam ? 'Creating zone…' : 'Creating fast staging zone…');
     try {
-      const r = await IPC.ramStagingCreateZone(newName.trim() || 'RAM Staging', newSizeMb, preferRam);
+      const r = await IPC.ramStagingCreateZone(newName.trim() || 'Staging', newSizeMb, preferRam);
       if (!r.ok) throw new Error(r.error || 'Create failed');
       const zone = r.zone as Zone | undefined;
       const isRam = zone?.kind === 'ramdisk';
@@ -289,8 +289,8 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
       iconColor="#a78bfa"
       variant="embedded"
       subtitle={panelTab === 'cold'
-        ? 'Cold offload — reclaim space while keeping a link at the old path'
-        : 'Hot RAM / fast disk staging zones · flush on eject'}
+        ? 'Move large files aside and keep a link in place'
+        : 'Temporary RAM disks for fast work'}
       toolbar={(
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={panelTab === 'hot'} onClick={() => setPanelTab('hot')}>
@@ -324,7 +324,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
               <Icons8Icon id="hard_drive_ui" size={40} className="text-violet-300" />
             </div>
           )}
-          name="RAM Staging"
+          name="Staging"
           typeLabel={ramZones > 0 ? 'RAM active' : zones.some(z => z.kind === 'faststaging') ? 'Fast staging' : preferRam ? 'Prefers RAM' : 'Fast staging'}
           meta={(
             <span className="bndz-panel-muted text-xs">

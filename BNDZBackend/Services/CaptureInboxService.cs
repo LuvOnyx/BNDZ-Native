@@ -308,7 +308,7 @@ public sealed class CaptureInboxService : IDisposable
     private static bool ClipboardHasFilePaths()
     {
         // Prefer Win32 CF_HDROP probe — ContainsFileDropList() can throw/false when clipboard is locked
-        // while Explorer still has a file drop list (plus DIB thumbnail), which re-spam Capture Inbox.
+        // while Explorer still has a file drop list (plus DIB thumbnail), which re-spam Captures.
         try
         {
             if (IsClipboardFormatAvailable(CF_HDROP))

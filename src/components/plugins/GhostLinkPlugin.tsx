@@ -21,7 +21,7 @@ import {
 
 export const GhostLinkPluginDef = {
   id: 'ghost-link',
-  name: 'Ghost-Link',
+  name: 'Offload',
   icon: 'link',
   description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
   targetPanel: 'bottom' as const,
@@ -363,7 +363,7 @@ export default function GhostLinkPlugin({
       if (r.error) throw new Error(r.error);
       pushToast({
         kind: 'success',
-        title: 'Ghost-Link scan complete',
+        title: 'Offload scan complete',
         message: `${r.count ?? 0} file(s) offloaded to cold storage.`,
       });
       await refresh();
@@ -556,7 +556,7 @@ export default function GhostLinkPlugin({
               </div>
 
               <PluginCard className="bndz-ghostlink-howto">
-                <PluginSectionTitle icon="zap_ui">How Ghost-Link works</PluginSectionTitle>
+                <PluginSectionTitle icon="zap_ui">How Offload works</PluginSectionTitle>
                 <ol className="mt-3 space-y-2 text-xs text-gray-400 leading-relaxed list-decimal list-inside">
                   <li>Define rules with <strong className="text-gray-300">source roots</strong>, size/idle filters, and a <strong className="text-gray-300">cold storage vault</strong>.</li>
                   <li>Run a scan — matching files move to the vault; the original path becomes a symlink (ghost link).</li>

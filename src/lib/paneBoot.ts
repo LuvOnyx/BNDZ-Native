@@ -79,7 +79,7 @@ export function paneTitle(boot: BndzPaneBoot): string {
     case 'smart-tools':
       return 'Smart Tools';
     case 'marketplace':
-      return 'Extension Hub';
+      return 'Plugins';
     case 'settings':
       return 'Configuration';
     case 'sidebar':

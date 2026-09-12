@@ -1,5 +1,5 @@
 /**
- * Integration smoke: Design Board inline OpenPencil + Figma tool rail.
+ * Integration smoke: Design inline OpenPencil + Figma tool rail.
  */
 import http from 'node:http';
 import { createReadStream, existsSync, statSync } from 'node:fs';

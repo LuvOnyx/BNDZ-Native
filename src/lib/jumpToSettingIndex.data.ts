@@ -4387,8 +4387,8 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls file operation progress dialog modeless"
   },
   {
-    "tab": "Undo & Action Log",
-    "label": "Show action history (Edit → History &amp; Action Log panel)",
+    "tab": "Undo & History",
+    "label": "Show action history (Edit → History &amp; History panel)",
     "key": "logActionsAndEnableUndoRedo",
     "keywords": [
       "show",
@@ -4407,7 +4407,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls log actions and enable undo redo"
   },
   {
-    "tab": "Undo & Action Log",
+    "tab": "Undo & History",
     "label": "Remember the logged actions between sessions",
     "key": "rememberTheLoggedActionsBetweenSessions",
     "keywords": [
@@ -4426,7 +4426,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls remember the logged actions between sessions"
   },
   {
-    "tab": "Undo & Action Log",
+    "tab": "Undo & History",
     "label": "Even on exit without saving",
     "key": "evenOnExitWithoutSaving",
     "keywords": [
@@ -4449,7 +4449,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls even on exit without saving"
   },
   {
-    "tab": "Undo & Action Log",
+    "tab": "Undo & History",
     "label": "Prompt before delete",
     "key": "promptBeforeDelete",
     "keywords": [
@@ -4475,7 +4475,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls prompt before delete"
   },
   {
-    "tab": "Undo & Action Log",
+    "tab": "Undo & History",
     "label": "Delete to recycle bin",
     "key": "deleteToRecycleBin",
     "keywords": [
@@ -4498,7 +4498,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls delete to recycle bin"
   },
   {
-    "tab": "Undo & Action Log",
+    "tab": "Undo & History",
     "label": "Show last actions in toolbar button menu",
     "key": "showLastActionsInToolbarButtonMenu",
     "keywords": [
@@ -4521,7 +4521,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls show last actions in toolbar button menu"
   },
   {
-    "tab": "Undo & Action Log",
+    "tab": "Undo & History",
     "label": "Show options in menu",
     "key": "showOptionsInMenu",
     "keywords": [
@@ -4538,7 +4538,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls show options in menu"
   },
   {
-    "tab": "Undo & Action Log",
+    "tab": "Undo & History",
     "label": "Log clipboard contents and enable restore",
     "key": "logClipboardContentsAndEnableRestore",
     "keywords": [

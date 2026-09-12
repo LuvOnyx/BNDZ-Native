@@ -19,7 +19,7 @@ import {
 
 export const CaptureInboxPluginDef = {
   id: 'capture-inbox',
-  name: 'Capture Inbox',
+  name: 'Captures',
   icon: 'clipboard_ui',
   description: 'Screenshot and clipboard images saved as named PNG files via Windows OCR.',
   targetPanel: 'bottom' as const,
@@ -104,7 +104,7 @@ export default function CaptureInboxPlugin({
       if (!folderEditingRef.current) setFolderDraft(folder);
       setLastRefreshedAt(Date.now());
     } catch (e) {
-      pushToast({ kind: 'error', title: 'Capture Inbox refresh failed', message: String(e) });
+      pushToast({ kind: 'error', title: 'Captures refresh failed', message: String(e) });
     }
   }, []);
 
@@ -132,7 +132,7 @@ export default function CaptureInboxPlugin({
     try {
       const r = await IPC.captureFromClipboard();
       if (!r.ok) throw new Error(r.error || 'No image on clipboard');
-      pushToast({ kind: 'success', title: 'Captured', message: r.entry?.fileName || 'Saved to Capture Inbox' });
+      pushToast({ kind: 'success', title: 'Captured', message: r.entry?.fileName || 'Saved to Captures' });
       lastSnapshotRef.current = '';
       await refresh({ force: true });
     } catch (e) {
@@ -196,7 +196,7 @@ export default function CaptureInboxPlugin({
 
   return (
     <PluginPanelShell
-      title="Capture Inbox"
+      title="Captures"
       subtitle="Clipboard images → named PNG files"
       iconId="clipboard_ui"
       toolbar={(

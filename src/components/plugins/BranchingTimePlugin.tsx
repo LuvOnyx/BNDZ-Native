@@ -18,9 +18,9 @@ import {
 
 export const BranchingTimePluginDef = {
   id: 'branching-time',
-  name: 'Branching Time',
+  name: 'Snapshots',
   icon: 'history_ui',
-  description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
+  description: 'Snapshot folders and restore earlier versions',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -290,11 +290,11 @@ export default function BranchingTimePlugin({
 
   return (
     <PluginPanelShell
-      title="Branching Time"
+      title="Snapshots"
       icon="history_ui"
       iconColor="#c4a35a"
       variant="embedded"
-      subtitle="Content-addressed save-states + VSS named branches"
+      subtitle="Folder snapshots and Volume Shadow Copy branches"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={activeTab === 'branches'} onClick={() => setActiveTab('branches')}>
@@ -319,7 +319,7 @@ export default function BranchingTimePlugin({
               <EmblemIcon id="emblem-locally-modified" size={48} />
             </div>
           }
-          name="Branching Time"
+          name="Snapshots"
           typeLabel="Folder time machine"
           path={root || null}
           meta={
@@ -363,7 +363,7 @@ export default function BranchingTimePlugin({
                 title={root ? 'No snapshots yet' : 'No folder selected'}
                 description={root
                   ? 'Type a name (or leave blank for auto-name) and click Create branch to take your first content-addressed snapshot of this folder.'
-                  : 'Navigate to a folder in the file list, then open Branching Time to snapshot it.'}
+                  : 'Navigate to a folder in the file list, then open Snapshots to snapshot it.'}
               />
             ) : (
               branches.map(b => (

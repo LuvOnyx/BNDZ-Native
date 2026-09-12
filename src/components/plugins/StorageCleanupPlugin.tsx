@@ -33,9 +33,9 @@ import {
 
 export const StorageCleanupPluginDef = {
   id: 'storage-cleanup',
-  name: 'Storage Cleanup',
+  name: 'Cleanup',
   icon: 'storage_cleanup',
-  description: 'Cleanup & health — deep clean, capacity planning, duplicates, and library repair',
+  description: 'Clean disk space, plan capacity, find duplicates, and repair libraries',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -211,11 +211,11 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   return (
     <PluginPanelShell
-      title="Cleanup & Health"
+      title="Cleanup"
       icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Cleanup · capacity · library health · review before delete"
+      subtitle="Disk cleanup, capacity, duplicates, and library repair"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -243,7 +243,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       <PluginHeroStrip
         icon={<Icons8Icon id="storage_cleanup" size={52} className="opacity-90" />}
         name="Disk Cleanup"
-        typeLabel="BNDZ Storage Cleanup"
+        typeLabel="BNDZ Cleanup"
         path={currentPath && currentPath !== '/' ? currentPath : undefined}
         meta={
           <span className="bndz-panel-muted text-xs">

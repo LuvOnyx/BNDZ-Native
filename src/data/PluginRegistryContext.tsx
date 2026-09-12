@@ -48,7 +48,7 @@ export type PluginManifest = {
     installOnFirstUse?: boolean;
 };
 
-/** Core plugins on first launch — System Properties, Fast Search, Visual Filters only. */
+/** Core plugins on first launch — Properties, Search, Filters only. */
 export const DEFAULT_INSTALLED_PLUGINS: string[] = [
     'properties',
     'find',
@@ -65,8 +65,8 @@ export const FIRST_USE_PLUGINS: string[] = [];
 const ALL_PLUGINS: PluginManifest[] = [
     {
         id: 'properties',
-        name: 'System Properties',
-        description: 'Native Windows property inspector with hash analysis, ACL viewer, and attribute editor.',
+        name: 'Properties',
+        description: 'Windows properties, hashes, permissions, and attributes.',
         icon: 'sys_properties',
         isInstalled: true,
         isNative: true,
@@ -75,8 +75,8 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ContextMenuPluginDef,
-        name: 'Shell Menus',
-        description: 'Inside-BNDZ menus, Windows Explorer inject (Deploy), live shell-extension pin/hide, and Explorer verb forge.',
+        name: 'Context Menus',
+        description: 'Customize BNDZ and Explorer context menus, including shell extensions.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -84,7 +84,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...IconStudioPluginDef,
-        description: 'FolderIco-style icon libraries — import folders of icons, drag-drop PNGs, apply to folders and files.',
+        description: 'Icon libraries for folders and files.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -92,7 +92,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...BatchRenamePluginDef,
-        description: 'Batch rename with patterns, numbering, AI suggestions, and drop magnets (rename/tag/route on release).',
+        description: 'Rename many files at once, with optional drop rules.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -100,7 +100,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...FindPluginDef,
-        description: 'Instant file search across drives and cloud folders.',
+        description: 'Search files across local drives and cloud folders.',
         isInstalled: true,
         isNative: true,
         targetPanel: 'bottom',
@@ -108,7 +108,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...DropStackPluginDef,
-        description: 'Stage files from multiple directories, then batch copy or move to the active pane.',
+        description: 'Collect files from different folders, then copy or move them together.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -126,7 +126,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...StorageCleanupPluginDef,
-        description: 'Cleanup, capacity planning, and library health repair in one ops surface.',
+        description: 'Find wasted space, plan capacity, and fix missing library links.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -134,7 +134,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...FolderSyncPluginDef,
-        description: 'Folder sync with robocopy jobs plus binary file and recursive folder diff.',
+        description: 'Sync folders and compare files or directory trees.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -142,7 +142,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...CatalogPluginDef,
-        description: 'Virtual collections of paths — browse as /vf folders, add selections from any pane.',
+        description: 'Saved path collections you can browse like folders.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -150,7 +150,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ActionLogPluginDef,
-        description: 'Reversible operation history with undo and redo for copy, move, and rename.',
+        description: 'Undo and redo copy, move, and rename operations.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -159,7 +159,7 @@ const ALL_PLUGINS: PluginManifest[] = [
 
     {
         ...MeshPluginDef,
-        description: 'Zero-config SSH/SFTP mesh — remote browsing, live deploy mirrors, and integrated terminal. Power-user optional plugin.',
+        description: 'Browse remote SSH/SFTP hosts and open an integrated terminal.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -168,7 +168,7 @@ const ALL_PLUGINS: PluginManifest[] = [
 
     {
         ...RamStagingPluginDef,
-        description: 'Staging continuum — hot RAM zones and cold ghost offload that keeps path links.',
+        description: 'Stage files in RAM and offload cold data while keeping links.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -176,7 +176,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ProjectSandboxPluginDef,
-        description: 'Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults.',
+        description: 'Isolated workspaces with checkpoints and encrypted vaults.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -186,7 +186,7 @@ const ALL_PLUGINS: PluginManifest[] = [
 
     {
         ...BranchingTimePluginDef,
-        description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
+        description: 'Snapshot folders, compare versions, and restore earlier states.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -224,7 +224,7 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
         const shell = typeof document !== 'undefined' ? document.documentElement?.dataset?.bndzShell : undefined;
         const isFilesMergeShell = shell === 'files-pane' || shell === 'files-host';
 
-        // FilesMerge: undo wipe-to-empty; seed core plugins + System Properties; Command Deck off.
+        // FilesMerge: undo wipe-to-empty; seed core plugins + Properties; Command Deck off.
         const filesMergeFlags = config as {
             filesMergePluginsClearedV1?: boolean;
             filesMergePluginsReseededV2?: boolean;

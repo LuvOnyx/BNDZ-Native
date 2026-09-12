@@ -21,7 +21,7 @@ import {
 
 export const SemanticDeskPluginDef = {
   id: 'semantic-desk',
-  name: 'Semantic Desk',
+  name: 'Groups',
   icon: 'smart_view',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,

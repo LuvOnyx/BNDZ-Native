@@ -32,9 +32,9 @@ import {
 
 export const DropStackPluginDef = {
   id: 'dropstack',
-  name: 'Drop Stack',
+  name: 'Drop Zone',
   icon: 'dropstack',
-  description: 'Intake & stage — stash transfers, inbound capture, and drop policies in one place',
+  description: 'Collect files, capture inbound items, and apply drop rules',
   targetPanel: 'bottom',
 };
 
@@ -294,16 +294,16 @@ export default function DropStackPlugin({
 
   return (
     <PluginPanelShell
-      title="Intake & Stage"
+      title="Drop Zone"
       icon="dropstack"
       iconColor="#a78bfa"
       variant="embedded"
     
       subtitle={panelTab === 'intake'
-        ? 'Clipboard, OCR captures, and folder watchers'
+        ? 'Clipboard, OCR, and folder watchers'
         : panelTab === 'policies'
-          ? 'Block, warn, or reroute on drop'
-          : 'Named stashes · selective transfer'}
+          ? 'Block, warn, or redirect on drop'
+          : 'Hold files, then copy or move them together'}
       toolbar={(
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={panelTab === 'stack'} onClick={() => setPanelTab('stack')}>
@@ -331,7 +331,7 @@ export default function DropStackPlugin({
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <PluginHeroStrip
           icon={<Icons8Icon id="dropstack" size={52} className="opacity-90" />}
-          name={stack?.name || 'Drop Stack'}
+          name={stack?.name || 'Drop Zone'}
           typeLabel="Batch queue"
           path={destPath || focusedPath || undefined}
           meta={
