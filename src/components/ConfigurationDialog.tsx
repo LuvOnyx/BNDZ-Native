@@ -716,9 +716,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      onChange={e => updateLocalConfig({ folderSizeVisualization: e.target.value as 'list' | 'treemap' | 'bubbles' })}
                      className="text-[11px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-2 py-1 outline-none focus:border-[#0078d4]/50"
                    >
-                     <option value="list">Size list (recommended)</option>
-                     <option value="treemap">Treemap (advanced)</option>
-                     <option value="bubbles">Bubble chart (advanced)</option>
+                     <option value="treemap">Size map (recommended)</option>
+                     <option value="list">Size list</option>
+                     <option value="bubbles">Bubble chart</option>
                    </select>
                  </div>
                  <div className="ml-[20px]">

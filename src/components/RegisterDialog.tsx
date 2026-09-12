@@ -1,26 +1,126 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icons8Icon } from './Icons8Icon';
 import { IPC } from '../lib/ipcBridge';
 import { EMPTY_LICENSE_STATUS } from '../lib/licenseTypes';
-import { NativeDialogShell } from './native/NativeDialogShell';
+import { CloseGlyph } from './ChromeGlyphs';
 
-export default function RegisterDialog({ onClose, onActivated }: { onClose: () => void; onActivated?: () => void }) {
-  const [serial, setSerial] = useState('');
+const SEGMENT_COUNT = 4;
+const SEGMENT_LEN = 4;
+
+function splitSerial(raw: string): string[] {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const body = cleaned.startsWith('BNDZ') && cleaned.length > 4 ? cleaned.slice(4) : cleaned;
+  const parts: string[] = [];
+  for (let i = 0; i < SEGMENT_COUNT; i++) {
+    parts.push(body.slice(i * SEGMENT_LEN, (i + 1) * SEGMENT_LEN));
+  }
+  return parts;
+}
+
+function joinSerial(parts: string[]): string {
+  const body = parts.map(p => p.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, SEGMENT_LEN));
+  if (body.every(p => !p)) return '';
+  return `BNDZ-${body.join('-')}`.replace(/-+$/g, '');
+}
+
+function TrialDial({ pct, expired, label }: { pct: number; expired: boolean; label: string }) {
+  const r = 34;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const dash = (clamped / 100) * c;
+  return (
+    <div className={`bndz-key-dial${expired ? ' is-expired' : ''}`}>
+      <svg viewBox="0 0 88 88" width="88" height="88" aria-hidden>
+        <circle className="bndz-key-dial-track" cx="44" cy="44" r={r} />
+        <circle
+          className="bndz-key-dial-arc"
+          cx="44"
+          cy="44"
+          r={r}
+          strokeDasharray={`${dash} ${c}`}
+          transform="rotate(-90 44 44)"
+        />
+      </svg>
+      <div className="bndz-key-dial-core">
+        <strong>{expired ? '0' : Math.round(clamped)}</strong>
+        <span>{expired ? 'ended' : '% left'}</span>
+      </div>
+      <span className="bndz-key-dial-caption">{label}</span>
+    </div>
+  );
+}
+
+/**
+ * Register BNDZ — license certificate (not a form sheet).
+ * Trial dial, segmented serial wells, licensed seal.
+ */
+export default function RegisterDialog({
+  onClose,
+  onActivated,
+}: {
+  onClose: () => void;
+  onActivated?: () => void;
+}) {
+  const [segments, setSegments] = useState(['', '', '', '']);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [status, setStatus] = useState<import('../lib/licenseTypes').LicenseStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   useEffect(() => {
     IPC.getLicenseStatus().then(setStatus).catch(() => setStatus(EMPTY_LICENSE_STATUS));
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const serial = joinSerial(segments);
+  const serialComplete = segments.every(s => s.length === SEGMENT_LEN);
+  const canActivate = serialComplete && Boolean(email.trim()) && !busy;
+
+  const setSegment = (index: number, value: string) => {
+    const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cleaned.length > SEGMENT_LEN) {
+      const parts = splitSerial(cleaned);
+      setSegments(parts);
+      const focusAt = Math.min(SEGMENT_COUNT - 1, Math.floor(cleaned.replace(/^BNDZ/, '').length / SEGMENT_LEN));
+      requestAnimationFrame(() => inputsRef.current[focusAt]?.focus());
+      return;
+    }
+    const next = [...segments];
+    next[index] = cleaned.slice(0, SEGMENT_LEN);
+    setSegments(next);
+    if (cleaned.length >= SEGMENT_LEN && index < SEGMENT_COUNT - 1) {
+      inputsRef.current[index + 1]?.focus();
+    }
+  };
+
+  const onSegmentKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !segments[index] && index > 0) {
+      inputsRef.current[index - 1]?.focus();
+    }
+    if (e.key === 'ArrowLeft' && index > 0 && (e.currentTarget.selectionStart || 0) === 0) {
+      inputsRef.current[index - 1]?.focus();
+    }
+    if (e.key === 'ArrowRight' && index < SEGMENT_COUNT - 1 && (e.currentTarget.selectionStart || 0) >= segments[index].length) {
+      inputsRef.current[index + 1]?.focus();
+    }
+    if (e.key === 'Enter' && canActivate) void activate();
+  };
+
   const activate = async () => {
     setBusy(true);
     setMessage(null);
     try {
-      const result = await IPC.activateLicense(serial.trim(), email.trim(), name.trim());
+      const result = await IPC.activateLicense(serial, email.trim(), name.trim());
       if (result.success) {
         setMessage({ kind: 'ok', text: result.message || 'Activation successful.' });
         const next = await IPC.getLicenseStatus();
@@ -42,129 +142,172 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       await IPC.deactivateLicense();
       const next = await IPC.getLicenseStatus();
       setStatus(next);
-      setSerial('');
+      setSegments(['', '', '', '']);
       setMessage({ kind: 'ok', text: 'License removed from this PC. You can activate it on another machine.' });
     } finally {
       setBusy(false);
     }
   };
 
-  const canActivate = Boolean(serial.trim() && email.trim()) && !busy;
+  const trialTotal = status?.trialDaysTotal || 14;
+  const trialLeft = Math.max(0, status?.trialDaysRemaining ?? trialTotal);
+  const trialPct = Math.round((trialLeft / Math.max(1, trialTotal)) * 100);
+  const trialExpired = !!status?.trialExpired;
+  const dialLabel = useMemo(() => {
+    if (!status) return 'Loading trial…';
+    if (trialExpired) return 'Trial ended — activate to continue';
+    return `${trialLeft} of ${trialTotal} trial days left`;
+  }, [status, trialExpired, trialLeft, trialTotal]);
 
-  return (
-    <NativeDialogShell
-      open
-      title="Register BNDZ"
-      subtitle="Activate a license for this PC"
-      tone="info"
-      variant="sheet"
-      onClose={onClose}
-      showCloseButton
-      zIndexClass="z-[10050]"
-      size="md"
-      panelClassName="bndz-register-dialog"
-      footerButtons={
-        status?.activated
-          ? [
-              { label: busy ? 'Releasing…' : 'Deactivate this PC', style: 'secondary', onClick: deactivate },
-              { label: 'Done', style: 'primary', onClick: onClose },
-            ]
-          : [
-              { label: 'Cancel', style: 'secondary', onClick: onClose },
-              {
-                label: busy ? 'Activating…' : 'Activate',
-                style: 'primary',
-                onClick: () => { if (canActivate) void activate(); },
-              },
-            ]
-      }
+  return createPortal(
+    <div
+      className="bndz-key-scrim"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bndz-register-body">
-        <div className="bndz-register-brand" aria-hidden>
-          <img src="/bndz-light.png" alt="" className="bndz-register-brand-mark" draggable={false} />
-          <div className="bndz-register-brand-copy">
-            <div className="bndz-register-brand-name">BNDZ</div>
-            <div className="bndz-register-brand-tag">License activation</div>
-          </div>
-        </div>
+      <div
+        className="bndz-key-ticket"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bndz-key-title"
+        onMouseDown={e => e.stopPropagation()}
+      >
+        <div className="bndz-key-perf" aria-hidden />
 
-        {status?.activated ? (
-          <div className="bndz-native-status-ok flex items-start gap-3">
-            <Icons8Icon id="checksquare_ui" size={18} className="shrink-0 mt-0.5" />
+        <div className="bndz-key-body">
+          <header className="bndz-key-masthead">
             <div>
-              <div className="font-semibold">Licensed on this PC</div>
-              <div className="bndz-native-dialog-muted mt-1">{status.name || 'Registered user'}</div>
-              <div className="bndz-native-dialog-muted">{status.email}</div>
-              <div className="bndz-native-dialog-muted font-mono text-[10px] mt-1">{status.serialMasked}</div>
-              {status.onlineBound && (
-                <div className="bndz-native-dialog-muted text-[10px] mt-1">Online seat bound to this machine</div>
-              )}
+              <div className="bndz-key-kicker">Product license</div>
+              <h1 id="bndz-key-title" className="bndz-key-title">
+                {status?.activated ? 'Licensed workstation' : 'Register BNDZ'}
+              </h1>
             </div>
-          </div>
-        ) : (
-          <>
-            {!status?.trialExpired && status && (
-              <div className="bndz-native-status-warn">
-                {status.trialDaysRemaining} day{status.trialDaysRemaining === 1 ? '' : 's'} left in the trial.
-                Enter your serial to activate permanently (internet required).
-              </div>
-            )}
-            {status?.trialExpired && (
-              <div className="bndz-native-status-error">
-                The 14-day trial has ended. Activate to continue using BNDZ.
-              </div>
-            )}
-            <p className="text-[11px] bndz-native-dialog-muted leading-relaxed">
-              One serial activates one PC. Deactivate here before moving the seat to another machine.
-            </p>
-            <div className="bndz-register-fields">
-              <div>
-                <label className="bndz-native-field-label">Serial number</label>
-                <input
-                  value={serial}
-                  onChange={e => setSerial(e.target.value.toUpperCase())}
-                  placeholder="BNDZ-XXXX-XXXX-XXXX"
-                  className="bndz-native-input font-mono tracking-wider"
-                  autoFocus
-                  spellCheck={false}
-                  autoComplete="off"
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && canActivate) void activate();
-                  }}
-                />
-              </div>
-              <div>
-                <label className="bndz-native-field-label">Email</label>
-                <input
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  type="email"
-                  className="bndz-native-input"
-                  autoComplete="email"
-                />
-              </div>
-              <div>
-                <label className="bndz-native-field-label">Name / Organization <span className="opacity-50">(optional)</span></label>
-                <input
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Your name or company"
-                  className="bndz-native-input"
-                  autoComplete="organization"
-                />
-              </div>
-            </div>
-          </>
-        )}
+            <button type="button" className="bndz-key-x" onClick={onClose} aria-label="Close">
+              <CloseGlyph size={11} />
+            </button>
+          </header>
 
-        {message && (
-          <div className={`bndz-register-message ${message.kind === 'ok' ? 'bndz-register-message--ok' : 'bndz-register-message--err'}`}>
-            {message.kind === 'ok' ? <Icons8Icon id="check" size={14} /> : <Icons8Icon id="error_ui" size={14} />}
-            {message.text}
+          {status?.activated ? (
+            <div className="bndz-key-seal-card">
+              <div className="bndz-key-seal" aria-hidden>
+                <span>LICENSED</span>
+              </div>
+              <div className="bndz-key-seal-copy">
+                <img src="/bndz-light.png" alt="" className="bndz-key-seal-mark" draggable={false} />
+                <strong>{status.name || 'Registered user'}</strong>
+                <span>{status.email}</span>
+                <code>{status.serialMasked}</code>
+                {status.onlineBound && <em>Online seat bound to this machine</em>}
+              </div>
+            </div>
+          ) : (
+            <div className="bndz-key-grid">
+              <TrialDial pct={trialPct} expired={trialExpired} label={dialLabel} />
+
+              <div className="bndz-key-entry">
+                <label className="bndz-key-field-label" htmlFor="bndz-key-seg-0">Serial number</label>
+                <div className="bndz-key-wells">
+                  <span className="bndz-key-prefix" aria-hidden>BNDZ</span>
+                  {segments.map((seg, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <span className="bndz-key-dash" aria-hidden>—</span>}
+                      <input
+                        id={i === 0 ? 'bndz-key-seg-0' : undefined}
+                        ref={el => { inputsRef.current[i] = el; }}
+                        value={seg}
+                        onChange={e => setSegment(i, e.target.value)}
+                        onKeyDown={e => onSegmentKeyDown(i, e)}
+                        onPaste={e => {
+                          const text = e.clipboardData.getData('text');
+                          if (text && text.replace(/[^A-Za-z0-9]/g, '').length > SEGMENT_LEN) {
+                            e.preventDefault();
+                            setSegment(i, text);
+                          }
+                        }}
+                        placeholder="XXXX"
+                        maxLength={SEGMENT_LEN}
+                        spellCheck={false}
+                        autoComplete="off"
+                        autoFocus={i === 0}
+                        aria-label={`Serial group ${i + 1}`}
+                      />
+                    </React.Fragment>
+                  ))}
+                </div>
+
+                <div className="bndz-key-fields">
+                  <div className="bndz-key-field">
+                    <label htmlFor="bndz-key-email">Email</label>
+                    <input
+                      id="bndz-key-email"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@company.com"
+                      autoComplete="email"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && canActivate) void activate();
+                      }}
+                    />
+                  </div>
+                  <div className="bndz-key-field">
+                    <label htmlFor="bndz-key-name">Name / Organization <em>(optional)</em></label>
+                    <input
+                      id="bndz-key-name"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      placeholder="Your name or company"
+                      autoComplete="organization"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {message && (
+            <div className={`bndz-key-message ${message.kind === 'ok' ? 'is-ok' : 'is-err'}`}>
+              {message.kind === 'ok'
+                ? <Icons8Icon id="check" size={14} />
+                : <Icons8Icon id="error_ui" size={14} />}
+              {message.text}
+            </div>
+          )}
+
+          <div className="bndz-key-actions">
+            {status?.activated ? (
+              <>
+                <button type="button" className="bndz-key-btn bndz-key-btn--ghost" onClick={() => void deactivate()} disabled={busy}>
+                  {busy ? 'Releasing…' : 'Deactivate this PC'}
+                </button>
+                <button type="button" className="bndz-key-btn bndz-key-btn--solid" onClick={onClose}>
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="bndz-key-btn bndz-key-btn--ghost" onClick={onClose}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="bndz-key-btn bndz-key-btn--solid"
+                  disabled={!canActivate}
+                  onClick={() => void activate()}
+                >
+                  {busy ? 'Activating…' : 'Activate license'}
+                </button>
+              </>
+            )}
           </div>
-        )}
+
+          {!status?.activated && (
+            <p className="bndz-key-footnote">
+              One serial activates one PC. Internet is required. Deactivate here before moving the seat.
+            </p>
+          )}
+        </div>
       </div>
-    </NativeDialogShell>
+    </div>,
+    document.body,
   );
 }

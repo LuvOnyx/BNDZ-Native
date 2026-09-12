@@ -12602,6 +12602,19 @@ export default function BNDZUI() {
                 : config.folderSizeVisualization === 'treemap'
                   ? 'treemap'
                   : 'list';
+              // Size Map (treemap) is default — list/bubbles remain optional settings.
+              if (viz === 'list') {
+                return (
+                  <div className="h-full min-h-0">
+                    <FolderSizeListView
+                      items={sizeItems}
+                      onNavigate={p => setCurrentPath(p, pane.id)}
+                      onOpen={p => { void IPC.executeContextMenuVerb(p, 'open'); }}
+                      onScanFolderSizes={onScanSizes}
+                    />
+                  </div>
+                );
+              }
               if (viz === 'bubbles') {
                 return (
                   <div className="h-full min-h-0">
@@ -12609,20 +12622,13 @@ export default function BNDZUI() {
                   </div>
                 );
               }
-              if (viz === 'treemap') {
-                return (
-                  <div className="h-full min-h-0">
-                    <FolderSizeTreemap items={sizeItems} onNavigate={p => setCurrentPath(p, pane.id)} onScanFolderSizes={onScanSizes} />
-                  </div>
-                );
-              }
               return (
                 <div className="h-full min-h-0">
-                  <FolderSizeListView
+                  <FolderSizeTreemap
                     items={sizeItems}
                     onNavigate={p => setCurrentPath(p, pane.id)}
-                    onOpen={p => { void IPC.executeContextMenuVerb(p, 'open'); }}
                     onScanFolderSizes={onScanSizes}
+                    folderLabel={normPanePath}
                   />
                 </div>
               );

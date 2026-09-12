@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icons8Icon } from './Icons8Icon';
 import { showNativeAlert } from '../lib/nativeDialog';
-import { NativeDialogShell } from './native/NativeDialogShell';
+import { CloseGlyph } from './ChromeGlyphs';
 
 const FALLBACK_VERSION = '1.0.0';
 
@@ -14,6 +15,10 @@ type UpdateInfo = {
   error?: string | null;
 };
 
+/**
+ * About BNDZ — product plaque (not a sheet skin).
+ * Embossed mark face, machined version chip, property ledger, update bay.
+ */
 export default function AboutDialog({
   onClose,
   updateCheckUrl,
@@ -26,12 +31,21 @@ export default function AboutDialog({
   const [version, setVersion] = useState(FALLBACK_VERSION);
   const [checking, setChecking] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const year = new Date().getFullYear();
 
   useEffect(() => {
     import('../lib/ipcBridge').then(({ IPC }) => {
       IPC.getAppVersion().then(v => { if (v) setVersion(v); }).catch(() => {});
     });
   }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const checkUpdates = async () => {
     setChecking(true);
@@ -56,86 +70,110 @@ export default function AboutDialog({
     );
   };
 
-  return (
-    <NativeDialogShell
-      open
-      title="About BNDZ"
-      variant="sheet"
-      onClose={onClose}
-      showCloseButton
-      zIndexClass="z-[520]"
-      size="sm"
-      panelClassName="bndz-about-dialog"
-      footerButtons={[{ label: 'OK', style: 'primary', onClick: onClose }]}
+  return createPortal(
+    <div
+      className="bndz-about-scrim"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bndz-about-body">
-        <div className="bndz-about-identity">
-          <img src="/bndz-light.png" alt="" className="bndz-about-mark" draggable={false} />
-          <div>
-            <div className="bndz-about-product">BNDZ</div>
-            <div className="bndz-about-edition">File Manager</div>
-            <div className="bndz-about-version">Version {version}</div>
-          </div>
-        </div>
+      <div
+        className="bndz-about-plaque"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bndz-about-title"
+        onMouseDown={e => e.stopPropagation()}
+      >
+        <button type="button" className="bndz-about-x" onClick={onClose} aria-label="Close">
+          <CloseGlyph size={11} />
+        </button>
 
-        <dl className="bndz-about-facts">
-          <div>
-            <dt>Platform</dt>
-            <dd>Windows 64-bit</dd>
+        <section className="bndz-about-face">
+          <div className="bndz-about-watermark" aria-hidden>BNDZ</div>
+          <div className="bndz-about-mark">
+            <div className="bndz-about-mark-ring">
+              <img src="/bndz-light.png" alt="" draggable={false} />
+            </div>
           </div>
-          <div>
+          <h1 id="bndz-about-title" className="bndz-about-name">BNDZ</h1>
+          <p className="bndz-about-epithet">Native file manager for Windows</p>
+          <div className="bndz-about-chip">
+            <span className="bndz-about-chip-dot" aria-hidden />
+            <span>Version {version}</span>
+            <span className="bndz-about-chip-sep" aria-hidden />
+            <span>{includeBetaVersions ? 'Stable + beta' : 'Stable channel'}</span>
+          </div>
+        </section>
+
+        <dl className="bndz-about-ledger">
+          <div className="bndz-about-row">
+            <dt>Platform</dt>
+            <dd>Windows · x64</dd>
+          </div>
+          <div className="bndz-about-row">
             <dt>UI host</dt>
             <dd>WebView2</dd>
           </div>
+          <div className="bndz-about-row">
+            <dt>Shell</dt>
+            <dd>Native host process</dd>
+          </div>
+          <div className="bndz-about-row">
+            <dt>Edition</dt>
+            <dd>Desktop</dd>
+          </div>
         </dl>
 
-        <button
-          type="button"
-          disabled={checking}
-          onClick={() => void checkUpdates()}
-          className="bndz-about-update-btn"
-        >
-          {checking ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="download" size={14} />}
-          {checking ? 'Checking…' : 'Check for updates'}
-        </button>
-
-        {updateInfo && (
-          <div className="bndz-about-update-status">
-            {updateInfo.updateAvailable ? (
-              <>
-                <p className="bndz-about-update-ok">Update available — v{updateInfo.latestVersion}</p>
-                {updateInfo.releaseNotes && (
-                  <p className="bndz-about-muted bndz-about-notes">{updateInfo.releaseNotes}</p>
-                )}
-                {updateInfo.releaseUrl && (
-                  <a href={updateInfo.releaseUrl} target="_blank" rel="noreferrer" className="bndz-about-link">
-                    Open release notes
-                  </a>
-                )}
-              </>
-            ) : updateInfo.error ? (
-              <p className="bndz-about-update-warn">{updateInfo.error}</p>
-            ) : (
-              <p className="bndz-about-muted">This build is up to date.</p>
-            )}
+        <section className="bndz-about-bay">
+          <div className="bndz-about-bay-copy">
+            <strong>Software updates</strong>
+            <span>Query the release feed for a newer build of this install.</span>
           </div>
-        )}
+          <button
+            type="button"
+            className="bndz-about-bay-btn"
+            disabled={checking}
+            onClick={() => void checkUpdates()}
+          >
+            {checking ? <Icons8Icon id="loading" size={13} spin /> : <Icons8Icon id="download" size={13} />}
+            {checking ? 'Checking…' : 'Check for updates'}
+          </button>
+          {updateInfo && (
+            <div
+              className={`bndz-about-bay-result${
+                updateInfo.updateAvailable ? ' is-ok' : updateInfo.error ? ' is-warn' : ' is-muted'
+              }`}
+            >
+              {updateInfo.updateAvailable ? (
+                <>
+                  Update available — v{updateInfo.latestVersion}
+                  {updateInfo.releaseNotes && (
+                    <div className="bndz-about-bay-notes">{updateInfo.releaseNotes.slice(0, 240)}</div>
+                  )}
+                  {updateInfo.releaseUrl && (
+                    <a href={updateInfo.releaseUrl} target="_blank" rel="noreferrer">Open release notes</a>
+                  )}
+                </>
+              ) : updateInfo.error ? (
+                updateInfo.error
+              ) : (
+                'This build is up to date.'
+              )}
+            </div>
+          )}
+        </section>
 
-        <div className="bndz-about-footer">
+        <footer className="bndz-about-rail">
           <div className="bndz-about-legal">
-            {([
-              ['eula', 'EULA'],
-              ['privacy', 'Privacy'],
-              ['third-party', 'Third-party licenses'],
-            ] as const).map(([key, label]) => (
-              <button key={key} type="button" className="bndz-about-link" onClick={() => openLegal(key)}>
-                {label}
-              </button>
-            ))}
+            <button type="button" onClick={() => openLegal('eula')}>EULA</button>
+            <button type="button" onClick={() => openLegal('privacy')}>Privacy</button>
+            <button type="button" onClick={() => openLegal('third-party')}>Third-party</button>
           </div>
-          <p className="bndz-about-copy">© {new Date().getFullYear()} BNDZ. All rights reserved.</p>
-        </div>
+          <div className="bndz-about-rail-end">
+            <span className="bndz-about-copy">© {year} BNDZ</span>
+            <button type="button" className="bndz-about-ok" onClick={onClose}>OK</button>
+          </div>
+        </footer>
       </div>
-    </NativeDialogShell>
+    </div>,
+    document.body,
   );
 }
