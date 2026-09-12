@@ -119,7 +119,7 @@ export function formatAddressBarPath(panePath: string): string {
   if (workspace) return bndzWorkspaceLabel(workspace);
   if (isBndzRamPath(p)) {
     const zoneId = parseBndzRamZoneId(p);
-    if (!zoneId) return 'RAM Staging';
+    if (!zoneId) return 'Staging';
     const tail = p.slice(BNDZ_RAM_ROOT.length + zoneId.length + 1);
     return tail ? tail.replace(/\//g, '\\') : zoneId;
   }
@@ -177,7 +177,7 @@ export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<st
     const zoneId = parseBndzRamZoneId(p);
     const segs: BreadcrumbSegment[] = [
       { label: 'Smart views', path: BNDZ_VIEWS_ROOT },
-      { label: 'RAM Staging', path: BNDZ_RAM_ROOT },
+      { label: 'Staging', path: BNDZ_RAM_ROOT },
     ];
     if (zoneId) {
       segs.push({ label: zoneId, path: `${BNDZ_RAM_ROOT}/${zoneId}` });

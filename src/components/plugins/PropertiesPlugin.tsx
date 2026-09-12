@@ -401,7 +401,7 @@ export default function PropertiesPlugin({
     if (!targetPath && selectionCount === 0) {
         return (
             <PluginPanelShell
-                title="System Properties"
+                title="Properties"
                 icon="sys_properties"
                 iconColor="#38bdf8"
                 variant="embedded"
@@ -440,7 +440,7 @@ export default function PropertiesPlugin({
 
     return (
         <PluginPanelShell
-            title="System Properties"
+            title="Properties"
             icon="sys_properties"
             iconColor="#38bdf8"
             variant="embedded"
@@ -771,7 +771,7 @@ export default function PropertiesPlugin({
                         <PluginCard className="bndz-props-overview">
                             <PluginSectionTitle icon="icon_studio">Folder / shortcut icon</PluginSectionTitle>
                             <p className="text-xs bndz-panel-muted leading-relaxed mb-4">
-                                Pick a modern .ico or .png — BNDZ writes it through Icon Studio the same way Files Customization does, with restore-default when you want Explorer stock back.
+                                Pick a modern .ico or .png — BNDZ writes it through Icons the same way Files Customization does, with restore-default when you want Explorer stock back.
                             </p>
                             <div className="bndz-props-overview-row mb-4">
                                 <div className="bndz-props-icon-tile bndz-props-icon-tile--lg">
@@ -793,7 +793,7 @@ export default function PropertiesPlugin({
                                             Restore default
                                         </PluginHeroActionButton>
                                         <PluginHeroActionButton icon="icon_studio" onClick={() => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'icon-studio' } }))}>
-                                            Icon Studio
+                                            Icons
                                         </PluginHeroActionButton>
                                     </div>
                                     {iconStatus && <div className="text-xs text-sky-300">{iconStatus}</div>}

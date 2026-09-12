@@ -78,7 +78,7 @@ export default function BndzPaneShell({ initial }: Props) {
     }
   }, [boot]);
 
-  // FilesMerge plugins dock: System Properties on every launch; Command Deck stays off.
+  // FilesMerge plugins dock: Properties on every launch; Command Deck stays off.
   useEffect(() => {
     if (boot.pane !== 'plugins') return;
     const patch: Record<string, unknown> = {

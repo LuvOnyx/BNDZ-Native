@@ -347,7 +347,7 @@ export default function BottomPluginPanel(props: any & {
           <span>No plugins installed.</span>
           {onOpenPluginStore && (
             <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold">
-              <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub
+              <Icons8Icon id="extension_hub" size={12} /> Open Plugins
             </button>
           )}
         </div>
@@ -442,7 +442,7 @@ export default function BottomPluginPanel(props: any & {
                 <button
                   type="button"
                   className="bndz-bottom-hub-btn"
-                  title="Extension Hub"
+                  title="Plugins"
                   onClick={onOpenPluginStore}
                 >
                   <Icons8Icon id="extension_hub" size={12} />

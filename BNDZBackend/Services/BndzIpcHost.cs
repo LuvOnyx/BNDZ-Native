@@ -4430,7 +4430,7 @@ namespace BNDZ.Services
                             }
                             else if (action == "runCommand")
                             {
-                                // Raw user command from Shell Menus plugin — must not be path-normalized
+                                // Raw user command from Context Menus plugin — must not be path-normalized
                                 string rawCmd = pathElement.ValueKind == JsonValueKind.String
                                     ? pathElement.GetString() ?? ""
                                     : path;
@@ -6375,7 +6375,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Branching Time (content-addressed time machine) ──
+                // ── Snapshots (content-addressed time machine) ──
                 else if (type == "BRANCH_WATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -6922,7 +6922,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Phase 9+ selling-pillar IPC: Capacity Solver ──
+                // ── Phase 9+ selling-pillar IPC: Capacity ──
                 else if (type == "CAPACITY_BUILD_PLAN")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7100,7 +7100,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Policy Packs ──
+                // ── Policies ──
                 else if (type == "POLICY_PACK_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7375,7 +7375,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Shell Verb Forge ──
+                // ── Shell Verbs ──
                 else if (type == "VERB_FORGE_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7449,7 +7449,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Format Transcode Rack ──
+                // ── Format Encode ──
                 else if (type == "TRANSCODE_ENQUEUE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7495,7 +7495,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Semantic Desk ──
+                // ── Groups ──
                 else if (type == "SEMANTIC_DESK_CLUSTER")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7530,7 +7530,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Semantic rank (embedding rerank for Fast Search) ──
+                // ── Semantic rank (embedding rerank for Search) ──
                 else if (type == "SEMANTIC_RANK")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl2) ? idEl2.GetString() : null;
@@ -7730,7 +7730,7 @@ namespace BNDZ.Services
                         PostMeshIpcResult(idProp, "JOB_TICKET_DELETE_RESULT", new { ok });
                     });
                 }
-                // ── Phase 9+ selling-pillar IPC: Inbound Volume ──
+                // ── Phase 9+ selling-pillar IPC: Intake ──
                 else if (type == "INBOUND_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7829,7 +7829,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Capture Inbox (screenshot/clipboard → named PNG via OCR) ──
+                // ── Captures (screenshot/clipboard → named PNG via OCR) ──
                 else if (type == "CAPTURE_INBOX_STATUS")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7905,7 +7905,7 @@ namespace BNDZ.Services
                         });
                     });
                 }
-                // ── Reality Check Mode (project refs vs on-disk) ──
+                // ── Missing Files Mode (project refs vs on-disk) ──
                 else if (type == "REALITY_CHECK_SCAN")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -12828,7 +12828,7 @@ namespace BNDZ.Services
         private async Task HandleUndoRedoAsync(bool undo, string? idProp, string? entryId = null)
         {
             // Ctrl+Z / redo always run against the undo stack. "Show action history" only
-            // controls the Action Log panel UI — it must not disable undo.
+            // controls the History panel UI — it must not disable undo.
             var operationId = $"{(undo ? "undo" : "redo")}-{DateTime.UtcNow.Ticks}";
             var label = !string.IsNullOrWhiteSpace(entryId)
                 ? (undo ? "Undo to selected action" : "Redo to selected action")

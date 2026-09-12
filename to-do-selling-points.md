@@ -8,7 +8,7 @@
 
 ---
 
-## 1 — Project Sandbox (`sell-sandbox-overlay`)
+## 1 — Sandbox (`sell-sandbox-overlay`)
 
 **Sell:** Wrap a project tree. Work freely. **Commit** or **Discard** the whole thing.
 
@@ -35,7 +35,7 @@ BNDZ intercepts **only its own** FS ops (and optional shell IFileOperation hook)
 
 ---
 
-## 2 — Library Health OS (`sell-library-health`)
+## 2 — Health OS (`sell-library-health`)
 
 **Sell:** A file manager mode that shows **what's broken**, not what's there.
 
@@ -89,7 +89,7 @@ Ignore paths. Fingerprint content (XxHash/BLAKE3). When the same bytes appear un
 
 ---
 
-## 4 — Capacity Solver (`sell-capacity-solver`)
+## 4 — Capacity (`sell-capacity-solver`)
 
 **Sell:** "40 GB free, 200 GB project" → one **approved plan**, not a scavenger hunt.
 
@@ -143,7 +143,7 @@ BNDZ can run as the **shell replacement** session (optional advanced mode): own 
 
 ---
 
-## 6 — Branching Time (`sell-branching-time`)
+## 6 — Snapshots (`sell-branching-time`)
 
 **Sell:** Folder history with **branches**, not a single undo stack. "Before the agent wrecked it."
 
@@ -162,7 +162,7 @@ Watch project roots; every change stores content-addressed blobs + manifests (li
 - **Feels like:** "Git for folders without git"
 
 ### Impl C — Named sandbox checkpoints (depends on Pillar 1)
-If Project Sandbox exists: **Checkpoint** freezes current shadow as a branch tip; continue working; switch checkpoint = swap active shadow. No whole-volume VSS; project-scoped.
+If Sandbox exists: **Checkpoint** freezes current shadow as a branch tip; continue working; switch checkpoint = swap active shadow. No whole-volume VSS; project-scoped.
 
 - **Stack:** Sandbox shadow dirs as branch refs
 - **Tradeoff:** Only covers sandboxed projects
@@ -226,11 +226,11 @@ Inbound appears in Explorer / file dialogs via namespace extension; BNDZ also op
 
 ## Ship order (after Phases 1–8)
 
-1. **Project Sandbox** — category-defining, demoable  
-2. **Branching Time** — trust after agents / bulk ops  
-3. **Library Health** — daily value  
+1. **Sandbox** — category-defining, demoable  
+2. **Snapshots** — trust after agents / bulk ops  
+3. **Health** — daily value  
 4. **File Lineage** — "how did this get here"  
-5. **Capacity Solver** — disk panic moments  
+5. **Capacity** — disk panic moments  
 6. **Inbound Reality Volume** — constant convenience  
 7. **Work Intent Surfaces** — power-user lock-in  
 8. **Shell Succession** — last (OS politics / support)
@@ -246,6 +246,6 @@ Inbound appears in Explorer / file dialogs via namespace extension; BNDZ also op
 | Lineage | See where a file came from and what it became |
 | Capacity | One plan when the disk is out of room |
 | Shell Succession | Windows opens folders in BNDZ |
-| Branching Time | Folder save-states and branches |
+| Snapshots | Folder save-states and branches |
 | Intent Surfaces | The FM changes job with you |
-| Inbound Volume | Clipboard and downloads are a place |
+| Intake | Clipboard and downloads are a place |

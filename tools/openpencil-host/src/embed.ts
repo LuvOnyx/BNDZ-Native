@@ -6,7 +6,7 @@ export type MountOptions = {
   onEvent?: (msg: Record<string, unknown>) => void
 }
 
-/** Inline mount for Design Board — same document, no nested iframe / postMessage bridge. */
+/** Inline mount for Design — same document, no nested iframe / postMessage bridge. */
 export async function mountBndzOpenPencil(container: HTMLElement, opts?: MountOptions): Promise<HostApi> {
   container.replaceChildren()
   const mountPoint = document.createElement('div')

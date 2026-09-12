@@ -1,4 +1,4 @@
-/** Runtime state for Semantic Desk list overlay grouping. */
+/** Runtime state for Groups list overlay grouping. */
 
 export type SemanticClusterAssignment = {
   clusterId: string;

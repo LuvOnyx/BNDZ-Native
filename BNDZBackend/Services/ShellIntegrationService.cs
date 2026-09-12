@@ -651,7 +651,7 @@ public class ShellIntegrationService
     }
 
     /// <summary>
-    /// Show or hide the Icon Studio shell context submenu by toggling the LegacyDisable
+    /// Show or hide the Icons shell context submenu by toggling the LegacyDisable
     /// value on each registered HKCU IconStudio key.
     /// </summary>
     public ShellIntegrationResult SetIconStudioShellMenu(bool enable)
@@ -684,7 +684,7 @@ public class ShellIntegrationService
             return new ShellIntegrationResult
             {
                 Success = true,
-                Message = enable ? "Icon Studio shell menu shown." : "Icon Studio shell menu hidden."
+                Message = enable ? "Icons shell menu shown." : "Icons shell menu hidden."
             };
         }
         catch (Exception ex)

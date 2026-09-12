@@ -152,7 +152,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
             )}
             {onOpenGhostLink && (
               <WorkspaceLaunchCard
-                title="Ghost-Link"
+                title="Offload"
                 desc="Offload cold files to storage while keeping original paths via symlinks"
                 icon="link"
                 emblemId="emblem-symbolic-link"
@@ -165,7 +165,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
             )}
             {onOpenRamStaging && (
               <WorkspaceLaunchCard
-                title="RAM Staging"
+                title="Staging"
                 desc="Stage projects in RAM or fast NVMe — browse zones at /bndz/ram, flush on eject"
                 icon="hard_drive_ui"
                 emblemId="emblem-mounted"

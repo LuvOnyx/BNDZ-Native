@@ -27,7 +27,7 @@ import {
 
 export const RealityCheckPluginDef = {
   id: 'reality-check',
-  name: 'Reality Check',
+  name: 'Missing Files',
   icon: 'data_warning',
   description: 'Compare on-disk assets against project and DAW session file references — missing files glow in the list.',
   targetPanel: 'bottom' as const,
@@ -85,7 +85,7 @@ export default function RealityCheckPlugin({
 
   useEffect(() => {
     void runPluginRefresh(
-      'Reality Check',
+      'Missing Files',
       () => IPC.realityCheckGetState(),
       (state) => {
         if (state.lastScan) applyRealityCheckScan(state.lastScan as Record<string, unknown>);
@@ -109,11 +109,11 @@ export default function RealityCheckPlugin({
       setRealityCheckActive(true);
       pushToast({
         kind: r.missingCount ? 'warning' : 'success',
-        title: 'Reality Check complete',
+        title: 'Missing Files complete',
         message: `${r.missingCount ?? 0} missing · ${r.okCount ?? 0} ok across ${r.projectFileCount ?? 0} project files`,
       });
     } catch (e) {
-      pushToast({ kind: 'error', title: 'Reality Check failed', message: String(e) });
+      pushToast({ kind: 'error', title: 'Missing Files failed', message: String(e) });
     } finally {
       setBusy(false);
     }
@@ -125,7 +125,7 @@ export default function RealityCheckPlugin({
     try {
       await IPC.realityCheckSetActive(next);
       setRealityCheckActive(next);
-      pushToast({ kind: 'info', title: next ? 'Reality Check mode on' : 'Reality Check mode off' });
+      pushToast({ kind: 'info', title: next ? 'Missing Files mode on' : 'Missing Files mode off' });
     } catch (e) {
       pushToast({ kind: 'error', title: 'Toggle failed', message: String(e) });
     } finally {
@@ -172,7 +172,7 @@ export default function RealityCheckPlugin({
 
   return (
     <PluginPanelShell
-      title="Reality Check"
+      title="Missing Files"
       subtitle="Project refs vs on-disk assets"
       iconId="data_warning"
       toolbar={(
@@ -218,7 +218,7 @@ export default function RealityCheckPlugin({
             <p className="text-[11px] text-gray-400 leading-relaxed">
               Scans <code className="text-gray-300">.json</code> playlists, <code className="text-gray-300">.txt</code> path lists,
               <code className="text-gray-300"> .bndz-refs.json</code>, and Ableton <code className="text-gray-300">.als</code> session XML
-              for asset references. When Reality Check mode is active, missing assets glow amber-red in the file list.
+              for asset references. When Missing Files mode is active, missing assets glow amber-red in the file list.
             </p>
           </PluginCard>
           {!refs.length && (

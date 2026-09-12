@@ -41,7 +41,7 @@ const TUTORIAL_STEPS = [
     iconId: 'puzzle_ui',
     color: '#c084fc',
     title: 'Plugins & Continuum',
-    body: 'Bottom plugins (Properties, Fast Search, Visual Filters) stay docked. Continuum is Home — Go → Continuum opens the live rail. Spatial Canvas has a separate Pillar Board preset for Sandbox / Health / RAM pins.',
+    body: 'Bottom plugins (Properties, Search, Filters) stay docked. Continuum is Home — Go → Continuum opens the live rail. Spatial Canvas has a separate Pillar Board preset for Sandbox / Health / RAM pins.',
     anchor: 'toolbar',
   },
   {
@@ -49,7 +49,7 @@ const TUTORIAL_STEPS = [
     iconId: 'zap_ui',
     color: '#f59e0b',
     title: 'Rapid access & Undo',
-    body: 'Pin folders to Rapid access from the context menu. Undo file operations with Ctrl+Z — the Action Log tracks what can be reversed.',
+    body: 'Pin folders to Rapid access from the context menu. Undo file operations with Ctrl+Z — the History tracks what can be reversed.',
     anchor: 'sidebar',
   },
 ];

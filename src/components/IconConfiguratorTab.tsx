@@ -37,7 +37,7 @@ export default function IconConfiguratorTab() {
       <div className="m-0 p-0 outline-none text-white min-h-0 pb-4">
          <SettingsTabHeader
            title="Icon Engine Configuration"
-           description='Configure global system settings for the BNDZ Icon Engine. Use the "Icon Studio" module in the bottom panel to manage and assign your custom libraries.'
+           description='Configure global system settings for the BNDZ Icon Engine. Use the "Icons" module in the bottom panel to manage and assign your custom libraries.'
            icon="config"
          />
 
@@ -53,7 +53,7 @@ export default function IconConfiguratorTab() {
                onChange={(e) => updateConfig({ autoConvertIcons: e.target.checked })}
              />
              <Checkbox
-               label="Show Icon Studio in Windows Explorer context menus (and in BNDZ Change Icon)"
+               label="Show Icons in Windows Explorer context menus (and in BNDZ Change Icon)"
                checked={config.enableIconContextSubmenu ?? true}
                onChange={(e) => {
                  updateConfig({ enableIconContextSubmenu: e.target.checked });
@@ -63,7 +63,7 @@ export default function IconConfiguratorTab() {
                }}
              />
              <p className="text-[10px] text-white/40 -mt-1 mb-1 leading-snug pl-6">
-               Right-click a desktop/file item → Icon Studio opens BNDZ with that item and the Icon Studio plugin.
+               Right-click a desktop/file item → Icons opens BNDZ with that item and the Icons plugin.
                Uncheck to remove the Explorer verb from the registry.
              </p>
          </SettingsSection>

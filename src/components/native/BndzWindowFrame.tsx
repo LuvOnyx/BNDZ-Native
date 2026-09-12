@@ -16,7 +16,7 @@ export type BndzWindowFrameProps = {
   modelessDialog?: boolean;
 };
 
-/** Large app-style window (Configuration, Extension Hub) with flat native title bar. */
+/** Large app-style window (Configuration, Plugins) with flat native title bar. */
 export function BndzWindowFrame({
   title,
   subtitle,

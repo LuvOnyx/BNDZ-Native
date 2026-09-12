@@ -1290,7 +1290,7 @@ function ContextMenuView({
         {stockOn('zk-vault') && (
         <>
         <ContextMenuItem
-          label="Create ZK Vault"
+          label="Create Vault"
           iconVerb="lock"
           onClick={() => {
             window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'zk-vault' } }));
@@ -1298,7 +1298,7 @@ function ContextMenuView({
           }}
         />
         <ContextMenuItem
-          label="Unlock ZK Vault"
+          label="Unlock Vault"
           iconVerb="key"
           onClick={() => {
             window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'zk-vault' } }));
@@ -1465,7 +1465,7 @@ function ContextMenuView({
           )}
           {stockOn('ghost-link') && (
           <ContextMenuItem
-            label="Ghost-Link offload…"
+            label="Offload…"
             iconVerb="emblem-symbolic-link"
             onClick={() => { void onGhostLinkOffload?.(targetPaths); onClose(); }}
           />
@@ -1536,7 +1536,7 @@ function ContextMenuView({
               else if (action.id === 'os-copy') setClipboardState(targetPaths, 'copy');
               else if (action.id === 'os-paste') await executePaste(menu.path);
               else if (action.id === 'os-delete') onDeletePaths(targetPaths);
-              // Shell Menus plugin command-based actions
+              // Context Menus plugin command-based actions
               else if (cmd === 'refresh') runRefresh();
               else if (cmd === 'copyPath') IPC.shellExecute('copyPath', targetPaths);
               else if (cmd === 'openTerminal') IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));

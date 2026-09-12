@@ -68,7 +68,7 @@ test.describe('BNDZ critical paths', () => {
     await navigateTo(page, panePathFromWin(dupFixtureWin));
     await openStorageWizard(page, 'cleanup');
 
-    await expect(page.getByText('Storage Cleanup Wizard')).toBeVisible();
+    await expect(page.getByText('Cleanup Wizard')).toBeVisible();
     await page.getByTestId('storage-cleanup-wizard').locator('select').first().selectOption('1');
     await useCurrentFolderInWizard(page);
     await continueWizard(page);

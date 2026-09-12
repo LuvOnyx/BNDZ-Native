@@ -96,7 +96,7 @@ public sealed class GhostLinkService : IDisposable
         if (candidates.Count == 0) return 0;
 
         var operationId = Guid.NewGuid().ToString("N");
-        _queue.RegisterJob(operationId, "ghost-offload", $"Ghost-Link scan ({candidates.Count} files)", "bndz",
+        _queue.RegisterJob(operationId, "ghost-offload", $"Offload scan ({candidates.Count} files)", "bndz",
             candidates.Count, "ghost-link", FileTransferPriority.Low);
 
         var sw = Stopwatch.StartNew();
@@ -144,7 +144,7 @@ public sealed class GhostLinkService : IDisposable
             throw new ArgumentException("Cold storage root required");
 
         var operationId = Guid.NewGuid().ToString("N");
-        _queue.RegisterJob(operationId, "ghost-offload", $"Ghost-Link ({paths.Count} items)", "bndz",
+        _queue.RegisterJob(operationId, "ghost-offload", $"Offload ({paths.Count} items)", "bndz",
             paths.Count, "ghost-link", FileTransferPriority.Normal, coldStorageRoot);
 
         long reclaimed = 0;

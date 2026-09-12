@@ -52,7 +52,7 @@ BNDZ must **be** a native file manager:
 ## Phase C — File ops = Explorer parity ✅
 
 - [x] Default `fileOperationEngine: 'native'` (`IFileOperation`)
-- [x] Action Log records native ops when `LogActions`; undo toast fixed (no false “shell doesn’t log”)
+- [x] History records native ops when `LogActions`; undo toast fixed (no false “shell doesn’t log”)
 - [x] Shell conflict UI enabled (dropped `NoConfirmation`/`NoErrorUI` when progress shown)
 - [x] Recycle Bin original location/path columns + auto-visible in Recycle pane
 
@@ -104,7 +104,7 @@ BNDZ must **be** a native file manager:
 
 ## Deferred → `to-do-native-fm-next.md`
 
-Optional HostContextMenu for tabs · Spatial/PortalComposer OLE-only · unified shell↔Action Log undo stack · full PROPERTYKEY Details · deep MTP · launcher source quarantine · FTS pooling
+Optional HostContextMenu for tabs · Spatial/PortalComposer OLE-only · unified shell↔History undo stack · full PROPERTYKEY Details · deep MTP · launcher source quarantine · FTS pooling
 
 ## Related docs
 

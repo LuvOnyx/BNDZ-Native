@@ -19,7 +19,7 @@ import { panePathFromWin } from '../../lib/storageOrganize';
 
 export const ActionLogPluginDef = {
   id: 'action-log',
-  name: 'Action Log',
+  name: 'History',
   icon: 'clock_ui',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
@@ -179,7 +179,7 @@ export default function ActionLogPlugin() {
 
   return (
     <PluginPanelShell
-      title="Action Log"
+      title="History"
       icon="clock_ui"
       iconColor="#a78bfa"
       subtitle={`${items.length} logged · ${canUndo ? 'undo available' : 'nothing to undo'}`}
@@ -250,7 +250,7 @@ export default function ActionLogPlugin() {
               <Icons8Icon id="info" size={16} className="text-sky-400 shrink-0 mt-0.5" />
               <div className="text-[11px] text-sky-100/90 leading-relaxed">
                 History view is hidden. <strong>Ctrl+Z</strong> still undoes the last file operation.
-                Enable <strong>Show action history</strong> in Settings → Undo &amp; Action Log to list past actions here.
+                Enable <strong>Show action history</strong> in Settings → Undo &amp; History to list past actions here.
               </div>
             </PluginCard>
           </div>

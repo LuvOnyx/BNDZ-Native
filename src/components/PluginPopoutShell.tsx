@@ -121,7 +121,7 @@ export default function PluginPopoutShell({ initial }: Props) {
       <p className="text-[12px] max-w-sm leading-relaxed">
         {installedIds.includes(boot.pluginId)
           ? `Warming “${boot.pluginId}”…`
-          : `“${boot.pluginId}” is not installed — open Extension Hub in the main window, install it, then pop out again.`}
+          : `“${boot.pluginId}” is not installed — open Plugins in the main window, install it, then pop out again.`}
       </p>
     </div>
   );

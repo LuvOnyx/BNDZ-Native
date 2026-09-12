@@ -32,7 +32,7 @@ function pathKey(p: string): string {
 
 /**
  * Worst health severity per path under the current directory.
- * Powers list-row badges without opening Library Health plugin.
+ * Powers list-row badges without opening Health plugin.
  */
 export function useHealthProblemMap(
   currentPath: string,

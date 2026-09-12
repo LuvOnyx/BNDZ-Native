@@ -5,7 +5,7 @@ using BNDZ.Services.RamStaging;
 namespace BNDZ.Services;
 
 /// <summary>
-/// Project Sandbox volume host.
+/// Sandbox volume host.
 /// Mount priority: ImDisk RAM zone (full drive letter) → SUBST drive letter via DefineDosDevice
 /// (no driver required) → shadow overlay directory (plain folder, always works).
 /// Full ProjFS VirtualizationInstance is not required for the product path.

@@ -22,9 +22,9 @@ import {
 
 export const ProjectSandboxPluginDef = {
   id: 'project-sandbox',
-  name: 'Project Sandbox',
+  name: 'Sandbox',
   icon: 'layers_ui',
-  description: 'Safe workspaces — sandbox checkpoints plus encrypted vault sessions',
+  description: 'Isolated workspaces with checkpoints and encrypted vaults',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -264,11 +264,11 @@ export default function ProjectSandboxPlugin({
 
   return (
     <PluginPanelShell
-      title="Safe Workspaces"
+      title="Sandbox"
       icon="layers_ui"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults"
+      subtitle="Sandbox sessions, checkpoints, and encrypted vaults"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -298,7 +298,7 @@ export default function ProjectSandboxPlugin({
               <EmblemIcon id="emblem-documents" size={48} />
             </div>
           }
-          name="Project Sandbox"
+          name="Sandbox"
           typeLabel="Sandbox sessions"
           meta={
             <span className="bndz-panel-muted text-xs">

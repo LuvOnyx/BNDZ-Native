@@ -655,7 +655,7 @@ internal static class WebView2DropTargetService
             }
 
             // Physical window exit only for sides/bottom — do NOT escalate on a thick
-            // in-host rim (that stole left-sidebar / bottom Drop Stack / right-preview drops).
+            // in-host rim (that stole left-sidebar / bottom Drop Zone / right-preview drops).
             // FE boundary handoff + outside-host / foreign HWND cover real desktop exits.
             if (IsCursorInsideWebViewMenubarBand(screenX, screenY))
                 return false;

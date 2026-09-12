@@ -42,7 +42,7 @@ const CONTINUUM_PILLARS: PillarPin[] = [
   },
   {
     path: BNDZ_PROBLEMS,
-    name: 'Library Health',
+    name: 'Health',
     note: 'Live problems feed · one-click fixes',
     sticky: 'Sick badges open Health Problems.',
   },
@@ -54,7 +54,7 @@ const CONTINUUM_PILLARS: PillarPin[] = [
   },
   {
     path: BNDZ_RAM_ROOT,
-    name: 'RAM Staging',
+    name: 'Staging',
     note: 'ImDisk / AIM ramdisk · zero install chrome',
     sticky: 'Stage hot files in RAM, then commit out.',
   },
@@ -62,7 +62,7 @@ const CONTINUUM_PILLARS: PillarPin[] = [
     path: BNDZ_LARGE,
     name: 'Capacity',
     note: 'Space pressure · largest folders',
-    sticky: 'Reclaim space from Capacity Solver.',
+    sticky: 'Reclaim space from Capacity.',
   },
   {
     path: BNDZ_AUTOMATION,

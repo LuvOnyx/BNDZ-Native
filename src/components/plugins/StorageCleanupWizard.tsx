@@ -234,7 +234,7 @@ export default function StorageCleanupWizard({
     else void executeCleanup();
   };
 
-  const title = mode === 'organize' ? 'Smart Organize Wizard' : 'Storage Cleanup Wizard';
+  const title = mode === 'organize' ? 'Smart Organize Wizard' : 'Cleanup Wizard';
   const accent = mode === 'organize' ? '#34d399' : '#0078d4';
   const headerIconId = mode === 'organize' ? 'folder_plus_ui' : 'copy';
 

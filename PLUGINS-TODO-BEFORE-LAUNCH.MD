@@ -44,45 +44,45 @@ Schedule after or alongside host professionalization — same launch bar.
 
 | Thin / overlapping plugin (leaves Hub) | Moves into | What the user gets |
 | --- | --- | --- |
-| Drop Magnets | **Batch Rename** | Rename patterns + drop recipes (rename / tag / route) in one place |
-| Transcode Rack | **Metadata** | File facts + media tags + image encode queue |
-| Semantic Desk | **Visual Filters** | Smart grouping as part of filters/views |
-| Policy Packs | **Drop Stack** | Staging drops + rules that block/warn/reroute |
-| ZK Vault | **Project Sandbox** | Safe workspaces: sandbox checkpoints + encrypted vault |
+| Magnets | **Batch Rename** | Rename patterns + drop recipes (rename / tag / route) in one place |
+| Encode | **Metadata** | File facts + media tags + image encode queue |
+| Groups | **Filters** | Smart grouping as part of filters/views |
+| Policies | **Drop Zone** | Staging drops + rules that block/warn/reroute |
+| Vault | **Sandbox** | Safe workspaces: sandbox checkpoints + encrypted vault |
 | Compare | **Folder Sync** | Diff folders/files next to sync jobs |
-| Inbound Volume (+ Capture Inbox) | **Drop Stack** | Clipboard / OCR / folder watchers + staging |
-| Ghost-Link | **RAM Staging** | One **Staging** tool: fast RAM stage + cold offload that keeps a path link |
-| Library Health (+ Reality Check) | **Storage Cleanup** | Cleanup, capacity, and library repair in one ops plugin |
+| Intake (+ Captures) | **Drop Zone** | Clipboard / OCR / folder watchers + staging |
+| Offload | **Staging** | One **Staging** tool: fast RAM stage + cold offload that keeps a path link |
+| Health (+ Missing Files) | **Cleanup** | Cleanup, capacity, and library repair in one ops plugin |
 
-**Already folded earlier (keep):** Shell Verb Forge → Shell Menus; Capacity Solver → Storage Cleanup.
+**Already folded earlier (keep):** Shell Verbs → Context Menus; Capacity → Cleanup.
 
 ### Leave alone (keep as their own Hub plugins)
 
-System Properties, Fast Search, Visual Filters, Batch Rename, Drop Stack, Metadata, Storage Cleanup, Folder Sync, Catalog, Action Log, Remote/Mesh, RAM Staging, Project Sandbox, Branching Time, Design Board, Shell Menus, Icon Studio.
+Properties, Search, Filters, Batch Rename, Drop Zone, Metadata, Cleanup, Folder Sync, Catalog, History, Remote/Mesh, Staging, Sandbox, Snapshots, Design, Context Menus, Icons.
 
 ---
 
 ## Feature must-move checklists
 
-### Drop Magnets → Batch Rename
+### Magnets → Batch Rename
 - [ ] Named magnets (create / edit / delete)
 - [ ] Rename on drop, tag on drop, route to folder
 - [ ] Test against current selection
 - [ ] Desktop → BNDZ magnet strip still works
 
-### Transcode Rack → Metadata
+### Encode → Metadata
 - [ ] JPEG / PNG / WebP queue, resize, quality
 - [ ] Progress; encode to folder or replace with confirm
 
-### Semantic Desk → Visual Filters
+### Groups → Filters
 - [ ] Cluster folder into piles; show as list groups
 - [ ] Optional embeddings when a model is present; clear/reset
 
-### Policy Packs → Drop Stack
+### Policies → Drop Zone
 - [ ] Policy packs (patterns → block / warn / reroute)
 - [ ] Still enforced on real FM drops
 
-### ZK Vault → Project Sandbox
+### Vault → Sandbox
 - [ ] Create vault, unlock/lock session, browse mount
 - [ ] Works beside checkpoint / commit / discard
 
@@ -91,20 +91,20 @@ System Properties, Fast Search, Visual Filters, Batch Rename, Drop Stack, Metada
 - [ ] Pick left/right paths; filters; CSV/report
 - [ ] Dual-pane / old Compare entry points still open Diff
 
-### Inbound Volume → Drop Stack
+### Intake → Drop Zone
 - [ ] Clipboard catcher, OCR captures, folder watchers
 - [ ] Review → stage or copy into library; settings
 
-### Ghost-Link → RAM Staging
+### Offload → Staging
 - [ ] Cold root, rules/presets, scan, offload, restore, inventory
 - [ ] Honest UI: “keeps a link at the old path” (call it Staging cold tier, not mystique)
 
-### Library Health → Storage Cleanup
+### Health → Cleanup
 - [ ] Scan summary, problem list, missing refs, repair plan
 - [ ] Reality-check paths still reachable
 
 ### Wiring cleanup (every absorb)
-- [ ] Remove old id from Extension Hub catalog
+- [ ] Remove old id from Plugins catalog
 - [ ] Remap `installedPlugins` + bottom tabs + Command Deck tools
 - [ ] Smoke: install host, open each moved feature once
 
@@ -116,16 +116,16 @@ After features land, each host should feel like one product:
 
 | Host | Story |
 | --- | --- |
-| Drop Stack | Intake & stage (stash + inbound + policies + batch move/copy) |
-| RAM Staging | Staging (hot RAM + cold offload) |
-| Storage Cleanup | Cleanup & health |
+| Drop Zone | Intake & stage (stash + inbound + policies + batch move/copy) |
+| Staging | Staging (hot RAM + cold offload) |
+| Cleanup | Cleanup & health |
 | Metadata | File intelligence (facts + tags + encode) |
 | Batch Rename | Rename & magnets |
 | Folder Sync | Sync & diff |
-| Visual Filters | Filters (+ smart groups) |
-| Project Sandbox | Safe workspaces (sandbox + vault) |
+| Filters | Filters (+ smart groups) |
+| Sandbox | Safe workspaces (sandbox + vault) |
 
-Polish copy, empty states, selection wiring, and Uiverse-level craft. Defaults already shipping (Properties, Fast Search, etc.) get the same quality bar — no fake new tabs.
+Polish copy, empty states, selection wiring, and Uiverse-level craft. Defaults already shipping (Properties, Search, etc.) get the same quality bar — no fake new tabs.
 
 ---
 
@@ -158,20 +158,22 @@ absorb → professionalize hosts → About/Register polish → launch
 
 ## Absorption progress
 
-- [x] Drop Magnets → Batch Rename (Magnets tab + Hub remap + strip kept)
+- [x] Magnets → Batch Rename (Magnets tab + Hub remap + strip kept)
 - [x] Compare → Folder Sync (Diff tab + Hub remap)
 - [x] Transcode → Metadata
-- [x] Semantic Desk → Visual Filters
-- [x] Policy Packs + Inbound → Drop Stack
-- [x] ZK Vault → Project Sandbox
-- [x] Ghost-Link → RAM Staging
-- [x] Library Health → Storage Cleanup
+- [x] Groups → Filters
+- [x] Policies + Inbound → Drop Zone
+- [x] Vault → Sandbox
+- [x] Offload → Staging
+- [x] Health → Cleanup
 
 ## Professionalize progress
 
 - [x] Remap plumbing hardened (Command Deck, Quick Actions, work-intent, deep-links)
-- [x] Drop Stack new-stack crash fixed
+- [x] Drop Zone new-stack crash fixed
 - [x] Host product titles/stories + Hub capability copy
 - [x] Embedded child chrome renamed to host language (Magnets, Diff, Encode, Groups, Intake, Policies, Vault, Cold, Health)
 - [x] About + Register dialog polish
+- [x] Display names standardized (Filters, Metadata, Drop Zone, Staging, Sandbox, Snapshots, …)
+- [x] About / Register / menubar / Size Map professionalized (flat FM chrome)
 - [ ] User smoke: install remaps, open each absorbed tab, Command Deck gating

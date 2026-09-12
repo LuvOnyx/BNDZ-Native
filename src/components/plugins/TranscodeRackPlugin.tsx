@@ -18,7 +18,7 @@ import {
 
 export const TranscodeRackPluginDef = {
   id: 'transcode-rack',
-  name: 'Transcode Rack',
+  name: 'Encode',
   icon: 'edit_image',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,

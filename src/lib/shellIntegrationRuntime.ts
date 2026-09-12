@@ -114,7 +114,7 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
 
   const iconStudioShell = config.enableIconContextSubmenu !== false;
   await applyShellSetting(
-    iconStudioShell ? 'add Icon Studio to the shell context menu' : 'remove Icon Studio from the shell context menu',
+    iconStudioShell ? 'add Icons to the shell context menu' : 'remove Icons from the shell context menu',
     () => IPC.setIconStudioShellMenu(iconStudioShell),
   );
 

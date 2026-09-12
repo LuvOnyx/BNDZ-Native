@@ -16,7 +16,7 @@ import {
 
 export const PolicyPackPluginDef = {
   id: 'policy-packs',
-  name: 'Policy Packs',
+  name: 'Policies',
   icon: 'shield_ui',
   description: 'Shareable folder policies — enforce extensions, size, tags, and deny patterns on drop/move.',
   targetPanel: 'bottom' as const,
@@ -65,7 +65,7 @@ export default function PolicyPackPlugin({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const ok = await runPluginRefresh('Policy Packs', async () => {
+    const ok = await runPluginRefresh('Policies', async () => {
       const res = await IPC.policyPackList();
       assertIpcOk(res, 'Could not load policy packs.');
       return (res.packs || []).map((p: Record<string, unknown>) => normalizePack(p));

@@ -30,7 +30,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
         setMessage({ kind: 'err', text: result.message || 'Activation failed.' });
       }
     } catch {
-      setMessage({ kind: 'err', text: 'Could not contact the license service. Check your connection and try again.' });
+      setMessage({ kind: 'err', text: 'Could not reach the license server. Check your connection and try again.' });
     } finally {
       setBusy(false);
     }
@@ -43,7 +43,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       const next = await IPC.getLicenseStatus();
       setStatus(next);
       setSerial('');
-      setMessage({ kind: 'ok', text: 'License removed from this device. The seat is free for another PC.' });
+      setMessage({ kind: 'ok', text: 'License removed from this PC. You can activate it on another machine.' });
     } finally {
       setBusy(false);
     }
@@ -55,7 +55,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
     <NativeDialogShell
       open
       title="Register BNDZ"
-      subtitle="Online activation — one Windows PC per serial"
+      subtitle="Activate a license for this PC"
       tone="info"
       variant="sheet"
       onClose={onClose}
@@ -72,7 +72,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
           : [
               { label: 'Cancel', style: 'secondary', onClick: onClose },
               {
-                label: busy ? 'Activating…' : 'Activate online',
+                label: busy ? 'Activating…' : 'Activate',
                 style: 'primary',
                 onClick: () => { if (canActivate) void activate(); },
               },
@@ -84,7 +84,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
           <img src="/bndz-light.png" alt="" className="bndz-register-brand-mark" draggable={false} />
           <div className="bndz-register-brand-copy">
             <div className="bndz-register-brand-name">BNDZ</div>
-            <div className="bndz-register-brand-tag">Unlock the full native file manager</div>
+            <div className="bndz-register-brand-tag">License activation</div>
           </div>
         </div>
 
@@ -97,7 +97,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
               <div className="bndz-native-dialog-muted">{status.email}</div>
               <div className="bndz-native-dialog-muted font-mono text-[10px] mt-1">{status.serialMasked}</div>
               {status.onlineBound && (
-                <div className="bndz-native-dialog-muted text-[10px] mt-1">Online seat is bound here</div>
+                <div className="bndz-native-dialog-muted text-[10px] mt-1">Online seat bound to this machine</div>
               )}
             </div>
           </div>
@@ -105,17 +105,17 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
           <>
             {!status?.trialExpired && status && (
               <div className="bndz-native-status-warn">
-                {status.trialDaysRemaining} day{status.trialDaysRemaining === 1 ? '' : 's'} left in your trial.
-                Enter your license key to activate permanently (internet required).
+                {status.trialDaysRemaining} day{status.trialDaysRemaining === 1 ? '' : 's'} left in the trial.
+                Enter your serial to activate permanently (internet required).
               </div>
             )}
             {status?.trialExpired && (
               <div className="bndz-native-status-error">
-                Your 14-day trial has ended. Activate online to keep using BNDZ.
+                The 14-day trial has ended. Activate to continue using BNDZ.
               </div>
             )}
             <p className="text-[11px] bndz-native-dialog-muted leading-relaxed">
-              One serial = one PC. Deactivate here before activating on another machine so the seat moves cleanly.
+              One serial activates one PC. Deactivate here before moving the seat to another machine.
             </p>
             <div className="bndz-register-fields">
               <div>

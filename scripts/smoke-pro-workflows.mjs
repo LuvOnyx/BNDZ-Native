@@ -1,5 +1,5 @@
 /**
- * Proof smoke: Design Board + OpenShop pro-workflow plan items.
+ * Proof smoke: Design + OpenShop pro-workflow plan items.
  * Run: node scripts/smoke-pro-workflows.mjs
  * Exits non-zero if ANY assertion fails.
  */
@@ -49,7 +49,7 @@ function serve(rootDir) {
 }
 
 async function proveDesignBoard(page, port) {
-  console.log('\n== Design Board ==');
+  console.log('\n== Design ==');
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
@@ -325,7 +325,7 @@ async function proveDesignBoard(page, port) {
   const colorTools = await page.evaluate(() => {
     const db = window.__BNDZ_DB__;
     if (!db?.getState) return { err: 'no-state' };
-    // Design Board: setFill path is internal; verify state.fill drives new rect via canvas
+    // Design: setFill path is internal; verify state.fill drives new rect via canvas
     return { hasCanvas: !!db.getCanvas?.() };
   });
   ok('DB color API present', !!colorTools.hasCanvas, JSON.stringify(colorTools));

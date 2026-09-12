@@ -35,7 +35,7 @@ export default function DropMagnetStrip({ externalDragActive, pendingPaths, onAp
   const [applying, setApplying] = useState(false);
 
   const refresh = useCallback(async () => {
-    await runPluginRefresh('Drop Magnets', async () => {
+    await runPluginRefresh('Magnets', async () => {
       const res = await IPC.magnetList();
       return (res.magnets || [])
         .map((m: Record<string, unknown>) => normalizeMagnet(m))

@@ -1,4 +1,4 @@
-/** Persistent Drop Stack library + staging (works even when the plugin tab is unmounted). */
+/** Persistent Drop Zone library + staging (works even when the plugin tab is unmounted). */
 import { toWindowsPath } from './pathUtils';
 import { pushToast } from '../components/ToastHost';
 
@@ -44,7 +44,7 @@ export function saveDropStackLibrary(stacks: NamedDropStack[], activeId: string)
   if (active) localStorage.setItem(LEGACY_KEY, JSON.stringify(active.items));
 }
 
-/** Persist + notify UI. Safe when Drop Stack plugin is not mounted. */
+/** Persist + notify UI. Safe when Drop Zone plugin is not mounted. */
 export function appendDropStackPaths(rawPaths: string[]): string[] {
   const normalized = rawPaths.map(toWindowsPath).filter(Boolean);
   if (!normalized.length) return [];

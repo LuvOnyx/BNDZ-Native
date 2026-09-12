@@ -369,7 +369,7 @@ public sealed class BndzActionLogService
                     }
                     catch
                     {
-                        // If symlink fails, leave bytes in cold storage — operator can re-run Ghost-Link.
+                        // If symlink fails, leave bytes in cold storage — operator can re-run Offload.
                     }
                 }
                 break;
@@ -627,7 +627,7 @@ public sealed class BndzActionLogService
         => new()
         {
             Kind = ActionKind.GhostLinkOffload,
-            Label = $"Ghost-Link · {Path.GetFileName(originalPath)}",
+            Label = $"Offload · {Path.GetFileName(originalPath)}",
             SourcePaths = new List<string> { originalPath },
             TargetPaths = new List<string> { offloadPath },
             LinkType = "ghost-link",

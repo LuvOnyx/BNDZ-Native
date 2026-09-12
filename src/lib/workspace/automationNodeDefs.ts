@@ -172,7 +172,7 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
     ],
   },
   ghostLinkTo: {
-    label: 'Ghost-Link offload', color: '#a78bfa', icon: 'emblem-symbolic-link', category: 'action',
+    label: 'Offload', color: '#a78bfa', icon: 'emblem-symbolic-link', category: 'action',
     desc: 'Move matched files to cold storage and symlink originals',
     fields: [{ key: 'coldStorageRoot', label: 'Cold storage root', placeholder: 'D:\\ColdStorage', type: 'folder' }],
   },
@@ -272,7 +272,7 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
   },
   branchCreate: {
     label: 'Create branch', color: '#8b5cf6', icon: 'branch', category: 'action',
-    desc: 'Snapshot a folder tree into a Branching Time branch',
+    desc: 'Snapshot a folder tree into a Snapshots branch',
     fields: [
       { key: 'sourcePath', label: 'Source folder', placeholder: 'C:\\Projects\\MyProject', type: 'folder' },
       { key: 'branchName', label: 'Branch name', placeholder: 'pre-deploy-snapshot' },

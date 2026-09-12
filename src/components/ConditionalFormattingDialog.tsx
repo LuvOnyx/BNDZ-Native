@@ -66,7 +66,7 @@ export default function ConditionalFormattingDialog({
               <Icons8Icon id="filters" size={22} className="opacity-40" />
               <div className="text-sm text-gray-300 font-medium">No formatting rules yet</div>
               <div className="text-[11px] text-gray-500 max-w-sm">
-                Color-code list rows by time, extension, regex, or size — same engine as Visual Filters.
+                Color-code list rows by time, extension, regex, or size — same engine as Filters.
               </div>
             </div>
           )}

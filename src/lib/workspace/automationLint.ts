@@ -273,7 +273,7 @@ function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
     case 'copyTo': return `Copy → ${pathLabel(d.dest) || '(unset)'}`;
     case 'moveTo': return `Move → ${pathLabel(d.dest) || '(unset)'}`;
     case 'rsyncDeploy': return `Deploy → ${d.remote || '(unset)'}`;
-    case 'ghostLinkTo': return `Ghost-Link → ${pathLabel(d.coldStorageRoot) || '(unset)'}`;
+    case 'ghostLinkTo': return `Offload → ${pathLabel(d.coldStorageRoot) || '(unset)'}`;
     case 'stageToRam': {
       const zoneId = String(d.zoneId || '').trim();
       if (zoneId) return `Stage → zone ${zoneId}`;

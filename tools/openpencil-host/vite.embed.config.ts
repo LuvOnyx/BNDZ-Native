@@ -3,7 +3,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-/** Standalone embed bundle for Design Board inline mount (no nested iframe). */
+/** Standalone embed bundle for Design inline mount (no nested iframe). */
 export default defineConfig({
   base: './',
   define: {

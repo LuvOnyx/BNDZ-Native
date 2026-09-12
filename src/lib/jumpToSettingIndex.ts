@@ -133,7 +133,7 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
     keywords: ['copy', 'move', 'delete', 'transfer', 'confirm', 'recycle', 'overwrite'],
   },
   {
-    tab: 'Undo & Action Log',
+    tab: 'Undo & History',
     label: 'Undo and action history',
     description: 'Undo file operations and browse the action log',
     keywords: ['undo', 'redo', 'action log', 'history', 'revert'],

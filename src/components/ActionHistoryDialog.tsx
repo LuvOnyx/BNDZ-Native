@@ -142,7 +142,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
   return (
     <BndzWindowFrame
       title="History"
-      subtitle={`Action Log · ${undoItems.length} undo · ${redoItems.length} redo`}
+      subtitle={`History · ${undoItems.length} undo · ${redoItems.length} redo`}
       iconId="clock_ui"
       onClose={onClose}
       widthClass="w-[min(640px,calc(100vw-2rem))]"
@@ -154,7 +154,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
           <div className="bndz-history-hero-glow" aria-hidden />
           <div className="relative flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70 font-semibold">BNDZ Action Log</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70 font-semibold">BNDZ History</div>
               <div className="text-[13px] text-white/55 mt-1 leading-snug truncate">
                 Select a step — undo rewinds through everything above it.
               </div>
@@ -197,7 +197,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
                 {tab === 'undo' ? 'No actions to undo yet' : 'Nothing to redo'}
               </div>
               <div className="text-[12px] text-white/40 mt-1.5 max-w-[320px] leading-relaxed">
-                Moves, copies, renames, and deletes you run in BNDZ land here when Action Log is enabled.
+                Moves, copies, renames, and deletes you run in BNDZ land here when History is enabled.
               </div>
             </div>
           )}

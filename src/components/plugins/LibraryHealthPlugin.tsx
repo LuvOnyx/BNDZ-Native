@@ -21,7 +21,7 @@ import {
 
 export const LibraryHealthPluginDef = {
   id: 'library-health',
-  name: 'Library Health',
+  name: 'Health',
   icon: 'shield_ui',
   description: 'Scan libraries for broken links, naming conflicts, permission issues, orphans, and missing project refs.',
   targetPanel: 'bottom' as const,
@@ -418,7 +418,7 @@ export default function LibraryHealthPlugin({
               )}
 
               <PluginCard>
-                <PluginSectionTitle icon="shield_ui">About Library Health</PluginSectionTitle>
+                <PluginSectionTitle icon="shield_ui">About Health</PluginSectionTitle>
                 <ul className="mt-3 space-y-1.5 text-xs text-gray-400 leading-relaxed list-disc list-inside">
                   <li>Detects broken symlinks, dangling shortcuts, and missing targets.</li>
                   <li>Flags naming conflicts that may cause issues across operating systems.</li>

@@ -2340,9 +2340,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           <WorkspaceMenuItem label="Reset zoom" icon="reset_ui" onClick={() => { resetZoomPreserveCenter(); }} />
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Open Sandbox" icon="layers_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'project-sandbox' } })); closeMenu(); }} />
-          <WorkspaceMenuItem label="Open Library Health" icon="shield_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'library-health' } })); closeMenu(); }} />
-          <WorkspaceMenuItem label="Open Inbound Volume" icon="download_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'inbound-volume' } })); closeMenu(); }} />
-          <WorkspaceMenuItem label="Open Branching Time" icon="history_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'branching-time' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Health" icon="shield_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'library-health' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Intake" icon="download_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'inbound-volume' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Snapshots" icon="history_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'branching-time' } })); closeMenu(); }} />
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Clear board" icon="delete" danger onClick={clearBoard} disabled={boardIsEmpty} />
         </WorkspaceMenuPanel>

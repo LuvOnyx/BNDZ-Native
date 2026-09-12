@@ -44,7 +44,7 @@ type FindPreset = { name: string; query: string; mode: SearchMode; regex: boolea
 
 export const FindPluginDef = {
     id: "find",
-    name: "Fast Search",
+    name: "Search",
     icon: 'find',
     targetPanel: "bottom"
 };
@@ -194,7 +194,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 setStatus(`${items?.length ?? 0} result(s) · ${scopeLabel}${engine ? ` · ${engine}` : ''} · indent ${indent}px`);
             } else {
                 setResults([]);
-                setStatus('Fast Search requires the BNDZ native host (Everything / indexer).');
+                setStatus('Search requires the BNDZ native host (Everything / indexer).');
             }
         } catch {
             setStatus('Search failed.');
@@ -269,7 +269,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
 
     return (
         <PluginPanelShell
-            title="Fast Search"
+            title="Search"
             icon="find"
             iconColor="#a855f7"
             variant="embedded"
@@ -286,7 +286,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
                 <PluginHeroStrip
                     icon={<Icons8Icon id="find" size={52} className="opacity-90" />}
-                    name={query.trim() || 'Fast Search'}
+                    name={query.trim() || 'Search'}
                     typeLabel={mode === 'global' ? 'Global' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
                     path={mode === 'local' ? scopePath : undefined}
                     meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy chips · Everything global · advanced boolean')}</span>}
@@ -582,7 +582,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                         const first = [...selectedResultPaths][0];
                                         if (first) navigateTo(first.replace(/\\[^\\]+$/, '').replace(/^([A-Za-z]):/, '/$1:'));
                                     }}>Reveal</PluginToolbarButton>
-                                    <PluginToolbarButton icon="dropstack" onClick={() => void resultActions('dropstack')}>Drop Stack</PluginToolbarButton>
+                                    <PluginToolbarButton icon="dropstack" onClick={() => void resultActions('dropstack')}>Drop Zone</PluginToolbarButton>
                                     <PluginToolbarButton icon="bookmark" onClick={() => void resultActions('catalog')}>Catalog</PluginToolbarButton>
                                     <PluginToolbarButton icon="copy_path" onClick={() => void resultActions('copy')}>Copy paths</PluginToolbarButton>
                                 </div>

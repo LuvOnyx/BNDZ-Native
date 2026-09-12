@@ -10,7 +10,7 @@ import PluginPanelShell from '../PluginPanelShell';
 
 export const IconStudioPluginDef = {
     id: "icon-studio",
-    name: "Icon Studio",
+    name: "Icons",
     icon: 'icon_studio'
 };
 
@@ -36,7 +36,7 @@ export default function IconStudioPlugin({
 
     return (
         <IconStudioProvider nativeSyncEnabled={isPluginTabActive !== false}>
-            <PluginPanelShell title="Icon Studio" icon="icon_studio" iconColor="#94a3b8" variant="embedded">
+            <PluginPanelShell title="Icons" icon="icon_studio" iconColor="#94a3b8" variant="embedded">
                 <IconStudioInner
                     selectedItems={selectedItems}
                     selectedTargetTypes={selectedTargetTypes}

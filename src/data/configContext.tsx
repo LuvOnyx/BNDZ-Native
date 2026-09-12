@@ -49,7 +49,7 @@ export interface AppConfig {
     iconLibrariesInitialized?: boolean;
     customContextMenuActions?: any[];
     globalContextMenuActions?: any[];
-    /** Optional BNDZ stock context rows (Shell Menus). Empty = short core menu. */
+    /** Optional BNDZ stock context rows (Context Menus). Empty = short core menu. */
     enabledStockContextMenuIds?: string[];
     shellMenuHiddenIds?: string[];
     shellMenuPinnedIds?: string[];

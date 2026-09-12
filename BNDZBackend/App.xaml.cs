@@ -84,7 +84,7 @@ namespace BNDZ
             WindowsToastService.EnsureRegistered();
 
             // Headless shell verb ΓÇö must run before always-elevate / single-instance so Explorer
-            // Icon Studio apply does not trip UAC or hand off to the main window.
+            // Icons apply does not trip UAC or hand off to the main window.
             if (e.Args.Length >= 3 && string.Equals(e.Args[0], "--apply-icon", StringComparison.OrdinalIgnoreCase))
             {
                 string iconPath = e.Args[1];

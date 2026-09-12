@@ -20,7 +20,7 @@ import {
 
 export const InboundVolumePluginDef = {
   id: 'inbound-volume',
-  name: 'Inbound Volume',
+  name: 'Intake',
   icon: 'download_ui',
   description: 'Clipboard catcher, OCR capture inbox, and inbound file watcher — capture, review, and copy into your library.',
   targetPanel: 'bottom' as const,
@@ -457,7 +457,7 @@ export default function InboundVolumePlugin({
               </PluginCard>
 
               <PluginCard>
-                <PluginSectionTitle icon="data_information">How Inbound Volume works</PluginSectionTitle>
+                <PluginSectionTitle icon="data_information">How Intake works</PluginSectionTitle>
                 <ul className="mt-3 space-y-1.5 text-xs text-gray-400 leading-relaxed list-disc list-inside">
                   <li><strong className="text-gray-300">Capture now</strong> — grabs the current clipboard (files, images, or text) into the inbound staging area.</li>
                   <li><strong className="text-gray-300">Watch mode</strong> — opt-in. Saves new file drops and images only after you click Watch (never auto-starts, never rewrites the same screenshot).</li>

@@ -413,7 +413,7 @@ namespace BNDZ.Services
             using var folderKey = Registry.CurrentUser.CreateSubKey(menuRoot);
             if (folderKey == null) return;
 
-            folderKey.SetValue("MUIVerb", "Icon Studio");
+            folderKey.SetValue("MUIVerb", "Icons");
             folderKey.SetValue("Icon", "imageres.dll,-103");
 
             // ExtendedSubCommandsKey is relative to Software\Classes.

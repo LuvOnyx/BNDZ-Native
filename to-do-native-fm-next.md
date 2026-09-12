@@ -18,7 +18,7 @@ dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 | Explorer behavior | BNDZ must |
 |-------------------|-----------|
 | Right-click menus | Live shell + host chrome outside WebView clip |
-| Ctrl+Z / Ctrl+Y | Clear Action Log undo; honest messaging vs shell stack |
+| Ctrl+Z / Ctrl+Y | Clear History undo; honest messaging vs shell stack |
 | Copy/move collisions | Never silent overwrite — progress on or off |
 | Drag from list | Shell drag image + Preferred DropEffect |
 | Drop onto any FM surface | One OLE/`fileDropBus` path (not HTML5 Files) |
@@ -41,9 +41,9 @@ dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 
 ## Phase 2 — Unified undo story
 
-- [x] Action Log is primary undo for BNDZ-recorded ops (native + bndz engines)
+- [x] History is primary undo for BNDZ-recorded ops (native + bndz engines)
 - [x] Empty undo: honest toast (no “switch engines” lie); tip about Explorer undo
-- [x] Action History dialog labels Action Log vs Explorer shell stack clearly
+- [x] Action History dialog labels History vs Explorer shell stack clearly
 - [x] Files: `BNDZUI.runUndoRedo`, `ActionHistoryDialog.tsx`
 
 ## Phase 3 — Conflict parity when progress is off
@@ -104,7 +104,7 @@ dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 ## Phase 11 — Full codebase review & polish
 
 - [x] Review all native-FM diffs for regressions
-- [x] Fix blockers/highs found (shell-folder open overreach, MTP rename, breadcrumb host menu, drop priority, prompt purge, Action Log labeling, search empty, portable RO)
+- [x] Fix blockers/highs found (shell-folder open overreach, MTP rename, breadcrumb host menu, drop priority, prompt purge, History labeling, search empty, portable RO)
 - [x] Fresh FE+BE builds
 
 ---
@@ -130,7 +130,7 @@ dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 - Full menubar / column-picker as host WPF menus
 - IDragSourceHelper reliability polish
 - Spatial fully OLE-only (HTML5 FileList still transitional bridge)
-- Unified shell↔Action Log undo across processes
+- Unified shell↔History undo across processes
 - FTS connection pooling
 
 ## Related

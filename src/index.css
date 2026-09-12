@@ -1313,7 +1313,7 @@ input[type="number"]::-webkit-inner-spin-button {
     color: #fff;
   }
 
-  /* ── Design Board (exact ProDesign / Figma.html host) ── */
+  /* ── Design (exact ProDesign / Figma.html host) ── */
   .bndz-design-board {
     position: relative;
     height: 100%;
@@ -3026,7 +3026,7 @@ html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
 }
 
 /*
- * System Properties / plugin cards stay dark charcoal on light themes.
+ * Properties / plugin cards stay dark charcoal on light themes.
  * Bottom-pane black remaps must NOT bleed into these dark islands.
  */
 html.theme-light .bndz-chrome-bottom .bndz-plugin-card,
@@ -4754,7 +4754,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   color: rgba(248,250,252,.95);
 }
 
-/* Capacity Solver ? what-if scrubbers + budget */
+/* Capacity ? what-if scrubbers + budget */
 .bndz-capacity-scrubber {
   display: flex;
   flex-direction: column;
@@ -5214,7 +5214,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 
 .bndz-plugin-hero {
   /*
-   * Classic System Properties wash ? must stay VISIBLE over solid --panel-bottom-bg.
+   * Classic Properties wash ? must stay VISIBLE over solid --panel-bottom-bg.
    * Ends in a faint accent veil (not fully transparent) so themes cannot flatten it
    * into the same navy as the plugin panel body.
    */
@@ -5290,7 +5290,7 @@ html[data-plugin-hero-themed="true"] .bndz-plugin-hero {
   box-shadow: inset 0 0 24px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-/* Drop Stack ? glass stage with theme-tied aurora (from --accent) */
+/* Drop Zone ? glass stage with theme-tied aurora (from --accent) */
 .bndz-dropstack-zone {
   position: relative;
 }
@@ -6361,28 +6361,27 @@ html.bndz-scrolling .bndz-view-details {
 }
 
 /* ?? Size map (list / treemap / bubbles) ?? */
+/* ── Size map (list / treemap / bubbles) — flat FM surface ── */
 .bndz-sizemap {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 280px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--accent, #c026d3) 22%, rgba(255, 255, 255, 0.08));
-  background:
-    radial-gradient(120% 90% at 8% -10%, color-mix(in srgb, var(--accent, #c026d3) 22%, transparent), transparent 52%),
-    radial-gradient(90% 70% at 100% 100%, rgba(56, 189, 248, 0.08), transparent 48%),
-    linear-gradient(165deg, rgba(22, 18, 32, 0.98), rgba(12, 14, 20, 0.99));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 14px 36px rgba(0, 0, 0, 0.35);
+  border-radius: var(--bndz-radius-md, 6px);
+  border: 1px solid var(--bndz-border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--bndz-surface-panel, rgba(18, 20, 26, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
 
 .bndz-sizemap--list {
   min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 40%),
-    rgba(18, 20, 26, 0.55);
+  background: var(--bndz-surface-panel, rgba(18, 20, 26, 0.92));
+}
+
+.bndz-sizemap--treemap,
+.bndz-sizemap--bubbles {
+  background: color-mix(in srgb, var(--bndz-surface-base, #12141a) 88%, #000);
 }
 
 .bndz-sizemap-empty {
@@ -6395,39 +6394,35 @@ html.bndz-scrolling .bndz-view-details {
   min-height: 220px;
   padding: 24px;
   text-align: center;
-  border-radius: 10px;
+  border-radius: var(--bndz-radius-sm, 5px);
   border: 1px dashed rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.015);
+  background: transparent;
 }
 
 .bndz-sizemap-empty-title {
   font-size: 12px;
-  font-weight: 560;
-  color: rgba(230, 238, 248, 0.78);
+  font-weight: 600;
+  color: rgba(230, 238, 248, 0.82);
 }
 
 .bndz-sizemap-empty-hint {
   font-size: 10px;
-  color: rgba(160, 175, 195, 0.5);
+  color: rgba(160, 175, 195, 0.55);
 }
 
 .bndz-sizemap-scan-btn {
-  padding: 6px 12px;
-  border-radius: 7px;
-  border: 1px solid color-mix(in srgb, var(--accent, #0078d4) 40%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent, #0078d4) 42%, #0b1e33), color-mix(in srgb, var(--accent, #0078d4) 28%, #071420));
+  padding: 5px 12px;
+  border-radius: var(--bndz-radius-sm, 5px);
+  border: 1px solid color-mix(in srgb, var(--accent, #0078d4) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #0078d4) 28%, #0b1e33);
   color: #e8f4ff;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  transition: filter 0.12s ease, border-color 0.12s ease;
 }
 
 .bndz-sizemap-scan-btn:hover {
   filter: brightness(1.08);
-  border-color: color-mix(in srgb, var(--accent, #0078d4) 62%, transparent);
 }
 
 .bndz-sizemap-banner {
@@ -6435,17 +6430,17 @@ html.bndz-scrolling .bndz-view-details {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: color-mix(in srgb, var(--accent, #0078d4) 8%, rgba(18, 20, 28, 0.9));
+  background: color-mix(in srgb, var(--accent, #0078d4) 10%, rgba(18, 20, 28, 0.95));
   font-size: 11px;
-  color: rgba(200, 214, 230, 0.72);
+  color: rgba(200, 214, 230, 0.78);
 }
 
 .bndz-sizemap-toolbar {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
   z-index: 10;
   display: flex;
   gap: 4px;
@@ -6457,11 +6452,10 @@ html.bndz-scrolling .bndz-view-details {
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: var(--bndz-radius-sm, 5px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(20, 24, 32, 0.82);
-  color: rgba(200, 214, 230, 0.75);
-  backdrop-filter: blur(8px);
+  background: rgba(20, 24, 32, 0.9);
+  color: rgba(200, 214, 230, 0.8);
   cursor: pointer;
 }
 
@@ -6472,19 +6466,18 @@ html.bndz-scrolling .bndz-view-details {
 
 .bndz-sizemap-hoverchip {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 8px;
+  left: 8px;
   z-index: 10;
   display: flex;
   align-items: baseline;
   gap: 8px;
   max-width: 62%;
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 5px 9px;
+  border-radius: var(--bndz-radius-sm, 5px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(16, 20, 28, 0.88);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  background: rgba(16, 20, 28, 0.94);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 .bndz-sizemap-hoverchip-name {
@@ -6500,31 +6493,27 @@ html.bndz-scrolling .bndz-view-details {
   flex-shrink: 0;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-  color: color-mix(in srgb, var(--accent, #0078d4) 75%, #cfe6ff);
+  color: color-mix(in srgb, var(--accent, #0078d4) 70%, #cfe6ff);
 }
 
 .bndz-sizemap-tile {
   position: absolute;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 9px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
   text-align: left;
-  padding: 8px;
+  padding: 6px;
   cursor: pointer;
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.1), transparent 42%),
-    hsl(var(--bndz-size-hue, 208) var(--bndz-size-sat, 55%) var(--bndz-size-lit, 30%));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 4px 12px rgba(0, 0, 0, 0.22);
-  transition: filter 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+  background: hsl(var(--bndz-size-hue, 208) var(--bndz-size-sat, 42%) var(--bndz-size-lit, 32%));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: filter 0.1s ease, outline-color 0.1s ease;
 }
 
 .bndz-sizemap-tile:hover {
-  filter: brightness(1.1);
-  border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-1px);
+  filter: brightness(1.12);
   z-index: 2;
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline-offset: -1px;
 }
 
 .bndz-sizemap-tile:focus-visible {
@@ -6533,11 +6522,7 @@ html.bndz-scrolling .bndz-view-details {
 }
 
 .bndz-sizemap-tile-sheen {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 36%);
-  pointer-events: none;
-  opacity: 0.55;
+  display: none;
 }
 
 .bndz-sizemap-tile-copy {
@@ -6552,10 +6537,9 @@ html.bndz-scrolling .bndz-view-details {
 .bndz-sizemap-tile-name {
   display: block;
   font-size: 11px;
-  font-weight: 620;
-  letter-spacing: 0.01em;
-  color: rgba(245, 249, 255, 0.95);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  font-weight: 600;
+  color: rgba(245, 249, 255, 0.96);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6564,9 +6548,8 @@ html.bndz-scrolling .bndz-view-details {
 .bndz-sizemap-tile-size {
   display: block;
   font-size: 10px;
-  font-weight: 520;
   font-variant-numeric: tabular-nums;
-  color: rgba(220, 232, 248, 0.72);
+  color: rgba(220, 232, 248, 0.78);
 }
 
 .bndz-sizemap-list-head {
@@ -6574,10 +6557,10 @@ html.bndz-scrolling .bndz-view-details {
   grid-template-columns: minmax(140px, 1.2fr) minmax(120px, 2fr) 88px;
   gap: 12px;
   padding: 6px 10px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   font-size: 10px;
   font-weight: 650;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(160, 178, 198, 0.55);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -6586,7 +6569,7 @@ html.bndz-scrolling .bndz-view-details {
 .bndz-sizemap-list-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
 }
 
 .bndz-sizemap-list-row {
@@ -6595,21 +6578,17 @@ html.bndz-scrolling .bndz-view-details {
   gap: 12px;
   align-items: center;
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.045);
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.012));
+  padding: 6px 10px;
+  border-radius: var(--bndz-radius-sm, 5px);
+  border: 1px solid transparent;
+  background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background 0.11s ease, border-color 0.11s ease, box-shadow 0.11s ease;
 }
 
 .bndz-sizemap-list-row:hover {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent, #0078d4) 12%, rgba(255, 255, 255, 0.04)), rgba(255, 255, 255, 0.03));
-  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(255, 255, 255, 0.08));
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent, #0078d4) 55%, transparent);
+  background: color-mix(in srgb, var(--accent, #0078d4) 14%, rgba(255, 255, 255, 0.03));
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 22%, transparent);
 }
 
 .bndz-sizemap-list-row:focus-visible {
@@ -6623,7 +6602,7 @@ html.bndz-scrolling .bndz-view-details {
   gap: 8px;
   min-width: 0;
   font-size: 12px;
-  font-weight: 520;
+  font-weight: 500;
   color: rgba(236, 242, 250, 0.92);
 }
 
@@ -6631,11 +6610,10 @@ html.bndz-scrolling .bndz-view-details {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.16));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
   flex-shrink: 0;
 }
 
@@ -6649,6 +6627,7 @@ html.bndz-scrolling .bndz-view-details {
   text-align: right;
   color: rgba(170, 188, 208, 0.72);
 }
+
 
 .fs-grid-item.fs-item-clipboard-copy,
 .fs-grid-item.fs-item-clipboard-cut {
@@ -8729,6 +8708,139 @@ html.bndz-panel-resizing .bndz-resize-handle {
   filter: brightness(1.06);
 }
 
+
+/* ── About BNDZ — classic product sheet ── */
+.bndz-about-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.bndz-about-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0 2px;
+}
+.bndz-about-mark {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.bndz-about-product {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f5f7fa;
+  line-height: 1.15;
+}
+.bndz-about-edition {
+  font-size: 12px;
+  color: rgba(180, 190, 205, 0.78);
+  margin-top: 2px;
+}
+.bndz-about-version {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(200, 210, 225, 0.88);
+  margin-top: 4px;
+}
+.bndz-about-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--bndz-radius-sm, 5px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+.bndz-about-facts dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(160, 175, 195, 0.55);
+  margin: 0;
+}
+.bndz-about-facts dd {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(235, 240, 248, 0.92);
+}
+.bndz-about-update-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--bndz-radius-sm, 5px);
+  border: 1px solid color-mix(in srgb, var(--accent, #0078d4) 42%, transparent);
+  background: color-mix(in srgb, var(--accent, #0078d4) 22%, #121820);
+  color: #eaf4ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bndz-about-update-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.bndz-about-update-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.bndz-about-update-status {
+  padding: 8px 10px;
+  border-radius: var(--bndz-radius-sm, 5px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 11px;
+}
+.bndz-about-update-ok { color: #6ee7b7; font-weight: 600; margin: 0; }
+.bndz-about-update-warn { color: #fcd34d; margin: 0; }
+.bndz-about-muted { color: rgba(170, 185, 205, 0.72); margin: 0; }
+.bndz-about-notes {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bndz-about-footer {
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bndz-about-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.bndz-about-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #7eb8e8;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.bndz-about-link:hover { text-decoration: underline; color: #99c9f0; }
+.bndz-about-copy {
+  margin: 0;
+  font-size: 10px;
+  color: rgba(160, 175, 195, 0.55);
+}
+
+.bndz-context-menu-item--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* Register / license sheet extras */
 .bndz-register-body {
   display: flex;
@@ -8900,7 +9012,7 @@ html.bndz-panel-resizing .bndz-resize-handle {
   background: #252526;
 }
 
-/* Large window frames (Configuration, Extension Hub) */
+/* Large window frames (Configuration, Plugins) */
 .bndz-native-window {
   background: #2d2d30;
   border: 1px solid #454545;
@@ -8924,7 +9036,7 @@ html.bndz-panel-resizing .bndz-resize-handle {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Extension Hub — BNDZ craft (glass/squircle, motion, depth)
+   Plugins — BNDZ craft (glass/squircle, motion, depth)
    ═══════════════════════════════════════════════════════════════ */
 
 @keyframes bndz-hub-glow-pulse {
@@ -8944,15 +9056,11 @@ html.bndz-panel-resizing .bndz-resize-handle {
   to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Root surface — deep space with aurora nebula */
+/* Root surface — flat host panel */
 .bndz-hub {
   position: relative;
   isolation: isolate;
-  background:
-    radial-gradient(ellipse 900px 500px at 0% -10%,  rgba(120, 40, 200, 0.09) 0%, transparent 60%),
-    radial-gradient(ellipse 700px 380px at 100% 5%,   rgba(14, 165, 233, 0.07) 0%, transparent 55%),
-    radial-gradient(ellipse 500px 300px at 55% 100%,  rgba(236, 72, 153, 0.05) 0%, transparent 55%),
-    #16181f;
+  background: var(--bndz-surface-panel, #16181f);
 }
 /* Noise grain overlay for depth */
 .bndz-hub::before {
@@ -9197,7 +9305,7 @@ html.bndz-panel-resizing .bndz-resize-handle {
     0 18px 44px rgba(0, 0, 0, 0.50);
 }
 
-/* ── Primary CTA — BNDZ signature gradient with shimmer ── */
+/* ── Primary CTA — solid accent ── */
 .bndz-hub-btn-primary {
   position: relative;
   overflow: hidden;
@@ -9842,7 +9950,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   padding: 8px 10px;
 }
 
-/* ?? Toolbar Designer (workshop surface ? distinct from Extension Hub) ?? */
+/* ?? Toolbar Designer (workshop surface ? distinct from Plugins) ?? */
 .bndz-tb-root {
   background:
     radial-gradient(1200px 480px at 12% -10%, rgba(251, 191, 36, 0.06), transparent 55%),
@@ -10088,7 +10196,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   line-height: 1.45;
 }
 
-/* ?? Shell Menus Designer (live context-menu workshop) ??????????????????? */
+/* ?? Context Menus Designer (live context-menu workshop) ??????????????????? */
 .bndz-cm-root {
   background:
     radial-gradient(1000px 420px at 8% -20%, rgba(34, 211, 238, 0.07), transparent 55%),
@@ -16022,7 +16130,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   border-color: rgba(34,211,238,0.35); background: rgba(34,211,238,0.06);
 }
 
-/* Ghost-Link */
+/* Offload */
 .bndz-ghostlink-panel { background: linear-gradient(180deg, rgba(139,92,246,0.04), transparent 120px); }
 .bndz-ghostlink-hero-icon {
   width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
@@ -16059,7 +16167,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   background: rgba(0,0,0,0.35); color: #e5e7eb; font-size: 11px;
 }
 
-/* RAM Staging */
+/* Staging */
 .bndz-ram-sidebar { background: linear-gradient(180deg, rgba(139,92,246,0.06), transparent 120px); }
 .bndz-ram-input {
   padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);
@@ -17603,7 +17711,7 @@ html[data-bndz-sticky-widget="1"] .bndz-sticky-widget-paper {
   50% { opacity: 1; transform: scale(1); }
 }
 
-/* Reality Check mode ? missing project assets glow in list */
+/* Missing Files mode ? missing project assets glow in list */
 .bndz-reality-missing {
   box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.55), 0 0 10px rgba(248, 113, 113, 0.22) !important;
   background: linear-gradient(90deg, rgba(248, 113, 113, 0.12), transparent 72%) !important;

@@ -20,7 +20,7 @@ import {
 
 export const CapacitySolverPluginDef = {
   id: 'capacity-solver',
-  name: 'Capacity Solver',
+  name: 'Capacity',
   icon: 'hard_drive_ui',
   description: 'What-if capacity planner with scrubbers, projected outcomes, and budget governor.',
   targetPanel: 'bottom' as const,
@@ -392,7 +392,7 @@ export default function CapacitySolverPlugin({
 
   return (
     <PluginPanelShell
-      title="Capacity Solver"
+      title="Capacity"
       icon="hard_drive_ui"
       iconColor="#c48b4a"
       variant="embedded"
@@ -405,7 +405,7 @@ export default function CapacitySolverPlugin({
               <EmblemIcon id="drive-removable-media" size={48} />
             </div>
           }
-          name="Capacity Solver"
+          name="Capacity"
           typeLabel="Storage what-if"
           meta={
             projection ? (

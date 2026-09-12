@@ -455,7 +455,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     { name: "Automation", items: ["Workspace Tools", "Custom Event Actions", "User Commands"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
-    { name: "File Operations", items: ["File Operations", "Undo & Action Log"] },
+    { name: "File Operations", items: ["File Operations", "Undo & History"] },
     { name: "Find and Filter", items: ["Find Files & Branch View", "Filters & Type Ahead Find"] },
     { name: "Preview", items: ["Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up"] },
     { name: "Tabs and Panes", items: ["Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel"] },
@@ -1663,7 +1663,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     Recycle-bin and delete-key belts also appear under{' '}
                     <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Safety Belts, Network')}>Safety &amp; Network</button>
                     {' '}and{' '}
-                    <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Undo & Action Log')}>Undo &amp; Action Log</button>.
+                    <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Undo & History')}>Undo &amp; History</button>.
                   </SettingsHint>
               </div>
 
@@ -1678,13 +1678,13 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
             </TabsContent>
 
-            <TabsContent value="Undo & Action Log" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Undo & Action Log</h1>
+            <TabsContent value="Undo & History" className="m-0 border-0 p-0 outline-none">
+              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Undo & History</h1>
               
               <div className="ml-2 mb-4 space-y-[6px]">
-                  <Checkbox label={<span>Show action <span className="underline decoration-1 underline-offset-[3px]">h</span>istory (Edit → History &amp; Action Log panel)</span>} checked={localConfig.logActionsAndEnableUndoRedo ?? true} onChange={e => updateLocalConfig({ logActionsAndEnableUndoRedo: e.target.checked })} />
+                  <Checkbox label={<span>Show action <span className="underline decoration-1 underline-offset-[3px]">h</span>istory (Edit → History &amp; History panel)</span>} checked={localConfig.logActionsAndEnableUndoRedo ?? true} onChange={e => updateLocalConfig({ logActionsAndEnableUndoRedo: e.target.checked })} />
                   <p className="text-[11px] text-gray-500 leading-relaxed pl-0.5 -mt-1 mb-1">
-                    Ctrl+Z / Ctrl+Y always undo and redo. When enabled, Edit → History opens a modal of past actions, and the Action Log panel lists them too.
+                    Ctrl+Z / Ctrl+Y always undo and redo. When enabled, Edit → History opens a modal of past actions, and the History panel lists them too.
                   </p>
                   <Checkbox label={<span>Remembe<span className="underline decoration-1 underline-offset-[3px]">r</span> the logged actions between sessions</span>} checked={localConfig.rememberTheLoggedActionsBetweenSessions ?? false} onChange={e => updateLocalConfig({ rememberTheLoggedActionsBetweenSessions: e.target.checked })} />
                   <div className="ml-[20px] space-y-[6px]">
@@ -1704,7 +1704,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        }}
                        className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none"
                     />
-                    <span className="text-[12px] text-[#e0e0e0]">Entries shown in History / Action Log (default 100, max 4096)</span>
+                    <span className="text-[12px] text-[#e0e0e0]">Entries shown in History / History (default 100, max 4096)</span>
                  </div>
                  <div className="flex items-center gap-2">
                     <input type="number" 
@@ -2714,12 +2714,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             <TabsContent value="Plugin Rack" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Modular Plugin Rack</h1>
               <p className="text-[12px] text-gray-400 mb-6 max-w-[560px] leading-relaxed">
-                Install and uninstall extensions in the <span className="text-gray-200">Extension Hub</span> (Help → Extension Hub or the bottom panel empty state).
+                Install and uninstall extensions in the <span className="text-gray-200">Plugins</span> (Help → Plugins or the bottom panel empty state).
                 This settings tab no longer duplicates the install list — that prevented marketplace and config from fighting each other.
               </p>
               <div className="bndz-native-dialog-panel p-4 max-w-[520px] space-y-2">
-                <p className="text-[12px] text-gray-300">Default installed: System Properties, Fast Search, Visual Filters.</p>
-                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Extension Hub to add Remote, Ghost-Link, RAM Staging, and selling-pillar tools.</p>
+                <p className="text-[12px] text-gray-300">Default installed: Properties, Search, Filters.</p>
+                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Plugins to add Remote, Offload, Staging, and selling-pillar tools.</p>
               </div>
 
               <SectionHeader title="Right Sidebar Preview Engine" />
@@ -2757,13 +2757,13 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   {([
                     ['properties', 'System / Properties'],
                     ['context-menu-manager', 'Context Menus'],
-                    ['icon-studio', 'Icon Studio'],
+                    ['icon-studio', 'Icons'],
                     ['batch-rename', 'Batch Rename'],
-                    ['find', 'Fast Search'],
-                    ['dropstack', 'Drop Stack'],
-                    ['filters', 'Visual Filters'],
-                    ['metadata', 'Metadata Inspector'],
-                    ['storage-cleanup', 'Storage Cleanup'],
+                    ['find', 'Search'],
+                    ['dropstack', 'Drop Zone'],
+                    ['filters', 'Filters'],
+                    ['metadata', 'Metadata'],
+                    ['storage-cleanup', 'Cleanup'],
                   ] as const).map(([id, label]) => (
                     <option key={id} value={id}>{label}</option>
                   ))}
@@ -2782,10 +2782,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     const labels: Record<string, string> = {
                       properties: 'System',
                       'context-menu-manager': 'Context',
-                      'icon-studio': 'Icon Studio',
+                      'icon-studio': 'Icons',
                       'batch-rename': 'Rename',
                       find: 'Search',
-                      dropstack: 'Drop Stack',
+                      dropstack: 'Drop Zone',
                       filters: 'Filters',
                       metadata: 'Metadata',
                     };
@@ -3237,7 +3237,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <ContextMenuConfiguratorTab />
             </TabsContent>
 
-            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Notifications", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts", "Workspace Tools"].includes(item)).map(item => (
+            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Notifications", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & History", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts", "Workspace Tools"].includes(item)).map(item => (
                <TabsContent key={item} value={item} className="m-0 border-0 p-0 outline-none">
                   <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">{item}</h1>
                   <p className="text-[#a0a0a0] text-[13px]">Configuration options for this section are disabled in the current preview.</p>
