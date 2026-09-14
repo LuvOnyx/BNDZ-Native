@@ -75,14 +75,14 @@ function formatBytes(n: number): string {
 }
 
 const PLUGIN_HINTS: Record<string, string> = {
-  ghostlink: 'storage-cleanup',
+  deferred: 'storage-cleanup',
   cleanup: 'storage-cleanup',
   find: 'find',
   archive: 'storage-cleanup',
 };
 
 function classifyAction(id: string, actuator: string): string {
-  if (/ghost/i.test(actuator) || /ghost/i.test(id)) return 'ghostlink';
+  if (/ghost|defer|offload|hot.?keep/i.test(actuator) || /ghost|defer|offload/i.test(id)) return 'deferred';
   if (/dup|find/i.test(actuator) || /dup/i.test(id)) return 'find';
   if (/archive/i.test(actuator) || /archive/i.test(id)) return 'archive';
   if (/empty|delete|fileop|cleanup|storage/i.test(actuator) || /empty|delete/i.test(id)) return 'cleanup';
@@ -119,7 +119,7 @@ function normalizeProjection(raw: Record<string, unknown>): Projection {
 
 const ACTION_ICONS: Record<string, string> = {
   cleanup: 'delete',
-  ghostlink: 'emblem_symbolic_link',
+  deferred: 'clock_ui',
   archive: 'folder_open_ui',
   move: 'move_ui',
   find: 'search',

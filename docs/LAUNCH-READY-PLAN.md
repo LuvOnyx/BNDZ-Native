@@ -78,7 +78,7 @@ Each remaining Hub plugin must read as **one product**, not dumped tabs or SaaS 
 | Action Log | Undo/redo history |
 | Mesh / Remote | Power-user SSH/SFTP (optional install) |
 | Project Sandbox | Safe workspaces + vault |
-| Branching Time | Folder branches — must look native, not demo |
+| Branching Time | Folder timeline — native snapshot rail (A3 craft pass 2026-09-14); peek tip / restore; VSS + shadows |
 
 **Bar:** Uiverse-level craft, real PNG/SVG where panels need them, empty/loading/error states, no `PluginStatCard` SaaS farm, Above and Beyond asset rules.
 

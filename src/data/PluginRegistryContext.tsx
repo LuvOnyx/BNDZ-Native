@@ -186,7 +186,7 @@ const ALL_PLUGINS: PluginManifest[] = [
 
     {
         ...BranchingTimePluginDef,
-        description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
+        description: 'Content-addressed folder snapshots — create, peek tip, restore. Git for folders without git.',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
