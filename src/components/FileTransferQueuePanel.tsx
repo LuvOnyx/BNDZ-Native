@@ -217,6 +217,15 @@ function JobRow({
               Skip
             </button>
           )}
+          {job.status === 'failed' && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'action-log' } }))}
+              className="bndz-transfer-cancel-btn"
+            >
+              Open log
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -407,8 +416,12 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
     } catch { /* ignore */ }
   };
 
-  const handleRetryFailed = (_operationId: string) => {
-    window.dispatchEvent(new CustomEvent('bndz-retry-last-transfer'));
+  const handleRetryFailed = (operationId: string) => {
+    window.dispatchEvent(new CustomEvent('bndz-retry-last-transfer', { detail: { operationId } }));
+  };
+
+  const handleOpenActionLog = () => {
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'action-log' } }));
   };
 
   const handleSkipFailed = async (operationId: string) => {

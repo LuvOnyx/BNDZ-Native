@@ -54,6 +54,8 @@ import {
   classifyTransferError,
   stashPendingElevatedTransfer,
   consumePendingElevatedTransfer,
+  freeBytesForDestination,
+  buildCapacityLine,
 } from '../lib/transferErrorKind';
 import { isCopyDragModifier } from '../lib/listDragModifiers';
 import ListDragGhost, { type ListDragGhostMeta } from './ListDragGhost';
@@ -1802,7 +1804,9 @@ export default function BNDZUI() {
   const dropModifierRef = useRef({ copy: false });
   /** Last HTML5 drag-over target — fallback when native drop coordinates miss. */
   const htmlDropTargetRef = useRef<{ paneId: string; tabPath: string } | null>(null);
-  const lastLocalTransferRef = useRef<{ action: 'copy' | 'move'; sources: string[]; destDir: string } | null>(null);
+  const lastLocalTransferRef = useRef<{ action: 'copy' | 'move'; sources: string[]; destDir: string; operationId?: string } | null>(null);
+  /** Per-operation stash so queue Retry can replay the matching copy/move, not only the latest. */
+  const localTransferByOpRef = useRef(new Map<string, { action: 'copy' | 'move'; sources: string[]; destDir: string }>());
   const xferMetaRef = useRef(new Map<string, { op: 'copy' | 'move' | 'delete'; label: string; selectParentPath?: string }>());
   const transferActiveCountRef = useRef(0);
   /** Pending FS ops — keep tombstoned names filtered from cache until the queue job finishes. */
@@ -4761,21 +4765,57 @@ export default function BNDZUI() {
                 : action.includes('extract') || job.operationId.startsWith('extract-') ? 'Extraction failed'
                 : isMove ? 'Move failed'
                 : 'Operation failed';
-              const classified = classifyTransferError(job.error || label);
+              const pendingForJob = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
+              const destForCapacity = job.destinationPath || pendingForJob?.destDir || '';
+              const freeFromDrives = freeBytesForDestination(destForCapacity, drives);
+              const neededFromJob = typeof job.totalBytes === 'number' && job.totalBytes > 0
+                ? job.totalBytes
+                : undefined;
+              const classified = classifyTransferError(job.error || label, undefined, {
+                neededBytes: neededFromJob,
+                freeBytes: freeFromDrives,
+              });
+              // Prefer drive probe when host message lacked Need/have but we know dest free space.
+              if (classified.kind === 'diskFull' && !classified.capacityLine) {
+                const line = buildCapacityLine(neededFromJob, freeFromDrives);
+                if (line) {
+                  classified.capacityLine = line;
+                  classified.summary = `The destination volume does not have enough free space (${line}).`;
+                }
+              }
               if (classified.kind !== 'other' && !isDelete && !isRename) {
-                const retryLastTransfer = () => {
-                  const pending = lastLocalTransferRef.current;
+                const retryThisTransfer = () => {
+                  const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
                   if (!pending?.sources?.length) {
                     pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
                     return;
                   }
                   executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
                 };
+                const skipFailedTransfer = () => {
+                  window.dispatchEvent(new CustomEvent('bndz-skip-failed-transfer', {
+                    detail: { operationId: job.operationId },
+                  }));
+                  void IPC.clearFileTransferHistory?.().catch(() => {});
+                };
                 const openStorageCleanup = () => {
                   window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
                 };
+                const openActionLog = () => {
+                  window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'action-log' } }));
+                };
+                const revealDestination = () => {
+                  const dest = destForCapacity;
+                  if (!dest) {
+                    pushToast({ kind: 'warning', title: 'No destination', message: 'Could not resolve the transfer destination folder.' });
+                    return;
+                  }
+                  try {
+                    setCurrentPath(dest.replace(/\\/g, '/'));
+                  } catch { /* ignore */ }
+                };
                 const elevateAndRetry = async () => {
-                  const pending = lastLocalTransferRef.current;
+                  const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
                   if (pending) {
                     stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
                   }
@@ -4790,36 +4830,44 @@ Restart BNDZ as administrator to retry?` },
                 let actions: { label: string; style?: 'primary' | 'secondary' | 'destructive'; action: () => void | Promise<void> }[];
                 if (classified.kind === 'accessDenied') {
                   actions = [
-                    { label: 'Cancel', style: 'secondary', action: () => {} },
+                    { label: 'Open Action Log', style: 'secondary', action: () => openActionLog() },
+                    { label: 'Cancel', style: 'secondary', action: () => skipFailedTransfer() },
                     { label: 'Restart as administrator', style: 'primary', action: () => void elevateAndRetry() },
                   ];
                 } else if (classified.kind === 'pathTooLong') {
                   actions = [
-                    { label: 'Skip', style: 'secondary', action: () => {} },
-                    { label: 'Retry', style: 'secondary', action: () => retryLastTransfer() },
-                    { label: 'Cancel', style: 'primary', action: () => {} },
+                    { label: 'Open destination', style: 'secondary', action: () => revealDestination() },
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
                 } else if (classified.kind === 'sharingViolation') {
                   actions = [
-                    { label: 'Skip', style: 'secondary', action: () => {} },
-                    { label: 'Retry', style: 'secondary', action: () => retryLastTransfer() },
-                    { label: 'Cancel', style: 'primary', action: () => {} },
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
                 } else if (classified.kind === 'diskFull') {
                   actions = [
                     { label: 'Open Storage Cleanup', style: 'secondary', action: () => openStorageCleanup() },
-                    { label: 'Cancel', style: 'primary', action: () => {} },
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
                 } else {
                   actions = [
-                    { label: 'Retry', style: 'secondary', action: () => retryLastTransfer() },
-                    { label: 'OK', style: 'primary', action: () => {} },
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
                 }
+                const capacityNote = classified.kind === 'diskFull' && classified.capacityLine
+                  ? `\n\n${classified.capacityLine}`
+                  : '';
                 showModal({
                   type: classified.kind === 'accessDenied' || classified.kind === 'diskFull' ? 'warning' : 'destructive',
                   title: classified.title,
-                  message: `${classified.summary}
+                  message: `${classified.summary}${capacityNote}
 
 ${classified.detail}`,
                   actions,
@@ -7043,7 +7091,8 @@ ${classified.detail}`,
         return;
       }
 
-      lastLocalTransferRef.current = { action: op, sources: canonSources, destDir: destCanon };
+      lastLocalTransferRef.current = { action: op, sources: canonSources, destDir: destCanon, operationId: opId };
+      localTransferByOpRef.current.set(opId, { action: op, sources: canonSources, destDir: destCanon });
 
       // Mesh paths must never fall through to Windows FS ops (toWindowsPath mangles /mesh/…).
       if (isMeshPath(destCanon) || canonSources.some(isMeshPath)) {
@@ -7257,18 +7306,20 @@ ${classified.detail}`,
   }, []);
 
   useEffect(() => {
-    const onRetryLast = () => {
-      const pending = lastLocalTransferRef.current;
+    const onRetryLast = (ev: Event) => {
+      const opId = (ev as CustomEvent<{ operationId?: string }>).detail?.operationId;
+      const pending = (opId && localTransferByOpRef.current.get(opId)) || lastLocalTransferRef.current;
       if (!pending?.sources?.length) {
         pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
         return;
       }
       try {
         executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
-        pushToast({ kind: 'info', title: 'Retrying transfer', message: 'Replaying the last local copy/move.' });
+        pushToast({ kind: 'info', title: 'Retrying transfer', message: 'Replaying the failed local copy/move.' });
       } catch { /* ignore */ }
     };
-    const onSkipFailed = () => {
+    const onSkipFailed = (_ev: Event) => {
+      void IPC.clearFileTransferHistory?.().catch(() => {});
       pushToast({ kind: 'info', title: 'Skipped failed transfer', message: 'Dismissed from the queue. Remaining jobs continue.' });
     };
     window.addEventListener('bndz-retry-last-transfer', onRetryLast);

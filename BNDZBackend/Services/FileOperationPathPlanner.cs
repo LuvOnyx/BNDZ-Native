@@ -316,6 +316,8 @@ public static class FileOperationPathPlanner
         }
     }
 
+    public static string FormatBytesPublic(long bytes) => FormatBytes(bytes);
+
     private static string FormatBytes(long bytes)
     {
         string[] units = { "B", "KB", "MB", "GB", "TB" };

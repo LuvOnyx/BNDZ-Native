@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1–A3 hosts crafted; Wave E1 into-self + bndz folder conflict; Wave C/D + Windows matrix deferred  
+**Status:** Execution in progress — A1–A3 hosts crafted; E1 ops suite (into-self, disk need/free, Skip/Retry/Open log, path-too-long UX) landed; Wave C code verified (virtualization threshold 1); Wave D/Windows UAC·DnD live matrix still require Windows shell  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -339,12 +339,12 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 | Situation | Exists today? | Launch gap |
 |-----------|---------------|------------|
 | Same-name collision | Partial — `FileConflictModal` on **bndz** engine (files + folders); default **native** uses Explorer UI | Unify / optional default-engine policy |
-| Disk full | Partial — classified failed-job modal; no need-vs-free bytes; pre-check default off | Capacity modal (need vs free) |
+| Disk full | Yes — failed-job modal shows need vs free (host enrich + drive probe); Storage Cleanup / Skip / Retry / Open log | Windows live verify on full volume |
 | Access denied → UAC | Partial — elevate + stash/replay for last local transfer | Windows live verify UAC Allow/Cancel |
-| File in use | Partial — classified failed-job modal (Skip is post-fail) | Mid-batch Skip / Retry |
+| File in use | Yes — classified modal with working Skip / Retry / Open log | Mid-batch continue (engine) optional |
 | Folder into itself | Yes — list DnD + Copy/Move To + paste guards; host bndz engine also rejects | Windows live verify remaining |
-| Path too long | Partial — classified failed-job modal | Skip / Cancel + rename hint |
-| Partial batch failure | Partial — toast/queue row | Retry failed / Skip rest / Open log |
+| Path too long | Yes — rename/shorten hint + Open destination + working Skip / Retry / Open log | Windows live verify |
+| Partial batch failure | Yes — queue Retry (per-op stash) / Skip (clears history) / Open log | Host failedPaths[] stretch optional |
 | Shell Integration admin | Mostly yes | Windows live verify toggles (E3) |
 
 ### E progress (this pass)
@@ -354,9 +354,19 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 - [x] Bndz engine folder same-name → `FileConflictModal` (skip / replace / keep both)
 - [x] Elevation: stash last local transfer + replay after admin relaunch
 - [x] Host `PrivilegePolicyService` classifies diskFull / sharingViolation / pathTooLong / accessDenied
+- [x] Disk-full need-vs-free capacity line (parse host Need/have + drive probe + MarkFailed enrich)
+- [x] Partial-batch suite — per-op Retry stash, Skip clears history, Open Action Log (modal + queue)
+- [x] Path-too-long Skip/Open destination/Retry UX (Skip no longer a no-op)
+- [x] CheckSpaceBeforeCopy defaults on for bndz engine preflight
 - [ ] Windows live verify: Shell Integration toggles + UAC Allow/Cancel matrix
-- [ ] Path-too-long Skip/Rename UX beyond dialog
-- [ ] Partial-batch Retry failed suite
-- [ ] Disk-full need-vs-free capacity modal
+- [ ] Windows live verify: disk-full / path-too-long / into-self click-through
+
+### C progress (this pass)
+- [x] VirtualizedFileList default threshold = 1 (always virtualize) — code audit
+- [ ] Windows scroll FPS ≈ display Hz with warm icons (live measure)
+
+### D progress (this pass)
+- [x] Build gate recipe still `npm run build` + Debug `dotnet` after product turns
+- [ ] Sign `fm-launch-readiness.md` 100-check on real Windows `BNDZShell`
 
 **DnD protect:** A1/E do not touch OLE spine; only removed RAM-zone product drop interception and Hub/Deck/menu chrome.
