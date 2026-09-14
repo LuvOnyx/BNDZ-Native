@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1 + E (code) + B brand scrub + Wave F + A2 code-smoke + A3 Branching Time/Storage Cleanup craft; residual A3 hosts + C/D + Windows matrix deferred  
+**Status:** Execution in progress — A1 + E (code) + B brand scrub + Wave F + A2 code-smoke + A3 Branching Time / Storage Cleanup / Project Sandbox / Drop Stack / Folder Sync craft; residual A3 hosts + C/D + Windows matrix deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -80,10 +80,10 @@ Each remaining Hub plugin must read as **one product**, not dumped tabs or SaaS 
 | Shell Menus | In-app + Explorer weave + verbs |
 | Icon Studio | Icon libraries / apply |
 | Batch Rename | Rename + magnets |
-| Drop Stack | Intake & stage (no RAM disk theater) |
+| Drop Stack | Intake & stage — ops rail + browse stage (A3 craft); nested Captures/Policies without double chrome |
 | Metadata | Facts + encode |
 | Storage Cleanup | One ops surface — overview meter + large-file list (A3 craft); Capacity/Health as sections |
-| Folder Sync | Sync + diff |
+| Folder Sync | Sync + densified preview + Diff bare chrome (A3 craft) |
 | Catalog | Virtual folders |
 | Action Log | Undo/redo history |
 | Mesh / Remote | Power-user SSH/SFTP (optional install) |

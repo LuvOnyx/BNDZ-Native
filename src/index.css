@@ -19897,3 +19897,114 @@ html.theme-light .bndz-xfer-toast-track {
   border-color: color-mix(in srgb, #34d399 28%, transparent);
   background: color-mix(in srgb, #34d399 8%, transparent);
 }
+
+/* Drop Stack / Intake / Sync / Diff ops rails (Launch Ready A3) */
+.bndz-dropstack-opsrail,
+.bndz-capture-opsrail,
+.bndz-policy-opsrail,
+.bndz-foldersync-opsrail,
+.bndz-compare-opsrail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #a78bfa 14%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #a78bfa 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #14121a, #0f1016);
+}
+.bndz-foldersync-opsrail,
+.bndz-compare-opsrail {
+  border-bottom-color: color-mix(in srgb, #38bdf8 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #38bdf8 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #10161c, #0e1216);
+}
+.bndz-dropstack-opsrail-title,
+.bndz-capture-opsrail-title,
+.bndz-policy-opsrail-title,
+.bndz-foldersync-opsrail-title,
+.bndz-compare-opsrail-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: #f3f0ff;
+  letter-spacing: 0.01em;
+}
+.bndz-foldersync-opsrail-title,
+.bndz-compare-opsrail-title { color: #e0f2fe; }
+.bndz-dropstack-opsrail-meta,
+.bndz-capture-opsrail-meta,
+.bndz-policy-opsrail-meta,
+.bndz-foldersync-opsrail-meta,
+.bndz-compare-opsrail-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #8b8799;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bndz-capture-opsrail-hint {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: #6b7280;
+}
+.bndz-dropstack-opsrail-actions,
+.bndz-capture-opsrail-actions,
+.bndz-compare-opsrail-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.bndz-dropstack-browse {
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #a78bfa 35%, #3a4250);
+  background: color-mix(in srgb, #a78bfa 14%, #1a1624);
+  color: #e9d5ff;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.bndz-dropstack-browse:hover {
+  border-color: color-mix(in srgb, #a78bfa 55%, #3a4250);
+  background: color-mix(in srgb, #a78bfa 22%, #1a1624);
+}
+.bndz-foldersync-preview-block {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #2a3140;
+  background: #10141a;
+}
+.bndz-foldersync-preview-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.bndz-foldersync-preview-list {
+  max-height: 7rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+
+.bndz-dropstack-opsrail-copy,
+.bndz-capture-opsrail-copy,
+.bndz-policy-opsrail-copy,
+.bndz-foldersync-opsrail-copy,
+.bndz-compare-opsrail-copy { min-width: 0; flex: 1; }
+.bndz-foldersync-preview-head { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.bndz-foldersync-opsrail .bndz-plugin-toolbar-btn,
+.bndz-dropstack-opsrail .bndz-plugin-toolbar-btn,
+.bndz-capture-opsrail .bndz-plugin-toolbar-btn,
+.bndz-policy-opsrail .bndz-plugin-toolbar-btn,
+.bndz-compare-opsrail .bndz-plugin-toolbar-btn { flex-shrink: 0; }

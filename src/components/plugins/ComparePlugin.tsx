@@ -31,6 +31,8 @@ type Props = {
   selectedPaths?: string[];
   focusedPath?: string;
   onNavigate?: (path: string) => void;
+  /** Nested under Folder Sync Diff tab — skip duplicate shell/hero. */
+  bareChrome?: boolean;
 };
 
 type DirFilter = 'all' | 'same' | 'different' | 'onlyA' | 'onlyB';
@@ -86,7 +88,7 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavigate }: Props) {
+export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavigate, bareChrome = false }: Props) {
   const { config } = useAppConfig();
   const [pathA, setPathA] = useState('');
   const [pathB, setPathB] = useState('');
@@ -311,29 +313,51 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
       variant="embedded"
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <PluginHeroStrip
-          icon={<Icons8Icon id="compare_ui" size={52} className="opacity-90" />}
-          name={pathA && pathB ? `${pathLeaf(pathA)}  ↔  ${pathLeaf(pathB)}` : 'File & folder compare'}
-          typeLabel={mode === 'files' ? 'Binary file diff' : 'Directory diff'}
-          meta={<span className="bndz-panel-muted text-xs">{heroMeta}</span>}
-          actions={
-            <>
-              <PluginHeroActionButton
+        {!bareChrome && (
+          <PluginHeroStrip
+            icon={<Icons8Icon id="compare_ui" size={52} className="opacity-90" />}
+            name={pathA && pathB ? `${pathLeaf(pathA)}  ↔  ${pathLeaf(pathB)}` : 'File & folder compare'}
+            typeLabel={mode === 'files' ? 'Binary file diff' : 'Directory diff'}
+            meta={<span className="bndz-panel-muted text-xs">{heroMeta}</span>}
+            actions={
+              <>
+                <PluginHeroActionButton
+                  icon={loading ? 'loading' : 'compare_ui'}
+                  variant="primary"
+                  onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
+                  disabled={loading || !pathA.trim() || !pathB.trim()}
+                >
+                  Compare
+                </PluginHeroActionButton>
+                {mode === 'dirs' && dirResults.length > 0 && (
+                  <PluginHeroActionButton icon="refresh" onClick={() => void runDirCompare()} disabled={loading}>
+                    Re-compare
+                  </PluginHeroActionButton>
+                )}
+              </>
+            }
+          />
+        )}
+
+        {bareChrome && (
+          <div className="bndz-compare-opsrail">
+            <div className="bndz-compare-opsrail-copy min-w-0">
+              <div className="bndz-compare-opsrail-title">
+                {pathA && pathB ? `${pathLeaf(pathA)}  ↔  ${pathLeaf(pathB)}` : 'Compare'}
+              </div>
+              <div className="bndz-compare-opsrail-meta">{heroMeta}</div>
+            </div>
+            <div className="bndz-compare-opsrail-actions">
+              <PluginToolbarButton
                 icon={loading ? 'loading' : 'compare_ui'}
-                variant="primary"
                 onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
                 disabled={loading || !pathA.trim() || !pathB.trim()}
               >
                 Compare
-              </PluginHeroActionButton>
-              {mode === 'dirs' && dirResults.length > 0 && (
-                <PluginHeroActionButton icon="refresh" onClick={() => void runDirCompare()} disabled={loading}>
-                  Re-compare
-                </PluginHeroActionButton>
-              )}
-            </>
-          }
-        />
+              </PluginToolbarButton>
+            </div>
+          </div>
+        )}
 
         <PluginTabStrip>
           <PluginTab active={mode === 'files'} onClick={() => setMode('files')}>Files</PluginTab>
