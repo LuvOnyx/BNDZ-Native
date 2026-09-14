@@ -9,6 +9,20 @@ This is the **standing quality operating system** for every agent on every task:
 
 Vague “be excellent” is not enough. Follow the MUST / MUST NOT blocks and the definition of done below.
 
+### Coverage map (user intent → this rule)
+
+| You asked for | Where it lives |
+|---------------|----------------|
+| Best possible designs | §1 Design excellence |
+| PNG/SVG for panels, illustrations, more — not only icons | §1 + §1.1 Asset acquisition |
+| Generate assets **or** extract from the web | §1.1 |
+| Professional / big-company code quality | §2 |
+| GitHub + web for references, assets, resources, **and code** | §3 |
+| Best latest **META** methods for **implementation and planning** | §4 + §6 |
+| Component libraries, npm, .NET packages, and more | §4.1 Stack & packages |
+| Verify code + design quality; builds; proper debugging | §5 |
+| “Above and beyond” as the standing bar | §0 Mindset + §7 Definition of done |
+
 ```text
 ❌ BAD: ship a flat CSS restyle, invent icons as Unicode, skip research, claim “ready” on green vibes
 ✅ GOOD: reference real products + GitHub + packages → implement with production assets → build → verify behavior → only then claim done
@@ -16,29 +30,33 @@ Vague “be excellent” is not enough. Follow the MUST / MUST NOT blocks and th
 
 ---
 
-## 0. Mindset (non-negotiable)
+## 0. Mindset — what “above and beyond” means
 
-1. **Ship like a big-company product team**, not a weekend demo. Code, UI, naming, error handling, and polish must look intentional and durable.
-2. **Above and beyond means depth**, not more chrome. Prefer one correct, crafted system over three shallow skins.
-3. **Do not half-ass.** If the request is full redesign / full feature / full fix, deliver that — not a minimal skin, rename, or “good enough” pass.
-4. **Follow the user’s last clear instruction literally.** Do not reframe, soften, or invent a safer narrower plan unless they asked for options.
-5. **Do not invent breakage.** Only report defects you can point to (code path, repro, failed build, failed check). Unsigned checklists ≠ “the app is broken.”
-6. **Protect working hard-won systems.** If the user says “do not break X,” treat X as read-only unless a surgical verified fix is explicitly required.
+1. **Ship like a big-company product team**, not a weekend demo. Code, UI, naming, error handling, empty/loading/error states, and polish must look intentional and durable.
+2. **Above and beyond means depth + craft**, not more chrome. Prefer one correct, fully finished system over three shallow skins.
+3. **Exceed the minimum when quality requires it** — add the missing empty state, the SVG illustration, the package-backed path, the second verification pass — **without** scope-creeping into unrelated features the user did not ask for.
+4. **Do not half-ass.** If the request is full redesign / full feature / full fix, deliver that — not a minimal skin, rename, or “good enough” pass.
+5. **Follow the user’s last clear instruction literally.** Do not reframe, soften, or invent a safer narrower plan unless they asked for options.
+6. **Do not invent breakage.** Only report defects you can point to (code path, repro, failed build, failed check). Unsigned checklists ≠ “the app is broken.”
+7. **Protect working hard-won systems.** If the user says “do not break X,” treat X as read-only unless a surgical verified fix is explicitly required.
+8. **Current agents and future agents** must treat this file as always-on process law for quality — not optional inspiration.
 
 ---
 
-## 1. Design excellence (visual bar)
+## 1. Design excellence (best possible designs)
 
 ### MUST
 
-- Treat every user-visible surface as **designed**, not “styled enough.” Aim for distinctive craft: depth, motion with purpose, hierarchy, materials (glass/paper/metal/ink as fits the product), and clear focal points.
+- Treat every user-visible surface as **designed to a professional product bar**, not “styled enough to ship.”
+- **Seek references before inventing.** Open competing products, craft galleries, and the project’s visual reference library (e.g. Uiverse for BNDZ). Adapt patterns into project tokens/CSS — do not paste raw third-party HTML/Tailwind/CDN widgets.
+- Aim for distinctive craft: depth, purposeful motion, clear hierarchy, materials (glass/paper/metal/ink as fits the product), and one strong focal composition per surface.
 - Prefer **real visual assets** over icon-only chrome:
-  - **SVG** for crisp UI chrome, illustrations, empty states, badges, panel ornaments, diagrams.
-  - **PNG** (and WebP where appropriate) for rich panels, hero art, textures, certificates, product imagery.
-- Use assets for **panels, illustrations, empty states, certificates, onboarding, plugin surfaces, and decorative structure** — not only 16×16 toolbar icons.
-- When the product has a visual reference library (e.g. Uiverse for BNDZ), **open it and adapt patterns** into the project’s tokens/CSS. Do not paste raw third-party HTML/Tailwind/CDN widgets.
-- Match existing design systems when present (tokens, radius language, typography, motion). When inventing net-new UI, define clear CSS variables and a coherent direction — do not default to generic AI-looking purple SaaS cards.
+  - **SVG** — crisp UI chrome, illustrations, empty states, badges, panel ornaments, diagrams, decorative structure.
+  - **PNG** (and WebP where appropriate) — rich panels, hero art, textures, certificates, product imagery, photographic or painted illustration.
+- Use assets for **panels, illustrations, empty states, certificates, onboarding, plugin surfaces, dialogs, and decorative structure** — **not only** 16×16 toolbar icons.
+- Match existing design systems when present (tokens, radius language, typography, motion). When inventing net-new UI, define clear CSS variables and a coherent direction — do not default to generic AI-looking purple SaaS cards, cream-serif clichés, or pill-cluster chrome.
 - Ship **2–3 intentional motions** on visually led work (enter, hover/press, success/empty) — presence and hierarchy, not noise.
+- Design **all states**: default, hover/active, empty, loading, error, success — not only the happy-path mock.
 
 ### MUST NOT
 
@@ -46,34 +64,50 @@ Vague “be excellent” is not enough. Follow the MUST / MUST NOT blocks and th
 - Rely on emoji, Unicode glyphs, or Lucide-only rows as the entire “design.”
 - Use inset hero cards / floating sticker overlays / pill clusters when the product language calls for soft squircles, plaques, or full compositions.
 - Claim a “redesign” when you only changed colors, borders, or a title string.
+- Leave a user-facing panel as raw text + default buttons when illustration or panel art would make it feel finished.
 
-### Asset acquisition (generate or fetch)
+### 1.1 Asset acquisition — generate **or** extract from the web
 
-Agents **may and should** obtain production-quality assets when the UI needs them:
+Agents **must prefer real assets** when a surface needs craft. Either path is valid; skipping both is not.
 
-1. **Generate** (when tools allow): illustrations, icons, panel art, certificates — then optimize and place under the project’s asset folder with clear names.
-2. **Extract / download from the web** when licenses allow: open-source icon sets, illustration packs, SVG kits, GitHub raw assets from permissive repos, official brand assets only when appropriate.
-3. **Prefer project-local copies** under version control (e.g. `src/assets/`, `public/`, `Resources/`). Do not hotlink fragile CDNs for core UI.
-4. **Record provenance lightly** in a short comment or `assets/README` when an asset came from a named open source / vendor pack (name + license + URL). Skip bureaucracy for tiny generated glyphs.
-5. Optimize: SVGs cleaned; PNGs sized for actual display (1x/2x as needed); no multi‑MB decorative blobs in hot paths.
+**Path A — Generate**
+
+1. Use available image/illustration tools (e.g. Cursor image generation) when the product needs custom panel art, empty-state illustration, certificates, icons, or textures.
+2. Export/optimize and commit under the project asset folder with clear kebab-case names.
+3. Prefer SVG when the graphic is flat/vector; PNG/WebP when it needs richness or soft gradients that SVG fights.
+
+**Path B — Extract / download from the web**
+
+1. Pull **permissively licensed** SVG/PNG packs, illustration kits, icon sets, and GitHub `raw` assets from open repos.
+2. Prefer MIT / Apache / CC0 / CC-BY (with attribution) sources. Skip unknown or proprietary scrapes.
+3. Official brand assets only when appropriate and allowed.
+
+**Always after either path**
+
+1. **Project-local copies** under version control (`src/assets/`, `public/`, `Resources/`, etc.). Do not hotlink fragile CDNs for core UI.
+2. **Light provenance** — short comment or `assets/README` entry: name + license + URL for named packs. Skip bureaucracy for tiny self-generated glyphs.
+3. **Optimize** — clean SVGs; size PNGs for real display (1x/2x); no multi‑MB decorative blobs on hot paths.
+4. Wire assets into components so they **show up in the real UI**, not left as unused files in a folder.
 
 ```text
 ❌ BAD: empty state = gray box + “No items” text
-✅ GOOD: empty state = custom SVG illustration + short copy + one clear action, on-brand materials
+✅ GOOD: empty state = custom SVG/PNG illustration + short copy + one clear action, on-brand materials
 ```
 
 ---
 
-## 2. Professional code quality (enterprise bar)
+## 2. Professional code quality (big-company / enterprise bar)
 
 ### MUST
 
-- Write code as if it will be reviewed by a senior eng team at a serious company: clear names, explicit types where the stack expects them, bounded error handling, no silent `catch`, no dead stubs left in user paths.
+- Write code as if it will be reviewed by a senior eng team at a serious company shipping a flagship app: clear names, explicit types where the stack expects them, bounded error handling, no silent `catch`, no dead stubs left in user paths.
 - Prefer **root-cause fixes** over bandaids (timers to hide races, “refresh everything” to mask cache bugs, stripping libraries to avoid fixing them).
 - Keep changes **scoped and coherent**: touch what the task needs; leave unrelated refactors for a separate pass unless they block correctness.
 - Preserve proven interaction systems (drag/drop, selection, virtualization, IPC contracts). Extending is fine; silent rewrites are not.
 - Match repository conventions (file layout, naming, component patterns, lint rules). Do not introduce a parallel architecture for one feature.
+- Structure for maintainability: small focused modules, obvious data flow, testable boundaries where the repo already tests.
 - Comments only for non-obvious intent, invariants, or protect-notes — never narrate what the code already says.
+- Accessibility and keyboard basics on interactive surfaces the user will use (focus, labels, Esc/Enter where expected) — professional apps do not ship mouse-only traps by accident.
 
 ### MUST NOT
 
@@ -81,65 +115,88 @@ Agents **may and should** obtain production-quality assets when the UI needs the
 - Paper over bugs by deleting capability (e.g. removing Three.js because 3D preview was hard).
 - Duplicate near-identical components/services instead of extending the real one.
 - Claim “production ready” while knowing build, type, or runtime failures remain.
+- Commit secrets, machine-specific paths, or debug dumps into product code.
 
 ---
 
-## 3. Research mandate (GitHub + web)
+## 3. Research mandate — GitHub + web for references, assets, resources, and code
 
 Before and during non-trivial work, **look outward**. Do not invent from memory when the web has better ground truth.
 
 ### MUST research when
 
-- Designing or redesigning a surface → reference top products in the category + craft libraries.
-- Implementing a non-trivial subsystem → find proven libraries, official docs, and high-quality open-source examples.
-- Debugging → search error text, GitHub issues, release notes, and known breaking changes.
-- Choosing packages → compare maintenance, license, API fit, and current major versions.
+- **Planning** a feature or redesign → how top products and strong open-source projects solve it.
+- **Designing** a surface → craft references + asset sources (see §1 / §1.1).
+- **Implementing** a non-trivial subsystem → proven libraries, official docs, exemplar GitHub repos, migration guides.
+- **Debugging** → exact error text, GitHub Issues/PRs, release notes, known breaking changes.
+- **Choosing packages** → compare maintenance, license, API fit, and **current** major/stable versions on the registry.
 
-### Sources to use
+### What to pull from GitHub and the web
 
-| Need | Where to look |
-|------|----------------|
-| Patterns / UX | Competing products, design galleries, project visual refs |
-| Implementation | Official docs, GitHub READMEs, exemplar repos, Stack Overflow only for narrow errors |
-| Assets | Permissively licensed SVG/PNG packs, GitHub `raw` assets, generator tools |
-| Packages | npm, NuGet, crates.io, etc. — prefer maintained, widely used, license-clear |
+| Need | Where / how |
+|------|-------------|
+| UX / visual references | Competing products, design galleries, project visual refs (e.g. Uiverse) |
+| Implementation patterns | Official docs, high-quality GitHub repos, READMEs, example apps |
+| **Code to adapt** | Permissively licensed snippets/modules from maintained repos — **adapt** into project conventions; do not vendor-dump trees |
+| Assets | SVG/PNG packs, GitHub `raw` assets, generator tools (§1.1) |
+| Resources | RFCs, API references, package docs, changelogs, design tokens, architecture notes |
+| Packages | npm, NuGet, crates.io, etc. — verify versions exist before wiring |
 | Breakages | GitHub Issues/PRs, changelogs, migration guides |
 
 ### MUST NOT
 
-- Copy large copyrighted code or proprietary assets verbatim.
-- Dump vendor trees into the repo as “integration done.”
-- Cite imaginary APIs or package versions — verify with docs or registry before wiring.
+- Copy large copyrighted or proprietary code/assets verbatim.
+- Dump vendor trees into the repo and call it “integration done.”
+- Cite imaginary APIs, stars, or package versions — verify with docs or registry first.
+- Ignore license terms when adapting third-party code or assets.
 
 ```text
 ❌ BAD: hand-roll a fragile thumbnail cache because “we can write it quick”
-✅ GOOD: research maintained libs + repo patterns → adopt / deepen the META path already in the project
+✅ GOOD: research maintained libs + exemplar repos → adopt / deepen the META path already in the project
 ```
 
 ---
 
-## 4. META methods (latest proven implementation)
+## 4. META methods — latest proven approach for implementation **and** planning
 
-“META” means: **use the best current, proven approach** — not the first hack that compiles.
+“META” means: **use the best current, proven approach** — not the first hack that compiles, and not a plan that ignores how serious products actually build the thing.
 
-### MUST
+### MUST (implementation)
 
-- Prefer **battle-tested libraries and packages** over thin hand-rolled reimplementations when the domain is non-trivial (shell/FS, metadata, archives, imaging, search, IPC, UI kits, parsers, caches).
-- In JS/TS apps: prefer well-maintained **npm** packages and established component/primitive libraries already aligned with the repo (or newly justified with a short reason).
-- In .NET apps: prefer **NuGet** packages already in the ecosystem of the project; bump carefully; read breaking-change notes before major upgrades.
-- Deepen existing services and surfaces (list columns, preview, search, settings, plugins) instead of wrapping basics in a new admin iframe / sidecar / HTTP bridge when the product rule forbids that.
-- Plan with META in mind: pick the approach that scales (pooling, cancellation, virtualization, incremental indexing, GPU-friendly rendering) when the feature is user-visible and performance-sensitive.
-- When multiple implementation paths exist, choose the one that is (1) correct, (2) maintainable, (3) aligned with repo architecture — then implement that one fully.
+- Prefer **battle-tested libraries and packages** over thin hand-rolled reimplementations when the domain is non-trivial (shell/FS, metadata, archives, imaging, search, IPC, UI, parsers, caches, graphics).
+- Deepen existing services and product surfaces (list columns, preview, search, settings, plugins) instead of wrapping basics in a forbidden admin iframe / sidecar / HTTP bridge when project rules ban that.
+- Pick approaches that scale when the feature is user-visible and performance-sensitive: pooling, cancellation, virtualization, incremental indexing, GPU/compositor-friendly rendering, streaming.
+- When multiple implementation paths exist, choose the one that is (1) correct, (2) maintainable, (3) aligned with repo architecture — then implement that one **fully**.
+- Stay current: prefer **modern stable APIs** and maintained majors; read breaking-change notes before upgrades; do not copy year-old blog code when the library has a newer recommended API.
+
+### MUST (planning)
+
+- Before proposing or executing a non-trivial plan, spend a research beat on **how the best systems do this now** (docs + GitHub + package ecosystems).
+- Plans must name the **META stack** (libraries/packages/APIs), the **integration surface** (where it shows up for the user), and the **proof** (builds/checks) — not only UI adjectives.
+- Reject plans that are teardown-only, cosmetic-only, or “skin a stub and call it META.”
+
+### 4.1 Stack & packages — component libraries, npm, .NET, and more
+
+Treat the package ecosystem as a **first-class tool**, not an afterthought.
+
+| Layer | Expectation |
+|-------|-------------|
+| **UI component libraries / primitives** | Prefer mature headless or styled libraries already aligned with the repo, or newly justified ones (accessible primitives, virtualizers, flow/canvas, charts, etc.). Adapt to product tokens — do not drop in a second unrelated design system skin. |
+| **npm / JS / TS** | Use well-maintained packages for real problems (state, virtualization, parsers, media, 3D, etc.). Check the registry for current stable versions. |
+| **NuGet / .NET** | Prefer proven packages in the project’s ecosystem (shell, metadata, imaging, archives, IPC helpers, etc.). Bump carefully; read release notes. |
+| **Other ecosystems** | Same bar for any stack the repo uses (crates, pip, etc.): maintained, license-clear, justified. |
+| **Platform APIs** | Prefer modern first-party platform APIs when they are the META path (Win32/WinRT, WebView2, etc.) over brittle reimplementation. |
 
 ### MUST NOT
 
 - Call something “META” when it is only a cosmetic skin over a stub.
-- Add a new package for vanity; every dependency must earn its keep.
+- Add a dependency for vanity; every package must earn its keep.
 - Perform drive-by major version upgrades across the whole tree unless the task explicitly scopes that.
+- Fight the repo by introducing a parallel component library that conflicts with the existing visual language without an explicit decision.
 
 ---
 
-## 5. Verification system (code + design + builds + debug)
+## 5. Verification system — code quality, design quality, builds, debugging
 
 Every implementation turn has a **proof loop**. No proof → not done.
 
@@ -147,54 +204,66 @@ Every implementation turn has a **proof loop**. No proof → not done.
 
 1. Restate the user goal in one sentence (internally) and list **acceptance checks**.
 2. Identify **protect zones** (systems the user said not to break).
-3. Note required builds/tests for this repo (project rules may name exact commands).
+3. Note required builds/tests/linters for this repo (project rules may name exact commands).
+4. For UI work: note which **references + assets** you will use (§1 / §1.1).
+5. For non-trivial work: note the **META stack** you will use (§4).
 
 ### 5.2 During implementation
 
 1. Keep a short mental or todo checklist of acceptance checks; mark them as you go.
-2. After each meaningful slice, run the cheapest relevant check (typecheck, unit test, targeted build).
+2. After each meaningful slice, run the cheapest relevant check (typecheck, unit test, targeted build, lint on touched files).
 3. If stuck, **debug with evidence**: logs, stack traces, bisect, repro steps — do not randomly rewrite.
+4. Continuously compare UI against the craft bar — not only “it renders.”
 
-### 5.3 Build gate (mandatory when product code or assets change)
+### 5.3 Build gate — catch build errors before “ready”
 
 - Run the project’s required builds **before** telling the user it is ready.
-- For BNDZ product code, that means at least:
+- Treat **build errors, type errors, and package restore failures as blockers** — fix root cause → rebuild → do not ask the user to “try anyway.”
+- For BNDZ product code / assets, that means at least:
 
 ```bash
 npm run build
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 ```
 
-- If a build fails: fix root cause → rebuild → do not ask the user to “try anyway.”
+- Also run project-standard lint/test commands when they exist and the change touches those surfaces.
 - Skip builds only for pure docs/rules/questions with **zero** product code or asset changes.
+- Record what you actually ran when claiming done (command + outcome), especially in PR/commit context.
 
-### 5.4 Design QA checklist (UI tasks)
+### 5.4 Design quality checks (UI tasks)
 
 Before claiming UI done, verify:
 
 - [ ] Composition reads intentional (not a dashboard dump unless it is a dashboard)
-- [ ] Real SVG/PNG assets used where the surface needs illustration/panel craft
+- [ ] Compared against at least one strong visual reference (product or craft library)
+- [ ] Real SVG/PNG assets used where the surface needs illustration/panel craft — not icon soup alone
 - [ ] Theme/tokens honored (light/dark/custom colors if applicable)
 - [ ] Empty, loading, error, and success states are designed — not forgotten
-- [ ] Motion is purposeful; no layout thrash or 10fps interaction
+- [ ] Motion is purposeful; no layout thrash or ~10fps interaction
 - [ ] No generic SaaS card farm; brand/product language survives a “remove the logo” test when branding matters
+- [ ] Assets are wired and visible in the running/built UI, not orphaned files
 
-### 5.5 Code QA checklist
+### 5.5 Code quality checks
 
 - [ ] Happy path works end-to-end on the real surface (not only a storybook island)
 - [ ] Failure paths show useful UI or logs; no silent swallow
 - [ ] No new lint/type errors in touched files
+- [ ] Builds required for this repo are green (§5.3)
 - [ ] No regressions in protect zones (re-verify if those files were touched)
 - [ ] Removed dead code / unused imports you introduced
-- [ ] IPC/API contracts match backend and frontend
+- [ ] IPC/API contracts match backend and frontend when both sides changed
+- [ ] New dependencies are justified and resolve cleanly
 
-### 5.6 Debug discipline
+### 5.6 Debug discipline (proper debugging)
 
-1. **Reproduce** first (or confirm with build/log evidence).
+1. **Reproduce** first (or confirm with build/log/test evidence).
 2. **Locate** the owning system; read surrounding code before editing.
-3. **Fix the cause**; add a guard only if it encodes a real invariant.
-4. **Re-verify** the original bug and nearby protect behaviors.
-5. Never “fix” by disabling the feature, hiding the button, or deleting the library unless the user explicitly ordered removal.
+3. **Hypothesize narrowly**; change one cause at a time when possible.
+4. **Fix the cause**; add a guard only if it encodes a real invariant.
+5. **Re-verify** the original bug and nearby protect behaviors.
+6. Use the right tools: debugger/logs, `git bisect` when regressions land, browser/WebView inspector for UI, platform traces for native hosts.
+7. Never “fix” by disabling the feature, hiding the button, or deleting the library unless the user explicitly ordered removal.
+8. If evidence is insufficient (e.g. needs Windows host you lack), say **Blocked** with what you need — do not fake a pass.
 
 ### 5.7 Honesty in status
 
@@ -209,11 +278,12 @@ Before claiming UI done, verify:
 
 ---
 
-## 6. Planning & communication
+## 6. Planning & communication (META planning included)
 
-- Prefer **constructive precision**: what will change, which files/systems, what proof follows.
+- Prefer **constructive precision**: what will change, which files/systems, which packages/APIs, what proof follows.
+- **Plan with META** (§4): research first, name the stack, name the user-visible surface, name the verify loop.
 - Do not substitute teardown-only plans, recycled prior plans, or “option menus” when the user already decided.
-- Do not estimate calendar days/weeks; describe technical scope and risk instead.
+- Do not estimate calendar days/weeks; describe technical scope, invasiveness, and risk instead.
 - Keep user-facing updates concise; put detail in commits/PR bodies when needed.
 - Commit only when the user or environment policy asks; never revert unless permitted.
 
@@ -224,9 +294,9 @@ Before claiming UI done, verify:
 A task is done only when **all** apply:
 
 1. User instruction for this turn is satisfied at the requested depth (not a minimal stand-in).
-2. Design bar met for any user-visible change (assets + craft, not icon soup alone).
-3. Implementation used research + META packages/patterns where non-trivial.
-4. Verification loop completed (builds/checks/debug evidence as applicable).
+2. Design bar met for any user-visible change — including real SVG/PNG craft where the surface needs it.
+3. Implementation used research (GitHub/web) + META packages/component libraries/patterns where non-trivial.
+4. Verification loop completed: design checks + code checks + builds + debugging evidence as applicable.
 5. Project-specific rules obeyed (architecture bans, protect lists, naming, etc.).
 6. Status to the user matches reality — no invented breakage, no false “ready.”
 
@@ -240,4 +310,17 @@ A task is done only when **all** apply:
 4. General assistant defaults.
 
 If two rules conflict on process vs product constraint, **obey the product constraint** and still meet this quality bar inside it.
+
+---
+
+## 9. Quick anti-patterns (fail the rule)
+
+```text
+❌ Icons-only “design” with no panel/illustration assets when the surface clearly needs them
+❌ Skip web/GitHub research and hand-roll a fragile core subsystem
+❌ Ignore component libraries / npm / NuGet when a maintained package is the obvious META path
+❌ Plan without naming stack + proof
+❌ Claim ready without builds; ignore build errors; “debug” by rewriting at random
+❌ Minimal skin billed as redesign; stub billed as META; unsigned checklist billed as verified
+```
 )
