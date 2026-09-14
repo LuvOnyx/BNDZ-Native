@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress (Wave F boot/index landed) — A1 + E (code) + B brand scrub + Wave F quick-boot/index-finish done; residual A2/A3/C/D + Windows matrix deferred  
+**Status:** Execution in progress — A1 + E (code) + B brand scrub + Wave F + A2 code-smoke + A3 Branching Time/Storage Cleanup craft; residual A3 hosts + C/D + Windows matrix deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -52,11 +52,21 @@ Defaults: System Properties, Fast Search, Visual Filters only · `FIRST_USE_PLUG
 
 ### A2 — Absorb verification (features moved, not lost)
 
-Per [`PLUGINS-TODO-BEFORE-LAUNCH.MD`](../PLUGINS-TODO-BEFORE-LAUNCH.MD) must-move lists — **still open as smoke**, not re-absorb:
+Per [`PLUGINS-TODO-BEFORE-LAUNCH.MD`](../PLUGINS-TODO-BEFORE-LAUNCH.MD) must-move lists — **code-smoke verified 2026-09-14** (Windows click-through still deferred):
 
-- Magnets in Batch Rename · Encode in Metadata · Groups in Visual Filters · Policies/Intake in Drop Stack · Diff in Folder Sync · Vault in Project Sandbox · Health in Storage Cleanup  
-- Remaps: installed ids, bottom tabs, Command Deck tool ids  
+| Retired id → host | Surface found |
+|-------------------|---------------|
+| `drop-magnet` → Batch Rename | Magnets tab + `DropMagnetPlugin` |
+| `transcode-rack` → Metadata | Encode tab |
+| `semantic-desk` → Visual Filters | Smart groups |
+| `policy-packs` / `inbound-volume` / `capture-inbox` → Drop Stack | Policies + Intake tabs |
+| `compare` → Folder Sync | Diff surfaces |
+| `zk-vault` → Project Sandbox | Vault tab + `ZkVaultPlugin` embedded |
+| `library-health` / `reality-check` / `capacity-solver` → Storage Cleanup | Health + Capacity tabs |
+| Remaps | `RETIRED_PLUGIN_REMAP` in `PluginRegistryContext.tsx` |
+
 - **Exception:** Ghost → RAM Staging absorb is **superseded by A1 remove** — do not professionalize Staging; remove it.
+- [ ] Windows UI smoke: open each host tab once after install remap hydrate
 
 ### A3 — Keep + professionalize (big-company hosts)
 
@@ -271,7 +281,9 @@ Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windo
 
 ## Wave F — Quick boot + search index finish (added 2026-09-14)
 
-Explorer-grade cold start and an honest “index finished” state. Belongs in Launch Ready — not parked future work. Spacedrive is UX reference only; the live index is **`BndzFileIndexService`** (`%LocalAppData%/BNDZ/Index/files.db`).
+Explorer-grade cold start and an honest “index finished” state. Belongs in Launch Ready — not parked future work.
+
+**Spacedrive indexing:** never the live product index. Spacedrive remains UX/reference (`src/spacedrive/port/*` toolbars/views only). Optional `sd-server` packaging leftovers are not wired into search. Live Fast Search + status chip = **`BndzFileIndexService`** → `%LocalAppData%/BNDZ/Index/files.db` via `INDEX_PROGRESS` / `jobComplete`. Wave F’s “never finishes” bug was BNDZ multi-root progress semantics — not Spacedrive.
 
 ### F1 — Explorer-quick boot
 - [x] Overlap / defer non-critical boot work so first list paint feels Explorer-snappy

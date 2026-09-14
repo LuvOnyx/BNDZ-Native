@@ -211,11 +211,11 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   return (
     <PluginPanelShell
-      title="Cleanup & Health"
+      title="Storage Cleanup"
       icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Cleanup · capacity · library health · review before delete"
+      subtitle="One ops surface — clean · capacity · duplicates · library health"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -242,12 +242,12 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
         <>
       <PluginHeroStrip
         icon={<Icons8Icon id="storage_cleanup" size={52} className="opacity-90" />}
-        name="Disk Cleanup"
-        typeLabel="BNDZ Storage Cleanup"
+        name="Storage Cleanup"
+        typeLabel="Clean · reclaim · repair"
         path={currentPath && currentPath !== '/' ? currentPath : undefined}
         meta={
           <span className="bndz-panel-muted text-xs">
-            Pick scan areas · review findings · uninstall apps · reclaim space safely
+            Scan · review · reclaim — temp, apps, duplicates, and library health in one host
             {duplicateWaste > 0 ? ` · ${formatStorageSize(duplicateWaste)} duplicate waste` : ''}
           </span>
         }

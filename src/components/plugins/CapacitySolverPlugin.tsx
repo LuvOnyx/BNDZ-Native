@@ -392,11 +392,11 @@ export default function CapacitySolverPlugin({
 
   return (
     <PluginPanelShell
-      title="Capacity Solver"
+      title="Capacity"
       icon="hard_drive_ui"
       iconColor="#c48b4a"
       variant="embedded"
-      subtitle="What-if scrubbers · budget governor"
+      subtitle="What-if projection · budget"
     >
       <div className="flex flex-col min-h-0">
         <PluginHeroStrip
@@ -405,15 +405,15 @@ export default function CapacitySolverPlugin({
               <EmblemIcon id="drive-removable-media" size={48} />
             </div>
           }
-          name="Capacity Solver"
-          typeLabel="Storage what-if"
+          name="Capacity"
+          typeLabel="What-if · budget"
           meta={
             projection ? (
               <span className="bndz-panel-muted text-xs">
                 {formatBytes(projection.currentFreeBytes)} free → {formatBytes(liveProjected)} projected · {livePct}%
               </span>
             ) : (
-              <span className="bndz-panel-muted text-xs">Scrub keep-hot / recency to project free space</span>
+              <span className="bndz-panel-muted text-xs">Tune keep-hot / recency to project free space</span>
             )
           }
           actions={

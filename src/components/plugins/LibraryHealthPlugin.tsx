@@ -322,8 +322,8 @@ export default function LibraryHealthPlugin({
               <EmblemIcon id="emblem-warning" size={48} />
             </div>
           }
-          name="Library health"
-          typeLabel="Integrity scanner"
+          name="Health"
+          typeLabel="Integrity · refs · repair"
           meta={
             <span className="bndz-panel-muted text-xs">
               {summary.total} issue{summary.total === 1 ? '' : 's'}
