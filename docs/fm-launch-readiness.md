@@ -45,7 +45,7 @@ Build gate after code changes: `npm run build` → `dotnet build BNDZBackend/BND
 | 31 | Multi-select delete | ☐ |
 | 32 | Undo last delete (action log) | ☐ |
 | 33 | Redo after undo | ☐ |
-| 34 | Create on RAM staging zone | ☐ |
+| 34 | Create on Drop Stack staging zone (intake) | ☐ |
 | 35 | Create on mesh remote path | ☐ |
 
 ## Context menus (36–45)
@@ -140,7 +140,7 @@ Build gate after code changes: `npm run build` → `dotnet build BNDZBackend/BND
 | 96 | Theme / colors apply instantly | ☐ |
 | 97 | Command Deck only installed plugins | ☐ |
 | 98 | Bottom plugin panel resize | ☐ |
-| 99 | RAM staging mount browse + rename | ☐ |
+| 99 | Bottom plugin panel resize + install gating (no auto-install) | ☐ |
 | 100 | Full session: 30 min mixed FM work — zero crashes | ☐ |
 
 ## Anti-fake rules

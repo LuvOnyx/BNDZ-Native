@@ -17,8 +17,6 @@ export type AutomationNodeType =
   | 'copyTo'
   | 'moveTo'
   | 'rsyncDeploy'
-  | 'ghostLinkTo'
-  | 'stageToRam'
   | 'recycleBin'
   | 'compressArchive'
   | 'extractArchive'
@@ -171,20 +169,8 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
       { key: 'extraArgs', label: 'Extra rsync args', placeholder: '-avz --delete' },
     ],
   },
-  ghostLinkTo: {
-    label: 'Ghost-Link offload', color: '#a78bfa', icon: 'emblem-symbolic-link', category: 'action',
-    desc: 'Move matched files to cold storage and symlink originals',
-    fields: [{ key: 'coldStorageRoot', label: 'Cold storage root', placeholder: 'D:\\ColdStorage', type: 'folder' }],
-  },
-  stageToRam: {
-    label: 'Stage to RAM', color: '#c4a35a', icon: 'hard_drive_ui', category: 'action',
-    desc: 'Copy matched files into a RAM / Fast Staging zone',
-    fields: [
-      { key: 'zoneName', label: 'Zone name (if creating)', placeholder: 'Automation Staging' },
-      { key: 'sizeBudgetMb', label: 'Size budget MB', placeholder: '4096' },
-      { key: 'zoneId', label: 'Existing zone id (optional)', placeholder: 'Leave empty to reuse/create' },
-    ],
-  },
+
+
   recycleBin: {
     label: 'Recycle Bin', color: '#f87171', icon: 'trash_ui', category: 'action',
     desc: 'Send matched files to the Windows Recycle Bin',
@@ -327,7 +313,7 @@ export const PALETTE_GROUPS: Array<{ id: string; label: string; types: Automatio
   {
     id: 'actions',
     label: 'Actions',
-    types: ['copyTo', 'moveTo', 'rsyncDeploy', 'ghostLinkTo', 'stageToRam', 'recycleBin', 'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'applyTag', 'notifyToast', 'runShell', 'script', 'healthGate', 'sandboxCheckpoint', 'capacityApprove', 'branchCreate'],
+    types: ['copyTo', 'moveTo', 'rsyncDeploy', 'recycleBin', 'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'applyTag', 'notifyToast', 'runShell', 'script', 'healthGate', 'sandboxCheckpoint', 'capacityApprove', 'branchCreate'],
   },
   {
     id: 'utility',

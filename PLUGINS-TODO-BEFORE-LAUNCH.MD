@@ -58,7 +58,9 @@ Schedule after or alongside host professionalization — same launch bar.
 
 ### Leave alone (keep as their own Hub plugins)
 
-System Properties, Fast Search, Visual Filters, Batch Rename, Drop Stack, Metadata, Storage Cleanup, Folder Sync, Catalog, Action Log, Remote/Mesh, RAM Staging, Project Sandbox, Branching Time, Design Board, Shell Menus, Icon Studio.
+System Properties, Fast Search, Visual Filters, Batch Rename, Drop Stack, Metadata, Storage Cleanup, Folder Sync, Catalog, Action Log, Remote/Mesh, Project Sandbox, Branching Time, Shell Menus, Icon Studio.
+
+**Removed for launch (not Hub):** RAM Staging (decision 1.A), Design Board (iframe filler — demote/archive).
 
 ---
 

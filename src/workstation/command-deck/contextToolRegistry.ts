@@ -17,8 +17,6 @@ export type ContextToolId =
   | 'quick-look'
   | 'index-folder'
   | 'storage-cleanup'
-  | 'ghost-link'
-  | 'ram-staging'
   | 'dropstack'
   | 'catalog'
   | 'folder-sync'
@@ -30,7 +28,6 @@ export type ContextToolId =
   | 'analyze-audio'
   | 'continuum-compose'
   | 'work-intent'
-  | 'flush-ram-zone'
   | 'transcode-rack'
   | 'semantic-desk'
   | 'shell-menus';
@@ -86,10 +83,8 @@ export function filterToolsForInstalled(
 /** Stock context-menu ids → bottom-plugin id (same map as Command Deck). */
 const STOCK_CONTEXT_PLUGIN: Partial<Record<string, string>> = {
   'mesh-drop': 'remote-mesh',
-  'ghost-link': 'ram-staging',
-  'ram-staging': 'ram-staging',
+  // ghost-link / ram-staging / photo-studio removed with Launch Ready A1 Hub drop
   'zk-vault': 'project-sandbox',
-  'photo-studio': 'design-board',
   'batch-rename': 'batch-rename',
   'smart-rename': 'batch-rename',
   'hello-gate': 'project-sandbox',
@@ -122,8 +117,6 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       tool('batch-rename', 'Batch rename', 'batch_rename', 'batch-rename'),
       tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
       tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
-      tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
-      tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
       tool('capacity-solver', 'Capacity', 'bar_chart', 'storage-cleanup'),
       tool('inbound-volume', 'Intake', 'download_ui', 'dropstack'),
       tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
@@ -188,12 +181,9 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('project-sandbox', 'Sandbox', 'folder_tree', 'project-sandbox'),
         tool('library-health', 'Library Health', 'heart_monitor_ui', 'storage-cleanup'),
         tool('branching-time', 'Branches', 'history_ui', 'branching-time'),
-        tool('ghost-link', 'Ghost Offload', 'link_ui', 'ram-staging'),
         tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
         tool('mesh-download', 'Download', 'download', 'remote-mesh'),
         tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
-        tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
-        tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
         tool('continuum-compose', 'Pillar Board', 'layers_ui', undefined, 'host'),
         tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
         tool('catalog', 'Catalog', 'catalog', 'catalog'),

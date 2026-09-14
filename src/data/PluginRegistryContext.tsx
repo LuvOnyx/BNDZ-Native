@@ -12,11 +12,20 @@ import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/Fol
 import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
 import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
-import RamStagingPlugin, { RamStagingPluginDef } from '../components/plugins/RamStagingPlugin';
 import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plugins/ProjectSandboxPlugin';
 import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
-import DesignBoardPlugin, { DesignBoardPluginDef } from '../components/plugins/DesignBoardPlugin';
 import { useAppConfig } from './configContext';
+
+/**
+ * Launch Ready A1 — removed from Hub (not remapped to a living host):
+ * ram-staging, ghost-link, design-board. Saved installs scrub when not in ALL_PLUGINS.
+ */
+export const DROPPED_HUB_PLUGIN_IDS: ReadonlySet<string> = new Set([
+    'ram-staging',
+    'ghost-link',
+    'design-board',
+    'photo-studio', // stock gate formerly pointed at design-board
+]);
 
 /** Stale / absorbed plugin IDs remapped into real FM homes. */
 const RETIRED_PLUGIN_REMAP: Record<string, string> = {
@@ -30,7 +39,7 @@ const RETIRED_PLUGIN_REMAP: Record<string, string> = {
     'inbound-volume': 'dropstack',
     'capture-inbox': 'dropstack',
     'zk-vault': 'project-sandbox',
-    'ghost-link': 'ram-staging',
+    // ghost-link / ram-staging intentionally NOT remapped — Launch Ready removes Staging.
     'library-health': 'storage-cleanup',
     'reality-check': 'storage-cleanup',
 };
@@ -167,14 +176,6 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
 
     {
-        ...RamStagingPluginDef,
-        description: 'Staging continuum — hot RAM zones and cold ghost offload that keeps path links.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: RamStagingPlugin,
-    },
-    {
         ...ProjectSandboxPluginDef,
         description: 'Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults.',
         isInstalled: false,
@@ -183,7 +184,6 @@ const ALL_PLUGINS: PluginManifest[] = [
         component: ProjectSandboxPlugin,
     },
 
-
     {
         ...BranchingTimePluginDef,
         description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
@@ -191,15 +191,6 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: BranchingTimePlugin,
-    },
-
-    {
-        ...DesignBoardPluginDef,
-        isInstalled: false,
-        // Hosted Fabric/OpenPencil iframe shell — not a native C# filesystem plugin.
-        isNative: false,
-        targetPanel: 'bottom',
-        component: DesignBoardPlugin,
     },
 ];
 
@@ -234,6 +225,7 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
         const LEGACY_DEFAULT_PLUGINS = [
             'properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters',
             'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare',
+            // ghost-link / ram-staging scrubbed in Launch Ready A1 — keep in length check only if still present in saved configs
             'ghost-link', 'ram-staging',
         ];
         const savedRawEarly = config.installedPlugins as string[] | undefined;

@@ -1664,7 +1664,6 @@ export default function BNDZUI() {
       'inbound-volume': { id: 'dropstack', tab: 'intake' },
       'capture-inbox': { id: 'dropstack', tab: 'captures' },
       'zk-vault': { id: 'project-sandbox', tab: 'vault' },
-      'ghost-link': { id: 'ram-staging', tab: 'cold' },
       'library-health': { id: 'storage-cleanup', tab: 'health' },
       'reality-check': { id: 'storage-cleanup', tab: 'refs' },
     };
@@ -6244,42 +6243,8 @@ export default function BNDZUI() {
           },
         ],
       },
-      ...(installedPluginIdSet.has('ram-staging') && sidebarRamZones.length > 0
-        ? [{
-            treeKey: 'ram-staging',
-            draggable: true as const,
-            label: 'RAM Staging',
-            path: BNDZ_RAM_ROOT,
-            icon: 'hard_drive_ui',
-            iconColor: '#a78bfa',
-            useShellIcon: false as const,
-            expanded: ramStagingExpanded,
-            onClick: () => setCurrentPath(BNDZ_RAM_ROOT),
-            onToggle: () => setRamStagingExpanded(v => !v),
-            childrenItems: sidebarRamZones.map(z => ({
-              label: z.isDirty ? `${z.name} · dirty` : z.name,
-              path: bndzRamVirtualPath(z.id),
-              icon: 'hard_drive_ui',
-              iconColor: z.isDirty ? '#fbbf24' : '#a78bfa',
-              useShellIcon: false as const,
-            })),
-          }]
-        : []),
-      ...(config.ghostLinkColdStorageRoot
-        ? [{
-            treeKey: 'ghost-cold',
-            draggable: true as const,
-            label: 'Ghost cold',
-            path: toPanePath(config.ghostLinkColdStorageRoot),
-            icon: 'emblem-symbolic-link',
-            iconColor: '#c4b5fd',
-            useShellIcon: false as const,
-            expanded: ghostColdExpanded,
-            onClick: () => guardedSetCurrentPath(toPanePath(config.ghostLinkColdStorageRoot)),
-            onToggle: () => setGhostColdExpanded(!ghostColdExpanded),
-            childrenItems: [] as { label: string; path: string; icon: string; iconColor: string }[],
-          }]
-        : []),
+
+
       {
         treeKey: 'this-pc',
         draggable: true,
@@ -12563,8 +12528,6 @@ export default function BNDZUI() {
               onNavigate={p => setCurrentPath(p, pane.id)}
               onRefresh={() => void refetchPath(BNDZ_VIEWS_ROOT)}
               onOpenMeshDrop={() => { setMeshDropPaths([]); setShowMeshDropDialog(true); }}
-              onOpenGhostLink={() => openBottomPlugin('ghost-link')}
-              onOpenRamStaging={() => openBottomPlugin('ram-staging')}
             />
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
@@ -13329,17 +13292,7 @@ export default function BNDZUI() {
       case 'storage-cleanup':
         openBottomPlugin('storage-cleanup');
         break;
-      case 'ghost-link':
-        openBottomPlugin('ghost-link');
-        break;
-      case 'ram-staging':
-        if (bottomSelectionTargets.paths.length > 0) {
-          // Files selected — open plugin and pass paths for staging.
-          openBottomPlugin('ram-staging', { paths: bottomSelectionTargets.paths });
-        } else {
-          openBottomPlugin('ram-staging');
-        }
-        break;
+
       case 'dropstack':
         openBottomPlugin('dropstack');
         break;
@@ -13412,22 +13365,6 @@ export default function BNDZUI() {
         setToastMessage(toast);
         // Only open when pack resolved an installed plugin — never toast-spam missing ones.
         if (patch.bottomPanelDefaultPlugin) openBottomPlugin(String(patch.bottomPanelDefaultPlugin));
-        break;
-      }
-      case 'flush-ram-zone': {
-        const zoneId = parseBndzRamZoneId(bottomSelectionTargets.paths[0] || '')
-          || sidebarRamZones[0]?.id;
-        if (!zoneId) {
-          setToastMessage('No RAM zone to flush.', 'warning');
-          break;
-        }
-        void IPC.ramStagingFlushZone(zoneId).then(r => {
-          setToastMessage(r.ok ? `Flushed zone ${zoneId}` : (r.error || 'Flush failed'), r.ok ? 'success' : 'warning');
-          if (r.ok) {
-            invalidateRamZoneMountCache();
-            window.dispatchEvent(new CustomEvent('bndz-ram-zone-changed'));
-          }
-        });
         break;
       }
       default: {
@@ -15204,8 +15141,6 @@ export default function BNDZUI() {
               setMeshDropPaths(bottomSelectionTargets.paths);
               setShowMeshDropDialog(true);
             },
-            onRamStaging: () => openBottomPlugin('ram-staging'),
-            onGhostLink: () => openBottomPlugin('ghost-link'),
             onTag: () => setTagAssignmentActive(true),
             onCompare: () => openBottomPlugin('compare'),
             canPaste: !!clipboard.items?.length && !!clipboard.action,
@@ -16472,26 +16407,7 @@ export default function BNDZUI() {
           addTab={addTab}
           onOpenBatchRename={() => openBottomPlugin('batch-rename')}
           onOpenMeshDrop={(paths) => { setMeshDropPaths(paths); setShowMeshDropDialog(true); }}
-          onGhostLinkOffload={async (paths) => {
-            const { IPC: ipc } = await import('../lib/ipcBridge');
-            const cold = config.ghostLinkColdStorageRoot || '';
-            if (!cold.trim()) {
-              setToastMessage('Set a Ghost-Link cold storage root in Workspace Tools first.', 'warning');
-              openBottomPlugin('ghost-link');
-              return;
-            }
-            const r = await ipc.ghostLinkOffloadPaths(paths, cold.trim());
-            setToastMessage(r.ok ? 'Ghost-Link offload queued — see transfer panel.' : (r.error || 'Offload failed.'), r.ok ? 'success' : 'warning');
-          }}
-          onGhostLinkRestore={async (path) => {
-            const { IPC: ipc } = await import('../lib/ipcBridge');
-            const r = await ipc.ghostLinkRestore(path);
-            setToastMessage(r.ok ? 'Ghost link restored.' : (r.error || 'Restore failed.'), r.ok ? 'success' : 'warning');
-            void refetchPath(currentPath);
-          }}
-          onStageToRam={(paths) => {
-            openBottomPlugin('ram-staging', { paths });
-          }}
+
           setIsSmartToolsOpen={setIsSmartToolsOpen}
           setToastMessage={setToastMessage}
           setInlineRename={setInlineRename}

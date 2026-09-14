@@ -1463,20 +1463,6 @@ function ContextMenuView({
             }}
           />
           )}
-          {stockOn('ghost-link') && (
-          <ContextMenuItem
-            label="Ghost-Link offload…"
-            iconVerb="emblem-symbolic-link"
-            onClick={() => { void onGhostLinkOffload?.(targetPaths); onClose(); }}
-          />
-          )}
-          {stockOn('ram-staging') && (
-          <ContextMenuItem
-            label="Stage to RAM…"
-            iconVerb="hard_drive_ui"
-            onClick={() => { void onStageToRam?.(targetPaths); onClose(); }}
-          />
-          )}
         </>
       )}
 

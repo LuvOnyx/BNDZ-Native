@@ -11,7 +11,8 @@
 | # | Decision |
 |---|----------|
 | **1.A** | **Remove RAM Staging** from the product surface this pass (Hub, Command Deck, menus, Workspace Tools, Hub cards, automation nodes, launch-check rows that assume `/bndz/ram`). **No replacement RAM feature.** Strip ImDisk / AIM install–UAC–driver theater with it. Ghost/cold UI that only lived under Staging leaves the Hub with it (no half-kept “Cold” orphan plugin). |
-| **2** | **All tracks** — do not thin to one pillar. Run Waves A–D below as one Launch Ready program (parallel where safe; serialize only where files collide). |
+| **2** | **All tracks** — do not thin to one pillar. Run Waves **A–E** below as one Launch Ready program (parallel where safe; serialize only where files collide). |
+| **3** | **DnD CRITICAL:** Do not break inbound/outbound drag-and-drop. Outside-ghost polish is allowed. Spine is protected; bad polish can be reverted from commit history — still verify matrix 46–58 after any near-DnD touch. |
 
 ---
 
@@ -282,3 +283,21 @@ Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windo
 3. Ghost string scrub  
 4. Then parallel: **A2 smoke · B2 About assets · C1 scroll · E1 gap audit** (which collision types are missing vs table) — no DnD spine edits  
 )
+
+
+---
+
+## E1 gap audit (recorded at A1 start)
+
+| Situation | Exists today? | Launch gap |
+|-----------|---------------|------------|
+| Same-name collision | Partial — `FileConflictModal` on **bndz** engine; default **native** uses Explorer UI | Unify / ensure BNDZ sheet covers folders too when using bndz engine |
+| Disk full | Partial — backend can throw; **no dedicated modal**; space pre-check default off | Add capacity modal (need vs free) |
+| Access denied → UAC | Partial — elevate relaunch works; **no pending file-op retry** after Allow | Wire retry-after-elevate for transfers |
+| File in use | No product modal | Add Skip / Retry / Cancel |
+| Folder into itself | Partial — list DnD silent block only | Modal + Copy/Move To / paste guards |
+| Path too long | No | Add Skip / Cancel + rename hint |
+| Partial batch failure | Partial — toast/queue row | Retry failed / Skip rest / Open log |
+| Shell Integration admin | Mostly yes | Windows live verify toggles (E3) |
+
+**DnD protect:** A1 does not touch OLE spine; only removed RAM-zone product drop interception and Hub/Deck/menu chrome.
