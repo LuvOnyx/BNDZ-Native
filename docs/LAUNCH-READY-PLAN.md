@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — Waves A1 + E (ops dialogs / elevation / Shell Integration cancel) + B brand/copy scrub landed in code; Windows matrix / UAC live verify deferred  
+**Status:** Execution in progress — A1 + E (code) + B brand scrub landed; Wave C Fast Search empty/keyboard polish in progress; Notes/Batch/checkboxes/Folder Options parked in `to-do-future-upgrades.md` until Launch Ready closes; Windows matrix / UAC live verify deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -88,7 +88,9 @@ Already called out in plugins todo — finish launch-grade brand craft (fix brok
 
 ### A5 — Explicitly later (do not fake-ship)
 
-Archive plugin · Text Editor plugin · external signed npm/zip plugin packages · Rain-Explorer / QuickLook / filessh vendoring — **out of Launch Ready**.
+Archive plugin · Text Editor / **Notes** plugin · external signed npm/zip plugin packages · Rain-Explorer / QuickLook / filessh vendoring — **out of Launch Ready**.
+
+Parked post-launch product ideas (list checkboxes all views, Folder Options, Notes, Batch rename→Batch) live in [`to-do-future-upgrades.md`](../to-do-future-upgrades.md) — **do not start until Launch Ready is signed closed**.
 
 ---
 
@@ -255,7 +257,7 @@ Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windo
 ## Out of scope for this Launch Ready program
 
 - Net-new Hub filler / selling skins dressed as new plugins  
-- Archive + Text Editor (later)  
+- Archive + Notes (later — see `to-do-future-upgrades.md`)  
 - External plugin package marketplace runtime  
 - DnD architecture rewrite (ghost polish ≠ rewrite)  
 - Replacement RAM disk feature after Staging removal  

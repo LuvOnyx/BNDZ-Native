@@ -13,9 +13,11 @@ Write these down so we don’t lose them. They take Hub slots **after** absorpti
 | Idea | Direction |
 | --- | --- |
 | **Archive** | WinRAR / 7-Zip–class plugin (create, extract, browse, test). We already have preview-panel archive support — this would be the full product surface. |
-| **Text Editor** | Our own Notepad++–style editor plugin (tabs, syntax, find/replace, encoding) — useful and distinct. |
+| **Notes** (was Text Editor) | iOS Notes–like craft + Notepad++-class power; pop-out; text preview routes into Notes. Spec parked in [`to-do-future-upgrades.md`](to-do-future-upgrades.md). |
 
-More net-new ideas only after those two (or instead of them) are designed properly. No filler “replacement” catalogs.
+Also parked there (not Hub net-new alone): **list checkboxes all views**, **Folder Options**, **Batch** (rename Batch Rename → Batch + temp checkboxes). Start only after Launch Ready closes.
+
+More net-new ideas only after those are designed properly. No filler “replacement” catalogs.
 
 ---
 
@@ -138,11 +140,11 @@ Polish copy, empty states, selection wiring, and Uiverse-level craft. Defaults a
 3. Professionalize that host’s UI/story  
 4. About + Register/serial polish  
 5. Launch with a smaller, stronger Hub  
-6. **Later:** Archive plugin, Text Editor plugin  
+6. **Later:** Archive plugin, Notes plugin (see [`to-do-future-upgrades.md`](to-do-future-upgrades.md))  
 
 ```text
 absorb → professionalize hosts → About/Register polish → launch
-        → (later) Archive + Text Editor
+        → (later) Archive + Notes (+ parked Batch / checkboxes / Folder Options)
 ```
 
 ---
@@ -155,7 +157,7 @@ absorb → professionalize hosts → About/Register polish → launch
 | Old thin ids gone from Hub; remaps work | |
 | Hosts read as one product each, not dumped tabs | |
 | About + Register feel launch-ready | |
-| Archive + Text Editor are only listed under Later — not fake-shipped | |
+| Archive + Notes are only listed under Later / future upgrades — not fake-shipped | |
 
 
 ## Absorption progress
