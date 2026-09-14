@@ -323,7 +323,7 @@ public sealed class FileTransferQueueService
         // Don't overwrite terminal success/cancel/pause with a late failure from post-work hooks.
         if (job.Status is FileTransferJobStatus.Completed or FileTransferJobStatus.Cancelled or FileTransferJobStatus.Paused) return;
         job.Status = FileTransferJobStatus.Failed;
-        job.Error = error;
+        job.Error = EnrichDiskFullError(job, error);
         job.CompletedUtc = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(error) && error.Contains("verification", StringComparison.OrdinalIgnoreCase))
         {
@@ -879,4 +879,46 @@ public sealed class FileTransferQueueService
             "low" => FileTransferPriority.Low,
             _ => FileTransferPriority.Normal,
         };
+
+    /// <summary>
+    /// Append "Need X, have Y" when a disk-full failure lacks capacity figures so the FE modal can show need-vs-free.
+    /// </summary>
+    private static string? EnrichDiskFullError(FileTransferJob job, string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error)) return error;
+        var msg = error;
+        var looksDiskFull =
+            msg.IndexOf("not enough free space", StringComparison.OrdinalIgnoreCase) >= 0
+            || msg.IndexOf("disk full", StringComparison.OrdinalIgnoreCase) >= 0
+            || msg.IndexOf("ERROR_DISK_FULL", StringComparison.OrdinalIgnoreCase) >= 0
+            || msg.IndexOf("0x80070070", StringComparison.OrdinalIgnoreCase) >= 0
+            || msg.IndexOf(" insufficient disk", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (!looksDiskFull) return error;
+        if (msg.IndexOf("Need ", StringComparison.OrdinalIgnoreCase) >= 0
+            && msg.IndexOf("have ", StringComparison.OrdinalIgnoreCase) >= 0)
+            return error;
+
+        long needed = job.TotalBytes > 0 ? job.TotalBytes : 0;
+        long free = 0;
+        try
+        {
+            var dest = job.DestinationPath;
+            if (!string.IsNullOrWhiteSpace(dest))
+            {
+                var root = Path.GetPathRoot(dest);
+                if (!string.IsNullOrEmpty(root))
+                {
+                    var drive = new DriveInfo(root);
+                    if (drive.IsReady) free = drive.AvailableFreeSpace;
+                }
+            }
+        }
+        catch { /* best effort */ }
+
+        if (needed <= 0 && free <= 0) return error;
+        var needLabel = needed > 0 ? FileOperationPathPlanner.FormatBytesPublic(needed) : "unknown";
+        var freeLabel = free > 0 ? FileOperationPathPlanner.FormatBytesPublic(free) : "unknown";
+        var trimmed = error.Trim().TrimEnd('.');
+        return $"{trimmed}. Need {needLabel}, have {freeLabel}.";
+    }
 }

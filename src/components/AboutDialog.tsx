@@ -71,7 +71,7 @@ export default function AboutDialog({
     >
       <div className="bndz-about-body space-y-4 -mt-1">
         <div className="bndz-register-brand !mb-0">
-          <img src="/bndz-light.png" alt="" className="bndz-register-brand-mark" draggable={false} />
+          <img src="/Bndz-main.png" alt="" className="bndz-register-brand-mark" draggable={false} />
           <div className="bndz-register-brand-copy">
             <div className="bndz-register-brand-name">BNDZ</div>
             <div className="bndz-register-brand-tag">Built for people who live in files all day</div>

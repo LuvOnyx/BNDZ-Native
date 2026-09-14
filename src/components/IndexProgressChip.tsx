@@ -7,22 +7,28 @@ type Props = {
   currentPath?: string;
   root?: string;
   error?: string;
+  /** Whole multi-root job finished — show Complete instead of spinning. */
+  complete?: boolean;
 };
 
 /** Status-bar chip for background BNDZ search index builds. */
-export default function IndexProgressChip({ filesIndexed, currentPath, root, error }: Props) {
+export default function IndexProgressChip({ filesIndexed, currentPath, root, error, complete }: Props) {
   const file = currentPath ? toWindowsPath(currentPath).split(/[/\\]/).pop() : '';
   const rootLabel = root ? toWindowsPath(root).split(/[/\\]/).pop() : '';
 
   return (
     <span
       className="bndz-status-bar-chip"
-      title={error || currentPath || root || 'Indexing files'}
+      title={error || (complete ? 'Search index up to date' : currentPath || root || 'Indexing files')}
       role="status"
     >
-      <Icons8Icon id="database_ui" size={12} className="shrink-0 opacity-80" />
+      <Icons8Icon id={complete && !error ? 'check' : 'database_ui'} size={12} className="shrink-0 opacity-80" />
       {error ? (
         <span className="truncate text-red-300/90">Index failed · {error}</span>
+      ) : complete ? (
+        <span className="truncate text-emerald-300/90">
+          Indexed {filesIndexed.toLocaleString()}
+        </span>
       ) : (
         <span className="truncate">
           Indexing {filesIndexed.toLocaleString()}
@@ -30,7 +36,7 @@ export default function IndexProgressChip({ filesIndexed, currentPath, root, err
           {rootLabel && !file ? <span className="text-[#888] ml-1">· {rootLabel}</span> : null}
         </span>
       )}
-      {!error && <Icons8Icon id="loading" size={10} spin className="shrink-0 opacity-70" />}
+      {!error && !complete && <Icons8Icon id="loading" size={10} spin className="shrink-0 opacity-70" />}
     </span>
   );
 }

@@ -32,7 +32,7 @@ public sealed class FileOperationPreferences
     public bool ForCrossVolumeMovesOnly { get; set; }
     public bool NoProgressDialogOnDuplications { get; set; }
     public bool NoProgressDialogOnIntraVolumeMoves { get; set; }
-    public bool CheckSpaceBeforeCopy { get; set; }
+    public bool CheckSpaceBeforeCopy { get; set; } = true;
     public bool DefaultRepeatOnCollision { get; set; }
 
     public bool SuppressDeleteConfirmation { get; set; }
@@ -127,7 +127,7 @@ public sealed class FileOperationPreferences
                 ForCrossVolumeMovesOnly = ReadBool(root, "forCrossVolumeMovesOnly", false),
                 NoProgressDialogOnDuplications = ReadBool(root, "noProgressDialogOnDuplications", false),
                 NoProgressDialogOnIntraVolumeMoves = ReadBool(root, "noProgressDialogOnIntraVolumeMoves", false),
-                CheckSpaceBeforeCopy = ReadBool(root, "checkBeforehandWhetherThereIsEnoughSpace", false),
+                CheckSpaceBeforeCopy = ReadBool(root, "checkBeforehandWhetherThereIsEnoughSpace", true),
                 DefaultRepeatOnCollision = ReadBool(root, "defaultToRepeatActionOnCollisions", false),
                 SuppressDeleteConfirmation = ReadBool(root, "suppressDeleteConfirmationDialog", false),
                 PreservePermissionsOnMove = ReadBool(root, "preservePermissionsOnMoveOperation", false),

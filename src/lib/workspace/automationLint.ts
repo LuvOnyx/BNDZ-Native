@@ -12,7 +12,7 @@ export type LintIssue = {
 const TERMINAL_TYPES = new Set<AutomationNodeType>([
   'log', 'notifyToast', 'recycleBin', 'delay', 'moveTo', 'copyTo', 'rsyncDeploy', 'runShell',
   'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'stopAbort',
-  'ghostLinkTo', 'stageToRam', 'script', 'healthGate', 'sandboxCheckpoint', 'capacityApprove', 'branchCreate',
+  'script', 'healthGate', 'sandboxCheckpoint', 'capacityApprove', 'branchCreate',
 ]);
 
 /** Fields that must be non-empty for the given block type. */
@@ -21,7 +21,6 @@ const REQUIRED_FIELDS: Partial<Record<AutomationNodeType, string[]>> = {
   copyTo: ['dest'],
   moveTo: ['dest'],
   rsyncDeploy: ['remote'],
-  ghostLinkTo: ['coldStorageRoot'],
   compressArchive: ['dest'],
   extractArchive: ['dest'],
   syncFolders: ['dest'],
@@ -129,20 +128,6 @@ export function lintAutomationGraph(graph: AutomationGraph): LintIssue[] {
       }
     }
 
-    if (n.type === 'stageToRam') {
-      const sizeRaw = String(n.data.sizeBudgetMb ?? '').trim();
-      if (sizeRaw) {
-        const nMb = Number(sizeRaw.replace(/[MmBb]/g, ''));
-        if (!Number.isFinite(nMb) || nMb < 256) {
-          issues.push({
-            id: `ram_size_${n.id}`,
-            severity: 'warn',
-            nodeId: n.id,
-            message: 'Stage to RAM: size budget should be ≥ 256 MB',
-          });
-        }
-      }
-    }
 
     if (n.type === 'filterExtension' || n.type === 'filterArchive') {
       const ext = String(n.data.extensions ?? '').trim();
@@ -273,12 +258,7 @@ function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
     case 'copyTo': return `Copy → ${pathLabel(d.dest) || '(unset)'}`;
     case 'moveTo': return `Move → ${pathLabel(d.dest) || '(unset)'}`;
     case 'rsyncDeploy': return `Deploy → ${d.remote || '(unset)'}`;
-    case 'ghostLinkTo': return `Ghost-Link → ${pathLabel(d.coldStorageRoot) || '(unset)'}`;
-    case 'stageToRam': {
-      const zoneId = String(d.zoneId || '').trim();
-      if (zoneId) return `Stage → zone ${zoneId}`;
-      return `Stage → ${d.zoneName || 'Automation Staging'} (${d.sizeBudgetMb || '4096'} MB)`;
-    }
+
     case 'recycleBin': return 'Send to Recycle Bin';
     case 'compressArchive': return `Compress → ${pathLabel(d.dest) || '(unset)'}`;
     case 'extractArchive': return `Extract → ${pathLabel(d.dest) || '(unset)'}`;

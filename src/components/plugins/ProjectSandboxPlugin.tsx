@@ -11,12 +11,8 @@ import {
   PluginToolbarButton,
   PluginTabStrip,
   PluginTab,
-  PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
   PluginHeroActionButton,
-  PluginStatCard,
-  PluginSectionTitle,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
@@ -262,13 +258,15 @@ export default function ProjectSandboxPlugin({
     { id: 'vault', label: 'Vault', icon: 'lock_ui' },
   ];
 
+  const primary = activeSessions[0] ?? null;
+
   return (
     <PluginPanelShell
-      title="Safe Workspaces"
+      title="Project Sandbox"
       icon="layers_ui"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults"
+      subtitle="Safe workspaces · checkpoints · vault"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -285,224 +283,207 @@ export default function ProjectSandboxPlugin({
         </PluginTabStrip>
       }
     >
-      <div className="flex flex-col min-h-0 h-full">
+      <div className="flex flex-col min-h-0 h-full bndz-sandbox-root">
         {activeTab === 'vault' ? (
           <div className="flex-1 min-h-0 overflow-hidden">
             <ZkVaultPlugin currentPath={currentPath} selectedPaths={selectedPaths} embedded />
           </div>
         ) : (
-        <>
-        <PluginHeroStrip
-          icon={
-            <div className="flex items-center justify-center">
-              <EmblemIcon id="emblem-documents" size={48} />
-            </div>
-          }
-          name="Project Sandbox"
-          typeLabel="Sandbox sessions"
-          meta={
-            <span className="bndz-panel-muted text-xs">
-              {activeSessions.length} active · {sessions.length} total
-            </span>
-          }
-          actions={
-            <>
-              <PluginHeroActionButton
-                icon="plus_ui"
-                variant="primary"
-                onClick={() => void startSession()}
-                disabled={busy}
-              >
-                Start sandbox
-              </PluginHeroActionButton>
-              <PluginHeroActionButton icon="reset_ui" onClick={() => void refresh()} disabled={busy}>
-                Refresh
-              </PluginHeroActionButton>
-            </>
-          }
-        />
-
-        {/* ── Live session status bar ── */}
-        {activeSessions.length > 0 && sessionStatus && (
-          <div className="shrink-0 px-5 py-2.5 border-b border-white/[0.06] bg-emerald-500/[0.06]">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-                  Active
-                </span>
+          <>
+            <div className="bndz-sandbox-rail">
+              <div className="bndz-sandbox-rail-mark" aria-hidden>
+                <EmblemIcon id="emblem-documents" size={36} />
               </div>
-              <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                <span className="inline-flex items-center gap-1">
-                  <Icons8Icon id="data_transfer" size={10} className="text-emerald-400/60" />
-                  <span className="font-mono font-semibold text-white">{sessionStatus.pendingOpsCount}</span> pending ops
+              <div className="bndz-sandbox-rail-copy min-w-0">
+                <div className="bndz-sandbox-rail-title">
+                  {primary ? primary.name : 'No live session'}
+                </div>
+                <div className="bndz-sandbox-rail-path" title={primary ? formatUiPath(primary.rootPath) : currentPath || ''}>
+                  {primary
+                    ? formatUiPath(primary.rootPath)
+                    : (currentPath && currentPath !== '/'
+                      ? formatUiPath(toWindowsPath(currentPath))
+                      : 'Open a folder, then start a sandbox')}
+                </div>
+              </div>
+              <div className="bndz-sandbox-rail-actions">
+                <PluginHeroActionButton
+                  icon="plus_ui"
+                  variant="primary"
+                  onClick={() => void startSession()}
+                  disabled={busy}
+                >
+                  Start
+                </PluginHeroActionButton>
+                <PluginToolbarButton icon="refresh_ui" title="Refresh" onClick={() => void refresh()} disabled={busy} />
+              </div>
+            </div>
+
+            {primary && sessionStatus && (
+              <div className="bndz-sandbox-live" role="status">
+                <span className="bndz-sandbox-live-dot" />
+                <span className="bndz-sandbox-live-label">Live</span>
+                <span className="bndz-sandbox-live-metric">
+                  <Icons8Icon id="data_transfer" size={10} />
+                  <strong>{sessionStatus.pendingOpsCount}</strong> ops
                 </span>
-                <span className="text-white/10">|</span>
-                <span className="inline-flex items-center gap-1">
-                  <Icons8Icon id="data_backup" size={10} className="text-emerald-400/60" />
+                <span className="bndz-sandbox-live-metric">
+                  <Icons8Icon id="data_backup" size={10} />
                   {formatBytes(sessionStatus.shadowSizeBytes)} shadow
                 </span>
-                {sessionStatus.lastCheckpoint && (
-                  <>
-                    <span className="text-white/10">|</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Icons8Icon id="bookmark_ui" size={10} className="text-amber-400/60" />
-                      <span className="text-amber-300/80 truncate max-w-[120px]">{sessionStatus.lastCheckpoint.name}</span>
-                      <span className="text-gray-500">{relativeTime(sessionStatus.lastCheckpoint.createdUtc)}</span>
-                    </span>
-                  </>
-                )}
+                {sessionStatus.lastCheckpoint ? (
+                  <span className="bndz-sandbox-live-metric">
+                    <Icons8Icon id="bookmark_ui" size={10} />
+                    <span className="truncate max-w-[140px]">{sessionStatus.lastCheckpoint.name}</span>
+                    <em>{relativeTime(sessionStatus.lastCheckpoint.createdUtc)}</em>
+                  </span>
+                ) : null}
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
-          {activeTab === 'active' && (
-            <div className="p-5 space-y-3">
-              {activeSessions.length === 0 ? (
-                <PluginEmptyState
-                  icon="layers_ui"
-                  title="No active sandboxes"
-                  description="Start a sandbox from the current folder to experiment safely. Commit when ready, or discard to revert."
-                />
-              ) : (
-                activeSessions.map(s => (
-                  <PluginCard key={s.id} className="bndz-sandbox-session-card">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-white truncate">{s.name}</div>
-                        <div className="bndz-mono text-[10px] text-gray-500 truncate">{formatUiPath(s.rootPath)}</div>
-                      </div>
-                      <span className="text-[10px] text-gray-500">{relativeTime(s.createdUtc)}</span>
-                    </div>
-
-                    {/* Session stats row */}
-                    {sessionStatus && (
-                      <div className="grid grid-cols-3 gap-2 mb-3">
-                        <div className="bg-black/20 rounded-lg px-3 py-2 text-center">
-                          <div className="text-sm font-bold text-white font-mono">{sessionStatus.pendingOpsCount}</div>
-                          <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Operations</div>
-                        </div>
-                        <div className="bg-black/20 rounded-lg px-3 py-2 text-center">
-                          <div className="text-sm font-bold text-white font-mono">{formatBytes(sessionStatus.shadowSizeBytes)}</div>
-                          <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Shadow size</div>
-                        </div>
-                        <div className="bg-black/20 rounded-lg px-3 py-2 text-center">
-                          <div className="text-sm font-bold text-white truncate">
-                            {sessionStatus.lastCheckpoint?.name ?? '—'}
-                          </div>
-                          <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">
-                            {sessionStatus.lastCheckpoint ? `CP ${relativeTime(sessionStatus.lastCheckpoint.createdUtc)}` : 'No checkpoint'}
+            <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
+              {activeTab === 'active' && (
+                <div className="bndz-sandbox-pad">
+                  {!primary ? (
+                    <PluginEmptyState
+                      icon="layers_ui"
+                      title="No active sandboxes"
+                      description="Start a sandbox on the current folder to experiment safely. Commit when ready, or discard to revert."
+                    />
+                  ) : (
+                    <article className="bndz-sandbox-stage">
+                      <header className="bndz-sandbox-stage-head">
+                        <div className="min-w-0">
+                          <div className="bndz-sandbox-stage-name">{primary.name}</div>
+                          <div className="bndz-sandbox-stage-meta">
+                            Started {relativeTime(primary.createdUtc) || '—'}
+                            {typeof primary.fileCount === 'number' && primary.fileCount > 0
+                              ? ` · ${primary.fileCount.toLocaleString()} files`
+                              : ''}
                           </div>
                         </div>
+                      </header>
+                      <div className="bndz-sandbox-stage-actions">
+                        <button
+                          type="button"
+                          className="bndz-sandbox-btn bndz-sandbox-btn-primary"
+                          disabled={busy}
+                          onClick={() => void commitSession(primary.id)}
+                        >
+                          <Icons8Icon id="check" size={12} /> Commit
+                        </button>
+                        <button
+                          type="button"
+                          className="bndz-sandbox-btn"
+                          disabled={busy}
+                          onClick={() => void discardSession(primary.id)}
+                        >
+                          <Icons8Icon id="delete" size={12} /> Discard
+                        </button>
+                        <button
+                          type="button"
+                          className="bndz-sandbox-btn bndz-sandbox-btn-quiet"
+                          onClick={() => { setExpandedSession(primary.id); setActiveTab('checkpoints'); }}
+                        >
+                          <Icons8Icon id="bookmark_ui" size={12} /> Checkpoints
+                        </button>
                       </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      <PluginToolbarButton icon="check" onClick={() => void commitSession(s.id)} disabled={busy}>
-                        Commit
-                      </PluginToolbarButton>
-                      <PluginToolbarButton icon="delete" onClick={() => void discardSession(s.id)} disabled={busy}>
-                        Discard
-                      </PluginToolbarButton>
-                      <PluginToolbarButton
-                        icon="bookmark_ui"
-                        onClick={() => { setExpandedSession(s.id); setActiveTab('checkpoints'); }}
-                      >
-                        Checkpoints
-                      </PluginToolbarButton>
-                    </div>
-                  </PluginCard>
-                ))
-              )}
-            </div>
-          )}
-
-          {activeTab === 'history' && (
-            <div className="p-5 space-y-2">
-              {sessions.length === 0 ? (
-                <PluginEmptyState
-                  icon="clock_ui"
-                  title="No sandbox history"
-                  description="Previous sandbox sessions will appear here."
-                />
-              ) : (
-                sessions.map(s => {
-                  const statusStyle = s.status === 'active'
-                    ? 'text-emerald-400' : s.status === 'committed'
-                    ? 'text-sky-400' : s.status === 'discarded'
-                    ? 'text-amber-400' : 'text-gray-500';
-                  return (
-                    <PluginCard key={s.id}>
-                      <div className="flex items-center gap-3">
-                        <Icons8Icon id={s.status === 'active' ? 'zap_ui' : s.status === 'committed' ? 'check' : 'reset_ui'} size={14}
-                          className={statusStyle} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-white truncate">{s.name}</div>
-                          <div className="bndz-mono text-[10px] text-gray-500 truncate">{formatUiPath(s.rootPath)}</div>
-                        </div>
-                        <span className={`text-[10px] shrink-0 font-semibold uppercase tracking-wider ${statusStyle}`}>{s.status}</span>
-                        <span className="text-[10px] text-gray-600 shrink-0">{relativeTime(s.createdUtc)}</span>
-                      </div>
-                    </PluginCard>
-                  );
-                })
-              )}
-            </div>
-          )}
-
-          {activeTab === 'checkpoints' && (
-            <div className="p-5 space-y-4">
-              {expandedSession && (
-                <div className="flex items-center gap-2">
-                  <input
-                    className={`${PLUGIN_INPUT_CLASS} flex-1`}
-                    value={cpName}
-                    onChange={e => setCpName(e.target.value)}
-                    placeholder="Checkpoint name…"
-                    onKeyDown={e => { if (e.key === 'Enter') void createCheckpoint(expandedSession); }}
-                  />
-                  <PluginToolbarButton
-                    icon="bookmark_ui"
-                    onClick={() => void createCheckpoint(expandedSession)}
-                    disabled={busy || !cpName.trim()}
-                  >
-                    Save
-                  </PluginToolbarButton>
+                    </article>
+                  )}
                 </div>
               )}
-              {checkpoints.length === 0 ? (
-                <PluginEmptyState
-                  icon="bookmark_ui"
-                  title="No checkpoints"
-                  description="Save named checkpoints during a sandbox session to roll back later."
-                />
-              ) : (
-                checkpoints.map(cp => (
-                  <PluginCard key={cp.id}>
-                    <div className="flex items-center gap-3">
-                      <Icons8Icon id="bookmark_ui" size={14} className="text-amber-400/70" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-white truncate">{cp.name}</div>
-                        <div className="text-[10px] text-gray-500">{relativeTime(cp.createdUtc)}</div>
-                      </div>
-                      <PluginToolbarButton
-                        icon="reset_ui"
-                        onClick={() => void restoreCheckpoint(cp.sessionId, cp.id)}
-                        disabled={busy}
+
+              {activeTab === 'history' && (
+                <div className="bndz-sandbox-pad">
+                  {sessions.length === 0 ? (
+                    <PluginEmptyState
+                      icon="clock_ui"
+                      title="No sandbox history"
+                      description="Previous sandbox sessions will appear here."
+                    />
+                  ) : (
+                    <ol className="bndz-sandbox-timeline">
+                      {sessions.map((s, i) => {
+                        const tone = s.status === 'active'
+                          ? 'is-live' : s.status === 'committed'
+                          ? 'is-ok' : s.status === 'discarded'
+                          ? 'is-warn' : '';
+                        return (
+                          <li key={s.id} className={`bndz-sandbox-tl-node ${tone}`}>
+                            <div className="bndz-sandbox-tl-rail" aria-hidden>
+                              <span className="bndz-sandbox-tl-dot" />
+                              {i < sessions.length - 1 ? <span className="bndz-sandbox-tl-line" /> : null}
+                            </div>
+                            <div className="bndz-sandbox-tl-body">
+                              <div className="bndz-sandbox-tl-row">
+                                <span className="bndz-sandbox-tl-name">{s.name}</span>
+                                <span className={`bndz-sandbox-tl-status ${tone}`}>{s.status}</span>
+                                <span className="bndz-sandbox-tl-when">{relativeTime(s.createdUtc)}</span>
+                              </div>
+                              <div className="bndz-sandbox-tl-path" title={formatUiPath(s.rootPath)}>
+                                {formatUiPath(s.rootPath)}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'checkpoints' && (
+                <div className="bndz-sandbox-pad">
+                  {expandedSession && (
+                    <div className="bndz-sandbox-composer">
+                      <input
+                        className={`${PLUGIN_INPUT_CLASS} flex-1 bndz-sandbox-composer-input`}
+                        value={cpName}
+                        onChange={e => setCpName(e.target.value)}
+                        placeholder="Name this restore point…"
+                        onKeyDown={e => { if (e.key === 'Enter') void createCheckpoint(expandedSession); }}
+                      />
+                      <button
+                        type="button"
+                        className="bndz-sandbox-btn bndz-sandbox-btn-primary"
+                        disabled={busy || !cpName.trim()}
+                        onClick={() => void createCheckpoint(expandedSession)}
                       >
-                        Restore
-                      </PluginToolbarButton>
+                        <Icons8Icon id="bookmark_ui" size={12} /> Save
+                      </button>
                     </div>
-                  </PluginCard>
-                ))
+                  )}
+                  {checkpoints.length === 0 ? (
+                    <PluginEmptyState
+                      icon="bookmark_ui"
+                      title="No checkpoints"
+                      description="Save named checkpoints during a sandbox session to roll back later."
+                    />
+                  ) : (
+                    <ol className="bndz-sandbox-cp-rail">
+                      {checkpoints.map(cp => (
+                        <li key={cp.id} className="bndz-sandbox-cp-strip">
+                          <Icons8Icon id="bookmark_ui" size={14} className="text-amber-400/80 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="bndz-sandbox-cp-name">{cp.name}</div>
+                            <div className="bndz-sandbox-cp-when">{relativeTime(cp.createdUtc)}</div>
+                          </div>
+                          <button
+                            type="button"
+                            className="bndz-sandbox-btn"
+                            disabled={busy}
+                            onClick={() => void restoreCheckpoint(cp.sessionId, cp.id)}
+                          >
+                            <Icons8Icon id="reset_ui" size={12} /> Restore
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-      </>
+          </>
         )}
       </div>
     </PluginPanelShell>

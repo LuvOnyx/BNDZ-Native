@@ -1463,30 +1463,10 @@ function ContextMenuView({
             }}
           />
           )}
-          {stockOn('ghost-link') && (
-          <ContextMenuItem
-            label="Ghost-Link offload…"
-            iconVerb="emblem-symbolic-link"
-            onClick={() => { void onGhostLinkOffload?.(targetPaths); onClose(); }}
-          />
-          )}
-          {stockOn('ram-staging') && (
-          <ContextMenuItem
-            label="Stage to RAM…"
-            iconVerb="hard_drive_ui"
-            onClick={() => { void onStageToRam?.(targetPaths); onClose(); }}
-          />
-          )}
         </>
       )}
 
-      {!isBackground && menu.isGhostLink && menu.entityId && (
-        <ContextMenuItem
-          label="Restore ghost link"
-          iconVerb="refresh"
-          onClick={() => { void onGhostLinkRestore?.(fullEntityPath()); onClose(); }}
-        />
-      )}
+      {/* Launch Ready A1: Ghost-Link / RAM Staging product chrome removed — no restore/stage verbs. */}
 
       {(!!config.customItemsInTheContextMenu && (config.customContextMenuActions?.length || 0) > 6) && (
         <>

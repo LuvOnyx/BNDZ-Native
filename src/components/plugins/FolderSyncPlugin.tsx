@@ -13,8 +13,6 @@ import {
   PluginCard,
   PluginFieldLabel,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
   PluginTabStrip,
   PluginTab,
@@ -296,38 +294,29 @@ export default function FolderSyncPlugin({
             selectedPaths={comparePaths}
             focusedPath={focusedPath || currentPath}
             onNavigate={onNavigate}
+            bareChrome
           />
         </div>
       ) : (
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <PluginHeroStrip
-          icon={<Icons8Icon id="sync_folders" size={52} className="opacity-90" />}
-          name={jobs.length ? `${jobs.length} sync pair${jobs.length === 1 ? '' : 's'}` : 'Folder sync'}
-          typeLabel="Robocopy engine"
-          path={currentPath ? formatUiPath(currentPath) : undefined}
-          meta={
-            <span className="bndz-panel-muted text-xs">
-              {jobs.filter(j => j.watchEnabled).length} watching · {syncingId ? 'Sync in progress' : 'Ready'}
-            </span>
-          }
-          actions={
-            <>
-              <PluginHeroActionButton
-                icon="sync_folders"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: '/bndz/twin-volume' } }));
-                }}
-              >
-                Cross-volume board
-              </PluginHeroActionButton>
-              <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNewJob}>New sync</PluginHeroActionButton>
-            </>
-          }
-        />
+        <div className="bndz-foldersync-opsrail">
+          <div className="bndz-foldersync-opsrail-copy min-w-0">
+            <div className="bndz-foldersync-opsrail-title">
+              {jobs.length ? `${jobs.length} sync pair${jobs.length === 1 ? '' : 's'}` : 'Folder sync'}
+            </div>
+            <div className="bndz-foldersync-opsrail-meta">
+              {jobs.filter(j => j.watchEnabled).length} watching
+              {' · '}
+              {syncingId ? 'Sync in progress' : 'Ready'}
+              {currentPath ? ` · ${formatUiPath(currentPath)}` : ''}
+            </div>
+          </div>
+          <PluginToolbarButton icon="plus_ui" onClick={startNewJob}>New sync</PluginToolbarButton>
+        </div>
         <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3 min-h-0">
           {loading && (
             <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
-              <Icons8Icon id="loading" size={18} spin /> Loading sync jobs…
+              <Icons8Icon id="loading" size={18} spin /> Loading jobs…
             </div>
           )}
 
@@ -480,20 +469,21 @@ export default function FolderSyncPlugin({
               </div>
               <PluginToolbarButton icon="close" onClick={() => setPreview(null)} />
             </div>
-            <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 grid grid-cols-2 gap-3 bndz-mono text-xs">
+            <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 space-y-3 bndz-mono text-xs">
               {([
                 ['New files', preview.data.wouldCopy, 'text-emerald-400'],
                 ['Updates', preview.data.wouldUpdate, 'text-amber-300'],
                 ['Unchanged', preview.data.wouldSkip, 'text-gray-500'],
                 ['Extra (mirror)', preview.data.extraInDest, 'text-rose-300'],
               ] as const).map(([label, items, color]) => (
-                <PluginCard key={label} className="!p-2 min-h-[80px]">
-                  <div className={`bndz-plugin-section-title mb-1.5 ${color}`}>{label} ({items?.length ?? 0})</div>
-                  <div className="space-y-0.5 max-h-28 overflow-y-auto bndz-scrollbar bndz-panel-muted">
+                <div key={label} className="bndz-foldersync-preview-block">
+                  <div className={`bndz-foldersync-preview-head ${color}`}>{label} · {items?.length ?? 0}</div>
+                  <div className="bndz-foldersync-preview-list bndz-panel-muted">
                     {(items || []).slice(0, 40).map(p => <div key={p} className="truncate" title={p}>{p}</div>)}
                     {(items?.length ?? 0) > 40 && <div>…and {(items?.length ?? 0) - 40} more</div>}
+                    {(items?.length ?? 0) === 0 && <div className="opacity-50">None</div>}
                   </div>
-                </PluginCard>
+                </div>
               ))}
             </div>
             <div className="px-4 py-2 border-t border-white/[0.06] flex justify-end gap-2">

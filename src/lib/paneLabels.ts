@@ -90,7 +90,7 @@ export function getPaneTabLabel(path: string): string {
   if (workspace) return bndzWorkspaceLabel(workspace);
   if (isBndzRamPath(p)) {
     const zoneId = parseBndzRamZoneId(p);
-    if (!zoneId) return 'RAM Staging';
+    if (!zoneId) return 'RAM zone';
     const tail = p.slice(BNDZ_RAM_ROOT.length + zoneId.length + 1);
     if (tail) return tail.split('/').filter(Boolean).pop() || zoneId;
     return zoneId;

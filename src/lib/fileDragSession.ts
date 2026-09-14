@@ -306,7 +306,6 @@ const OLE_EDGE_CHROME_SELECTORS = [
   '[data-mesh-drop-inbox]',
   '[data-drop-stack-zone]',
   '[data-plugin-tab-id="dropstack"]',
-  '[data-ram-zone-id]',
   '.fs-list-header',
   '.bndz-chrome-tabstrip',
   '.bndz-chrome-toolbar',
@@ -317,7 +316,6 @@ const OLE_EDGE_CHROME_SELECTORS = [
   '.bndz-chrome-preview',
   '.bndz-chrome-statusbar',
   '.bndz-archive-root',
-  '.bndz-ram-zone-card',
   '.sidebar-pin-row',
   '[data-bndz-workspace-surface]',
 ];
@@ -370,7 +368,6 @@ export function isOleEdgeChromeAtPoint(clientX: number, clientY: number): boolea
   if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-preview')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-drop-stack-zone]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-plugin-tab-id="dropstack"]')) return true;
-  if (hitTestSelectorByRect(clientX, clientY, '[data-ram-zone-id]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-tabstrip]')) return true;
   return false;
 }

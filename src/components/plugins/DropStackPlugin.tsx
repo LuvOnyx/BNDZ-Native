@@ -25,8 +25,6 @@ import {
   PluginTab,
   PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
@@ -229,6 +227,11 @@ export default function DropStackPlugin({
     if (picked) setDestPath(picked);
   };
 
+  const browseStageFiles = async () => {
+    const picked = await IPC.openFileDialog('All files (*.*)|*.*');
+    if (picked?.length) addPaths(picked);
+  };
+
   const transferPaths = selected.size ? items.filter(p => selected.has(p)) : items;
 
   const executeBatch = async (action: 'copy' | 'move') => {
@@ -329,25 +332,24 @@ export default function DropStackPlugin({
       ) : (
 
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <PluginHeroStrip
-          icon={<Icons8Icon id="dropstack" size={52} className="opacity-90" />}
-          name={stack?.name || 'Drop Stack'}
-          typeLabel="Batch queue"
-          path={destPath || focusedPath || undefined}
-          meta={
-            <span className="bndz-panel-muted text-xs">
-              {items.length} staged · {selected.size ? `${selected.size} selected` : 'all'} · {stacks.length} stack(s)
-            </span>
-          }
-          actions={
-            <>
-              <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={addSelected} disabled={!selectedItems?.length}>Add selection</PluginHeroActionButton>
-              <PluginHeroActionButton icon="copy" onClick={() => void executeBatch('copy')} disabled={!transferPaths.length || operating}>Copy</PluginHeroActionButton>
-              <PluginHeroActionButton icon="chevron_right" onClick={() => void executeBatch('move')} disabled={!transferPaths.length || operating}>Move</PluginHeroActionButton>
-              <PluginHeroActionButton icon="delete" onClick={clearStack} disabled={!items.length}>Clear</PluginHeroActionButton>
-            </>
-          }
-        />
+        <div className="bndz-dropstack-opsrail shrink-0">
+          <div className="bndz-dropstack-opsrail-copy min-w-0">
+            <div className="bndz-dropstack-opsrail-title">{stack?.name || 'Drop Stack'}</div>
+            <div className="bndz-dropstack-opsrail-meta">
+              {items.length} staged
+              {selected.size ? ` · ${selected.size} selected` : ''}
+              {` · ${stacks.length} stack${stacks.length === 1 ? '' : 's'}`}
+              {destPath ? ` · ${formatUiPath(destPath)}` : ''}
+            </div>
+          </div>
+          <div className="bndz-dropstack-opsrail-actions">
+            <PluginToolbarButton icon="folder_open_ui" onClick={() => void browseStageFiles()} title="Browse files to stage">Browse</PluginToolbarButton>
+            <PluginToolbarButton icon="plus_ui" onClick={addSelected} disabled={!selectedItems?.length} title="Stage current selection">Add</PluginToolbarButton>
+            <PluginToolbarButton icon="copy" onClick={() => void executeBatch('copy')} disabled={!transferPaths.length || operating}>Copy</PluginToolbarButton>
+            <PluginToolbarButton icon="chevron_right" onClick={() => void executeBatch('move')} disabled={!transferPaths.length || operating}>Move</PluginToolbarButton>
+            <PluginToolbarButton icon="delete" onClick={clearStack} disabled={!items.length}>Clear</PluginToolbarButton>
+          </div>
+        </div>
         <div className="flex flex-1 h-full gap-4 p-5 min-h-0">
           <PluginCard className="w-[320px] !p-0 flex flex-col overflow-hidden shrink-0">
             <div className="px-3 py-2 border-b border-white/[0.06] flex items-center gap-2 bg-white/[0.02]">
@@ -452,6 +454,15 @@ export default function DropStackPlugin({
                     <span className="bndz-dropstack-hint">
                       Stage from Explorer or the list — images, docs, folders…
                     </span>
+                    {!dragOver && (
+                      <button
+                        type="button"
+                        className="bndz-dropstack-browse"
+                        onClick={() => void browseStageFiles()}
+                      >
+                        Browse files
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

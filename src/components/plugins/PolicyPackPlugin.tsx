@@ -127,17 +127,27 @@ export default function PolicyPackPlugin({
 
   return (
     <PluginPanelShell title="Policies" icon="shield_ui" variant={embedded ? "embedded" : "default"}>
-      <PluginHeroStrip
-        icon={<Icons8Icon id="shield_ui" size={40} />}
-        name="Drop policies"
-        typeLabel="Policy packs"
-        meta={<span className="text-xs text-gray-400">eslint for directories — enforce on drop/move</span>}
-        actions={
-          <PluginHeroActionButton icon="add_ui" onClick={newPack} variant="primary">
-            New pack
-          </PluginHeroActionButton>
-        }
-      />
+      {embedded ? (
+        <div className="bndz-policy-opsrail">
+          <div className="bndz-policy-opsrail-copy">
+            <div className="bndz-policy-opsrail-title">Drop policies</div>
+            <div className="bndz-policy-opsrail-meta">Extension / size / deny rules on drop</div>
+          </div>
+          <PluginToolbarButton icon="add_ui" onClick={newPack}>New pack</PluginToolbarButton>
+        </div>
+      ) : (
+        <PluginHeroStrip
+          icon={<Icons8Icon id="shield_ui" size={40} />}
+          name="Drop policies"
+          typeLabel="Policy packs"
+          meta={<span className="text-xs text-gray-400">eslint for directories — enforce on drop/move</span>}
+          actions={
+            <PluginHeroActionButton icon="add_ui" onClick={newPack} variant="primary">
+              New pack
+            </PluginHeroActionButton>
+          }
+        />
+      )}
 
       {loadError && (
         <PluginCard className="mb-3 p-3 text-xs text-red-300 border border-red-500/30">

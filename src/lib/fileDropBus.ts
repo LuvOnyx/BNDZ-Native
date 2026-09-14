@@ -301,28 +301,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     return true;
   }
 
-  const ramZoneEl = (
-    document.elementsFromPoint(clientX, clientY)
-      .map(el => (el as HTMLElement).closest('[data-ram-zone-id]'))
-      .find(Boolean)
-    || hitTestSelectorByRect(clientX, clientY, '[data-ram-zone-id]')
-  ) as HTMLElement | null;
-  const ramZoneId = ramZoneEl?.getAttribute('data-ram-zone-id');
-  if (ramZoneId) {
-    void IPC.ramStagingStagePaths(ramZoneId, paths.map(toWindowsPath)).then(r => {
-      if (!r?.ok) {
-        void import('../components/ToastHost').then(({ pushToast }) => {
-          pushToast({ kind: 'error', title: 'RAM Staging', message: r?.error || 'Could not stage files.' });
-        }).catch(() => { /* ignore */ });
-      }
-    }).catch(() => { /* ignore */ });
-    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'ram-staging' } }));
-    lastDropDebug = { clientX, clientY, coordSource, destPath: `ram-zone:${ramZoneId}`, source: opts.source, committed: true };
-    if (isDropDebugEnabled()) {
-      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
-    }
-    return true;
-  }
+  // Launch Ready A1: RAM Staging product surface removed — do not intercept drops for ram zones.
 
   const meshDropInboxEl = document.elementsFromPoint(clientX, clientY)
     .map(el => (el as HTMLElement).closest('[data-mesh-drop-inbox]'))

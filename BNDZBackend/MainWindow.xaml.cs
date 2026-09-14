@@ -304,6 +304,7 @@ namespace BNDZ
                         currentPath = p.CurrentPath,
                         filesIndexed = p.FilesIndexed,
                         done = p.Done,
+                        jobComplete = p.JobComplete,
                         root = p.Root,
                         error = p.Error,
                     },
@@ -322,6 +323,7 @@ namespace BNDZ
                     });
                 }
             };
+            BndzFileIndexService.Instance.StartDeferredDefaultIndex();
             AppIconService.ApplyToWindow(this);
             if (!App.IsPluginWindow && !App.IsBackendHost)
             {

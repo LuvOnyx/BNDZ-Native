@@ -13,9 +13,11 @@ Write these down so we don’t lose them. They take Hub slots **after** absorpti
 | Idea | Direction |
 | --- | --- |
 | **Archive** | WinRAR / 7-Zip–class plugin (create, extract, browse, test). We already have preview-panel archive support — this would be the full product surface. |
-| **Text Editor** | Our own Notepad++–style editor plugin (tabs, syntax, find/replace, encoding) — useful and distinct. |
+| **Notes** (was Text Editor) | iOS Notes–like craft + Notepad++-class power; pop-out; text preview routes into Notes. Spec parked in [`to-do-future-upgrades.md`](to-do-future-upgrades.md). |
 
-More net-new ideas only after those two (or instead of them) are designed properly. No filler “replacement” catalogs.
+Also parked there (not Hub net-new alone): **list checkboxes all views**, **Folder Options**, **Batch** (rename Batch Rename → Batch + temp checkboxes). Start only after Launch Ready closes.
+
+More net-new ideas only after those are designed properly. No filler “replacement” catalogs.
 
 ---
 
@@ -58,7 +60,9 @@ Schedule after or alongside host professionalization — same launch bar.
 
 ### Leave alone (keep as their own Hub plugins)
 
-System Properties, Fast Search, Visual Filters, Batch Rename, Drop Stack, Metadata, Storage Cleanup, Folder Sync, Catalog, Action Log, Remote/Mesh, RAM Staging, Project Sandbox, Branching Time, Design Board, Shell Menus, Icon Studio.
+System Properties, Fast Search, Visual Filters, Batch Rename, Drop Stack, Metadata, Storage Cleanup, Folder Sync, Catalog, Action Log, Remote/Mesh, Project Sandbox, Branching Time, Shell Menus, Icon Studio.
+
+**Removed for launch (not Hub):** RAM Staging (decision 1.A), Design Board (iframe filler — demote/archive).
 
 ---
 
@@ -117,7 +121,7 @@ After features land, each host should feel like one product:
 | Host | Story |
 | --- | --- |
 | Drop Stack | Intake & stage (stash + inbound + policies + batch move/copy) |
-| RAM Staging | Staging (hot RAM + cold offload) |
+| ~~RAM Staging~~ | **REMOVED for launch** (decision 1.A) — see [`docs/LAUNCH-READY-PLAN.md`](docs/LAUNCH-READY-PLAN.md). Do not professionalize; strip Hub/Deck/menus/ImDisk theater. |
 | Storage Cleanup | Cleanup & health |
 | Metadata | File intelligence (facts + tags + encode) |
 | Batch Rename | Rename & magnets |
@@ -136,11 +140,11 @@ Polish copy, empty states, selection wiring, and Uiverse-level craft. Defaults a
 3. Professionalize that host’s UI/story  
 4. About + Register/serial polish  
 5. Launch with a smaller, stronger Hub  
-6. **Later:** Archive plugin, Text Editor plugin  
+6. **Later:** Archive plugin, Notes plugin (see [`to-do-future-upgrades.md`](to-do-future-upgrades.md))  
 
 ```text
 absorb → professionalize hosts → About/Register polish → launch
-        → (later) Archive + Text Editor
+        → (later) Archive + Notes (+ parked Batch / checkboxes / Folder Options)
 ```
 
 ---
@@ -153,7 +157,7 @@ absorb → professionalize hosts → About/Register polish → launch
 | Old thin ids gone from Hub; remaps work | |
 | Hosts read as one product each, not dumped tabs | |
 | About + Register feel launch-ready | |
-| Archive + Text Editor are only listed under Later — not fake-shipped | |
+| Archive + Notes are only listed under Later / future upgrades — not fake-shipped | |
 
 
 ## Absorption progress
@@ -164,7 +168,7 @@ absorb → professionalize hosts → About/Register polish → launch
 - [x] Semantic Desk → Visual Filters
 - [x] Policy Packs + Inbound → Drop Stack
 - [x] ZK Vault → Project Sandbox
-- [x] Ghost-Link → RAM Staging
+- [x] Ghost-Link → RAM Staging *(superseded for launch: Staging host itself is **removed** — decision 1.A)*
 - [x] Library Health → Storage Cleanup
 
 ## Professionalize progress
@@ -174,4 +178,6 @@ absorb → professionalize hosts → About/Register polish → launch
 - [x] Host product titles/stories + Hub capability copy
 - [x] Embedded child chrome renamed to host language (Magnets, Diff, Encode, Groups, Intake, Policies, Vault, Cold, Health)
 - [x] About + Register dialog polish
-- [ ] User smoke: install remaps, open each absorbed tab, Command Deck gating
+- [x] User smoke: install remaps, open each absorbed tab, Command Deck gating — *catalog remaps in place; Windows smoke still required*
+- [x] **Launch Ready A1:** remove RAM Staging + Ghost product chrome; demote Design Board from Hub ([`docs/LAUNCH-READY-PLAN.md`](docs/LAUNCH-READY-PLAN.md))
+- [ ] **Launch Ready E:** collision modal suite + UAC retry + Shell Integration admin verify (gap audit recorded in plan)

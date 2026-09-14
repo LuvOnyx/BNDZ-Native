@@ -3,7 +3,6 @@ import {
   BNDZ_INBOUND,
   BNDZ_LARGE,
   BNDZ_PROBLEMS,
-  BNDZ_RAM_ROOT,
   BNDZ_RECENT,
   BNDZ_SANDBOX,
 } from '../bndzVirtualViews';
@@ -52,12 +51,7 @@ const CONTINUUM_PILLARS: PillarPin[] = [
     note: 'Capture volume · copy into library',
     sticky: 'Drop arrivals → Inbound capture.',
   },
-  {
-    path: BNDZ_RAM_ROOT,
-    name: 'RAM Staging',
-    note: 'ImDisk / AIM ramdisk · zero install chrome',
-    sticky: 'Stage hot files in RAM, then commit out.',
-  },
+
   {
     path: BNDZ_LARGE,
     name: 'Capacity',

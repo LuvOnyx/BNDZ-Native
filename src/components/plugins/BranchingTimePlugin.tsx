@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { EmblemIcon } from '../EmblemIcon';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { formatUiPath } from '../../lib/displayPath';
 import { pushToast } from '../ToastHost';
@@ -8,11 +9,9 @@ import {
   PluginToolbarButton,
   PluginTabStrip,
   PluginTab,
-  PluginCard,
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
-  PluginStatCard,
   PluginSectionTitle,
 } from './PluginPanelPrimitives';
 
@@ -20,7 +19,7 @@ export const BranchingTimePluginDef = {
   id: 'branching-time',
   name: 'Branching Time',
   icon: 'history_ui',
-  description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
+  description: 'Content-addressed folder snapshots — create, peek tip, restore. Git for folders without git.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -77,6 +76,17 @@ function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatWhen(iso: string): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
 }
 
 export default function BranchingTimePlugin({
@@ -288,45 +298,56 @@ export default function BranchingTimePlugin({
     }
   };
 
+  const sortedBranches = [...branches].sort((a, b) => {
+    const ta = a.createdUtc ? Date.parse(a.createdUtc) : 0;
+    const tb = b.createdUtc ? Date.parse(b.createdUtc) : 0;
+    return tb - ta;
+  });
+
   return (
     <PluginPanelShell
       title="Branching Time"
       icon="history_ui"
       iconColor="#c4a35a"
       variant="embedded"
-      subtitle="Content-addressed save-states + VSS named branches"
+      subtitle="Folder snapshots · peek tip · restore"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={activeTab === 'branches'} onClick={() => setActiveTab('branches')}>
-            Branches
+            Timeline
           </PluginTab>
           <PluginTab active={activeTab === 'vss'} onClick={() => setActiveTab('vss')}>
-            VSS Named
+            Named VSS
           </PluginTab>
           <PluginTab active={activeTab === 'system'} onClick={() => { setActiveTab('system'); void loadSystemShadows(); }}>
-            System Shadows
+            Shadows
           </PluginTab>
           <PluginTab active={activeTab === 'peek'} onClick={() => peekId && setActiveTab('peek')}>
-            Peek
+            Tip
           </PluginTab>
         </PluginTabStrip>
       }
     >
-      <div className="flex flex-col min-h-0 h-full">
+      <div className="flex flex-col min-h-0 h-full bndz-bt-root">
         <PluginHeroStrip
           icon={
-            <div className="flex items-center justify-center">
+            <div className="bndz-bt-hero-mark flex items-center justify-center">
               <EmblemIcon id="emblem-locally-modified" size={48} />
             </div>
           }
           name="Branching Time"
-          typeLabel="Folder time machine"
+          typeLabel="Folder timeline"
           path={root || null}
           meta={
             <span className="bndz-panel-muted text-xs">
               {createProgress
-                ? <span className="text-[#8b9cf8] animate-pulse">{createProgress}</span>
-                : `${branches.length} branch${branches.length === 1 ? '' : 'es'}`}
+                ? (
+                  <span className="inline-flex items-center gap-1.5 text-[#c4a35a]">
+                    <Icons8Icon id="loading" size={12} spin />
+                    {createProgress}
+                  </span>
+                )
+                : `${branches.length} snapshot${branches.length === 1 ? '' : 's'}`}
             </span>
           }
           actions={
@@ -335,85 +356,93 @@ export default function BranchingTimePlugin({
                 type="text"
                 value={branchName}
                 onChange={e => setBranchName(e.target.value)}
-                placeholder="Branch name (optional)"
-                className="bg-[#1a1d24] border border-[#3a4250] rounded-[var(--bndz-radius-sm)] text-[11px] px-2 py-1 text-gray-200 w-[160px]"
+                placeholder="Name (optional)"
+                className="bndz-bt-name-input"
+                aria-label="Branch name"
               />
               <PluginHeroActionButton disabled={busy || !root} onClick={() => void createBranch()}>
-                Create branch
+                Snapshot
               </PluginHeroActionButton>
               <PluginHeroActionButton disabled={busy || !root} onClick={() => void createVssBranch()}>
-                Create VSS
+                VSS snapshot
               </PluginHeroActionButton>
               <PluginToolbarButton title="Refresh" onClick={() => void refresh()} disabled={busy} icon="refresh_ui" />
             </>
           }
         />
 
-        <div className="flex gap-2 px-3 py-2">
-          <PluginStatCard label="Branches" value={String(branches.length)} iconId="history_ui" />
-          <PluginStatCard label="Tip files" value={peekMeta ? String(peekMeta.fileCount) : '—'} />
-          <PluginStatCard label="Tip size" value={peekMeta ? formatBytes(peekMeta.totalBytes) : '—'} />
-        </div>
-
         {activeTab === 'branches' && (
-          <div className="px-3 pb-3 space-y-2 overflow-y-auto bndz-scrollbar flex-1 min-h-0">
-            {branches.length === 0 ? (
+          <div className="bndz-bt-scroll px-3 pb-3 flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
+            {sortedBranches.length === 0 ? (
               <PluginEmptyState
                 icon="history_ui"
                 title={root ? 'No snapshots yet' : 'No folder selected'}
                 description={root
-                  ? 'Type a name (or leave blank for auto-name) and click Create branch to take your first content-addressed snapshot of this folder.'
-                  : 'Navigate to a folder in the file list, then open Branching Time to snapshot it.'}
+                  ? 'Snapshot this folder to pin a content-addressed tip you can peek and restore later.'
+                  : 'Open a folder in the list, then snapshot it from Branching Time.'}
               />
             ) : (
-              branches.map(b => (
-                <PluginCard key={b.id}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <PluginSectionTitle>{b.name}</PluginSectionTitle>
-                      <div className="text-[10px] text-gray-500 truncate" title={formatUiPath(b.rootWinPath)}>{formatUiPath(b.rootWinPath)}</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">
-                        {b.fileCount} files · {b.createdUtc ? new Date(b.createdUtc).toLocaleString() : ''}
+              <ol className="bndz-bt-timeline">
+                {sortedBranches.map((b, i) => (
+                  <li key={b.id} className={`bndz-bt-node${peekId === b.id ? ' is-active' : ''}`}>
+                    <div className="bndz-bt-rail" aria-hidden>
+                      <span className="bndz-bt-dot" />
+                      {i < sortedBranches.length - 1 ? <span className="bndz-bt-line" /> : null}
+                    </div>
+                    <div className="bndz-bt-card">
+                      <div className="bndz-bt-card-head">
+                        <div className="min-w-0">
+                          <div className="bndz-bt-card-title">{b.name}</div>
+                          <div className="bndz-bt-card-path" title={formatUiPath(b.rootWinPath)}>
+                            {formatUiPath(b.rootWinPath)}
+                          </div>
+                          <div className="bndz-bt-card-meta">
+                            <span>{b.fileCount.toLocaleString()} files</span>
+                            <span className="bndz-bt-sep" />
+                            <span>{formatWhen(b.createdUtc)}</span>
+                          </div>
+                        </div>
+                        <div className="bndz-bt-actions">
+                          <PluginToolbarButton title="Peek tip" onClick={() => void openPeek(b.id)}>
+                            <EmblemIcon id="emblem-information" size={12} />
+                          </PluginToolbarButton>
+                          <PluginToolbarButton title="Restore all" onClick={() => void restoreAll(b.id)} disabled={busy}>
+                            <EmblemIcon id="emblem-update" size={12} />
+                          </PluginToolbarButton>
+                          <PluginToolbarButton title="Delete branch" onClick={() => void removeBranch(b.id)}>
+                            <EmblemIcon id="emblem-remove" size={12} />
+                          </PluginToolbarButton>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-1 shrink-0">
-                      <PluginToolbarButton title="Peek tip" onClick={() => void openPeek(b.id)}>
-                        <EmblemIcon id="emblem-information" size={12} />
-                      </PluginToolbarButton>
-                      <PluginToolbarButton title="Restore all" onClick={() => void restoreAll(b.id)} disabled={busy}>
-                        <EmblemIcon id="emblem-update" size={12} />
-                      </PluginToolbarButton>
-                      <PluginToolbarButton title="Delete branch" onClick={() => void removeBranch(b.id)}>
-                        <EmblemIcon id="emblem-remove" size={12} />
-                      </PluginToolbarButton>
-                    </div>
-                  </div>
-                </PluginCard>
-              ))
+                  </li>
+                ))}
+              </ol>
             )}
           </div>
         )}
 
         {activeTab === 'vss' && (
-          <div className="px-3 pb-3 space-y-2 overflow-y-auto bndz-scrollbar flex-1 min-h-0">
+          <div className="bndz-bt-scroll px-3 pb-3 space-y-2 flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
             {vssBranches.length === 0 ? (
               <PluginEmptyState
                 icon="history_ui"
-                title="No named VSS branches"
-                description="Click 'Create VSS' to take a Volume Shadow Copy snapshot of this folder. Requires elevation — run BNDZ as Administrator if this fails. System shadow copies (all volumes) are shown in the System Shadows tab."
+                title="No named VSS snapshots"
+                description="Create a Volume Shadow Copy of this folder. Elevation may be required — run BNDZ as Administrator if create fails."
               />
             ) : (
               vssBranches.map(b => (
-                <PluginCard key={b.id}>
-                  <div className="flex items-start justify-between gap-2">
+                <div key={b.id} className="bndz-bt-card bndz-bt-card-flat">
+                  <div className="bndz-bt-card-head">
                     <div className="min-w-0">
-                      <PluginSectionTitle>{b.name}</PluginSectionTitle>
-                      <div className="text-[10px] text-gray-500 truncate" title={formatUiPath(b.rootPath)}>{formatUiPath(b.rootPath)}</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">
-                        VSS · {b.createdUtc ? new Date(b.createdUtc).toLocaleString() : ''}
+                      <div className="bndz-bt-card-title">{b.name}</div>
+                      <div className="bndz-bt-card-path" title={formatUiPath(b.rootPath)}>{formatUiPath(b.rootPath)}</div>
+                      <div className="bndz-bt-card-meta">
+                        <span className="bndz-bt-pill">VSS</span>
+                        <span>{formatWhen(b.createdUtc)}</span>
                       </div>
                     </div>
-                    <div className="flex gap-1 shrink-0">
+                    <div className="bndz-bt-actions">
                       <PluginToolbarButton title="Browse shadow" onClick={() => void openVssBrowse(b.id, b.browseRoot)}>
                         <EmblemIcon id="emblem-mounted" size={12} />
                       </PluginToolbarButton>
@@ -425,81 +454,89 @@ export default function BranchingTimePlugin({
                       </PluginToolbarButton>
                     </div>
                   </div>
-                </PluginCard>
+                </div>
               ))
             )}
           </div>
         )}
 
         {activeTab === 'system' && (
-          <div className="px-3 pb-3 space-y-2 overflow-y-auto bndz-scrollbar flex-1 min-h-0">
-            <div className="flex items-center gap-2 py-1 mb-1">
-              <span className="text-[10px] text-[#6b7280]">Windows Volume Shadow Copies for this drive</span>
+          <div className="bndz-bt-scroll px-3 pb-3 space-y-2 flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
+            <div className="bndz-bt-toolbar-row">
+              <span className="bndz-panel-muted text-[10px]">Windows Volume Shadow Copies on this volume</span>
               <button
+                type="button"
                 onClick={() => void loadSystemShadows()}
                 disabled={shadowsLoading}
-                className="ml-auto px-2 py-0.5 text-[10px] bg-[#1e2030] hover:bg-[#252640] border border-[#3a3a5a] text-[#8b9cf8] rounded disabled:opacity-40 transition-colors"
+                className="bndz-bt-refresh-btn"
               >
-                {shadowsLoading ? '⟳ Loading…' : '⟳ Refresh'}
+                {shadowsLoading
+                  ? <><Icons8Icon id="loading" size={10} spin /> Loading</>
+                  : <><Icons8Icon id="refresh_ui" size={10} /> Refresh</>}
               </button>
             </div>
             {shadowsError && (
-              <div className="text-[11px] text-[#f87171] bg-[#2a1010] border border-[#7f1d1d] rounded px-3 py-2">
-                <span className="font-semibold">VSS access error:</span> {shadowsError}
-                <div className="mt-1 text-[10px] text-[#fca5a5]">Run BNDZ as Administrator to list or restore system shadow copies.</div>
+              <div className="bndz-bt-error" role="alert">
+                <strong>Shadow access</strong>
+                <span>{shadowsError}</span>
+                <span className="bndz-bt-error-hint">Run BNDZ as Administrator to list or restore system shadows.</span>
               </div>
             )}
             {!shadowsLoading && !shadowsError && systemShadows.length === 0 && (
               <PluginEmptyState
                 icon="history_ui"
                 title="No system shadows found"
-                description="Windows hasn't created any Volume Shadow Copies for this drive, or BNDZ needs elevation to list them. Enable System Protection in Windows settings to create automatic restore points."
+                description="Windows has no Volume Shadow Copies for this drive, or elevation is required. Enable System Protection to create restore points."
               />
             )}
             {systemShadows.map(s => (
-              <PluginCard key={s.id}>
-                <div className="flex items-start justify-between gap-2">
+              <div key={s.id} className="bndz-bt-card bndz-bt-card-flat">
+                <div className="bndz-bt-card-head">
                   <div className="min-w-0">
-                    <PluginSectionTitle>
-                      {s.createdUtc ? new Date(s.createdUtc).toLocaleString() : s.id}
-                      {s.clientAccessible && (
-                        <span className="ml-1 px-1 py-0 rounded text-[8px] bg-[#14532d] text-[#22c55e] border border-[#15803d] font-normal">accessible</span>
-                      )}
-                    </PluginSectionTitle>
-                    <div className="text-[10px] text-gray-500 truncate" title={s.originalPath}>{formatUiPath(s.originalPath)}</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5 font-mono truncate">{s.deviceObject}</div>
+                    <div className="bndz-bt-card-title">
+                      {formatWhen(s.createdUtc) || s.id}
+                      {s.clientAccessible ? <span className="bndz-bt-pill is-ok">accessible</span> : null}
+                    </div>
+                    <div className="bndz-bt-card-path" title={s.originalPath}>{formatUiPath(s.originalPath)}</div>
+                    <div className="bndz-bt-device" title={s.deviceObject}>{s.deviceObject}</div>
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="bndz-bt-actions">
                     <PluginToolbarButton title="Restore shadow to live folder" onClick={() => void restoreSystemShadow(s)} disabled={busy}>
                       <EmblemIcon id="emblem-update" size={12} />
                     </PluginToolbarButton>
                   </div>
                 </div>
-              </PluginCard>
+              </div>
             ))}
           </div>
         )}
 
         {activeTab === 'peek' && (
-          <div className="px-3 pb-3 space-y-1 overflow-y-auto bndz-scrollbar flex-1 min-h-0">
+          <div className="bndz-bt-scroll px-3 pb-3 flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
             {!peekMeta ? (
               <PluginEmptyState
                 icon="history_ui"
-                title="Select a branch"
+                title="Select a snapshot"
                 description="Peek a tip to inspect hashed files before restore."
               />
             ) : (
               <>
-                <PluginSectionTitle>{peekMeta.name}</PluginSectionTitle>
-                {peekEntries.map(e => (
-                  <div
-                    key={e.relPath + e.contentHash}
-                    className="flex items-center justify-between gap-2 text-[11px] py-1 border-b border-[#2a2f3a]/60"
-                  >
-                    <span className="truncate text-gray-200" title={e.relPath}>{e.relPath}</span>
-                    <span className="shrink-0 text-gray-500 font-mono text-[9px]">{formatBytes(e.size)}</span>
+                <div className="bndz-bt-peek-meta">
+                  <PluginSectionTitle>{peekMeta.name}</PluginSectionTitle>
+                  <div className="bndz-bt-card-meta">
+                    <span>{peekMeta.fileCount.toLocaleString()} files</span>
+                    <span className="bndz-bt-sep" />
+                    <span>{formatBytes(peekMeta.totalBytes)}</span>
                   </div>
-                ))}
+                </div>
+                <ul className="bndz-bt-peek-list">
+                  {peekEntries.map(e => (
+                    <li key={e.relPath + e.contentHash} className="bndz-bt-peek-row">
+                      <span className="bndz-bt-peek-path" title={e.relPath}>{e.relPath}</span>
+                      <span className="bndz-bt-peek-size">{formatBytes(e.size)}</span>
+                    </li>
+                  ))}
+                </ul>
               </>
             )}
           </div>

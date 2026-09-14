@@ -8,6 +8,7 @@ import { useAppConfig } from './configContext';
 import { resolveRecreateStructureForPasteAsync } from '../lib/pastePlanning';
 import { requestNativeConfirm } from '../lib/nativeDialog';
 import { isQueuedIpcResult } from '../lib/transferIpc';
+import { isDropIntoDraggedSource } from '../lib/dropDestination';
 
 const CLIPBOARD_STORAGE_KEY = 'bndz-clipboard-v1';
 const CLIPBOARD_HISTORY_KEY = 'bndz-clipboard-history-v1';
@@ -422,6 +423,18 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       return toWindowsPath(p);
     }))).filter(s => s && !s.toLowerCase().startsWith('bndz\\'));
     if (!winSources.length) return;
+
+    if (isDropIntoDraggedSource(winSources, dest)) {
+      await requestNativeConfirm({
+        title: 'Cannot paste into itself',
+        message: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+        type: 'warning',
+        confirmLabel: 'OK',
+        cancelLabel: 'Close',
+      });
+      return;
+    }
+
     const label = winSources.length === 1
       ? (winSources[0].split('\\').pop() || 'item')
       : `${winSources.length} items`;

@@ -14,13 +14,11 @@ import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 
-type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation' | 'mesh-drop' | 'ghost-link' | 'ram-staging';
+type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation' | 'mesh-drop';
 
 const TOOL_TABS: { id: ToolTab; label: string; icon: string; desc: string }[] = [
   { id: 'remote-mesh', label: 'Remote', icon: 'cloud_ui', desc: 'SSH/SFTP hosts & S3 buckets' },
   { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared', desc: 'P2P WebRTC transfer' },
-  { id: 'ghost-link', label: 'Ghost-Link', icon: 'emblem-symbolic-link', desc: 'Cold storage symlinks' },
-  { id: 'ram-staging', label: 'RAM Staging', icon: 'hard_drive_ui', desc: 'RAM-disk staging zones' },
   { id: 'live-mirror', label: 'Live Mirror', icon: 'sync_folders', desc: 'Push folders on save' },
   { id: 'folder-sync', label: 'Folder Sync', icon: 'sync', desc: 'Bidirectional jobs' },
   { id: 'spatial-automation', label: 'Spatial & Pipelines', icon: 'view_grid', desc: 'Canvas and automations' },
@@ -184,8 +182,6 @@ export default function WorkspaceToolsTabContent({
       setToolLoading(true);
       try {
         if (toolTab === 'live-mirror' || toolTab === 'remote-mesh') await refreshMesh();
-        if (toolTab === 'ghost-link') await refreshGhost();
-        if (toolTab === 'ram-staging') await refreshRam();
         if (toolTab === 'folder-sync') await refreshSync();
       } finally {
         if (active) setToolLoading(false);
@@ -193,7 +189,7 @@ export default function WorkspaceToolsTabContent({
     };
     void load();
     return () => { active = false; };
-  }, [toolTab, refreshMesh, refreshGhost, refreshRam, refreshSync]);
+  }, [toolTab, refreshMesh, refreshSync]);
 
   const meshStats = {
     total: hosts.length,
@@ -480,124 +476,6 @@ export default function WorkspaceToolsTabContent({
               </div>
             )}
 
-            {toolTab === 'ghost-link' && (
-              <div className="space-y-4">
-                <div className="bndz-mesh-dashboard">
-                  <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{ghostStats.ghostCount}</div>
-                    <div className="bndz-mesh-stat-label">Ghost links</div>
-                  </div>
-                  <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{formatBytes(ghostStats.bytesReclaimed)}</div>
-                    <div className="bndz-mesh-stat-label">Reclaimed</div>
-                  </div>
-                  <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{ghostStats.ruleCount}</div>
-                    <div className="bndz-mesh-stat-label">Rules</div>
-                  </div>
-                </div>
-
-                <SettingsSection title="Cold storage">
-                  <PluginFieldLabel>Default cold storage root</PluginFieldLabel>
-                  <div className="flex gap-2">
-                    <input
-                      className={PLUGIN_INPUT_CLASS + ' flex-1'}
-                      value={localConfig.ghostLinkColdStorageRoot || ''}
-                      placeholder="D:\\ColdStorage"
-                      onChange={e => updateLocalConfig({ ghostLinkColdStorageRoot: e.target.value })}
-                    />
-                    <PluginToolbarButton onClick={() => void pickColdRoot()}>Browse…</PluginToolbarButton>
-                  </div>
-                  <p className="text-[11px] text-gray-500 mt-2">Used by context-menu offload and Automation Ghost-Link blocks. Original paths stay as symlinks.</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <PluginToolbarButton onClick={() => void refreshGhost()}>Refresh stats</PluginToolbarButton>
-                    <PluginToolbarButton onClick={() => openBottomPlugin?.('ghost-link')}>Open Ghost-Link plugin</PluginToolbarButton>
-                  </div>
-                </SettingsSection>
-
-                <SettingsSection title="Recent ghosts">
-                  {ghostRecent.length === 0 ? (
-                    <PluginEmptyState
-                      icon="emblem-symbolic-link"
-                      title="No ghost links yet"
-                      description="Offload cold files from the list context menu or the Ghost-Link plugin — originals become symlinks."
-                    />
-                  ) : ghostRecent.map(g => (
-                    <div key={g.path} className="bndz-ws-tools-row">
-                      <div className="bndz-ws-tools-row-body">
-                        <div className="bndz-ws-tools-row-title truncate" title={formatUiPath(g.path)}>{formatUiPath(g.path)}</div>
-                        <div className="bndz-ws-tools-row-meta">{formatBytes(g.bytesSaved)} saved on volume</div>
-                      </div>
-                    </div>
-                  ))}
-                </SettingsSection>
-              </div>
-            )}
-
-            {toolTab === 'ram-staging' && (
-              <div className="space-y-4">
-                <div className="bndz-mesh-dashboard">
-                  <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{ramZones.length}</div>
-                    <div className="bndz-mesh-stat-label">Zones</div>
-                  </div>
-                  <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{ramZones.filter(z => z.isDirty).length}</div>
-                    <div className="bndz-mesh-stat-label">Dirty</div>
-                  </div>
-                  <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{ramStatus.imDiskAvailable ? 'Yes' : 'No'}</div>
-                    <div className="bndz-mesh-stat-label">ImDisk</div>
-                  </div>
-                </div>
-
-                <SettingsSection title="Staging preference">
-                  <Checkbox
-                    label="Prefer ImDisk RAM volumes when available"
-                    checked={localConfig.ramStagingPreferImDisk !== false}
-                    onChange={e => updateLocalConfig({ ramStagingPreferImDisk: e.target.checked })}
-                  />
-                  <p className="text-[11px] text-gray-500 mt-2">
-                    Zones appear under <span className="bndz-mono text-gray-400">/bndz/ram</span>. Without ImDisk, BNDZ uses fast folder staging on NVMe.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <PluginToolbarButton onClick={() => void refreshRam()}>Refresh zones</PluginToolbarButton>
-                    <PluginToolbarButton onClick={() => openBottomPlugin?.('ram-staging')}>Open RAM Staging plugin</PluginToolbarButton>
-                  </div>
-                </SettingsSection>
-
-                <SettingsSection title="Zones">
-                  {ramZones.length === 0 ? (
-                    <PluginEmptyState
-                      icon="hard_drive_ui"
-                      title="No staging zones"
-                      description="Create a zone in the RAM Staging plugin, then stage projects and flush when you are done."
-                    />
-                  ) : ramZones.map(z => {
-                    const pct = z.sizeBudgetMb > 0
-                      ? Math.min(100, (z.usedBytes / (z.sizeBudgetMb * 1024 * 1024)) * 100)
-                      : 0;
-                    return (
-                      <div key={z.id} className="bndz-ws-tools-row">
-                        <div className="bndz-ws-tools-row-body min-w-0 flex-1">
-                          <div className="bndz-ws-tools-row-title">
-                            {z.name}
-                            {z.isDirty ? <span className="bndz-ws-tools-pill is-warn">Dirty</span> : null}
-                            <span className="bndz-ws-tools-pill">{z.kind === 'ramdisk' ? 'RAM' : 'Fast'}</span>
-                          </div>
-                          <div className="bndz-ws-tools-row-meta">
-                            {formatBytes(z.usedBytes)} / {z.sizeBudgetMb} MB · {z.stagedFileCount} file{z.stagedFileCount === 1 ? '' : 's'}
-                          </div>
-                          <div className="bndz-ws-tools-meter" aria-hidden>
-                            <span style={{ width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </SettingsSection>
-              </div>
-            )}
 
             {toolTab === 'live-mirror' && (
               <div className="space-y-4">

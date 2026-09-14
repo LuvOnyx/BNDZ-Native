@@ -2719,7 +2719,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </p>
               <div className="bndz-native-dialog-panel p-4 max-w-[520px] space-y-2">
                 <p className="text-[12px] text-gray-300">Default installed: System Properties, Fast Search, Visual Filters.</p>
-                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Extension Hub to add Remote, Ghost-Link, RAM Staging, and selling-pillar tools.</p>
+                <p className="text-[11px] text-gray-500">Command Deck actions only appear for installed plugins. Use Extension Hub to add Remote, Storage Cleanup, Drop Stack, and other professional tools.</p>
               </div>
 
               <SectionHeader title="Right Sidebar Preview Engine" />

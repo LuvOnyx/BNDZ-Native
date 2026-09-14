@@ -46,8 +46,17 @@ import { useNativeShellHostBridge } from '../hooks/useNativeShellHostBridge';
 import { resolveDropOperation } from '../lib/dropOperation';
 import {
   shouldCommitInternalFileDrop,
+  explainInternalDropReject,
   getParentWinPath,
+  isDropIntoDraggedSource,
 } from '../lib/dropDestination';
+import {
+  classifyTransferError,
+  stashPendingElevatedTransfer,
+  consumePendingElevatedTransfer,
+  freeBytesForDestination,
+  buildCapacityLine,
+} from '../lib/transferErrorKind';
 import { isCopyDragModifier } from '../lib/listDragModifiers';
 import ListDragGhost, { type ListDragGhostMeta } from './ListDragGhost';
 import { prefetchFluidDragThumbs } from '../workstation/drag/fluidDragThumbs';
@@ -823,7 +832,7 @@ export default function BNDZUI() {
   folderSizeMapRef.current = folderSizeMap;
   const [indexedRoots, setIndexedRoots] = useState<string[]>([]);
   const [indexProgress, setIndexProgress] = useState<{
-    currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string;
+    currentPath: string; filesIndexed: number; done: boolean; jobComplete?: boolean; root?: string; error?: string;
   } | null>(null);
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [virtualViewErrors, setVirtualViewErrors] = useState<Record<string, string>>({});
@@ -1664,7 +1673,6 @@ export default function BNDZUI() {
       'inbound-volume': { id: 'dropstack', tab: 'intake' },
       'capture-inbox': { id: 'dropstack', tab: 'captures' },
       'zk-vault': { id: 'project-sandbox', tab: 'vault' },
-      'ghost-link': { id: 'ram-staging', tab: 'cold' },
       'library-health': { id: 'storage-cleanup', tab: 'health' },
       'reality-check': { id: 'storage-cleanup', tab: 'refs' },
     };
@@ -1796,6 +1804,9 @@ export default function BNDZUI() {
   const dropModifierRef = useRef({ copy: false });
   /** Last HTML5 drag-over target — fallback when native drop coordinates miss. */
   const htmlDropTargetRef = useRef<{ paneId: string; tabPath: string } | null>(null);
+  const lastLocalTransferRef = useRef<{ action: 'copy' | 'move'; sources: string[]; destDir: string; operationId?: string } | null>(null);
+  /** Per-operation stash so queue Retry can replay the matching copy/move, not only the latest. */
+  const localTransferByOpRef = useRef(new Map<string, { action: 'copy' | 'move'; sources: string[]; destDir: string }>());
   const xferMetaRef = useRef(new Map<string, { op: 'copy' | 'move' | 'delete'; label: string; selectParentPath?: string }>());
   const transferActiveCountRef = useRef(0);
   /** Pending FS ops — keep tombstoned names filtered from cache until the queue job finishes. */
@@ -3093,17 +3104,27 @@ export default function BNDZUI() {
     void refreshIndexedRoots();
     if (!IPC.isNative) return;
     return IPC.onIndexProgress(p => {
-      if (p.done) {
-        invalidateIndexStatusCache();
-        if (p.error) {
-          setIndexProgress({ ...p });
-          window.setTimeout(() => setIndexProgress(null), 5000);
-        } else {
-          setIndexProgress(null);
+      if (p.jobComplete || (p.done && p.error)) {
+        // Warm boot: all roots still fresh — do not flash a spinner/complete chip.
+        if (p.jobComplete && !p.error && p.currentPath === 'up-to-date') {
+          invalidateIndexStatusCache();
           void refreshIndexedRoots();
+          return;
         }
-      } else {
+        invalidateIndexStatusCache();
+        setIndexProgress({ ...p, done: true, jobComplete: !!p.jobComplete });
+        window.setTimeout(() => setIndexProgress(null), p.error ? 6000 : 4000);
+        if (!p.error) void refreshIndexedRoots();
+      } else if (!p.done) {
         setIndexProgress(p);
+      } else {
+        // Per-root done — keep chip visible; more roots may follow in the same job.
+        setIndexProgress(prev => ({
+          ...p,
+          done: false,
+          filesIndexed: Math.max(prev?.filesIndexed ?? 0, p.filesIndexed ?? 0),
+        }));
+        void refreshIndexedRoots();
       }
     });
   }, [refreshIndexedRoots]);
@@ -4744,11 +4765,121 @@ export default function BNDZUI() {
                 : action.includes('extract') || job.operationId.startsWith('extract-') ? 'Extraction failed'
                 : isMove ? 'Move failed'
                 : 'Operation failed';
-              pushToast({
-                kind: 'error',
-                title: failTitle,
-                message: job.error || label,
+              const pendingForJob = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
+              const destForCapacity = job.destinationPath || pendingForJob?.destDir || '';
+              const freeFromDrives = freeBytesForDestination(destForCapacity, drives);
+              const neededFromJob = typeof job.totalBytes === 'number' && job.totalBytes > 0
+                ? job.totalBytes
+                : undefined;
+              const classified = classifyTransferError(job.error || label, undefined, {
+                neededBytes: neededFromJob,
+                freeBytes: freeFromDrives,
               });
+              // Prefer drive probe when host message lacked Need/have but we know dest free space.
+              if (classified.kind === 'diskFull' && !classified.capacityLine) {
+                const line = buildCapacityLine(neededFromJob, freeFromDrives);
+                if (line) {
+                  classified.capacityLine = line;
+                  classified.summary = `The destination volume does not have enough free space (${line}).`;
+                }
+              }
+              if (classified.kind !== 'other' && !isDelete && !isRename) {
+                const retryThisTransfer = () => {
+                  const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
+                  if (!pending?.sources?.length) {
+                    pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
+                    return;
+                  }
+                  executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
+                };
+                const skipFailedTransfer = () => {
+                  window.dispatchEvent(new CustomEvent('bndz-skip-failed-transfer', {
+                    detail: { operationId: job.operationId },
+                  }));
+                  void IPC.clearFileTransferHistory?.().catch(() => {});
+                };
+                const openStorageCleanup = () => {
+                  window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
+                };
+                const openActionLog = () => {
+                  window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'action-log' } }));
+                };
+                const revealDestination = () => {
+                  const dest = destForCapacity;
+                  if (!dest) {
+                    pushToast({ kind: 'warning', title: 'No destination', message: 'Could not resolve the transfer destination folder.' });
+                    return;
+                  }
+                  try {
+                    setCurrentPath(dest.replace(/\\/g, '/'));
+                  } catch { /* ignore */ }
+                };
+                const elevateAndRetry = async () => {
+                  const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
+                  if (pending) {
+                    stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
+                  }
+                  const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
+                  await promptElevationIfNeeded(
+                    { success: false, needsElevation: true, message: classified.detail },
+                    { title: classified.title, message: `${classified.summary}
+
+Restart BNDZ as administrator to retry?` },
+                  );
+                };
+                let actions: { label: string; style?: 'primary' | 'secondary' | 'destructive'; action: () => void | Promise<void> }[];
+                if (classified.kind === 'accessDenied') {
+                  actions = [
+                    { label: 'Open Action Log', style: 'secondary', action: () => openActionLog() },
+                    { label: 'Cancel', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Restart as administrator', style: 'primary', action: () => void elevateAndRetry() },
+                  ];
+                } else if (classified.kind === 'pathTooLong') {
+                  actions = [
+                    { label: 'Open destination', style: 'secondary', action: () => revealDestination() },
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
+                  ];
+                } else if (classified.kind === 'sharingViolation') {
+                  actions = [
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
+                  ];
+                } else if (classified.kind === 'diskFull') {
+                  actions = [
+                    { label: 'Open Storage Cleanup', style: 'secondary', action: () => openStorageCleanup() },
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
+                  ];
+                } else {
+                  actions = [
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
+                  ];
+                }
+                const capacityNote = classified.kind === 'diskFull' && classified.capacityLine
+                  ? `\n\n${classified.capacityLine}`
+                  : '';
+                showModal({
+                  type: classified.kind === 'accessDenied' || classified.kind === 'diskFull' ? 'warning' : 'destructive',
+                  title: classified.title,
+                  message: `${classified.summary}${capacityNote}
+
+${classified.detail}`,
+                  actions,
+                });
+
+              } else {
+                pushToast({
+                  kind: 'error',
+                  title: failTitle,
+                  message: job.error || label,
+                });
+              }
             } else if (job.status === 'completed') {
               const doneVerb = isDelete ? 'Deleted'
                 : action === 'move' || meta?.op === 'move' || action === 'mesh-move' ? 'Move complete'
@@ -5639,10 +5770,14 @@ export default function BNDZUI() {
       });
       unsubElev = IPC.onElevationRequired((payload) => {
         void (async () => {
+          const pending = lastLocalTransferRef.current;
+          if (pending && (payload.context === 'fileOperation' || !payload.context)) {
+            stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
+          }
           const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
           await promptElevationIfNeeded(
             { success: false, needsElevation: true, message: payload.message },
-            { title: payload.title, message: payload.message },
+            { title: payload.title || 'Administrator approval required', message: payload.message },
           );
         })();
       });
@@ -6244,42 +6379,8 @@ export default function BNDZUI() {
           },
         ],
       },
-      ...(installedPluginIdSet.has('ram-staging') && sidebarRamZones.length > 0
-        ? [{
-            treeKey: 'ram-staging',
-            draggable: true as const,
-            label: 'RAM Staging',
-            path: BNDZ_RAM_ROOT,
-            icon: 'hard_drive_ui',
-            iconColor: '#a78bfa',
-            useShellIcon: false as const,
-            expanded: ramStagingExpanded,
-            onClick: () => setCurrentPath(BNDZ_RAM_ROOT),
-            onToggle: () => setRamStagingExpanded(v => !v),
-            childrenItems: sidebarRamZones.map(z => ({
-              label: z.isDirty ? `${z.name} · dirty` : z.name,
-              path: bndzRamVirtualPath(z.id),
-              icon: 'hard_drive_ui',
-              iconColor: z.isDirty ? '#fbbf24' : '#a78bfa',
-              useShellIcon: false as const,
-            })),
-          }]
-        : []),
-      ...(config.ghostLinkColdStorageRoot
-        ? [{
-            treeKey: 'ghost-cold',
-            draggable: true as const,
-            label: 'Ghost cold',
-            path: toPanePath(config.ghostLinkColdStorageRoot),
-            icon: 'emblem-symbolic-link',
-            iconColor: '#c4b5fd',
-            useShellIcon: false as const,
-            expanded: ghostColdExpanded,
-            onClick: () => guardedSetCurrentPath(toPanePath(config.ghostLinkColdStorageRoot)),
-            onToggle: () => setGhostColdExpanded(!ghostColdExpanded),
-            childrenItems: [] as { label: string; path: string; icon: string; iconColor: string }[],
-          }]
-        : []),
+
+
       {
         treeKey: 'this-pc',
         draggable: true,
@@ -6796,6 +6897,15 @@ export default function BNDZUI() {
       setDestinationPicker({ mode, sources });
       return;
     }
+    if (isDropIntoDraggedSource(sources, dest)) {
+      showModal({
+        type: 'warning',
+        title: 'Cannot move into itself',
+        message: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+        actions: [{ label: 'OK', style: 'primary', action: () => {} }],
+      });
+      return;
+    }
     const rt = buildSettingsRuntime(config);
     if (rt.shell.confirmMove || !!config.confirmCopyAndMoveOperations) {
       const label = sources.length === 1
@@ -6980,6 +7090,9 @@ export default function BNDZUI() {
         }
         return;
       }
+
+      lastLocalTransferRef.current = { action: op, sources: canonSources, destDir: destCanon, operationId: opId };
+      localTransferByOpRef.current.set(opId, { action: op, sources: canonSources, destDir: destCanon });
 
       // Mesh paths must never fall through to Windows FS ops (toWindowsPath mangles /mesh/…).
       if (isMeshPath(destCanon) || canonSources.some(isMeshPath)) {
@@ -7178,6 +7291,47 @@ export default function BNDZUI() {
   };
   const executeInternalDropRef = useRef(executeInternalDrop);
   executeInternalDropRef.current = executeInternalDrop;
+
+  useEffect(() => {
+    const pending = consumePendingElevatedTransfer();
+    if (!pending) return;
+    const t = window.setTimeout(() => {
+      try {
+        executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
+        pushToast({ kind: 'info', title: 'Retrying after elevation', message: 'Replaying the transfer that needed administrator approval.' });
+      } catch { /* ignore */ }
+    }, 900);
+    return () => window.clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onRetryLast = (ev: Event) => {
+      const opId = (ev as CustomEvent<{ operationId?: string }>).detail?.operationId;
+      const pending = (opId && localTransferByOpRef.current.get(opId)) || lastLocalTransferRef.current;
+      if (!pending?.sources?.length) {
+        pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
+        return;
+      }
+      try {
+        executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
+        pushToast({ kind: 'info', title: 'Retrying transfer', message: 'Replaying the failed local copy/move.' });
+      } catch { /* ignore */ }
+    };
+    const onSkipFailed = (_ev: Event) => {
+      void IPC.clearFileTransferHistory?.().catch(() => {});
+      pushToast({ kind: 'info', title: 'Skipped failed transfer', message: 'Dismissed from the queue. Remaining jobs continue.' });
+    };
+    window.addEventListener('bndz-retry-last-transfer', onRetryLast);
+    window.addEventListener('bndz-skip-failed-transfer', onSkipFailed);
+    return () => {
+      window.removeEventListener('bndz-retry-last-transfer', onRetryLast);
+      window.removeEventListener('bndz-skip-failed-transfer', onSkipFailed);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
 
   const toggleFavoriteFolder = () => {
     const path = collapseKnownFolderShadowPath(
@@ -12205,15 +12359,25 @@ export default function BNDZUI() {
                       sameDriveDefault: config.dragDropSameVolumeAction,
                       crossDriveDefault: config.dragDropCrossVolumeAction,
                     });
-                    if (shouldCommitInternalFileDrop({
-                      sourcePaths: dragPaths,
-                      destDir: destCanon,
-                      op,
-                      hasForeignTarget: true,
-                      pointerTravelPx: Math.hypot(ev.clientX - startX, ev.clientY - startY),
-                      explicitDropTarget: true,
-                    })) {
-                      executeInternalDrop(op, dragPaths, destCanon, panePath);
+                    {
+                      const dropOpts = {
+                        sourcePaths: dragPaths,
+                        destDir: destCanon,
+                        op,
+                        hasForeignTarget: true as boolean,
+                        pointerTravelPx: Math.hypot(ev.clientX - startX, ev.clientY - startY),
+                        explicitDropTarget: true as boolean,
+                      };
+                      if (shouldCommitInternalFileDrop(dropOpts)) {
+                        executeInternalDrop(op, dragPaths, destCanon, panePath);
+                      } else if (explainInternalDropReject(dropOpts) === 'into-self') {
+                        showModal({
+                          type: 'warning',
+                          title: 'Cannot move into itself',
+                          message: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+                          actions: [{ label: 'OK', style: 'primary', action: () => {} }],
+                        });
+                      }
                     }
                     setDragTargetHighlight(null);
                     suppressRowClickRef.current = true;
@@ -12257,25 +12421,35 @@ export default function BNDZUI() {
                     );
                     const pointerTravelPx = Math.hypot(ev.clientX - startX, ev.clientY - startY);
                     const explicitDropTarget = !!(navTreeTarget || breadcrumbTarget);
-                    if (shouldCommitInternalFileDrop({
-                      sourcePaths: dragPaths,
-                      destDir: destCanon,
-                      op,
-                      hasForeignTarget,
-                      pointerTravelPx,
-                      explicitDropTarget,
-                    })) {
-                      // Settings → Native drag and drop context menu (Copy / Move / Cancel at drop).
-                      if (settingsRt.shell.nativeDragDropContextMenu || !!config.nativeDragAndDropContextMenu) {
-                        setDropActionMenu({
-                          x: ev.clientX,
-                          y: ev.clientY,
-                          paths: dragPaths,
-                          dest: destCanon,
-                          sourcePath: panePath,
+                    {
+                      const dropOpts = {
+                        sourcePaths: dragPaths,
+                        destDir: destCanon,
+                        op,
+                        hasForeignTarget,
+                        pointerTravelPx,
+                        explicitDropTarget,
+                      };
+                      if (shouldCommitInternalFileDrop(dropOpts)) {
+                        // Settings → Native drag and drop context menu (Copy / Move / Cancel at drop).
+                        if (settingsRt.shell.nativeDragDropContextMenu || !!config.nativeDragAndDropContextMenu) {
+                          setDropActionMenu({
+                            x: ev.clientX,
+                            y: ev.clientY,
+                            paths: dragPaths,
+                            dest: destCanon,
+                            sourcePath: panePath,
+                          });
+                        } else {
+                          executeInternalDrop(op, dragPaths, destCanon, panePath);
+                        }
+                      } else if (explainInternalDropReject(dropOpts) === 'into-self') {
+                        showModal({
+                          type: 'warning',
+                          title: 'Cannot move into itself',
+                          message: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+                          actions: [{ label: 'OK', style: 'primary', action: () => {} }],
                         });
-                      } else {
-                        executeInternalDrop(op, dragPaths, destCanon, panePath);
                       }
                     }
                   }
@@ -12563,8 +12737,6 @@ export default function BNDZUI() {
               onNavigate={p => setCurrentPath(p, pane.id)}
               onRefresh={() => void refetchPath(BNDZ_VIEWS_ROOT)}
               onOpenMeshDrop={() => { setMeshDropPaths([]); setShowMeshDropDialog(true); }}
-              onOpenGhostLink={() => openBottomPlugin('ghost-link')}
-              onOpenRamStaging={() => openBottomPlugin('ram-staging')}
             />
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
@@ -13329,17 +13501,7 @@ export default function BNDZUI() {
       case 'storage-cleanup':
         openBottomPlugin('storage-cleanup');
         break;
-      case 'ghost-link':
-        openBottomPlugin('ghost-link');
-        break;
-      case 'ram-staging':
-        if (bottomSelectionTargets.paths.length > 0) {
-          // Files selected — open plugin and pass paths for staging.
-          openBottomPlugin('ram-staging', { paths: bottomSelectionTargets.paths });
-        } else {
-          openBottomPlugin('ram-staging');
-        }
-        break;
+
       case 'dropstack':
         openBottomPlugin('dropstack');
         break;
@@ -13412,22 +13574,6 @@ export default function BNDZUI() {
         setToastMessage(toast);
         // Only open when pack resolved an installed plugin — never toast-spam missing ones.
         if (patch.bottomPanelDefaultPlugin) openBottomPlugin(String(patch.bottomPanelDefaultPlugin));
-        break;
-      }
-      case 'flush-ram-zone': {
-        const zoneId = parseBndzRamZoneId(bottomSelectionTargets.paths[0] || '')
-          || sidebarRamZones[0]?.id;
-        if (!zoneId) {
-          setToastMessage('No RAM zone to flush.', 'warning');
-          break;
-        }
-        void IPC.ramStagingFlushZone(zoneId).then(r => {
-          setToastMessage(r.ok ? `Flushed zone ${zoneId}` : (r.error || 'Flush failed'), r.ok ? 'success' : 'warning');
-          if (r.ok) {
-            invalidateRamZoneMountCache();
-            window.dispatchEvent(new CustomEvent('bndz-ram-zone-changed'));
-          }
-        });
         break;
       }
       default: {
@@ -15204,8 +15350,6 @@ export default function BNDZUI() {
               setMeshDropPaths(bottomSelectionTargets.paths);
               setShowMeshDropDialog(true);
             },
-            onRamStaging: () => openBottomPlugin('ram-staging'),
-            onGhostLink: () => openBottomPlugin('ghost-link'),
             onTag: () => setTagAssignmentActive(true),
             onCompare: () => openBottomPlugin('compare'),
             canPaste: !!clipboard.items?.length && !!clipboard.action,
@@ -15948,12 +16092,13 @@ export default function BNDZUI() {
                  : 'Filesystem'}
              </span>
            )}
-           {indexProgress && (!indexProgress.done || !!indexProgress.error) && (
+           {indexProgress && (
              <IndexProgressChip
                filesIndexed={indexProgress.filesIndexed}
                currentPath={indexProgress.currentPath}
                root={indexProgress.root}
                error={indexProgress.error}
+               complete={!!indexProgress.jobComplete && !indexProgress.error}
              />
            )}
            {activeTagFilter && (
@@ -16472,26 +16617,7 @@ export default function BNDZUI() {
           addTab={addTab}
           onOpenBatchRename={() => openBottomPlugin('batch-rename')}
           onOpenMeshDrop={(paths) => { setMeshDropPaths(paths); setShowMeshDropDialog(true); }}
-          onGhostLinkOffload={async (paths) => {
-            const { IPC: ipc } = await import('../lib/ipcBridge');
-            const cold = config.ghostLinkColdStorageRoot || '';
-            if (!cold.trim()) {
-              setToastMessage('Set a Ghost-Link cold storage root in Workspace Tools first.', 'warning');
-              openBottomPlugin('ghost-link');
-              return;
-            }
-            const r = await ipc.ghostLinkOffloadPaths(paths, cold.trim());
-            setToastMessage(r.ok ? 'Ghost-Link offload queued — see transfer panel.' : (r.error || 'Offload failed.'), r.ok ? 'success' : 'warning');
-          }}
-          onGhostLinkRestore={async (path) => {
-            const { IPC: ipc } = await import('../lib/ipcBridge');
-            const r = await ipc.ghostLinkRestore(path);
-            setToastMessage(r.ok ? 'Ghost link restored.' : (r.error || 'Restore failed.'), r.ok ? 'success' : 'warning');
-            void refetchPath(currentPath);
-          }}
-          onStageToRam={(paths) => {
-            openBottomPlugin('ram-staging', { paths });
-          }}
+
           setIsSmartToolsOpen={setIsSmartToolsOpen}
           setToastMessage={setToastMessage}
           setInlineRename={setInlineRename}

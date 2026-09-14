@@ -63,8 +63,6 @@ export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
   { id: 'spatial-pin', label: 'Pin to Spatial Canvas', desc: 'Drop selection onto Spatial', iconVerb: 'map', surfaces: ['file', 'folder'] as const },
   { id: 'automation', label: 'Send to Automation', desc: 'Open Automations with selected paths', iconVerb: 'emblem-shared', surfaces: ['file', 'folder'] as const },
   { id: 'mesh-drop', label: 'Mesh Drop…', desc: 'Ship selection over Mesh Drop', iconVerb: 'share', surfaces: ['file', 'folder'] as const },
-  { id: 'ghost-link', label: 'Ghost-Link offload…', desc: 'Offload selection to ghost links', iconVerb: 'link', surfaces: ['file', 'folder'] as const },
-  { id: 'ram-staging', label: 'Stage to RAM…', desc: 'ImDisk / AIM RAM staging', iconVerb: 'harddrive', surfaces: ['file', 'folder'] as const },
   { id: 'change-icon', label: 'Change Icon', desc: 'Icon Studio submenu on Properties', iconVerb: 'picture_ui', surfaces: ['file', 'folder'] as const },
   { id: 'photo-studio', label: 'Edit in Photo Studio', desc: 'Full layered image editor', iconVerb: 'picture_ui', surfaces: ['file'] as const },
 ] as const;
@@ -128,7 +126,6 @@ export const SHELL_MENU_PRESETS: MenuPreset[] = [
   { id: 'open-bndz', category: 'Open', label: 'Browse in BNDZ', desc: 'Folder → BNDZ', surfaces: ['global'], action: { name: 'Open in BNDZ', command: 'bndz-open-path', targetMode: 'directory', iconVerb: 'open' } },
   { id: 'open-bndz-problems', category: 'Open', label: 'BNDZ Problems', desc: 'Open /bndz/problems', surfaces: ['global'], action: { name: 'BNDZ Problems', command: 'bndz-open-url:bndz://problems', targetMode: 'all', iconVerb: 'shield' } },
   { id: 'open-bndz-inbound', category: 'Open', label: 'BNDZ Inbound', desc: 'Open /bndz/inbound', surfaces: ['global'], action: { name: 'BNDZ Inbound', command: 'bndz-open-url:bndz://inbound', targetMode: 'all', iconVerb: 'download' } },
-  { id: 'open-bndz-ram', category: 'Open', label: 'BNDZ RAM Staging', desc: 'Open /bndz/ram', surfaces: ['global'], action: { name: 'BNDZ RAM Staging', command: 'bndz-open-url:bndz://ram', targetMode: 'all', iconVerb: 'harddrive' } },
 
   // ── Terminal ──────────────────────────────────────────────────────────
   { id: 'term-ps', category: 'Terminal', label: 'PowerShell Here', desc: 'PS in parent folder', surfaces: ['app', 'global'], action: { name: 'Open PowerShell Here', command: 'powershell.exe -NoExit -Command Set-Location -LiteralPath \'%L\'', targetMode: 'directory', iconVerb: 'terminal' } },
@@ -225,7 +222,6 @@ export const DEFAULT_STOCK_GLOBAL_ACTIONS: Array<MenuActionSeed & { id: string }
   { id: 'stock-index', name: 'Index folder in BNDZ', command: 'bndz-open-path', targetMode: 'directory', iconVerb: 'search' },
   { id: 'stock-problems', name: 'BNDZ Problems', command: 'bndz-open-url:bndz://problems', targetMode: 'all', iconVerb: 'shield' },
   { id: 'stock-inbound', name: 'BNDZ Inbound', command: 'bndz-open-url:bndz://inbound', targetMode: 'all', iconVerb: 'download' },
-  { id: 'stock-ram', name: 'BNDZ RAM Staging', command: 'bndz-open-url:bndz://ram', targetMode: 'all', iconVerb: 'harddrive' },
   { id: 'stock-mesh', name: 'Open in BNDZ (Mesh)', command: 'bndz-open-path', targetMode: 'all', iconVerb: 'share' },
 ];
 

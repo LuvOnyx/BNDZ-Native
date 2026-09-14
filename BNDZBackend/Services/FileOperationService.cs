@@ -370,10 +370,49 @@ public class FileOperationService
         if (existingSources.Count == 0)
             throw new FileNotFoundException("None of the source items exist. The operation could not run.");
 
-        // Ensure folder trees exist at destination even when a folder is empty (no files in plan).
-        foreach (var src in existingSources.Where(Directory.Exists))
+        var targetNorm = NormalizePath(targetDir).TrimEnd('\\', '/');
+        foreach (var srcDir in existingSources.Where(Directory.Exists))
         {
+            var srcNorm = NormalizePath(srcDir).TrimEnd('\\', '/');
+            if (string.IsNullOrEmpty(srcNorm) || string.IsNullOrEmpty(targetNorm)) continue;
+            if (string.Equals(srcNorm, targetNorm, StringComparison.OrdinalIgnoreCase)
+                || targetNorm.StartsWith(srcNorm + "\\", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "A folder cannot be moved or copied into itself or one of its subfolders.");
+            }
+        }
+
+        // Resolve folder destinations up front so same-name folders can conflict like files.
+        var folderDestRoots = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var sourcesForPlan = new List<string>();
+        foreach (var src in existingSources)
+        {
+            if (File.Exists(src))
+            {
+                sourcesForPlan.Add(src);
+                continue;
+            }
+            if (!Directory.Exists(src)) continue;
+
             var destRoot = Path.Combine(targetDir, Path.GetFileName(src.TrimEnd('\\', '/')));
+            if (Directory.Exists(destRoot) && onConflict != null)
+            {
+                var resolution = await onConflict(operationId, Path.GetFileName(destRoot), src, destRoot).ConfigureAwait(false);
+                if (resolution == "skip") continue;
+                if (resolution == "keepboth")
+                    destRoot = GetUniquePath(destRoot);
+            }
+            folderDestRoots[src] = destRoot;
+            sourcesForPlan.Add(src);
+        }
+
+        if (sourcesForPlan.Count == 0)
+            return createdPaths;
+
+        // Ensure folder trees exist at destination even when a folder is empty (no files in plan).
+        foreach (var (src, destRoot) in folderDestRoots)
+        {
             Directory.CreateDirectory(destRoot);
             foreach (var dir in FileOperationPathPlanner.EnumerateChildDirectoriesRecursive(src))
             {
@@ -384,12 +423,35 @@ public class FileOperationService
                 createdPaths.Add(destRoot);
         }
 
-        var plan = FileOperationPathPlanner.Plan(move ? "move" : "copy", sources, targetDir, recreateSourceStructure);
         var work = new List<(string src, string dest, long size)>();
-        foreach (var (src, dest) in plan)
+        var useStructure = recreateSourceStructure && FileOperationPathPlanner.ShouldRecreateStructure(sourcesForPlan);
+        if (useStructure)
         {
-            if (!File.Exists(src)) continue;
-            work.Add((src, dest, new FileInfo(src).Length));
+            var plan = FileOperationPathPlanner.Plan(move ? "move" : "copy", sourcesForPlan, targetDir, recreateSourceStructure: true);
+            foreach (var (src, dest) in plan)
+            {
+                if (!File.Exists(src)) continue;
+                work.Add((src, dest, new FileInfo(src).Length));
+            }
+        }
+        else
+        {
+            foreach (var src in sourcesForPlan)
+            {
+                if (File.Exists(src))
+                {
+                    var dest = Path.Combine(targetDir, Path.GetFileName(src));
+                    work.Add((src, dest, new FileInfo(src).Length));
+                }
+                else if (folderDestRoots.TryGetValue(src, out var destRoot))
+                {
+                    foreach (var file in FileOperationPathPlanner.EnumerateFilesRecursive(src))
+                    {
+                        var rel = Path.GetRelativePath(src, file);
+                        work.Add((file, Path.Combine(destRoot, rel), new FileInfo(file).Length));
+                    }
+                }
+            }
         }
 
         if (work.Count == 0 && createdPaths.Count == 0)
@@ -400,7 +462,7 @@ public class FileOperationService
             // Empty folders only — directory tree already created above.
             if (move)
             {
-                foreach (var src in existingSources.Where(Directory.Exists))
+                foreach (var src in folderDestRoots.Keys)
                 {
                     try { Directory.Delete(src, true); } catch { /* best effort */ }
                 }

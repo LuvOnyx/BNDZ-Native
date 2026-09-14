@@ -1330,6 +1330,7 @@ namespace BNDZ.Services
                         currentPath = p.CurrentPath,
                         filesIndexed = p.FilesIndexed,
                         done = p.Done,
+                        jobComplete = p.JobComplete,
                         root = p.Root,
                         error = p.Error,
                     },
@@ -1348,6 +1349,7 @@ namespace BNDZ.Services
                     });
                 }
             };
+            BndzFileIndexService.Instance.StartDeferredDefaultIndex();
             // headless: no window icon
             /* headless: no tray */
             // headless

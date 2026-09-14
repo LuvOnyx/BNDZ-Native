@@ -35,11 +35,6 @@ export function routeCommandDeckTool(id: ContextToolId): PaneToolRoute {
       return { kind: 'preview' };
     case 'storage-cleanup':
       return { kind: 'plugin', pluginId: 'storage-cleanup' };
-    case 'ghost-link':
-      return { kind: 'plugin', pluginId: 'ram-staging' };
-    case 'ram-staging':
-    case 'flush-ram-zone':
-      return { kind: 'plugin', pluginId: 'ram-staging' };
     case 'dropstack':
       return { kind: 'plugin', pluginId: 'dropstack' };
     case 'catalog':

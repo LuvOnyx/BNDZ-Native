@@ -18,8 +18,6 @@ type Props = {
   onNavigate: (path: string) => void;
   onRefresh?: () => void;
   onOpenMeshDrop?: () => void;
-  onOpenGhostLink?: () => void;
-  onOpenRamStaging?: () => void;
 };
 
 const VIEWS = [
@@ -91,7 +89,7 @@ const WORKSPACES = [
   },
 ] as const;
 
-export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onOpenGhostLink, onOpenRamStaging }: Props) {
+export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop }: Props) {
   const [status, setStatus] = useState<IndexStatus | null>(null);
   const [pinCount, setPinCount] = useState(0);
   const [blockCount, setBlockCount] = useState(0);
@@ -133,7 +131,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
           />
         ))}
       </div>
-      {(onOpenMeshDrop || onOpenGhostLink || onOpenRamStaging) && (
+      {(onOpenMeshDrop) && (
         <div className="px-1 pt-3 pb-2">
           <div className="px-1 pb-2 text-[10px] uppercase tracking-wider bndz-smart-hub-kicker">Power tools</div>
           <div className="space-y-2">
@@ -148,32 +146,6 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
                 badgeVariant="gold"
                 features={['LAN beacon', 'Mesh codes', 'Web share']}
                 onClick={onOpenMeshDrop}
-              />
-            )}
-            {onOpenGhostLink && (
-              <WorkspaceLaunchCard
-                title="Ghost-Link"
-                desc="Offload cold files to storage while keeping original paths via symlinks"
-                icon="link"
-                emblemId="emblem-symbolic-link"
-                accent="#8fa8bc"
-                badge="Symlink"
-                badgeVariant="gold"
-                features={['Cold vault', 'Reclaim space', 'Restore']}
-                onClick={onOpenGhostLink}
-              />
-            )}
-            {onOpenRamStaging && (
-              <WorkspaceLaunchCard
-                title="RAM Staging"
-                desc="Stage projects in RAM or fast NVMe — browse zones at /bndz/ram, flush on eject"
-                icon="hard_drive_ui"
-                emblemId="emblem-mounted"
-                accent="#c48b4a"
-                badge="Staging"
-                badgeVariant="gold"
-                features={['ImDisk / Fast', 'Flush on eject', '/bndz/ram']}
-                onClick={onOpenRamStaging}
               />
             )}
           </div>

@@ -8,17 +8,14 @@ import {
   PluginToolbarButton,
   PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PluginFieldLabel,
-  PluginStatCard,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
 
 export const TranscodeRackPluginDef = {
   id: 'transcode-rack',
-  name: 'Transcode Rack',
+  name: 'Encode',
   icon: 'edit_image',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
@@ -145,32 +142,27 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
   const activeJobs = status?.jobs.filter(j => j.status === 'running' || j.status === 'queued') ?? [];
   const doneJobs = status?.jobs.filter(j => j.status === 'completed' || j.status === 'failed') ?? [];
 
-  return (
-    <PluginPanelShell
-      title="Encode"
-      variant={embedded ? 'embedded' : 'default'}
-      icon="edit_image"
-      toolbar={
-        <PluginToolbarButton icon="play_ui" onClick={enqueue} disabled={running || !imagePaths.length}>
-          Run batch
-        </PluginToolbarButton>
-      }
-    >
-      <PluginHeroStrip
-        title="Image encode queue"
-        subtitle="SkiaSharp batch encode — JPEG, PNG, or WebP with visible queue progress."
-        actions={
-          <PluginHeroActionButton icon="refresh_ui" onClick={pollStatus}>
-            Refresh
-          </PluginHeroActionButton>
-        }
-      />
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-3 pb-2">
-        <PluginStatCard label="Queued" value={String(status?.queued ?? 0)} />
-        <PluginStatCard label="Running" value={String(status?.running ?? 0)} />
-        <PluginStatCard label="Done" value={String(status?.completed ?? 0)} />
-        <PluginStatCard label="Progress" value={`${status?.overallProgress ?? 0}%`} />
+  const encodeBody = (
+    <>
+      <div className="bndz-encode-opsrail">
+        <div className="bndz-encode-opsrail-copy min-w-0">
+          <div className="bndz-encode-opsrail-title">Encode</div>
+          <div className="bndz-encode-opsrail-meta">
+            {status?.queued ?? 0} queued · {status?.running ?? 0} running · {status?.completed ?? 0} done · {imagePaths.length} selected
+          </div>
+        </div>
+        <div className="bndz-encode-opsrail-actions">
+          <PluginToolbarButton icon="refresh_ui" onClick={pollStatus}>Refresh</PluginToolbarButton>
+          <PluginToolbarButton icon="play_ui" onClick={enqueue} disabled={running || !imagePaths.length}>
+            Run batch
+          </PluginToolbarButton>
+        </div>
+      </div>
+      <div className="bndz-encode-meter mx-3 mb-2">
+        <div className="bndz-encode-meter-track">
+          <div className="bndz-encode-meter-fill" style={{ width: `${Math.max(0, Math.min(100, status?.overallProgress ?? 0))}%` }} />
+        </div>
+        <span className="bndz-encode-meter-label">{status?.overallProgress ?? 0}%</span>
       </div>
 
       <div className="px-3 pb-3 grid gap-3 sm:grid-cols-2">
@@ -212,7 +204,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
           </div>
           <div className="flex-1 overflow-y-auto bndz-scrollbar space-y-1.5">
             {activeJobs.length === 0 && doneJobs.length === 0 && (
-              <PluginEmptyState icon="edit_image" title="Queue empty" hint="Select images and run batch." />
+              <PluginEmptyState icon="edit_image" title="Queue empty" description="Select images and run batch." />
             )}
             {activeJobs.map(job => (
               <div key={job.id} className="rounded-md border border-white/5 bg-white/[0.02] px-2 py-1.5">
@@ -237,6 +229,16 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
           </div>
         </PluginCard>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex flex-col h-full min-h-0 overflow-y-auto bndz-scrollbar">{encodeBody}</div>;
+  }
+
+  return (
+    <PluginPanelShell title="Encode" variant="default" icon="edit_image">
+      {encodeBody}
     </PluginPanelShell>
   );
 }

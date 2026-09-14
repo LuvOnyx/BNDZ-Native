@@ -5,6 +5,7 @@ import { IPC } from './lib/ipcBridge';
 import App from './App.tsx';
 import './index.css';
 import { isFilesHostBoot } from './lib/filesHostBoot';
+import { isNativeShellBoot } from './lib/nativeShellBoot';
 import { getFileDragSession } from './lib/fileDragSession';
 import { installOleDragEscalateGhostHook } from './lib/fileDragUiCleanup';
 import { configureExplorerGradeDragThreshold } from './lib/dragController';
@@ -23,12 +24,14 @@ if (typeof window !== 'undefined' && !!(window as any).chrome?.webview) {
 installOleDragEscalateGhostHook();
 
 const filesHost = isFilesHostBoot();
+const nativeShell = isNativeShellBoot();
+const deferHeavyBoot = filesHost || nativeShell;
 
-// Full font pack is heavy — on FilesMerge, paint chrome first, hydrate faces when idle.
+// Full font pack is heavy — on native shell / FilesHost, paint chrome first, hydrate faces when idle.
 const loadFontPack = () => {
   void import('./lib/bndzFontPack');
 };
-if (filesHost) {
+if (deferHeavyBoot) {
   const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
   if (typeof ric === 'function') ric(() => loadFontPack(), { timeout: 2500 });
   else window.setTimeout(loadFontPack, 800);
@@ -43,7 +46,7 @@ const scheduleBootAutomations = () => {
     void restoreArmedAutomationsOnBoot();
   });
 };
-if (filesHost) {
+if (deferHeavyBoot) {
   const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
   if (typeof ric === 'function') ric(() => scheduleBootAutomations(), { timeout: 8000 });
   else window.setTimeout(scheduleBootAutomations, 5000);

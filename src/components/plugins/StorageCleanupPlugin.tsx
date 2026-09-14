@@ -9,7 +9,6 @@ import {
   PluginTab,
   PluginSectionTitle,
   PluginCard,
-  PluginStatCard,
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
@@ -211,11 +210,11 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   return (
     <PluginPanelShell
-      title="Cleanup & Health"
+      title="Storage Cleanup"
       icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Cleanup · capacity · library health · review before delete"
+      subtitle="One ops surface — clean · capacity · duplicates · library health"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -242,21 +241,22 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
         <>
       <PluginHeroStrip
         icon={<Icons8Icon id="storage_cleanup" size={52} className="opacity-90" />}
-        name="Disk Cleanup"
-        typeLabel="BNDZ Storage Cleanup"
+        name="Storage Cleanup"
+        typeLabel="Clean · reclaim · repair"
         path={currentPath && currentPath !== '/' ? currentPath : undefined}
         meta={
           <span className="bndz-panel-muted text-xs">
-            Pick scan areas · review findings · uninstall apps · reclaim space safely
+            {folderLabel}
+            {largeCandidates[0] ? ` · largest ${formatStorageSize(largeCandidates[0].computedSize)}` : ''}
             {duplicateWaste > 0 ? ` · ${formatStorageSize(duplicateWaste)} duplicate waste` : ''}
           </span>
         }
         actions={
           <>
             <PluginHeroActionButton icon="zap_ui" variant="primary" onClick={() => { setActiveTab('advanced'); setAdvancedWizardOpen(true); }}>Deep Clean</PluginHeroActionButton>
-            <PluginHeroActionButton icon="hard_drive_ui" onClick={() => setActiveTab('capacity')}>Capacity</PluginHeroActionButton>
-            <PluginHeroActionButton icon="copy" onClick={() => openWizard('cleanup')}>Duplicates</PluginHeroActionButton>
-            <PluginHeroActionButton icon="app_ui" onClick={() => setActiveTab('uninstaller')}>Apps</PluginHeroActionButton>
+            <PluginToolbarButton icon={scanning ? 'loading' : 'file_search_ui'} onClick={() => void runFolderScan()} disabled={scanning}>
+              Scan folder
+            </PluginToolbarButton>
           </>
         }
       />
@@ -277,56 +277,18 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       <div className="flex-1 overflow-y-auto bndz-scrollbar p-4">
           {activeTab === 'overview' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => { setActiveTab('advanced'); setAdvancedWizardOpen(true); }}
-                  className="bndz-cleanup-launch-card text-left p-4 rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/15 via-black/20 to-transparent hover:border-emerald-400/45 transition-all"
-                >
-                  <div className="flex items-center gap-2 text-emerald-300 font-semibold text-sm mb-1">
-                    <Icons8Icon id="zap_ui" size={16} /> Deep Clean
-                  </div>
-                  <p className="text-[11px] bndz-panel-muted leading-relaxed">
-                    Pre-select temp, caches, recycle, browsers, large files — scan, review checkboxes, then clean or cancel.
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('uninstaller')}
-                  className="bndz-cleanup-launch-card text-left p-4 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/12 via-black/20 to-transparent hover:border-sky-400/40 transition-all"
-                >
-                  <div className="flex items-center gap-2 text-sky-300 font-semibold text-sm mb-1">
-                    <Icons8Icon id="app_ui" size={16} /> App Uninstaller
-                  </div>
-                  <p className="text-[11px] bndz-panel-muted leading-relaxed">
-                    Review installed apps and remove what you no longer need — same panel, native uninstall path.
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openWizard('cleanup')}
-                  className="bndz-cleanup-launch-card text-left p-4 rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/12 via-black/20 to-transparent hover:border-violet-400/40 transition-all"
-                >
-                  <div className="flex items-center gap-2 text-violet-300 font-semibold text-sm mb-1">
-                    <Icons8Icon id="copy" size={16} /> Duplicates &amp; Large
-                  </div>
-                  <p className="text-[11px] bndz-panel-muted leading-relaxed">
-                    Hash-based duplicate finder with keep rules, plus heavy items in the current folder.
-                  </p>
-                </button>
-              </div>
-
-              <div className="flex justify-between items-center gap-3">
-                <p className="text-xs bndz-panel-muted">Quick analysis of {folderLabel}</p>
-                <PluginToolbarButton icon={scanning ? 'loading' : 'file_search_ui'} onClick={() => void runFolderScan()} disabled={scanning}>
-                  Scan large files
-                </PluginToolbarButton>
-              </div>
-
-              <div className="bndz-plugin-stat-grid">
-                <PluginStatCard label="Largest item" value={largeCandidates[0] ? formatStorageSize(largeCandidates[0].computedSize) : '—'} sub={largeCandidates[0]?.name} iconId="zap_ui" />
-                <PluginStatCard label="Tracked bulk" value={formatStorageSize(totalVisible)} sub={`${largeCandidates.length} items`} iconId="hard_drive_ui" />
-                <PluginStatCard label="Duplicate waste" value={dupGroups.length ? formatStorageSize(duplicateWaste) : '—'} sub={dupGroups.length ? `${dupGroups.length} groups` : 'Run Duplicates'} iconId="copy" />
+              <div className="bndz-cleanup-meter">
+                <div className="bndz-cleanup-meter-row">
+                  <span>Tracked in view</span>
+                  <strong>{formatStorageSize(totalVisible)}</strong>
+                  <em>{largeCandidates.length} items</em>
+                </div>
+                <div className="bndz-cleanup-meter-links">
+                  <button type="button" className="bndz-cleanup-quiet-link" onClick={() => setActiveTab('capacity')}>Capacity</button>
+                  <button type="button" className="bndz-cleanup-quiet-link" onClick={() => openWizard('cleanup')}>Duplicates</button>
+                  <button type="button" className="bndz-cleanup-quiet-link" onClick={() => setActiveTab('uninstaller')}>Apps</button>
+                  <button type="button" className="bndz-cleanup-quiet-link" onClick={() => setActiveTab('health')}>Health</button>
+                </div>
               </div>
 
               {typeBreakdown.length > 0 && (
@@ -361,7 +323,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                   {lastScan && <span className="bndz-panel-muted text-xs">Scanned {lastScan.toLocaleTimeString()}</span>}
                 </div>
                 {largeCandidates.length === 0 ? (
-                  <PluginEmptyState icon="hard_drive_ui" description="Open a folder with content, then run Scan large files." />
+                  <PluginEmptyState icon="hard_drive_ui" description="Open a folder with content, then run Scan folder." />
                 ) : (
                   <div className="divide-y divide-white/[0.04]">
                     {largeCandidates.map((item: any) => (

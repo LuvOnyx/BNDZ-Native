@@ -56,11 +56,7 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Drop policies that block, warn, or reroute',
       'Batch copy or move into the active pane',
     ],
-    'design-board': [
-      'Infinite Fabric canvas with ProDesign chrome',
-      'Place images via Explorer drop onto the board',
-      'Expand to fill the workspace without leaving BNDZ',
-    ],
+
     filters: [
       'Visual color filters for list rows',
       'Smart groups — cluster the folder into piles',
@@ -97,11 +93,7 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Mesh VPS launch, import, start/stop, and Mesh bridge',
       'Ephemeral and persistent instances with cloud-init SSH',
     ],
-    'ram-staging': [
-      'Hot RAM / fast-disk staging zones',
-      'Cold staging that keeps a link at the old path',
-      'One Staging tool — hot and cold tiers',
-    ],
+
     'project-sandbox': [
       'Isolated sandbox sessions with checkpoint/commit/discard',
       'Encrypted vault unlock/browse beside sandbox work',

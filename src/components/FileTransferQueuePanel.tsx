@@ -47,6 +47,8 @@ function JobRow({
   onCancel,
   onPause,
   onResume,
+  onRetry,
+  onSkip,
   cancelling,
   errorExpanded,
   onToggleError,
@@ -58,6 +60,8 @@ function JobRow({
   onCancel: (id: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
+  onRetry?: (id: string) => void;
+  onSkip?: (id: string) => void;
   cancelling: boolean;
   errorExpanded: boolean;
   onToggleError: () => void;
@@ -68,6 +72,8 @@ function JobRow({
   const canCancel = (job.status === 'queued' || job.status === 'running' || job.status === 'paused') && !cancelling;
   const canPause = job.status === 'running' && !cancelling && job.engine !== 'native';
   const canResume = job.status === 'paused' && !cancelling;
+  const canRetry = job.status === 'failed' && !!onRetry;
+  const canSkip = job.status === 'failed' && !!onSkip;
   const engineLabel = job.engine === 'native' ? 'Windows'
     : job.engine === 'teracopy' ? 'TeraCopy'
     : job.engine === 'mesh' || String(job.type || '').startsWith('mesh-') ? 'Mesh'
@@ -191,6 +197,33 @@ function JobRow({
               className="bndz-transfer-cancel-btn"
             >
               Cancel
+            </button>
+          )}
+          {canRetry && (
+            <button
+              type="button"
+              onClick={() => onRetry?.(job.operationId)}
+              className="bndz-transfer-cancel-btn"
+            >
+              Retry
+            </button>
+          )}
+          {canSkip && (
+            <button
+              type="button"
+              onClick={() => onSkip?.(job.operationId)}
+              className="bndz-transfer-cancel-btn"
+            >
+              Skip
+            </button>
+          )}
+          {job.status === 'failed' && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'action-log' } }))}
+              className="bndz-transfer-cancel-btn"
+            >
+              Open log
             </button>
           )}
         </div>
@@ -383,6 +416,26 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
     } catch { /* ignore */ }
   };
 
+  const handleRetryFailed = (operationId: string) => {
+    window.dispatchEvent(new CustomEvent('bndz-retry-last-transfer', { detail: { operationId } }));
+  };
+
+  const handleOpenActionLog = () => {
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'action-log' } }));
+  };
+
+  const handleSkipFailed = async (operationId: string) => {
+    window.dispatchEvent(new CustomEvent('bndz-skip-failed-transfer', { detail: { operationId } }));
+    setHiddenIds(prev => ({ ...prev, [operationId]: true }));
+    const { IPC } = await import('../lib/ipcBridge');
+    try {
+      // Best-effort: clear finished history so skipped failures do not linger.
+      if (state.activeCount === 0 && state.queuedCount === 0) {
+        await IPC.clearFileTransferHistory();
+      }
+    } catch { /* ignore */ }
+  };
+
   const handleClearFinished = async () => {
     const { IPC } = await import('../lib/ipcBridge');
     await IPC.clearFileTransferHistory();
@@ -441,6 +494,8 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
               onCancel={id => void handleCancel(id)}
               onPause={id => void handlePause(id)}
               onResume={id => void handleResume(id)}
+              onRetry={id => handleRetryFailed(id)}
+              onSkip={id => void handleSkipFailed(id)}
               cancelling={!!cancellingIds[job.operationId]}
               errorExpanded={!!expandedErrors[job.operationId]}
               onToggleError={() => setExpandedErrors(prev => ({

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { formatUiPath } from '../../lib/displayPath';
@@ -70,6 +70,11 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const [savedCatalogs, setSavedCatalogs] = useState<CatalogEntry[]>([]);
     const [smartCollections, setSmartCollections] = useState<SmartCollection[]>(() => loadSmartCollections());
     const [selectedResultPaths, setSelectedResultPaths] = useState<Set<string>>(() => new Set());
+    const [activeResultIndex, setActiveResultIndex] = useState(-1);
+    const [hasSearched, setHasSearched] = useState(false);
+    const [lastSearchEngine, setLastSearchEngine] = useState<string | null>(null);
+    const resultsListRef = useRef<HTMLDivElement | null>(null);
+
     const [findPresets, setFindPresets] = useState<FindPreset[]>(() => {
         try {
             const raw = localStorage.getItem(PRESET_KEY);
@@ -177,6 +182,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     },
                 );
                 setResults(items || []);
+                setHasSearched(true);
+                setLastSearchEngine(engine ? String(engine) : null);
+                setActiveResultIndex((items || []).length ? 0 : -1);
                 if (rt.search.cacheSearchResults && Array.isArray(items)) {
                     try {
                         sessionStorage.setItem(
@@ -194,10 +202,15 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 setStatus(`${items?.length ?? 0} result(s) · ${scopeLabel}${engine ? ` · ${engine}` : ''} · indent ${indent}px`);
             } else {
                 setResults([]);
+                setHasSearched(true);
+                setLastSearchEngine(null);
+                setActiveResultIndex(-1);
                 setStatus('Fast Search requires the BNDZ native host (Everything / indexer).');
             }
         } catch {
             setStatus('Search failed.');
+            setHasSearched(true);
+            setActiveResultIndex(-1);
         }
         setSearching(false);
     };
@@ -222,6 +235,60 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const navigateTo = (path: string) => {
         if (path) window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path } }));
     };
+
+    const openResultAt = (index: number) => {
+        const item = results[index];
+        const path = String(item?.path || '');
+        if (path) navigateTo(path);
+    };
+
+    const onResultsKeyDown = (e: React.KeyboardEvent) => {
+        if (!results.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setActiveResultIndex(i => Math.min(results.length - 1, (i < 0 ? 0 : i) + 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActiveResultIndex(i => Math.max(0, (i < 0 ? 0 : i) - 1));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const idx = activeResultIndex >= 0 ? activeResultIndex : 0;
+            openResultAt(idx);
+        } else if (e.key === 'Home') {
+            e.preventDefault();
+            setActiveResultIndex(0);
+        } else if (e.key === 'End') {
+            e.preventDefault();
+            setActiveResultIndex(results.length - 1);
+        }
+    };
+
+    useEffect(() => {
+        if (activeResultIndex < 0) return;
+        const root = resultsListRef.current;
+        if (!root) return;
+        const row = root.querySelector(`[data-find-result-index="${activeResultIndex}"]`) as HTMLElement | null;
+        row?.scrollIntoView({ block: 'nearest' });
+    }, [activeResultIndex]);
+
+    const everythingEnabled = config?.enableEverythingSearch !== false;
+    const emptyTitle = searching
+        ? 'Searching…'
+        : !hasSearched
+            ? 'Search your PC'
+            : 'No results';
+    const emptyDescription = searching
+        ? 'Looking for matches…'
+        : !hasSearched
+            ? (everythingEnabled
+                ? 'Type a query and press Enter. Everything mode searches all drives instantly; Folder mode stays in the current path.'
+                : 'Type a query and press Enter. Everything is off in Settings — searches use the BNDZ index / Windows Search when available.')
+            : (everythingEnabled
+                ? (lastSearchEngine
+                    ? `No matches via ${lastSearchEngine}. Try a broader query, another mode, or check spelling.`
+                    : 'No matches. Try a broader query, switch mode, or search a different folder.')
+                : 'No matches. Everything is disabled — enable it in Settings for instant all-drive search, or build/refresh the BNDZ index.');
+
 
     const toggleQueryToken = (token: string) => {
         setQuery(prev => {
@@ -539,7 +606,18 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 <input
                                     value={query}
                                     onChange={e => setQuery(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && doSearch()}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            void doSearch().then(() => {
+                                                requestAnimationFrame(() => resultsListRef.current?.focus());
+                                            });
+                                        } else if (e.key === 'ArrowDown' && results.length) {
+                                            e.preventDefault();
+                                            resultsListRef.current?.focus();
+                                            setActiveResultIndex(0);
+                                        }
+                                    }}
                                     placeholder={mode === 'advanced' ? 'Boolean query across multiple roots…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
                                     className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm`}
                                 />
@@ -621,11 +699,18 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         ) : results.length === 0 ? (
                             <PluginEmptyState
                               icon="find"
-                              title="No results"
-                              description="Enter a query and search — results open as finding tabs from the list."
+                              title={emptyTitle}
+                              description={emptyDescription}
                             />
                         ) : (
-                            <div className="flex flex-col min-h-0">
+                            <div
+                              className="flex flex-col min-h-0 outline-none"
+                              tabIndex={0}
+                              ref={resultsListRef}
+                              onKeyDown={onResultsKeyDown}
+                              role="listbox"
+                              aria-label="Search results"
+                            >
                               <div className="sticky top-0 z-10 grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-[10px] uppercase tracking-[0.08em] text-white/35 border-b border-white/[0.06]" style={{ background: 'var(--bndz-surface-chrome)' }}>
                                 <span />
                                 <span>Name</span>
@@ -637,10 +722,15 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                   const path = String(r.path || '');
                                   const shown = formatUiPath(path) || path;
                                   const checked = selectedResultPaths.has(path);
+                                  const active = i === activeResultIndex;
                                   return (
                                   <div
                                     key={`${path}-${i}`}
-                                    className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''}`}
+                                    role="option"
+                                    data-find-result-index={i}
+                                    aria-selected={active || checked}
+                                    className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''} ${active ? 'bg-[#094771]/28 ring-1 ring-inset ring-sky-400/35' : ''}`}
+                                    onClick={() => setActiveResultIndex(i)}
                                     onDoubleClick={() => navigateTo(path)}
                                     title={r.snippet ? `${shown}\n${r.snippet}` : shown}
                                   >

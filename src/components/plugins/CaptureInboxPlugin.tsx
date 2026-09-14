@@ -10,9 +10,6 @@ import {
   PluginTab,
   PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
-  PluginStatCard,
   PluginSectionTitle,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
@@ -72,9 +69,12 @@ function captureListSignature(list: { captures?: unknown[]; watching?: boolean; 
 
 export default function CaptureInboxPlugin({
   currentPath,
+  embedded = false,
 }: {
   selectedPaths?: string[];
   currentPath?: string;
+  /** When nested under Drop Stack / Intake — skip second shell + SaaS stats. */
+  embedded?: boolean;
 }) {
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
   const [watching, setWatching] = useState(false);
@@ -194,13 +194,17 @@ export default function CaptureInboxPlugin({
     ? (Date.now() - lastRefreshedAt < 60_000 ? 'Synced just now' : `Synced ${relativeTime(new Date(lastRefreshedAt).toISOString())}`)
     : 'Syncing…';
 
-  return (
-    <PluginPanelShell
-      title="Capture Inbox"
-      subtitle="Clipboard images → named PNG files"
-      iconId="clipboard_ui"
-      toolbar={(
-        <div className="flex items-center gap-1.5">
+  const body = (
+    <>
+      <div className="bndz-capture-opsrail">
+        <div className="bndz-capture-opsrail-copy min-w-0">
+          <div className="bndz-capture-opsrail-title">Captures</div>
+          <div className="bndz-capture-opsrail-meta">
+            {captures.length} saved · watcher {watching ? 'on' : 'off'} · {refreshedLabel}
+          </div>
+          <p className="bndz-capture-opsrail-hint">{statusHint}</p>
+        </div>
+        <div className="bndz-capture-opsrail-actions">
           <PluginToolbarButton onClick={() => void captureNow()} disabled={busy} title="Capture clipboard image now">
             <Icons8Icon id="image_ui" size={14} />
             Capture
@@ -216,26 +220,7 @@ export default function CaptureInboxPlugin({
             <Icons8Icon id="refresh_ui" size={14} />
           </PluginToolbarButton>
         </div>
-      )}
-    >
-      <PluginHeroStrip accent="#a78bfa">
-        <div className="flex flex-wrap items-center gap-3 min-w-0">
-          <PluginHeroActionButton onClick={() => void captureNow()} disabled={busy} accent="#a78bfa">
-            <Icons8Icon id="clipboard_ui" size={16} />
-            Capture now
-          </PluginHeroActionButton>
-          <PluginHeroActionButton onClick={() => void toggleWatch()} disabled={busy} accent={watching ? '#34d399' : '#6b7280'}>
-            <Icons8Icon id="toggle_preview" size={16} />
-            {watching ? 'Watching clipboard' : 'Enable watching'}
-          </PluginHeroActionButton>
-        </div>
-        <div className="flex flex-wrap gap-2 mt-3">
-          <PluginStatCard label="Captures" value={String(captures.length)} icon="image_ui" />
-          <PluginStatCard label="Watcher" value={watching ? 'On' : 'Off'} icon="eye_ui" accent={watching ? '#34d399' : undefined} />
-          <PluginStatCard label="Sync" value={refreshedLabel} icon="refresh_ui" />
-        </div>
-        <p className="text-[10px] text-gray-500 mt-2">{statusHint}</p>
-      </PluginHeroStrip>
+      </div>
 
       <PluginSectionTitle>Capture folder</PluginSectionTitle>
       <PluginCard className="mb-3">
@@ -306,6 +291,21 @@ export default function CaptureInboxPlugin({
           ))}
         </div>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex flex-col h-full min-h-0 overflow-y-auto bndz-scrollbar p-3">{body}</div>;
+  }
+
+  return (
+    <PluginPanelShell
+      title="Capture Inbox"
+      subtitle="Clipboard images → named PNG files"
+      icon="clipboard_ui"
+      variant="embedded"
+    >
+      {body}
     </PluginPanelShell>
   );
 }

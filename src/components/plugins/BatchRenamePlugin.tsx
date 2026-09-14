@@ -11,8 +11,6 @@ import {
   PluginControlSection,
   PluginFieldLabel,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PluginTabStrip,
   PluginTab,
   PLUGIN_INPUT_CLASS,
@@ -23,7 +21,7 @@ export const BatchRenamePluginDef = {
     id: "batch-rename",
     name: "Batch Rename",
     icon: 'batch_rename',
-    description: 'Rename & magnets — pattern renames plus drop recipes for rename, tag, and route',
+    description: 'Batch rename + magnets — pattern renames plus drop recipes for rename, tag, and route',
 };
 
 type PanelTabId = 'rename' | 'magnets';
@@ -387,12 +385,12 @@ export default function BatchRenamePlugin({
 
     return (
         <PluginPanelShell
-            title="Rename & Magnets"
+            title="Batch Rename"
             icon="batch_rename"
             iconColor="#34d399"
             variant="embedded"
             subtitle={panelTab === 'magnets'
-                ? 'Drop magnets — rename, tag, and route on release'
+                ? 'Magnets — rename, tag, and route on release'
                 : `${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
             toolbar={(
                 <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
@@ -415,34 +413,36 @@ export default function BatchRenamePlugin({
                 </div>
             ) : (
                 <div className="flex flex-col h-full min-h-0 overflow-hidden">
-                    <PluginHeroStrip
-                        icon={<Icons8Icon id="batch_rename" size={52} className="opacity-90" />}
-                        name={targets.length ? `${targets.length} item${targets.length === 1 ? '' : 's'} to rename` : 'Batch rename'}
-                        typeLabel="Rename engine"
-                        meta={
-                            <span className="bndz-panel-muted text-xs">
+                    <div className="bndz-batch-opsrail">
+                        <div className="bndz-batch-opsrail-copy min-w-0">
+                            <div className="bndz-batch-opsrail-title">
+                                {targets.length
+                                    ? `${targets.length} item${targets.length === 1 ? '' : 's'} to rename`
+                                    : 'Batch Rename'}
+                            </div>
+                            <div className="bndz-batch-opsrail-meta">
                                 {collisions.length ? `${collisions.length} pending change(s)` : 'Select files in the list'}
                                 {batchNameConflicts.size > 0 ? ` · ${batchNameConflicts.size} collision(s)` : ''}
-                            </span>
-                        }
-                        actions={
-                            <>
-                                <PluginHeroActionButton
-                                    icon={committing ? 'loading' : 'check'}
-                                    variant="primary"
-                                    onClick={() => void handleCommit()}
-                                    disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
+                            </div>
+                        </div>
+                        <div className="bndz-batch-opsrail-actions">
+                            {targets.length > 0 && (
+                                <PluginToolbarButton
+                                    icon="reset_ui"
+                                    onClick={() => { setAiOverrides({}); setFindStr(''); setReplaceStr(''); }}
                                 >
-                                    Apply renames
-                                </PluginHeroActionButton>
-                                {targets.length > 0 && (
-                                    <PluginHeroActionButton icon="reset_ui" onClick={() => { setAiOverrides({}); setFindStr(''); setReplaceStr(''); }}>
-                                        Reset rules
-                                    </PluginHeroActionButton>
-                                )}
-                            </>
-                        }
-                    />
+                                    Reset rules
+                                </PluginToolbarButton>
+                            )}
+                            <PluginToolbarButton
+                                icon={committing ? 'loading' : 'check'}
+                                onClick={() => void handleCommit()}
+                                disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
+                            >
+                                Apply renames
+                            </PluginToolbarButton>
+                        </div>
+                    </div>
                 <div className="px-4 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-2 shrink-0">
                     <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 cursor-pointer">
                         <input type="checkbox" checked={autoSuffixCollisions} onChange={e => setAutoSuffixCollisions(e.target.checked)} />
