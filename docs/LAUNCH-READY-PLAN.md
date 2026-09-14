@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1 + E (code) + B brand scrub + Wave F + A2 code-smoke + A3 Branching Time / Storage Cleanup / Project Sandbox / Drop Stack / Folder Sync craft; residual A3 hosts + C/D + Windows matrix deferred  
+**Status:** Execution in progress — A1–A3 hosts largely crafted (incl. Catalog / Action Log / Metadata); residual Shell Menus / Icon Studio / Batch Rename + Wave C/D + Windows matrix deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -81,11 +81,11 @@ Each remaining Hub plugin must read as **one product**, not dumped tabs or SaaS 
 | Icon Studio | Icon libraries / apply |
 | Batch Rename | Rename + magnets |
 | Drop Stack | Intake & stage — ops rail + browse stage (A3 craft); nested Captures/Policies without double chrome |
-| Metadata | Facts + encode |
+| Metadata | Facts + encode — ops rail; nested Encode meter (no stat farm) (A3 craft) |
 | Storage Cleanup | One ops surface — overview meter + large-file list (A3 craft); Capacity/Health as sections |
 | Folder Sync | Sync + densified preview + Diff bare chrome (A3 craft) |
-| Catalog | Virtual folders |
-| Action Log | Undo/redo history |
+| Catalog | Virtual folders — ops rail + catalog naming (A3 craft) |
+| Action Log | Undo/redo timeline — ops rail, one product name (A3 craft) |
 | Mesh / Remote | Power-user SSH/SFTP (optional install) |
 | Project Sandbox | Safe workspaces — live rail + session stage + history timeline + vault unlock strip (A3 craft) |
 | Branching Time | Folder timeline — native snapshot rail (A3 craft pass 2026-09-14); peek tip / restore; VSS + shadows |

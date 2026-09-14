@@ -20008,3 +20008,86 @@ html.theme-light .bndz-xfer-toast-track {
 .bndz-capture-opsrail .bndz-plugin-toolbar-btn,
 .bndz-policy-opsrail .bndz-plugin-toolbar-btn,
 .bndz-compare-opsrail .bndz-plugin-toolbar-btn { flex-shrink: 0; }
+
+/* Catalog / Action Log / Metadata / Encode ops rails (Launch Ready A3) */
+.bndz-catalog-opsrail,
+.bndz-actionlog-opsrail,
+.bndz-metadata-opsrail,
+.bndz-encode-opsrail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #38bdf8 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #38bdf8 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #10161c, #0e1216);
+}
+.bndz-actionlog-opsrail {
+  border-bottom-color: color-mix(in srgb, #a78bfa 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #a78bfa 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #14121a, #0f1016);
+}
+.bndz-catalog-opsrail-copy,
+.bndz-actionlog-opsrail-copy,
+.bndz-metadata-opsrail-copy,
+.bndz-encode-opsrail-copy { min-width: 0; flex: 1; }
+.bndz-catalog-opsrail-title,
+.bndz-actionlog-opsrail-title,
+.bndz-metadata-opsrail-title,
+.bndz-encode-opsrail-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: #e0f2fe;
+  letter-spacing: 0.01em;
+}
+.bndz-actionlog-opsrail-title { color: #f3e8ff; }
+.bndz-catalog-opsrail-meta,
+.bndz-actionlog-opsrail-meta,
+.bndz-metadata-opsrail-meta,
+.bndz-encode-opsrail-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #7a8794;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bndz-catalog-opsrail-actions,
+.bndz-actionlog-opsrail-actions,
+.bndz-metadata-opsrail-actions,
+.bndz-encode-opsrail-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.bndz-encode-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bndz-encode-meter-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: #1a2030;
+  overflow: hidden;
+  border: 1px solid #2a3140;
+}
+.bndz-encode-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0369a1, #38bdf8);
+  transition: width 180ms ease;
+}
+.bndz-encode-meter-label {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #94a3b8;
+  width: 2.5rem;
+  text-align: right;
+}

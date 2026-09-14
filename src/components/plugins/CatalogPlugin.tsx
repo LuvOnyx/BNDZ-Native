@@ -14,8 +14,6 @@ import {
   PluginSectionTitle,
   PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PluginFieldLabel,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
@@ -212,53 +210,48 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
       icon="bookmark"
       iconColor="#0078d4"
       variant="embedded"
-      subtitle="Virtual collections — browse as /vf"
+      subtitle="Virtual folders · browse as /vf"
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <PluginHeroStrip
-          icon={<Icons8Icon id="bookmark" size={52} className="opacity-90" />}
-          name={selected ? selected.name : (catalogs.length ? `${catalogs.length} catalog${catalogs.length === 1 ? '' : 's'}` : 'Virtual catalogs')}
-          typeLabel="VF collections"
-          path={selected ? `${VF_ROOT}/${selected.id}` : undefined}
-          meta={
-            <span className="bndz-panel-muted text-xs">
+        <div className="bndz-catalog-opsrail">
+          <div className="bndz-catalog-opsrail-copy min-w-0">
+            <div className="bndz-catalog-opsrail-title">
+              {selected ? selected.name : (catalogs.length ? `${catalogs.length} catalog${catalogs.length === 1 ? '' : 's'}` : 'Catalog')}
+            </div>
+            <div className="bndz-catalog-opsrail-meta">
               {selected
-                ? `${(selected.paths || []).length} path(s)${selected.query?.trim() ? ' · search-backed' : ''}`
+                ? `${(selected.paths || []).length} path(s)${selected.query?.trim() ? ' · search-backed' : ''} · ${VF_ROOT}/${selected.id}`
                 : `Browse at ${VF_ROOT} · ${selectedPaths.length ? `${selectedPaths.length} selected` : 'Select items to add'}`}
-            </span>
-          }
-          actions={
-            <>
-              {selected && (
-                <PluginHeroActionButton icon="explorer" variant="primary" onClick={() => onNavigate?.(`/vf/${selected.id}`)}>
-                  Open
-                </PluginHeroActionButton>
-              )}
-              {selected?.query?.trim() && (
-                <PluginHeroActionButton icon="refresh" onClick={() => void refreshQuery(selected)}>Refresh query</PluginHeroActionButton>
-              )}
-              {selected && (
-                <>
-                  <PluginHeroActionButton icon="layers_ui" onClick={() => void setOp('union')}>Union</PluginHeroActionButton>
-                  <PluginHeroActionButton icon="filters" onClick={() => void setOp('intersect')}>Intersect</PluginHeroActionButton>
-                  <PluginHeroActionButton icon="delete" onClick={() => void setOp('subtract')}>Subtract</PluginHeroActionButton>
-                </>
-              )}
-              {selected && selectedPaths.length > 0 && (
-                <PluginHeroActionButton icon="delete" onClick={() => void bulkRemoveSelected()}>Remove sel</PluginHeroActionButton>
-              )}
-              <PluginHeroActionButton icon="upload" onClick={() => importRef.current?.click()}>Import</PluginHeroActionButton>
-              <PluginHeroActionButton icon="download" onClick={exportCatalogs}>Export</PluginHeroActionButton>
-              <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importCatalogs(f); e.target.value = ''; }} />
-            </>
-          }
-        />
+            </div>
+          </div>
+          <div className="bndz-catalog-opsrail-actions">
+            {selected && (
+              <PluginToolbarButton icon="explorer" onClick={() => onNavigate?.(`/vf/${selected.id}`)}>Open</PluginToolbarButton>
+            )}
+            {selected?.query?.trim() && (
+              <PluginToolbarButton icon="refresh" onClick={() => void refreshQuery(selected)}>Refresh</PluginToolbarButton>
+            )}
+            {selected && (
+              <>
+                <PluginToolbarButton icon="layers_ui" onClick={() => void setOp('union')} title="Union with selection">Union</PluginToolbarButton>
+                <PluginToolbarButton icon="filters" onClick={() => void setOp('intersect')} title="Intersect with selection">Intersect</PluginToolbarButton>
+                <PluginToolbarButton icon="delete" onClick={() => void setOp('subtract')} title="Subtract selection">Subtract</PluginToolbarButton>
+              </>
+            )}
+            {selected && selectedPaths.length > 0 && (
+              <PluginToolbarButton icon="delete" onClick={() => void bulkRemoveSelected()}>Remove sel</PluginToolbarButton>
+            )}
+            <PluginToolbarButton icon="upload" onClick={() => importRef.current?.click()}>Import</PluginToolbarButton>
+            <PluginToolbarButton icon="download" onClick={exportCatalogs}>Export</PluginToolbarButton>
+            <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importCatalogs(f); e.target.value = ''; }} />
+          </div>
+        </div>
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Collection list */}
           <div className="w-[240px] shrink-0 border-r border-white/[0.06] flex flex-col min-h-0 bg-black/15">
             <div className="p-3 border-b border-white/[0.06] space-y-2 shrink-0">
-              <PluginSectionTitle icon="plus_ui">New collection</PluginSectionTitle>
+              <PluginSectionTitle icon="plus_ui">New catalog</PluginSectionTitle>
               <div className="flex gap-1.5">
                 <input
                   value={draftName}
@@ -288,7 +281,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
                 <PluginEmptyState
                   icon="bookmark"
                   title="No catalogs"
-                  description="Create a collection to build virtual folders at /vf."
+                  description="Create a catalog to build virtual folders at /vf."
                 />
               ) : (
                 catalogs.map(cat => {

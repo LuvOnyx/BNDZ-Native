@@ -14,16 +14,14 @@ import {
   PluginFieldGrid,
   PluginFieldRow,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
 export const MetadataPluginDef = {
     id: 'metadata',
-    name: 'Metadata Inspector',
+    name: 'Metadata',
     icon: 'metadata',
-    description: 'File intelligence — metadata, media tags, hashes, and image encode queue',
+    description: 'Facts, media tags, hashes, and image encode — one inspector',
     isNative: true,
     targetPanel: 'bottom' as const,
 };
@@ -257,7 +255,7 @@ export default function MetadataPlugin({
                 icon="metadata"
                 iconColor="#38bdf8"
                 variant="embedded"
-                subtitle={activeTab === 'encode' ? 'Batch image encode queue' : 'File intelligence — facts, tags, hashes, encode'}
+                subtitle={activeTab === 'encode' ? 'Batch image encode' : 'Facts · tags · hashes · encode'}
                 toolbar={(
                     <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
                         <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>
@@ -276,7 +274,11 @@ export default function MetadataPlugin({
                         embedded
                     />
                 ) : (
-                    <PluginEmptyState icon="metadata" description="Select a file or folder to inspect extended metadata, media tags, and hashes — or open Encode for batch image convert." />
+                    <PluginEmptyState
+                        icon="metadata"
+                        title="Select a file"
+                        description="Inspect extended metadata, media tags, and hashes — or open Encode for batch image convert."
+                    />
                 )}
             </PluginPanelShell>
         );
@@ -318,7 +320,7 @@ export default function MetadataPlugin({
 
     return (
         <PluginPanelShell
-            title="File Intelligence"
+            title="Metadata"
             icon="metadata"
             iconColor="#38bdf8"
             variant="embedded"
@@ -328,34 +330,25 @@ export default function MetadataPlugin({
             ) : undefined}
         >
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <PluginHeroStrip
-                    icon={<Icons8Icon id="metadata" size={56} className="opacity-90" />}
-                    name={displayName}
-                    typeLabel={ext ? `${ext.toUpperCase()} file` : entity?.type === 'directory' ? 'Folder' : 'Item'}
-                    path={path}
-                    actions={
-                        <>
-                            <PluginHeroActionButton icon="sys_properties" variant="primary" onClick={openProperties}>Full properties</PluginHeroActionButton>
-                            <PluginHeroActionButton icon="copy" onClick={() => void navigator.clipboard.writeText(path)}>Copy path</PluginHeroActionButton>
-                            <PluginHeroActionButton
-                                icon="copy"
-                                onClick={() => void copyAllAsTsv()}
-                                disabled={!hasAnyMeta}
-                                active={copyAllFormat === 'tsv'}
-                            >
-                                {copyAllFormat === 'tsv' ? 'Copied TSV' : 'Copy all (TSV)'}
-                            </PluginHeroActionButton>
-                            <PluginHeroActionButton
-                                icon="braces_ui"
-                                onClick={() => void copyAllAsJson()}
-                                disabled={!hasAnyMeta}
-                                active={copyAllFormat === 'json'}
-                            >
-                                {copyAllFormat === 'json' ? 'Copied JSON' : 'Copy all (JSON)'}
-                            </PluginHeroActionButton>
-                        </>
-                    }
-                />
+                <div className="bndz-metadata-opsrail">
+                    <div className="bndz-metadata-opsrail-copy min-w-0">
+                        <div className="bndz-metadata-opsrail-title">{displayName}</div>
+                        <div className="bndz-metadata-opsrail-meta">
+                            {ext ? `${ext.toUpperCase()} file` : entity?.type === 'directory' ? 'Folder' : 'Item'}
+                            {path ? ` · ${path}` : ''}
+                        </div>
+                    </div>
+                    <div className="bndz-metadata-opsrail-actions">
+                        <PluginToolbarButton icon="sys_properties" onClick={openProperties}>Properties</PluginToolbarButton>
+                        <PluginToolbarButton icon="copy" onClick={() => void navigator.clipboard.writeText(path)}>Copy path</PluginToolbarButton>
+                        <PluginToolbarButton icon="copy" onClick={() => void copyAllAsTsv()} disabled={!hasAnyMeta}>
+                            {copyAllFormat === 'tsv' ? 'Copied TSV' : 'TSV'}
+                        </PluginToolbarButton>
+                        <PluginToolbarButton icon="braces_ui" onClick={() => void copyAllAsJson()} disabled={!hasAnyMeta}>
+                            {copyAllFormat === 'json' ? 'Copied JSON' : 'JSON'}
+                        </PluginToolbarButton>
+                    </div>
+                </div>
 
                 <PluginTabStrip>
                     <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>

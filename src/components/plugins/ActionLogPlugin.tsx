@@ -3,8 +3,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
+  PluginToolbarButton,
   PluginCard,
   PLUGIN_SELECT_CLASS,
   PLUGIN_INPUT_CLASS,
@@ -212,62 +211,33 @@ export default function ActionLogPlugin() {
       }
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <PluginHeroStrip
-          icon={<Icons8Icon id="clock_ui" size={52} className="opacity-90" />}
-          name="Action history"
-          typeLabel="Undo & redo log"
-          meta={
-            <span className="bndz-panel-muted text-xs">
+        <div className="bndz-actionlog-opsrail">
+          <div className="bndz-actionlog-opsrail-copy min-w-0">
+            <div className="bndz-actionlog-opsrail-title">Action Log</div>
+            <div className="bndz-actionlog-opsrail-meta">
               {visibleItems.length} of {items.length} action(s)
               {kindFilter !== 'all' ? ` · ${kindFilter}` : ''}
-              {!loggingEnabled ? ' · logging off' : ''}
-            </span>
-          }
-          actions={
-            <>
-              <PluginHeroActionButton
-                icon="undo"
-                variant={canUndo ? 'primary' : 'default'}
-                onClick={() => void runUndo()}
-                disabled={!canUndo}
-              >
-                Undo
-              </PluginHeroActionButton>
-              <PluginHeroActionButton
-                icon="redo"
-                onClick={() => void runRedo()}
-                disabled={!canRedo}
-              >
-                Redo
-              </PluginHeroActionButton>
-            </>
-          }
-        />
-
-        {!loggingEnabled && (
-          <div className="mx-4 mt-3 mb-0 shrink-0">
-            <PluginCard className="!py-2.5 border-sky-500/25 bg-sky-950/20 flex items-start gap-2.5">
-              <Icons8Icon id="info" size={16} className="text-sky-400 shrink-0 mt-0.5" />
-              <div className="text-[11px] text-sky-100/90 leading-relaxed">
-                History view is hidden. <strong>Ctrl+Z</strong> still undoes the last file operation.
-                Enable <strong>Show action history</strong> in Settings → Undo &amp; Action Log to list past actions here.
-              </div>
-            </PluginCard>
+              {!loggingEnabled ? ' · logging off · Ctrl+Z still works' : ''}
+            </div>
           </div>
-        )}
+          <div className="bndz-actionlog-opsrail-actions">
+            <PluginToolbarButton icon="undo" onClick={() => void runUndo()} disabled={!canUndo}>Undo</PluginToolbarButton>
+            <PluginToolbarButton icon="redo" onClick={() => void runRedo()} disabled={!canRedo}>Redo</PluginToolbarButton>
+          </div>
+        </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar px-4 py-3">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-10 text-gray-500 text-xs">
-              <Icons8Icon id="loading" size={14} spin /> Loading action history…
+              <Icons8Icon id="loading" size={14} spin /> Loading Action Log…
             </div>
           )}
 
           {!loading && !loggingEnabled && (
             <PluginEmptyState
               icon="clock_ui"
-              title="History panel is off"
-              description="Ctrl+Z / Ctrl+Y still work. Turn on “Show action history” to browse and undo from this timeline."
+              title="Action Log is off"
+              description="Ctrl+Z / Ctrl+Y still work. Enable “Show action history” in Settings → Undo & Action Log to browse this timeline."
             />
           )}
 
