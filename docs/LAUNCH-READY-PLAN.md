@@ -82,12 +82,12 @@ Each remaining Hub plugin must read as **one product**, not dumped tabs or SaaS 
 | Batch Rename | Rename + magnets |
 | Drop Stack | Intake & stage (no RAM disk theater) |
 | Metadata | Facts + encode |
-| Storage Cleanup | Cleanup + capacity + health |
+| Storage Cleanup | One ops surface — overview meter + large-file list (A3 craft); Capacity/Health as sections |
 | Folder Sync | Sync + diff |
 | Catalog | Virtual folders |
 | Action Log | Undo/redo history |
 | Mesh / Remote | Power-user SSH/SFTP (optional install) |
-| Project Sandbox | Safe workspaces + vault |
+| Project Sandbox | Safe workspaces — live rail + session stage + history timeline + vault unlock strip (A3 craft) |
 | Branching Time | Folder timeline — native snapshot rail (A3 craft pass 2026-09-14); peek tip / restore; VSS + shadows |
 
 **Bar:** Uiverse-level craft, real PNG/SVG where panels need them, empty/loading/error states, no `PluginStatCard` SaaS farm, Above and Beyond asset rules.

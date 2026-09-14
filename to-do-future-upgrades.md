@@ -11,6 +11,7 @@ Do **not** put these in marketing / "why BNDZ" copy. Track here as engineering b
 - [ ] MFT/USN incremental index (find-my-file pattern)
 - [ ] Hybrid semantic + keyword search (Xplorer/Grove parity)
 - [ ] Content `content_id` column in `files.db`
+- [ ] **Deepen native `BndzFileIndexService` (Spacedrive-like capabilities, not sd-server):** first-class locations UI, resumable job phases with richer progress, optional content-hash column, user-tag graph in `files.db` — keep Explorer-native in-process SQLite; never adopt Spacedrive daemon/indexer as the live backend
 
 ## List & shell
 - [ ] TanStack scroll compression / million-row polish

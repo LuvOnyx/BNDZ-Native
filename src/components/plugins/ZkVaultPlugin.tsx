@@ -7,11 +7,7 @@ import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
 import {
-  PluginToolbarButton,
-  PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginSectionTitle,
 } from './PluginPanelPrimitives';
 
 export const ZkVaultPluginDef = {
@@ -90,10 +86,8 @@ export default function ZkVaultPlugin({
     }
   };
 
-  /** Navigate the BNDZ file browser to a local mount path (e.g. a drive letter or temp dir). */
   const browseMount = (mountPath: string) => {
     if (!mountPath) return;
-    // Convert Windows path to BNDZ pane path: C:\foo → /C/foo
     const pane = mountPath.replace(/^([A-Za-z]):[/\\]/, '/$1/').replace(/\\/g, '/');
     window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: pane } }));
   };
@@ -116,7 +110,6 @@ export default function ZkVaultPlugin({
       pushToast({ kind: 'success', title: 'Vault unlocked', message: mount || 'Session mount ready' });
       setPassword('');
       await refresh();
-      // Automatically navigate the file browser to the unlocked session mount.
       if (mount) browseMount(mount);
     } catch (e) {
       pushToast({ kind: 'error', title: 'Unlock failed', message: e instanceof Error ? e.message : String(e) });
@@ -137,78 +130,103 @@ export default function ZkVaultPlugin({
   };
 
   return (
-    <PluginPanelShell title="Vault" icon="lock_ui" variant={embedded ? "embedded" : "default"}>
-      <PluginHeroStrip
-        icon={<Icons8Icon id="lock_ui" size={40} />}
-        name="Encrypted vault"
-        typeLabel="Encrypt at rest"
-        meta={<span className="text-xs text-gray-400">{vaultCount} vault(s) · {sessions.length} session(s)</span>}
-      />
-
-      <PluginCard className="p-3 mb-3 space-y-2">
-        <PluginSectionTitle>Target folder</PluginSectionTitle>
-        <div className="text-xs text-gray-400 bndz-mono truncate">{folder ? formatUiPath(folder) : '— select a folder —'}</div>
-        <input
-          type="password"
-          className="w-full bg-[#1a1a1e] border border-white/10 rounded-md px-2 py-1.5 text-sm"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          placeholder="Vault passphrase"
-        />
-        <div className="flex gap-2 text-xs">
-          <label className="flex items-center gap-1 text-gray-300">
-            <input type="radio" checked={mode === 'files'} onChange={() => setMode('files')} />
-            Encrypt files
-          </label>
-          <label className="flex items-center gap-1 text-gray-300">
-            <input type="radio" checked={mode === 'container'} onChange={() => setMode('container')} />
-            Container mode
-          </label>
-        </div>
-        <div className="flex gap-2">
-          <PluginToolbarButton label="Create vault" onClick={() => void createVault()} disabled={busy} />
-          <PluginToolbarButton label="Unlock vault" onClick={() => void unlockVault()} disabled={busy} />
-        </div>
-      </PluginCard>
-
-      {sessions.length === 0 ? (
-        <PluginEmptyState icon="lock_ui" title="No active sessions" description="Unlock a vault to browse decrypted files in a temp mount." />
-      ) : (
-        <div className="space-y-2">
-          {sessions.map(s => (
-            <PluginCard key={s.vaultId} className="p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-sm text-white flex items-center gap-2">
-                    <Icons8Icon id="folder_ui" size={14} />
-                    <span className="truncate">{formatUiPath(s.sourcePath)}</span>
-                  </div>
-                  <div className="text-[11px] text-sky-300/80 mt-1 bndz-mono truncate">
-                    Mount: {formatUiPath(s.mountPath)}
-                  </div>
-                  {s.mode && (
-                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wide">{s.mode}</div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1.5 shrink-0">
-                  <PluginToolbarButton
-                    label="Browse"
-                    onClick={() => browseMount(s.mountPath)}
-                    disabled={busy}
-                    title="Navigate file browser to this mount"
-                  />
-                  <PluginToolbarButton
-                    label="Lock"
-                    onClick={() => void lockVault(s.vaultId)}
-                    disabled={busy}
-                    title="Shred temp session and lock vault"
-                  />
-                </div>
+    <PluginPanelShell title="Vault" icon="lock_ui" variant={embedded ? 'embedded' : 'default'}>
+      <div className="bndz-vault-root flex flex-col min-h-0 h-full">
+        <div className="bndz-vault-unlock">
+          <div className="bndz-vault-unlock-head">
+            <Icons8Icon id="lock_ui" size={22} className="opacity-90" />
+            <div className="min-w-0">
+              <div className="bndz-vault-unlock-title">Encrypted vault</div>
+              <div className="bndz-vault-unlock-path" title={folder || undefined}>
+                {folder ? formatUiPath(folder) : 'Select a folder in the list'}
               </div>
-            </PluginCard>
-          ))}
+            </div>
+            <span className="bndz-vault-count">{vaultCount} vault · {sessions.length} open</span>
+          </div>
+
+          <input
+            type="password"
+            className="bndz-vault-pass"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Passphrase"
+            autoComplete="off"
+          />
+
+          <div className="bndz-vault-mode" role="group" aria-label="Vault mode">
+            <button
+              type="button"
+              className={`bndz-vault-seg${mode === 'files' ? ' is-on' : ''}`}
+              onClick={() => setMode('files')}
+            >
+              Encrypt files
+            </button>
+            <button
+              type="button"
+              className={`bndz-vault-seg${mode === 'container' ? ' is-on' : ''}`}
+              onClick={() => setMode('container')}
+            >
+              Container
+            </button>
+          </div>
+
+          <div className="bndz-vault-actions">
+            <button type="button" className="bndz-sandbox-btn" disabled={busy} onClick={() => void createVault()}>
+              Create
+            </button>
+            <button type="button" className="bndz-sandbox-btn bndz-sandbox-btn-primary" disabled={busy} onClick={() => void unlockVault()}>
+              Unlock
+            </button>
+          </div>
         </div>
-      )}
+
+        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar px-4 pb-4">
+          {sessions.length === 0 ? (
+            <PluginEmptyState
+              icon="lock_ui"
+              title="No open mounts"
+              description="Unlock a vault to browse decrypted files in a temporary mount — like an encrypted volume."
+            />
+          ) : (
+            <ul className="bndz-vault-sessions">
+              {sessions.map(s => (
+                <li key={s.vaultId} className="bndz-vault-session">
+                  <div className="min-w-0 flex-1">
+                    <div className="bndz-vault-session-src" title={formatUiPath(s.sourcePath)}>
+                      <Icons8Icon id="folder_ui" size={13} />
+                      <span className="truncate">{formatUiPath(s.sourcePath)}</span>
+                    </div>
+                    <div className="bndz-vault-session-mount" title={formatUiPath(s.mountPath)}>
+                      Mount · {formatUiPath(s.mountPath)}
+                    </div>
+                    {s.mode ? <div className="bndz-vault-session-mode">{s.mode}</div> : null}
+                  </div>
+                  <div className="bndz-vault-session-actions">
+                    <button
+                      type="button"
+                      className="bndz-sandbox-btn bndz-sandbox-btn-primary"
+                      disabled={busy}
+                      onClick={() => browseMount(s.mountPath)}
+                      title="Open mount in file list"
+                    >
+                      Browse
+                    </button>
+                    <button
+                      type="button"
+                      className="bndz-sandbox-btn"
+                      disabled={busy}
+                      onClick={() => void lockVault(s.vaultId)}
+                      title="Shred temp session and lock"
+                    >
+                      Lock
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </PluginPanelShell>
   );
 }
