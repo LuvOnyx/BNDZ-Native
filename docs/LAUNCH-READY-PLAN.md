@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1–A3 hosts crafted (incl. residual Shell Menus / Icon Studio / Batch Rename); Wave C/D + Windows matrix deferred  
+**Status:** Execution in progress — A1–A3 hosts crafted; Wave E1 into-self + bndz folder conflict; Wave C/D + Windows matrix deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -338,23 +338,25 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 
 | Situation | Exists today? | Launch gap |
 |-----------|---------------|------------|
-| Same-name collision | Partial — `FileConflictModal` on **bndz** engine; default **native** uses Explorer UI | Unify / ensure BNDZ sheet covers folders too when using bndz engine |
-| Disk full | Partial — backend can throw; **no dedicated modal**; space pre-check default off | Add capacity modal (need vs free) |
-| Access denied → UAC | Partial — elevate relaunch works; **no pending file-op retry** after Allow | Wire retry-after-elevate for transfers |
-| File in use | No product modal | Add Skip / Retry / Cancel |
-| Folder into itself | Partial — list DnD silent block only | Modal + Copy/Move To / paste guards |
-| Path too long | No | Add Skip / Cancel + rename hint |
+| Same-name collision | Partial — `FileConflictModal` on **bndz** engine (files + folders); default **native** uses Explorer UI | Unify / optional default-engine policy |
+| Disk full | Partial — classified failed-job modal; no need-vs-free bytes; pre-check default off | Capacity modal (need vs free) |
+| Access denied → UAC | Partial — elevate + stash/replay for last local transfer | Windows live verify UAC Allow/Cancel |
+| File in use | Partial — classified failed-job modal (Skip is post-fail) | Mid-batch Skip / Retry |
+| Folder into itself | Yes — list DnD + Copy/Move To + paste guards; host bndz engine also rejects | Windows live verify remaining |
+| Path too long | Partial — classified failed-job modal | Skip / Cancel + rename hint |
 | Partial batch failure | Partial — toast/queue row | Retry failed / Skip rest / Open log |
 | Shell Integration admin | Mostly yes | Windows live verify toggles (E3) |
 
 ### E progress (this pass)
 - [x] Transfer error classifier (`transferErrorKind.ts`) — disk full / in-use / path too long / access denied
 - [x] Failed-job ops dialogs in BNDZUI (dedicated modal, not toast-only)
-- [x] Folder-into-self reject reason + warning modal (internal list drop only; OLE untouched)
+- [x] Folder-into-self reject — list DnD + Copy/Move To + paste + host bndz guard (OLE untouched)
+- [x] Bndz engine folder same-name → `FileConflictModal` (skip / replace / keep both)
 - [x] Elevation: stash last local transfer + replay after admin relaunch
 - [x] Host `PrivilegePolicyService` classifies diskFull / sharingViolation / pathTooLong / accessDenied
 - [ ] Windows live verify: Shell Integration toggles + UAC Allow/Cancel matrix
 - [ ] Path-too-long Skip/Rename UX beyond dialog
 - [ ] Partial-batch Retry failed suite
+- [ ] Disk-full need-vs-free capacity modal
 
 **DnD protect:** A1/E do not touch OLE spine; only removed RAM-zone product drop interception and Hub/Deck/menu chrome.

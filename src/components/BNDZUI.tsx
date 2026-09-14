@@ -48,6 +48,7 @@ import {
   shouldCommitInternalFileDrop,
   explainInternalDropReject,
   getParentWinPath,
+  isDropIntoDraggedSource,
 } from '../lib/dropDestination';
 import {
   classifyTransferError,
@@ -6846,6 +6847,15 @@ ${classified.detail}`,
     let dest = targetDir;
     if (!dest) {
       setDestinationPicker({ mode, sources });
+      return;
+    }
+    if (isDropIntoDraggedSource(sources, dest)) {
+      showModal({
+        type: 'warning',
+        title: 'Cannot move into itself',
+        message: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+        actions: [{ label: 'OK', style: 'primary', action: () => {} }],
+      });
       return;
     }
     const rt = buildSettingsRuntime(config);
