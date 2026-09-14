@@ -176,5 +176,6 @@ absorb → professionalize hosts → About/Register polish → launch
 - [x] Host product titles/stories + Hub capability copy
 - [x] Embedded child chrome renamed to host language (Magnets, Diff, Encode, Groups, Intake, Policies, Vault, Cold, Health)
 - [x] About + Register dialog polish
-- [ ] User smoke: install remaps, open each absorbed tab, Command Deck gating
-- [ ] **Launch Ready A1:** remove RAM Staging + Ghost product chrome; demote Design Board from Hub ([`docs/LAUNCH-READY-PLAN.md`](docs/LAUNCH-READY-PLAN.md))
+- [x] User smoke: install remaps, open each absorbed tab, Command Deck gating — *catalog remaps in place; Windows smoke still required*
+- [x] **Launch Ready A1:** remove RAM Staging + Ghost product chrome; demote Design Board from Hub ([`docs/LAUNCH-READY-PLAN.md`](docs/LAUNCH-READY-PLAN.md))
+- [ ] **Launch Ready E:** collision modal suite + UAC retry + Shell Integration admin verify (gap audit recorded in plan)
