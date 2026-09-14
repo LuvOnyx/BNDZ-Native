@@ -539,7 +539,7 @@ export default function ContextMenuPlugin({
           targetMode: a.targetMode || 'all',
         }));
         setGlobalActions(toDeploy);
-        pushToast({ kind: 'info', title: 'Seeded stock verbs', message: 'Empty list — added Open in BNDZ, Problems, Inbound, and RAM Staging.' });
+        pushToast({ kind: 'info', title: 'Seeded stock verbs', message: 'Empty list — added Open in BNDZ, Problems, Inbound.' });
       }
       updateConfig({ globalContextMenuActions: toDeploy, injectGlobalContextMenu: true } as Partial<typeof config>);
       if (!IPC.updateGlobalContextMenu) {
@@ -629,7 +629,7 @@ export default function ContextMenuPlugin({
                       }
                       return merged;
                     });
-                    pushToast({ kind: 'success', title: 'Stock BNDZ verbs', message: 'Added Open in BNDZ, Problems, Inbound, RAM Staging. Click Deploy.' });
+                    pushToast({ kind: 'success', title: 'Stock BNDZ verbs', message: 'Added Open in BNDZ, Problems, Inbound. Click Deploy.' });
                   }}
                 >
                   Stock BNDZ…

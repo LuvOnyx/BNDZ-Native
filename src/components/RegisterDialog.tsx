@@ -81,7 +81,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
     >
       <div className="bndz-register-body">
         <div className="bndz-register-brand" aria-hidden>
-          <img src="/bndz-light.png" alt="" className="bndz-register-brand-mark" draggable={false} />
+          <img src="/Bndz-main.png" alt="" className="bndz-register-brand-mark" draggable={false} />
           <div className="bndz-register-brand-copy">
             <div className="bndz-register-brand-name">BNDZ</div>
             <div className="bndz-register-brand-tag">Unlock the full native file manager</div>

@@ -92,8 +92,6 @@ export function buildDefaultQuickActions(handlers: {
   onBatchRename?: () => void;
   onQuickLook: () => void;
   onMeshDrop?: () => void;
-  onRamStaging?: () => void;
-  onGhostLink?: () => void;
   onTag?: () => void;
   onCompare?: () => void;
   canPaste: boolean;
@@ -105,12 +103,6 @@ export function buildDefaultQuickActions(handlers: {
   const extra: QuickAction[] = [];
   if (handlers.onMeshDrop && pluginOn('remote-mesh')) {
     extra.push({ id: 'meshdrop', label: 'Mesh Drop', icon: 'emblem-shared', onClick: handlers.onMeshDrop, accent: 'sky' });
-  }
-  if (handlers.onRamStaging && pluginOn('ram-staging')) {
-    extra.push({ id: 'ram', label: 'RAM Stage', icon: 'hard_drive_ui', onClick: handlers.onRamStaging, accent: 'amber' });
-  }
-  if (handlers.onGhostLink && pluginOn('ram-staging')) {
-    extra.push({ id: 'ghost', label: 'Cold Stage', icon: 'emblem-symbolic-link', onClick: handlers.onGhostLink });
   }
   if (handlers.onTag) extra.push({ id: 'tag', label: 'Tag', icon: 'tag_manager', onClick: handlers.onTag, accent: 'emerald' });
   if (handlers.onCompare && pluginOn('folder-sync')) {

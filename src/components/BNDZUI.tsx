@@ -4752,33 +4752,68 @@ export default function BNDZUI() {
                 : 'Operation failed';
               const classified = classifyTransferError(job.error || label);
               if (classified.kind !== 'other' && !isDelete && !isRename) {
+                const retryLastTransfer = () => {
+                  const pending = lastLocalTransferRef.current;
+                  if (!pending?.sources?.length) {
+                    pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
+                    return;
+                  }
+                  executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
+                };
+                const openStorageCleanup = () => {
+                  window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
+                };
+                const elevateAndRetry = async () => {
+                  const pending = lastLocalTransferRef.current;
+                  if (pending) {
+                    stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
+                  }
+                  const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
+                  await promptElevationIfNeeded(
+                    { success: false, needsElevation: true, message: classified.detail },
+                    { title: classified.title, message: `${classified.summary}
+
+Restart BNDZ as administrator to retry?` },
+                  );
+                };
+                let actions: { label: string; style?: 'primary' | 'secondary' | 'destructive'; action: () => void | Promise<void> }[];
+                if (classified.kind === 'accessDenied') {
+                  actions = [
+                    { label: 'Cancel', style: 'secondary', action: () => {} },
+                    { label: 'Restart as administrator', style: 'primary', action: () => void elevateAndRetry() },
+                  ];
+                } else if (classified.kind === 'pathTooLong') {
+                  actions = [
+                    { label: 'Skip', style: 'secondary', action: () => {} },
+                    { label: 'Retry', style: 'secondary', action: () => retryLastTransfer() },
+                    { label: 'Cancel', style: 'primary', action: () => {} },
+                  ];
+                } else if (classified.kind === 'sharingViolation') {
+                  actions = [
+                    { label: 'Skip', style: 'secondary', action: () => {} },
+                    { label: 'Retry', style: 'secondary', action: () => retryLastTransfer() },
+                    { label: 'Cancel', style: 'primary', action: () => {} },
+                  ];
+                } else if (classified.kind === 'diskFull') {
+                  actions = [
+                    { label: 'Open Storage Cleanup', style: 'secondary', action: () => openStorageCleanup() },
+                    { label: 'Cancel', style: 'primary', action: () => {} },
+                  ];
+                } else {
+                  actions = [
+                    { label: 'Retry', style: 'secondary', action: () => retryLastTransfer() },
+                    { label: 'OK', style: 'primary', action: () => {} },
+                  ];
+                }
                 showModal({
-                  type: classified.kind === 'accessDenied' ? 'warning' : 'destructive',
+                  type: classified.kind === 'accessDenied' || classified.kind === 'diskFull' ? 'warning' : 'destructive',
                   title: classified.title,
-                  message: `${classified.summary}\n\n${classified.detail}`,
-                  actions: classified.kind === 'accessDenied'
-                    ? [
-                        { label: 'Cancel', style: 'secondary', action: () => {} },
-                        {
-                          label: 'Restart as administrator',
-                          style: 'primary',
-                          action: async () => {
-                            const pending = lastLocalTransferRef.current;
-                            if (pending) {
-                              stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
-                            }
-                            const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
-                            await promptElevationIfNeeded(
-                              { success: false, needsElevation: true, message: classified.detail },
-                              { title: classified.title, message: `${classified.summary}\n\nRestart BNDZ as administrator to retry?` },
-                            );
-                          },
-                        },
-                      ]
-                    : [
-                        { label: 'OK', style: 'primary', action: () => {} },
-                      ],
+                  message: `${classified.summary}
+
+${classified.detail}`,
+                  actions,
                 });
+
               } else {
                 pushToast({
                   kind: 'error',
@@ -7200,6 +7235,31 @@ export default function BNDZUI() {
     return () => window.clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const onRetryLast = () => {
+      const pending = lastLocalTransferRef.current;
+      if (!pending?.sources?.length) {
+        pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
+        return;
+      }
+      try {
+        executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
+        pushToast({ kind: 'info', title: 'Retrying transfer', message: 'Replaying the last local copy/move.' });
+      } catch { /* ignore */ }
+    };
+    const onSkipFailed = () => {
+      pushToast({ kind: 'info', title: 'Skipped failed transfer', message: 'Dismissed from the queue. Remaining jobs continue.' });
+    };
+    window.addEventListener('bndz-retry-last-transfer', onRetryLast);
+    window.addEventListener('bndz-skip-failed-transfer', onSkipFailed);
+    return () => {
+      window.removeEventListener('bndz-retry-last-transfer', onRetryLast);
+      window.removeEventListener('bndz-skip-failed-transfer', onSkipFailed);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
 
   const toggleFavoriteFolder = () => {

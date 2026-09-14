@@ -75,7 +75,7 @@ function formatBytes(n: number): string {
 }
 
 const PLUGIN_HINTS: Record<string, string> = {
-  ghostlink: 'ghost-link',
+  ghostlink: 'storage-cleanup',
   cleanup: 'storage-cleanup',
   find: 'find',
   archive: 'storage-cleanup',
@@ -557,7 +557,7 @@ export default function CapacitySolverPlugin({
                 <PluginSectionTitle icon="zap_ui">What-if scrubbers</PluginSectionTitle>
                 <div className="mt-3 space-y-3">
                   <ScrubberRow
-                    label="Keep hot (Ghost offload)"
+                    label="Keep hot (deferred write)"
                     value={scrubbers.keepHotDays}
                     min={7}
                     max={365}
@@ -591,7 +591,7 @@ export default function CapacitySolverPlugin({
                       active={scrubbers.includeGhostOffload}
                       onClick={() => patchScrubber('includeGhostOffload', !scrubbers.includeGhostOffload)}
                     >
-                      Ghost offload
+                      Defer write
                     </ToggleChip>
                     <ToggleChip
                       active={scrubbers.includeArchive}

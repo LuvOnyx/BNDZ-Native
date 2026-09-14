@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Planning locked · execution next  
+**Status:** Execution in progress — Waves A1 + E (ops dialogs / elevation / Shell Integration cancel) + B brand/copy scrub landed in code; Windows matrix / UAC live verify deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 

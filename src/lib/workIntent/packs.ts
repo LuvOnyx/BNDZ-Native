@@ -62,7 +62,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
   archive: {
     id: 'archive',
     label: 'Archive',
-    description: 'Cold storage mindset — Ghost state, confirm strict.',
+    description: 'Cold storage mindset — archive columns, confirm strict.',
     columns: {
       name: true, type: true, size: true, modified: true, ghostState: true, coldTarget: true,
       created: false, attributes: true, tags: false, label: false, comment: false, path: false,
@@ -70,7 +70,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
     },
     sortColumn: 'size',
     sortDirection: 'desc',
-    preferredPlugins: ['ram-staging', 'storage-cleanup'],
+    preferredPlugins: ['storage-cleanup', 'dropstack'],
     previewMode: 'lineage',
     confirmStrictness: 'strict',
     defaultAutomationGraphId: 'archive-cold',
@@ -78,7 +78,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
   produce: {
     id: 'produce',
     label: 'Produce',
-    description: 'Producer desk — media-first columns + RAM staging.',
+    description: 'Producer desk — media-first columns + metadata.',
     columns: {
       name: true, type: true, size: true, modified: true, ramZone: true, tags: true,
       created: false, attributes: false, label: false, comment: false, path: false,
@@ -86,7 +86,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
     },
     sortColumn: 'modified',
     sortDirection: 'desc',
-    preferredPlugins: ['ram-staging', 'metadata'],
+    preferredPlugins: ['metadata', 'dropstack'],
     previewMode: 'media',
     confirmStrictness: 'relaxed',
     defaultAutomationGraphId: 'producer-desk',

@@ -1466,13 +1466,7 @@ function ContextMenuView({
         </>
       )}
 
-      {!isBackground && menu.isGhostLink && menu.entityId && (
-        <ContextMenuItem
-          label="Restore ghost link"
-          iconVerb="refresh"
-          onClick={() => { void onGhostLinkRestore?.(fullEntityPath()); onClose(); }}
-        />
-      )}
+      {/* Launch Ready A1: Ghost-Link / RAM Staging product chrome removed — no restore/stage verbs. */}
 
       {(!!config.customItemsInTheContextMenu && (config.customContextMenuActions?.length || 0) > 6) && (
         <>

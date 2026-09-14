@@ -21,16 +21,25 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
 async function applyShellSetting(
   label: string,
   apply: () => Promise<ShellIntegrationResult>,
-): Promise<ShellIntegrationResult> {
+): Promise<ShellIntegrationResult & { elevationCancelled?: boolean }> {
   try {
     const result = await withTimeout(apply(), SHELL_CALL_MS, 'SHELL_INTEGRATION_RESULT');
     if (!result.success && result.needsElevation) {
       // Pass --apply-shell so the elevated instance force-applies ALL pending shell
       // settings from config before the WebView / fingerprint system initialises.
-      await promptElevationIfNeeded(result, {
+      const elevated = await promptElevationIfNeeded(result, {
         title: 'Administrator approval required',
         message: `${result.message}\n\nRestart BNDZ as administrator to ${label}?\n\nAll Shell Integration settings will be applied on restart.`,
       }, '--apply-shell --elevated');
+      if (!elevated) {
+        // UAC Cancel — do not pretend the setting applied; caller must not stamp fingerprint.
+        return {
+          ...result,
+          success: false,
+          elevationCancelled: true,
+          message: result.message || 'Administrator approval was cancelled.',
+        };
+      }
     }
     return result;
   } catch (err) {
@@ -63,12 +72,21 @@ let pendingConfig: AppConfig | null = null;
 let applyChain: Promise<void> = Promise.resolve();
 let _applyInProgress = false;
 
-async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
-  if (_applyInProgress) return; // already running — skip to avoid IPC queue saturation
+async function applyBackendSettingsInner(config: AppConfig): Promise<boolean> {
+  if (_applyInProgress) return false; // already running — skip to avoid IPC queue saturation
   _applyInProgress = true;
+  let elevationCancelled = false;
+  const track = async (
+    label: string,
+    apply: () => Promise<ShellIntegrationResult>,
+  ): Promise<ShellIntegrationResult> => {
+    const result = await applyShellSetting(label, apply);
+    if (result.elevationCancelled) elevationCancelled = true;
+    return result;
+  };
   try {
   const { IPC } = await import('./ipcBridge');
-  if (!IPC.isNative) { _applyInProgress = false; return; }
+  if (!IPC.isNative) { _applyInProgress = false; return false; }
 
   if (config.clearThumbnailCacheOnExit) {
     const handler = () => {
@@ -93,27 +111,27 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
   }
 
   if (isDefaultFm && !inContextMenu) {
-    await applyShellSetting('enable shell context menu integration', () => IPC.setInContextMenu(true, allUsers));
+    await track('enable shell context menu integration', () => IPC.setInContextMenu(true, allUsers));
   }
 
   if (isDefaultFm !== alreadyDefault) {
-    await applyShellSetting(
+    await track(
       isDefaultFm ? 'make BNDZ the default file manager' : 'restore Windows Explorer as default',
       () => IPC.setAsDefaultManager(isDefaultFm),
     );
   }
 
-  await applyShellSetting(
+  await track(
     inContextMenu ? 'add BNDZ to the shell context menu' : 'remove BNDZ from the Windows shell context menu',
     () => IPC.setInContextMenu(inContextMenu, allUsers),
   );
-  await applyShellSetting(
+  await track(
     config.overrideWin11MoreOptions ? 'enable classic context menu' : 'disable classic context menu override',
     () => IPC.setWin11MoreOptions(!!config.overrideWin11MoreOptions),
   );
 
   const iconStudioShell = config.enableIconContextSubmenu !== false;
-  await applyShellSetting(
+  await track(
     iconStudioShell ? 'add Icon Studio to the shell context menu' : 'remove Icon Studio from the shell context menu',
     () => IPC.setIconStudioShellMenu(iconStudioShell),
   );
@@ -135,6 +153,7 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
       'UPDATE_GLOBAL_CONTEXT_MENU_RESULT',
     );
   } catch { /* best effort */ }
+    return !elevationCancelled;
   } finally {
     _applyInProgress = false;
   }
@@ -158,7 +177,11 @@ export function scheduleBackendSettings(config: AppConfig, force = false): void 
 
     applyChain = applyChain
       .then(() => applyBackendSettingsInner(cfg))
-      .then(() => { lastAppliedFingerprint = fp; })
+      .then((ok) => {
+        // Only stamp fingerprint when elevation was not cancelled — otherwise Settings
+        // would skip re-apply and leave HKCU/HKLM out of sync with the toggled UI.
+        if (ok) lastAppliedFingerprint = fp;
+      })
       .catch(err => {
         console.warn('[shell] applyBackendSettings failed:', err);
       });

@@ -16,7 +16,7 @@ type Props = {
   onTool: (id: ContextToolId) => void;
   /** Installed bottom-plugin ids — tools requiring a missing plugin are hidden. */
   installedPluginIds?: readonly string[];
-  /** Current pane path — used to gate path-sensitive tools (e.g. flush-ram-zone). */
+  /** Current pane path (reserved for path-gated deck tools). */
   currentPath?: string;
 };
 
@@ -28,10 +28,6 @@ export default function CommandDeckMorph({ signature, onTool, installedPluginIds
   );
   const tools = useMemo(() => {
     let ts = filterToolsForInstalled(toolsForSignature(signature), installedSet);
-    // flush-ram-zone is only meaningful when currently browsing a RAM staging path.
-    if (!currentPath?.startsWith('/bndz/ram')) {
-      ts = ts.filter(t => t.id !== 'flush-ram-zone');
-    }
     return ts;
   }, [signature, installedSet, currentPath]);
   const wide = variant === 'wide' || variant === 'fan';
