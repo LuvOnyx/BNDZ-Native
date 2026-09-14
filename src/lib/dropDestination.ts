@@ -5,7 +5,6 @@ import { toWindowsPath } from './pathUtils';
 export function normalizeWinPathForCompare(path: string): string {
   let p = toWindowsPath(path).trim();
   if (!p) return '';
-  // Collapse duplicate separators
   while (p.includes('\\\\') && !p.startsWith('\\\\')) p = p.replace(/\\\\/g, '\\');
   const unc = p.startsWith('\\\\');
   p = p.replace(/[/\\]+$/g, '');
@@ -38,7 +37,6 @@ function meshParentPath(filePath: string): string {
 export function isSameDropLocation(sourcePaths: string[], destDir: string): boolean {
   if (!sourcePaths.length || !destDir) return false;
 
-  // Mesh pane paths must not go through toWindowsPath (yields mesh\host\… garbage).
   if (isMeshPath(destDir)) {
     if (!sourcePaths.every(isMeshPath)) return false;
     const dest = normalizeMeshPath(destDir).toLowerCase();
@@ -76,24 +74,26 @@ export function isDropIntoDraggedSource(sourcePaths: string[], destDir: string):
   });
 }
 
+export type InternalDropRejectReason =
+  | 'into-self'
+  | 'put-back'
+  | 'same-folder-move'
+  | 'empty'
+  | null;
+
 /**
- * Whether an internal list drag should commit a file operation on pointer-up.
- * Put-back / cancel: release near start without an intentional foreign target,
- * or drop onto same folder / into a dragged item.
+ * Why an internal list drop would not commit — used for user-facing ops dialogs.
+ * Does not change OLE / external drop routing.
  */
-export function shouldCommitInternalFileDrop(opts: {
+export function explainInternalDropReject(opts: {
   sourcePaths: string[];
   destDir: string;
   op: 'copy' | 'move';
-  /** Nav tree, breadcrumb, other tab, or a folder that is not part of the drag selection. */
   hasForeignTarget: boolean;
-  /** Pointer distance from drag start (px). */
   pointerTravelPx: number;
-  /** Max travel treated as "put back" when there is no foreign target. */
   putBackSlopPx?: number;
-  /** Tree/breadcrumb/folder target from hover memory — commit even when pointer-up coords lie. */
   explicitDropTarget?: boolean;
-}): boolean {
+}): InternalDropRejectReason {
   const {
     sourcePaths,
     destDir,
@@ -104,23 +104,37 @@ export function shouldCommitInternalFileDrop(opts: {
     explicitDropTarget = false,
   } = opts;
 
-  if (!sourcePaths.length || !destDir) return false;
-  if (isDropIntoDraggedSource(sourcePaths, destDir)) return false;
+  if (!sourcePaths.length || !destDir) return 'empty';
+  if (isDropIntoDraggedSource(sourcePaths, destDir)) return 'into-self';
 
   const srcMesh = sourcePaths.some(isMeshPath);
   const destMesh = isMeshPath(destDir);
-  // Local ↔ mesh is always a real transfer — never treat as put-back.
-  if (srcMesh !== destMesh) return true;
+  if (srcMesh !== destMesh) return null;
 
   const same = isSameDropLocation(sourcePaths, destDir);
-  if (op === 'move' && same) return false;
+  if (op === 'move' && same) return 'same-folder-move';
 
-  // Explicit tree/breadcrumb/folder target from last good hover — never cancel as put-back.
-  if (explicitDropTarget && hasForeignTarget) return op === 'copy' || !same;
+  if (explicitDropTarget && hasForeignTarget) {
+    return op === 'copy' || !same ? null : 'same-folder-move';
+  }
 
-  // Picked up and released in place — do not treat background as a drop.
-  if (!hasForeignTarget && pointerTravelPx < putBackSlopPx) return false;
+  if (!hasForeignTarget && pointerTravelPx < putBackSlopPx) return 'put-back';
 
-  if (op === 'copy') return true;
-  return !same;
+  if (op === 'copy') return null;
+  return same ? 'same-folder-move' : null;
+}
+
+/**
+ * Whether an internal list drag should commit a file operation on pointer-up.
+ */
+export function shouldCommitInternalFileDrop(opts: {
+  sourcePaths: string[];
+  destDir: string;
+  op: 'copy' | 'move';
+  hasForeignTarget: boolean;
+  pointerTravelPx: number;
+  putBackSlopPx?: number;
+  explicitDropTarget?: boolean;
+}): boolean {
+  return explainInternalDropReject(opts) === null;
 }

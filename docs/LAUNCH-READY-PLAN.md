@@ -300,4 +300,14 @@ Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windo
 | Partial batch failure | Partial — toast/queue row | Retry failed / Skip rest / Open log |
 | Shell Integration admin | Mostly yes | Windows live verify toggles (E3) |
 
-**DnD protect:** A1 does not touch OLE spine; only removed RAM-zone product drop interception and Hub/Deck/menu chrome.
+### E progress (this pass)
+- [x] Transfer error classifier (`transferErrorKind.ts`) — disk full / in-use / path too long / access denied
+- [x] Failed-job ops dialogs in BNDZUI (dedicated modal, not toast-only)
+- [x] Folder-into-self reject reason + warning modal (internal list drop only; OLE untouched)
+- [x] Elevation: stash last local transfer + replay after admin relaunch
+- [x] Host `PrivilegePolicyService` classifies diskFull / sharingViolation / pathTooLong / accessDenied
+- [ ] Windows live verify: Shell Integration toggles + UAC Allow/Cancel matrix
+- [ ] Path-too-long Skip/Rename UX beyond dialog
+- [ ] Partial-batch Retry failed suite
+
+**DnD protect:** A1/E do not touch OLE spine; only removed RAM-zone product drop interception and Hub/Deck/menu chrome.

@@ -46,8 +46,14 @@ import { useNativeShellHostBridge } from '../hooks/useNativeShellHostBridge';
 import { resolveDropOperation } from '../lib/dropOperation';
 import {
   shouldCommitInternalFileDrop,
+  explainInternalDropReject,
   getParentWinPath,
 } from '../lib/dropDestination';
+import {
+  classifyTransferError,
+  stashPendingElevatedTransfer,
+  consumePendingElevatedTransfer,
+} from '../lib/transferErrorKind';
 import { isCopyDragModifier } from '../lib/listDragModifiers';
 import ListDragGhost, { type ListDragGhostMeta } from './ListDragGhost';
 import { prefetchFluidDragThumbs } from '../workstation/drag/fluidDragThumbs';
@@ -1795,6 +1801,7 @@ export default function BNDZUI() {
   const dropModifierRef = useRef({ copy: false });
   /** Last HTML5 drag-over target — fallback when native drop coordinates miss. */
   const htmlDropTargetRef = useRef<{ paneId: string; tabPath: string } | null>(null);
+  const lastLocalTransferRef = useRef<{ action: 'copy' | 'move'; sources: string[]; destDir: string } | null>(null);
   const xferMetaRef = useRef(new Map<string, { op: 'copy' | 'move' | 'delete'; label: string; selectParentPath?: string }>());
   const transferActiveCountRef = useRef(0);
   /** Pending FS ops — keep tombstoned names filtered from cache until the queue job finishes. */
@@ -4743,11 +4750,42 @@ export default function BNDZUI() {
                 : action.includes('extract') || job.operationId.startsWith('extract-') ? 'Extraction failed'
                 : isMove ? 'Move failed'
                 : 'Operation failed';
-              pushToast({
-                kind: 'error',
-                title: failTitle,
-                message: job.error || label,
-              });
+              const classified = classifyTransferError(job.error || label);
+              if (classified.kind !== 'other' && !isDelete && !isRename) {
+                showModal({
+                  type: classified.kind === 'accessDenied' ? 'warning' : 'destructive',
+                  title: classified.title,
+                  message: `${classified.summary}\n\n${classified.detail}`,
+                  actions: classified.kind === 'accessDenied'
+                    ? [
+                        { label: 'Cancel', style: 'secondary', action: () => {} },
+                        {
+                          label: 'Restart as administrator',
+                          style: 'primary',
+                          action: async () => {
+                            const pending = lastLocalTransferRef.current;
+                            if (pending) {
+                              stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
+                            }
+                            const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
+                            await promptElevationIfNeeded(
+                              { success: false, needsElevation: true, message: classified.detail },
+                              { title: classified.title, message: `${classified.summary}\n\nRestart BNDZ as administrator to retry?` },
+                            );
+                          },
+                        },
+                      ]
+                    : [
+                        { label: 'OK', style: 'primary', action: () => {} },
+                      ],
+                });
+              } else {
+                pushToast({
+                  kind: 'error',
+                  title: failTitle,
+                  message: job.error || label,
+                });
+              }
             } else if (job.status === 'completed') {
               const doneVerb = isDelete ? 'Deleted'
                 : action === 'move' || meta?.op === 'move' || action === 'mesh-move' ? 'Move complete'
@@ -5638,10 +5676,14 @@ export default function BNDZUI() {
       });
       unsubElev = IPC.onElevationRequired((payload) => {
         void (async () => {
+          const pending = lastLocalTransferRef.current;
+          if (pending && (payload.context === 'fileOperation' || !payload.context)) {
+            stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
+          }
           const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
           await promptElevationIfNeeded(
             { success: false, needsElevation: true, message: payload.message },
-            { title: payload.title, message: payload.message },
+            { title: payload.title || 'Administrator approval required', message: payload.message },
           );
         })();
       });
@@ -6946,6 +6988,8 @@ export default function BNDZUI() {
         return;
       }
 
+      lastLocalTransferRef.current = { action: op, sources: canonSources, destDir: destCanon };
+
       // Mesh paths must never fall through to Windows FS ops (toWindowsPath mangles /mesh/…).
       if (isMeshPath(destCanon) || canonSources.some(isMeshPath)) {
         dismissToast(`xfer-${opId}`);
@@ -7143,6 +7187,20 @@ export default function BNDZUI() {
   };
   const executeInternalDropRef = useRef(executeInternalDrop);
   executeInternalDropRef.current = executeInternalDrop;
+
+  useEffect(() => {
+    const pending = consumePendingElevatedTransfer();
+    if (!pending) return;
+    const t = window.setTimeout(() => {
+      try {
+        executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
+        pushToast({ kind: 'info', title: 'Retrying after elevation', message: 'Replaying the transfer that needed administrator approval.' });
+      } catch { /* ignore */ }
+    }, 900);
+    return () => window.clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const toggleFavoriteFolder = () => {
     const path = collapseKnownFolderShadowPath(
@@ -12170,15 +12228,25 @@ export default function BNDZUI() {
                       sameDriveDefault: config.dragDropSameVolumeAction,
                       crossDriveDefault: config.dragDropCrossVolumeAction,
                     });
-                    if (shouldCommitInternalFileDrop({
-                      sourcePaths: dragPaths,
-                      destDir: destCanon,
-                      op,
-                      hasForeignTarget: true,
-                      pointerTravelPx: Math.hypot(ev.clientX - startX, ev.clientY - startY),
-                      explicitDropTarget: true,
-                    })) {
-                      executeInternalDrop(op, dragPaths, destCanon, panePath);
+                    {
+                      const dropOpts = {
+                        sourcePaths: dragPaths,
+                        destDir: destCanon,
+                        op,
+                        hasForeignTarget: true as boolean,
+                        pointerTravelPx: Math.hypot(ev.clientX - startX, ev.clientY - startY),
+                        explicitDropTarget: true as boolean,
+                      };
+                      if (shouldCommitInternalFileDrop(dropOpts)) {
+                        executeInternalDrop(op, dragPaths, destCanon, panePath);
+                      } else if (explainInternalDropReject(dropOpts) === 'into-self') {
+                        showModal({
+                          type: 'warning',
+                          title: 'Cannot move into itself',
+                          message: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+                          actions: [{ label: 'OK', style: 'primary', action: () => {} }],
+                        });
+                      }
                     }
                     setDragTargetHighlight(null);
                     suppressRowClickRef.current = true;
@@ -12222,25 +12290,35 @@ export default function BNDZUI() {
                     );
                     const pointerTravelPx = Math.hypot(ev.clientX - startX, ev.clientY - startY);
                     const explicitDropTarget = !!(navTreeTarget || breadcrumbTarget);
-                    if (shouldCommitInternalFileDrop({
-                      sourcePaths: dragPaths,
-                      destDir: destCanon,
-                      op,
-                      hasForeignTarget,
-                      pointerTravelPx,
-                      explicitDropTarget,
-                    })) {
-                      // Settings → Native drag and drop context menu (Copy / Move / Cancel at drop).
-                      if (settingsRt.shell.nativeDragDropContextMenu || !!config.nativeDragAndDropContextMenu) {
-                        setDropActionMenu({
-                          x: ev.clientX,
-                          y: ev.clientY,
-                          paths: dragPaths,
-                          dest: destCanon,
-                          sourcePath: panePath,
+                    {
+                      const dropOpts = {
+                        sourcePaths: dragPaths,
+                        destDir: destCanon,
+                        op,
+                        hasForeignTarget,
+                        pointerTravelPx,
+                        explicitDropTarget,
+                      };
+                      if (shouldCommitInternalFileDrop(dropOpts)) {
+                        // Settings → Native drag and drop context menu (Copy / Move / Cancel at drop).
+                        if (settingsRt.shell.nativeDragDropContextMenu || !!config.nativeDragAndDropContextMenu) {
+                          setDropActionMenu({
+                            x: ev.clientX,
+                            y: ev.clientY,
+                            paths: dragPaths,
+                            dest: destCanon,
+                            sourcePath: panePath,
+                          });
+                        } else {
+                          executeInternalDrop(op, dragPaths, destCanon, panePath);
+                        }
+                      } else if (explainInternalDropReject(dropOpts) === 'into-self') {
+                        showModal({
+                          type: 'warning',
+                          title: 'Cannot move into itself',
+                          message: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+                          actions: [{ label: 'OK', style: 'primary', action: () => {} }],
                         });
-                      } else {
-                        executeInternalDrop(op, dragPaths, destCanon, panePath);
                       }
                     }
                   }
