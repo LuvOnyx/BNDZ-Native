@@ -25,7 +25,9 @@ Your brief maps to **five** launch pillars. Every one is in scope:
 | Performance and reliability — list & scroll speed, menu appearance, and similar | **Perf + reliability** | C |
 | Polish / professionalize UI so nothing looks like a web app — professional native file manager | **Native FM UI craft** | B |
 | Icons and assets correctly used and looking good | **Icons & assets** | B |
+| Transfer **collision** modals (same name, disk full, …); Windows **admin/UAC** when needed; Settings **Shell Integration** admin path verified | **Ops dialogs + elevation** | E |
 | “And so on” (ship bar: menus, transfers, terminal, About/Register, defaults, signed checklist, DnD proof) | **Ship gate & remaining polish** | D |
+| **CRITICAL:** inbound/outbound DnD must not break; outside-ghost polish OK (committed baseline can be restored) | **DnD protect** | C3 + global |
 
 ---
 
@@ -135,9 +137,72 @@ Archive plugin · Text Editor plugin · external signed npm/zip plugin packages 
 - Terminal: Local PowerShell prompt paints on first open  
 - Outbound drag ghost outside border + tree drag ghosts — **verify-first**; fix only with DnD protect rules  
 
-### C3 — DnD protect (non-negotiable)
+### C3 — DnD protect (non-negotiable) — CRITICAL
 
-Do **not** rewrite: CraftPaneHost OLE, WebView2 drop target, FE handoff / `bndz-ole-drag-handoff`, FluidDrag multi fan, dual-path dedupe. Any surgical touch → re-run readiness **46–58**.
+**Do not tamper with or break inbound / outbound drag-and-drop.** Working OLE/DnD is launch-critical; we are committed so a bad polish pass can be reverted — still treat the spine as protected.
+
+| Allowed | Forbidden |
+|---------|-----------|
+| Polish **outside** drag ghosts (cursor-outside-border ghost, tree-row ghost craft) | Rewriting CraftPaneHost OLE, WebView2 drop target, FE handoff / `bndz-ole-drag-handoff`, FluidDrag multi fan, dual-path dedupe |
+| Surgical CSS / ghost clone paint after matrix still green | “Cleanup” refactors of drop delivery, escalate, or commit bus |
+| Re-verify readiness **46–58** after any touch near DnD | Shipping DnD changes without Windows matrix proof |
+
+Files treated as protect zones (surgical only): `BNDZUI.tsx`, `dragController.ts`, FluidDrag stack, `fileDragSession` / cleanup / drop dest, `fileDropBus`, host `WebView2DropTargetService` / OLE deliver path.
+
+---
+
+## Wave E — Collision modals + Windows admin / UAC + Shell Integration
+
+Big-company FMs never fail silently on transfer collisions or permission walls. Launch Ready requires a **complete ops-dialog suite**, elevation that actually shows Windows Allow/Cancel, and Settings Shell Integration toggles proven under admin.
+
+### E1 — Transfer / FS collision modal suite
+
+**Today:** name-collision UI exists (`FileConflictModal` in [`ModalProvider.tsx`](../src/components/ModalProvider.tsx) — Replace / Keep both / Skip / Cancel all + apply-to-all), wired from host `onConflict` in file ops.
+
+**Must exist and be wired for launch** (native BNDZ dialog craft — not raw `window.alert`):
+
+| Situation | User gets | Actions (typical) |
+|-----------|-----------|-------------------|
+| **Same name** at destination (file or folder) | Side-by-side conflict sheet (already started) | Replace, Keep both, Skip, Cancel all; Apply to all |
+| **Not enough disk space** | Clear capacity error (need vs free) | Cancel; optional “Open cleanup” if Storage Cleanup installed |
+| **Access denied / needs admin** | Explain + offer elevate | Cancel; **Run as administrator** / retry elevated (Windows UAC) |
+| **File in use** (sharing violation) | Locked-file message | Skip, Retry, Cancel |
+| **Path too long** | MAX_PATH / long-path messaging | Skip, Cancel; rename hint if applicable |
+| **Read-only / destination not writable** | Permission/read-only sheet | Skip, Cancel; elevate if policy allows |
+| **Invalid name / reserved device names** | Validation toast/modal | Fix name / Cancel |
+| **Copy/move folder into itself** (or descendant) | Block with clear reason | OK |
+| **Partial failure** mid-batch | Summary of failed items | Retry failed, Skip rest, Open log |
+
+**Wire rules:** copy, move, drag-drop commit (internal), and queue jobs must surface the same suite — not only the rename dialog. Drag-drop **commit** may show collisions; do **not** break the DnD pipeline to add them (hook conflict callback on existing transfer path).
+
+### E2 — Windows OS admin allow (UAC)
+
+When an operation truly needs elevation:
+
+1. Detect `needsElevation` / access denied (existing `PrivilegePolicyService`, `promptElevationIfNeeded` in [`nativeDialog.ts`](../src/lib/nativeDialog.ts), IPC `onElevationRequired`).
+2. Show BNDZ confirm → **Windows UAC Allow/Cancel** via relaunch/elevated helper (not a fake in-app “admin” checkbox).
+3. After Allow, retry the pending op or apply pending shell settings (`--apply-shell --elevated` pattern already used).
+4. After Cancel, leave a clear status — no silent no-op.
+
+**Must cover:** protected-folder writes, HKLM / all-users shell deploy, always-run-elevated opt-in, any Settings action that returns `needsElevation: true`.
+
+### E3 — Settings → Shell Integration — admin path verified
+
+For each Shell Integration control that mutates the OS shell:
+
+| Verify | Pass criteria |
+|--------|----------------|
+| Toggle while **not** elevated | App prompts → UAC → elevated apply → setting sticks after restart/refresh |
+| Toggle while **already** elevated | Applies without false “needs admin” loop |
+| Cancel at UAC | Prior state restored / honest failure message; no corrupt half-registry |
+| Config copy | Matches real weave behavior (no lying “no admin required” when HKLM needed) |
+| Context Menus plugin Deploy | HKCU path works without admin; all-users path elevates correctly |
+
+Do not ship Shell Integration as “looks wired” — run the toggles on Windows and record pass/fail in launch readiness (add rows if missing).
+
+### E4 — Launch-readiness additions (Wave E)
+
+Add/sign checks for: name collision modal; disk-full modal; access-denied → UAC Allow; UAC Cancel; Shell Integration toggle elevate round-trip; file-in-use; folder-into-self block.
 
 ---
 
@@ -177,11 +242,12 @@ Wave A1  Remove Staging + Design Board Hub + Ghost scrub     ─┐
 Wave A2  Absorb smoke on remaining hosts                      ├─ early (unblocks honesty)
 Wave A3  Professionalize hosts (Uiverse + assets)            ─┘
 Wave B   Native chrome + icons/assets + menus                 ── parallel with A3 where files differ
-Wave C   List/scroll perf + reliability + DnD verify-first    ── parallel; serialize on BNDZUI.tsx
-Wave D   Polish backlog + sign 100-check gate                 ── last; Windows required for ☐→☑
+Wave C   List/scroll perf + reliability; DnD protect          ── parallel; serialize on BNDZUI / drag stack
+Wave E   Collision modals + UAC + Shell Integration verify    ── parallel with B/C on dialog/settings files
+Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windows required for ☐→☑
 ```
 
-**Parallelism rule:** A1 first (Staging removal), then A2/A3 ∥ B ∥ C on non-overlapping files; anything touching `BNDZUI.tsx` / drag stack serializes under DnD protect; D signs only after A–C evidence.
+**Parallelism rule:** A1 first (Staging removal), then A2/A3 ∥ B ∥ C ∥ E on non-overlapping files; anything touching `BNDZUI.tsx` / drag stack serializes under **DnD protect** (ghost polish OK; spine rewrite forbidden); D signs only after A–C–E evidence.
 
 ---
 
@@ -190,7 +256,7 @@ Wave D   Polish backlog + sign 100-check gate                 ── last; Windo
 - Net-new Hub filler / selling skins dressed as new plugins  
 - Archive + Text Editor (later)  
 - External plugin package marketplace runtime  
-- DnD architecture rewrite  
+- DnD architecture rewrite (ghost polish ≠ rewrite)  
 - Replacement RAM disk feature after Staging removal  
 - Calendar estimates  
 
@@ -202,9 +268,10 @@ Wave D   Polish backlog + sign 100-check gate                 ── last; Windo
 2. Core FM feels native — list/scroll/menus/transfers/terminal meet polish bar  
 3. Icons/assets correct and crisp (taskbar + in-app)  
 4. Perf/reliability: large-folder scroll + optimistic ops + search empty states hold up  
-5. DnD matrix not regressed  
-6. `fm-launch-readiness.md` signed on Windows with honest ☐/☑  
-7. Above and Beyond + BNDZ build gates green on every product turn  
+5. **Collision + elevation suite complete** (name, disk full, in-use, …) and Shell Integration admin path verified on Windows  
+6. **Inbound/outbound DnD matrix not regressed** (46–58); outside-ghost polish only if still green  
+7. `fm-launch-readiness.md` signed on Windows with honest ☐/☑ (including Wave E rows)  
+8. Above and Beyond + BNDZ build gates green on every product turn  
 
 ---
 
@@ -213,5 +280,5 @@ Wave D   Polish backlog + sign 100-check gate                 ── last; Windo
 1. **A1** — Remove RAM Staging (+ Ghost product chrome) and demote Design Board from Hub  
 2. Patch launch-readiness checks 34/99  
 3. Ghost string scrub  
-4. Then start **A2 smoke + B2 broken About asset + C1 scroll verify** in parallel  
+4. Then parallel: **A2 smoke · B2 About assets · C1 scroll · E1 gap audit** (which collision types are missing vs table) — no DnD spine edits  
 )
