@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1 + E (code) + B brand scrub landed; Wave C Fast Search empty/keyboard polish in progress; Notes/Batch/checkboxes/Folder Options parked in `to-do-future-upgrades.md` until Launch Ready closes; Windows matrix / UAC live verify deferred  
+**Status:** Execution in progress (Wave F boot/index landed) — A1 + E (code) + B brand scrub + Wave F quick-boot/index-finish done; residual A2/A3/C/D + Windows matrix deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -264,6 +264,39 @@ Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windo
 - Calendar estimates  
 
 ---
+
+
+
+---
+
+## Wave F — Quick boot + search index finish (added 2026-09-14)
+
+Explorer-grade cold start and an honest “index finished” state. Belongs in Launch Ready — not parked future work. Spacedrive is UX reference only; the live index is **`BndzFileIndexService`** (`%LocalAppData%/BNDZ/Index/files.db`).
+
+### F1 — Explorer-quick boot
+- [x] Overlap / defer non-critical boot work so first list paint feels Explorer-snappy
+- [x] Native shell: idle-defer font pack + armed automations (same pattern as FilesHost) — do not contend with first `GET_DIR_CONTENTS` / settings
+- [x] Do not start default library indexing until `INDEX_PROGRESS` callback is wired (avoid silent progress + boot disk contention)
+- [x] Keep `BNDZ_UI_READY` / pending IPC queue — never drop listings for speed
+- [ ] Stretch (same wave if cheap): trim IpcHost critical-path scanners until after UI ready
+
+### F2 — Search index reaches a real finished state
+**Symptom:** status chip spins / “never finishes”; no 100% / Complete affordance.
+
+**Root cause (code):**
+1. `done` is **per location**, not per multi-root job (`IndexDefaultLocations` loops Desktop/Docs/… each emitting `Done=true`)
+2. UI clears the chip on every per-root `done`, then the next root restarts the spinner
+3. Every process start full-rescans defaults — ignores fresh `locations.last_indexed`
+4. No percent / job-complete field; chip has no Complete state
+5. Ctor starts indexing before `ProgressCallback` is assigned → early events dropped
+
+**Must fix:**
+- [x] Job-scoped `jobComplete` (or equivalent) after all default roots in a pass
+- [x] Skip fresh roots on startup (TTL on `last_indexed`); forced reindex from Settings still full
+- [x] UI: keep chip across per-root `done`; show **Indexed · N** briefly on `jobComplete`
+- [x] Start deferred default index only after IPC progress bridge is live
+- [x] Docs/copy: this is BNDZ file index, not Spacedrive’s indexer
+- [x] Standalone `IndexLocation` also emits `jobComplete` so single-folder index does not leave a forever spinner
 
 ## Definition of Launch Ready
 

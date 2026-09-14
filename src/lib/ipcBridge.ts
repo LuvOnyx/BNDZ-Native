@@ -169,7 +169,7 @@ export const IPC = {
   _fileTransferQueueListeners: [] as Array<(state: FileTransferQueueState) => void>,
   _startupActionListeners: [] as Array<(action: string) => void>,
   _aiDownloadProgressListeners: [] as Array<(progress: { percent: number }) => void>,
-  _indexProgressListeners: [] as Array<(progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string }) => void>,
+  _indexProgressListeners: [] as Array<(progress: { currentPath: string; filesIndexed: number; done: boolean; jobComplete?: boolean; root?: string; error?: string }) => void>,
   _aiStreamChunkListeners: new Map<string, (chunk: string) => void>(),
   _aiStreamDoneListeners: new Map<string, () => void>(),
   _aiStreamErrorListeners: new Map<string, (error: string) => void>(),
@@ -338,7 +338,7 @@ export const IPC = {
     };
   },
 
-  onIndexProgress(callback: (progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string }) => void) {
+  onIndexProgress(callback: (progress: { currentPath: string; filesIndexed: number; done: boolean; jobComplete?: boolean; root?: string; error?: string }) => void) {
     this.init();
     this._indexProgressListeners.push(callback);
     return () => {

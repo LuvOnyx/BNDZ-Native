@@ -23,6 +23,8 @@ public sealed class BndzFileIndexService : IDisposable
         public string CurrentPath { get; init; } = "";
         public int FilesIndexed { get; init; }
         public bool Done { get; init; }
+        /// <summary>True only after an entire multi-root defaults pass (or a forced reindex job) finishes.</summary>
+        public bool JobComplete { get; init; }
         public string? Root { get; init; }
         public string? Error { get; init; }
     }
@@ -51,7 +53,7 @@ public sealed class BndzFileIndexService : IDisposable
         Directory.CreateDirectory(dir);
         _dbPath = Path.Combine(dir, "files.db");
         EnsureSchema();
-        _ = Task.Run(() => EnsureDefaultLocationsIndexedAsync(CancellationToken.None));
+        // Default library index starts after IPC wires ProgressCallback via StartDeferredDefaultIndex().
     }
 
     public void Dispose() { }
@@ -365,12 +367,21 @@ public sealed class BndzFileIndexService : IDisposable
         return conn;
     }
 
-    public void EnsureDefaultLocationsIndexedAsync(CancellationToken ct)
+    /// <summary>
+    /// Kick default-library indexing after ProgressCallback is wired.
+    /// Skips roots whose last_indexed is still fresh (startup path).
+    /// </summary>
+    public void StartDeferredDefaultIndex()
+    {
+        _ = Task.Run(() => EnsureDefaultLocationsIndexedAsync(CancellationToken.None, force: false));
+    }
+
+    public void EnsureDefaultLocationsIndexedAsync(CancellationToken ct, bool force = false)
     {
         if (Interlocked.CompareExchange(ref _indexing, 1, 0) != 0) return;
         try
         {
-            IndexDefaultLocations(ct);
+            IndexDefaultLocations(ct, force);
         }
         finally
         {
@@ -378,7 +389,7 @@ public sealed class BndzFileIndexService : IDisposable
         }
     }
 
-    /// <summary>Queue default-library reindex; returns false if a job is already running.</summary>
+    /// <summary>Queue default-library reindex (forced); returns false if a job is already running.</summary>
     public bool TryStartDefaultReindex(CancellationToken ct)
     {
         if (Interlocked.CompareExchange(ref _indexing, 1, 0) != 0) return false;
@@ -386,11 +397,11 @@ public sealed class BndzFileIndexService : IDisposable
         {
             try
             {
-                IndexDefaultLocations(ct);
+                IndexDefaultLocations(ct, force: true);
             }
             catch (Exception ex)
             {
-                EmitProgress("", 0, true, null, ex.Message);
+                EmitProgress("", 0, true, null, ex.Message, jobComplete: true);
             }
             finally
             {
@@ -400,7 +411,49 @@ public sealed class BndzFileIndexService : IDisposable
         return true;
     }
 
-    private void IndexDefaultLocations(CancellationToken ct)
+    private static readonly TimeSpan DefaultIndexFreshTtl = TimeSpan.FromHours(12);
+
+    private bool IsLocationFresh(string rootPath)
+    {
+        try
+        {
+            EnsureSchema();
+            var pane = ToPanePath(NormalizeWinPath(rootPath));
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT last_indexed FROM locations WHERE path=$p LIMIT 1";
+            cmd.Parameters.AddWithValue("$p", pane);
+            var val = cmd.ExecuteScalar();
+            if (val == null || val is DBNull) return false;
+            var ts = Convert.ToInt64(val);
+            if (ts <= 0) return false;
+            var age = DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(ts);
+            return age >= TimeSpan.Zero && age <= DefaultIndexFreshTtl;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private int GetCachedFileCountSafe()
+    {
+        try
+        {
+            EnsureSchema();
+            using var conn = OpenConnection();
+            if (TryReadIndexStats(conn, out var cachedFiles, out _))
+                return cachedFiles > int.MaxValue ? int.MaxValue : (int)cachedFiles;
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM files WHERE is_dir=0";
+            var val = cmd.ExecuteScalar();
+            var n = val == null || val is DBNull ? 0L : Convert.ToInt64(val);
+            return n > int.MaxValue ? int.MaxValue : (int)n;
+        }
+        catch { return 0; }
+    }
+
+    private void IndexDefaultLocations(CancellationToken ct, bool force)
     {
         var roots = new[]
         {
@@ -413,15 +466,22 @@ public sealed class BndzFileIndexService : IDisposable
                 ? Path.Combine(profile, "Downloads") : "",
         }.Where(p => !string.IsNullOrWhiteSpace(p) && Directory.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase);
 
+        var any = false;
         foreach (var root in roots)
         {
             ct.ThrowIfCancellationRequested();
-            IndexLocation(root, ct, maxDepth: 12);
+            if (!force && IsLocationFresh(root))
+                continue;
+            any = true;
+            IndexLocation(root, ct, maxDepth: 12, partOfJob: true);
             Thread.Sleep(50);
         }
+
+        // Job-scoped finish — UI must not treat per-root Done as "index forever spinning".
+        EmitProgress(any ? "" : "up-to-date", GetCachedFileCountSafe(), true, null, null, jobComplete: true);
     }
 
-    public void IndexLocation(string rootPath, CancellationToken ct, int maxDepth = 10)
+    public void IndexLocation(string rootPath, CancellationToken ct, int maxDepth = 10, bool partOfJob = false)
     {
         var root = NormalizeWinPath(rootPath);
         if (!Directory.Exists(root)) return;
@@ -457,11 +517,11 @@ public sealed class BndzFileIndexService : IDisposable
             loc.Parameters.AddWithValue("$t", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             loc.ExecuteNonQuery();
             RefreshIndexStatsCache(conn);
-            EmitProgress(root, batch, true, root);
+            EmitProgress(root, batch, true, root, jobComplete: !partOfJob);
         }
         catch (Exception ex)
         {
-            EmitProgress(root, batch, true, root, ex.Message);
+            EmitProgress(root, batch, true, root, ex.Message, jobComplete: !partOfJob);
             throw;
         }
         finally
@@ -470,7 +530,7 @@ public sealed class BndzFileIndexService : IDisposable
         }
     }
 
-    private void EmitProgress(string path, int filesIndexed, bool done, string? root = null, string? error = null)
+    private void EmitProgress(string path, int filesIndexed, bool done, string? root = null, string? error = null, bool jobComplete = false)
     {
         try
         {
@@ -479,6 +539,7 @@ public sealed class BndzFileIndexService : IDisposable
                 CurrentPath = path,
                 FilesIndexed = filesIndexed,
                 Done = done,
+                JobComplete = jobComplete,
                 Root = root,
                 Error = error,
             });

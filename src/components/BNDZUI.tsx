@@ -829,7 +829,7 @@ export default function BNDZUI() {
   folderSizeMapRef.current = folderSizeMap;
   const [indexedRoots, setIndexedRoots] = useState<string[]>([]);
   const [indexProgress, setIndexProgress] = useState<{
-    currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string;
+    currentPath: string; filesIndexed: number; done: boolean; jobComplete?: boolean; root?: string; error?: string;
   } | null>(null);
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [virtualViewErrors, setVirtualViewErrors] = useState<Record<string, string>>({});
@@ -3099,17 +3099,27 @@ export default function BNDZUI() {
     void refreshIndexedRoots();
     if (!IPC.isNative) return;
     return IPC.onIndexProgress(p => {
-      if (p.done) {
-        invalidateIndexStatusCache();
-        if (p.error) {
-          setIndexProgress({ ...p });
-          window.setTimeout(() => setIndexProgress(null), 5000);
-        } else {
-          setIndexProgress(null);
+      if (p.jobComplete || (p.done && p.error)) {
+        // Warm boot: all roots still fresh — do not flash a spinner/complete chip.
+        if (p.jobComplete && !p.error && p.currentPath === 'up-to-date') {
+          invalidateIndexStatusCache();
           void refreshIndexedRoots();
+          return;
         }
-      } else {
+        invalidateIndexStatusCache();
+        setIndexProgress({ ...p, done: true, jobComplete: !!p.jobComplete });
+        window.setTimeout(() => setIndexProgress(null), p.error ? 6000 : 4000);
+        if (!p.error) void refreshIndexedRoots();
+      } else if (!p.done) {
         setIndexProgress(p);
+      } else {
+        // Per-root done — keep chip visible; more roots may follow in the same job.
+        setIndexProgress(prev => ({
+          ...p,
+          done: false,
+          filesIndexed: Math.max(prev?.filesIndexed ?? 0, p.filesIndexed ?? 0),
+        }));
+        void refreshIndexedRoots();
       }
     });
   }, [refreshIndexedRoots]);
@@ -16021,12 +16031,13 @@ ${classified.detail}`,
                  : 'Filesystem'}
              </span>
            )}
-           {indexProgress && (!indexProgress.done || !!indexProgress.error) && (
+           {indexProgress && (
              <IndexProgressChip
                filesIndexed={indexProgress.filesIndexed}
                currentPath={indexProgress.currentPath}
                root={indexProgress.root}
                error={indexProgress.error}
+               complete={!!indexProgress.jobComplete && !indexProgress.error}
              />
            )}
            {activeTagFilter && (
