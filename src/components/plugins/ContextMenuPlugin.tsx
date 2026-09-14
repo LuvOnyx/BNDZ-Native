@@ -994,6 +994,27 @@ export default function ContextMenuPlugin({
       variant="embedded"
     >
       <div className="flex flex-col min-h-0 h-full">
+        <div className="bndz-shellmenus-opsrail">
+          <div className="bndz-shellmenus-opsrail-copy min-w-0">
+            <div className="bndz-shellmenus-opsrail-title">Shell Menus</div>
+            <div className="bndz-shellmenus-opsrail-meta">
+              {tab === 'app' && 'Compose the Inside BNDZ right-click menu with live preview'}
+              {tab === 'global' && 'Inject BNDZ into Explorer · Deploy writes per-user HKCU keys'}
+              {tab === 'verbs' && 'Forge Explorer verbs that launch BNDZ with path args'}
+            </div>
+          </div>
+          <div className="bndz-shellmenus-opsrail-actions">
+            <button
+              type="button"
+              className="text-[10px] text-white/45 hover:text-white/75 flex items-center gap-1 px-2 py-1 rounded-md hover:bg-white/[0.04]"
+              onClick={() => setShowHelp(v => !v)}
+            >
+              <Icons8Icon id="help_ui" size={11} />
+              How it works
+            </button>
+          </div>
+        </div>
+
         <div className="bndz-cm-tabs shrink-0 flex items-center gap-1 px-3 py-2 border-b border-white/[0.06]">
           {([
             { id: 'app' as const, label: 'Inside BNDZ', icon: 'shell_menus' },
@@ -1010,14 +1031,6 @@ export default function ContextMenuPlugin({
               {t.label}
             </button>
           ))}
-          <button
-            type="button"
-            className="ml-auto text-[10px] text-white/35 hover:text-white/70 flex items-center gap-1 px-2"
-            onClick={() => setShowHelp(v => !v)}
-          >
-            <Icons8Icon id="help_ui" size={11} />
-            How it works
-          </button>
         </div>
 
         {showHelp && (

@@ -14,12 +14,6 @@ export const IconStudioPluginDef = {
     icon: 'icon_studio'
 };
 
-const STEPS = [
-    { n: 1, label: 'Pick library' },
-    { n: 2, label: 'Choose icon' },
-    { n: 3, label: 'Apply to selection' },
-] as const;
-
 export default function IconStudioPlugin({
     selectedItems,
     selectedTargetTypes,
@@ -32,7 +26,6 @@ export default function IconStudioPlugin({
     isPluginTabActive?: boolean;
 }) {
     const targetCount = selectedItems?.length || 0;
-    const activeStep = targetCount > 0 ? 3 : 2;
 
     return (
         <IconStudioProvider nativeSyncEnabled={isPluginTabActive !== false}>
@@ -42,7 +35,6 @@ export default function IconStudioPlugin({
                     selectedTargetTypes={selectedTargetTypes}
                     focusedPath={focusedPath}
                     targetCount={targetCount}
-                    activeStep={activeStep}
                 />
             </PluginPanelShell>
         </IconStudioProvider>
@@ -54,53 +46,35 @@ function IconStudioInner({
     selectedTargetTypes,
     focusedPath,
     targetCount,
-    activeStep,
 }: {
     selectedItems?: string[];
     selectedTargetTypes?: string[];
     focusedPath?: string;
     targetCount: number;
-    activeStep: number;
 }) {
     const { config, updateConfig } = useAppConfig();
 
     return (
         <div className={`${styles.container} flex-col`} data-icon-studio>
-            <div className={`${styles.workflowBar} shrink-0 flex items-center justify-between px-4 h-9 gap-3`}>
-                <div className="flex items-center gap-1 min-w-0">
-                    {STEPS.map((step, i) => (
-                        <React.Fragment key={step.n}>
-                            <div className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md ${
-                                activeStep >= step.n ? 'text-gray-200' : 'bndz-panel-muted'
-                            }`}>
-                                <span className={`w-5 h-5 rounded-md text-xs font-semibold flex items-center justify-center ${
-                                    activeStep >= step.n
-                                        ? 'bg-[#094771]/30 text-[#cce4f7] border border-[#0078d4]/30'
-                                        : 'bg-white/[0.04] text-gray-500 border border-white/[0.06]'
-                                }`}>{step.n}</span>
-                                <span className="text-xs font-medium hidden sm:inline">{step.label}</span>
-                            </div>
-                            {i < STEPS.length - 1 && <div className="w-3 h-px bg-white/[0.08]" />}
-                        </React.Fragment>
-                    ))}
+            <div className="bndz-iconstudio-opsrail shrink-0">
+                <div className="bndz-iconstudio-opsrail-copy min-w-0">
+                    <div className="bndz-iconstudio-opsrail-title">Icon Studio</div>
+                    <div className="bndz-iconstudio-opsrail-meta">
+                        {targetCount > 0
+                            ? `${targetCount} target${targetCount !== 1 ? 's' : ''} selected · pick an icon and apply`
+                            : 'Pick a library · choose an icon · select items in the list to apply'}
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    {targetCount > 0 ? (
-                        <span className="bndz-plugin-kind-pill inline-flex items-center gap-1 text-emerald-300/90 border border-emerald-500/20 bg-emerald-500/8">
-                            {targetCount} target{targetCount !== 1 ? 's' : ''}
-                        </span>
-                    ) : (
-                        <span className="text-xs bndz-panel-muted hidden sm:inline">Select items in the file list</span>
-                    )}
-                    <label className="flex items-center gap-1.5 text-xs bndz-panel-muted cursor-pointer shrink-0" title="Allow overwriting read-only or system-protected icons">
+                <div className="bndz-iconstudio-opsrail-actions">
+                    <label className="flex items-center gap-1.5 text-[10px] text-white/45 cursor-pointer shrink-0" title="Allow overwriting read-only or system-protected icons">
                         <input
                             type="checkbox"
                             checked={config.allowGlobalIconOverwrite ?? false}
                             onChange={e => updateConfig({ allowGlobalIconOverwrite: e.target.checked })}
-                            className="accent-[#0078d4]"
+                            className="accent-[#38bdf8]"
                         />
                         <Icons8Icon id="shield_ui" size={11} className="opacity-60" />
-                        <span className="hidden md:inline">Force apply</span>
+                        <span>Force apply</span>
                     </label>
                 </div>
             </div>

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { isQueuedIpcResult } from '../../lib/transferIpc';
@@ -11,8 +10,6 @@ import {
   PluginToolbarButton,
   PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PluginSectionTitle,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
@@ -180,33 +177,22 @@ export default function DropMagnetPlugin({
     }
   };
 
-  return (
-    <PluginPanelShell
-      title="Magnets"
-      subtitle="Landing pads — rename, tag, and route on Explorer → BNDZ release"
-      icon="magnet_ui"
-      variant={embedded ? 'embedded' : 'default'}
-      toolbar={(
-        <PluginToolbarButton onClick={startNew} icon="plus_ui">
-          New magnet
-        </PluginToolbarButton>
-      )}
-    >
-      <PluginHeroStrip
-        icon={<Icons8Icon id="magnet_ui" size={40} />}
-        name="Magnets"
-        typeLabel="Landing pads"
-        meta={(
-          <span className="text-xs text-gray-400">
-            Drag from Explorer — magnets appear as pads at the bottom.
-          </span>
-        )}
-        actions={(
-          <PluginHeroActionButton onClick={startNew} icon="plus_ui" variant="primary">
-            Create magnet
-          </PluginHeroActionButton>
-        )}
-      />
+  const magnetBody = (
+    <>
+      <div className="bndz-magnet-opsrail">
+        <div className="bndz-magnet-opsrail-copy min-w-0">
+          <div className="bndz-magnet-opsrail-title">Magnets</div>
+          <div className="bndz-magnet-opsrail-meta">
+            {magnets.length
+              ? `${magnets.length} pad${magnets.length === 1 ? '' : 's'} · Explorer → BNDZ release`
+              : 'Landing pads — rename, tag, and route on drop'}
+          </div>
+        </div>
+        <div className="bndz-magnet-opsrail-actions">
+          <PluginToolbarButton onClick={() => void refresh()} icon="refresh_ui">Refresh</PluginToolbarButton>
+          <PluginToolbarButton onClick={startNew} icon="plus_ui">New magnet</PluginToolbarButton>
+        </div>
+      </div>
 
       {loadError && (
         <div className="mx-4 mt-3 mb-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
@@ -341,6 +327,21 @@ export default function DropMagnetPlugin({
           </div>
         )}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex flex-col h-full min-h-0 overflow-hidden">{magnetBody}</div>;
+  }
+
+  return (
+    <PluginPanelShell
+      title="Magnets"
+      subtitle="Landing pads — rename, tag, and route on Explorer → BNDZ release"
+      icon="magnet_ui"
+      variant="default"
+    >
+      {magnetBody}
     </PluginPanelShell>
   );
 }

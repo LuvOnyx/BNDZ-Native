@@ -20091,3 +20091,77 @@ html.theme-light .bndz-xfer-toast-track {
   width: 2.5rem;
   text-align: right;
 }
+
+/* Batch Rename / Magnets / Shell Menus / Icon Studio ops rails (Launch Ready A3) */
+.bndz-batch-opsrail,
+.bndz-magnet-opsrail,
+.bndz-shellmenus-opsrail,
+.bndz-iconstudio-opsrail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #34d399 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #34d399 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #101816, #0e1214);
+}
+.bndz-magnet-opsrail {
+  border-bottom-color: color-mix(in srgb, #38bdf8 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #38bdf8 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #10161c, #0e1216);
+}
+.bndz-shellmenus-opsrail {
+  border-bottom-color: color-mix(in srgb, #67e8f9 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #67e8f9 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #101618, #0e1214);
+}
+.bndz-iconstudio-opsrail {
+  border-bottom-color: color-mix(in srgb, #94a3b8 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #94a3b8 10%, transparent), transparent 55%),
+    linear-gradient(180deg, #12141a, #0e1014);
+}
+.bndz-batch-opsrail-copy,
+.bndz-magnet-opsrail-copy,
+.bndz-shellmenus-opsrail-copy,
+.bndz-iconstudio-opsrail-copy { min-width: 0; flex: 1; }
+.bndz-batch-opsrail-title,
+.bndz-magnet-opsrail-title,
+.bndz-shellmenus-opsrail-title,
+.bndz-iconstudio-opsrail-title {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #ecfdf5;
+  line-height: 1.2;
+}
+.bndz-magnet-opsrail-title { color: #e0f2fe; }
+.bndz-shellmenus-opsrail-title { color: #ecfeff; }
+.bndz-iconstudio-opsrail-title { color: #e2e8f0; }
+.bndz-batch-opsrail-meta,
+.bndz-magnet-opsrail-meta,
+.bndz-shellmenus-opsrail-meta,
+.bndz-iconstudio-opsrail-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #7a8794;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bndz-batch-opsrail-actions,
+.bndz-magnet-opsrail-actions,
+.bndz-shellmenus-opsrail-actions,
+.bndz-iconstudio-opsrail-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.bndz-batch-opsrail .bndz-plugin-toolbar-btn,
+.bndz-magnet-opsrail .bndz-plugin-toolbar-btn { flex-shrink: 0; }

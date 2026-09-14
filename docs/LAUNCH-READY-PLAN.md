@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1–A3 hosts largely crafted (incl. Catalog / Action Log / Metadata); residual Shell Menus / Icon Studio / Batch Rename + Wave C/D + Windows matrix deferred  
+**Status:** Execution in progress — A1–A3 hosts crafted (incl. residual Shell Menus / Icon Studio / Batch Rename); Wave C/D + Windows matrix deferred  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -77,9 +77,9 @@ Each remaining Hub plugin must read as **one product**, not dumped tabs or SaaS 
 | System Properties | Native inspector (default) |
 | Fast Search | Instant find (default) |
 | Visual Filters | Filters + smart groups (default) |
-| Shell Menus | In-app + Explorer weave + verbs |
-| Icon Studio | Icon libraries / apply |
-| Batch Rename | Rename + magnets |
+| Shell Menus | In-app + Explorer weave + verbs — ops rail + tab story (A3 craft) |
+| Icon Studio | Icon libraries / apply — ops rail (no step-pill chrome) (A3 craft) |
+| Batch Rename | Rename + magnets — ops rail; nested Magnets bare chrome (A3 craft) |
 | Drop Stack | Intake & stage — ops rail + browse stage (A3 craft); nested Captures/Policies without double chrome |
 | Metadata | Facts + encode — ops rail; nested Encode meter (no stat farm) (A3 craft) |
 | Storage Cleanup | One ops surface — overview meter + large-file list (A3 craft); Capacity/Health as sections |
