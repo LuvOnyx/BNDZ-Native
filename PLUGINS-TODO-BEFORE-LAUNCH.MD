@@ -117,7 +117,7 @@ After features land, each host should feel like one product:
 | Host | Story |
 | --- | --- |
 | Drop Stack | Intake & stage (stash + inbound + policies + batch move/copy) |
-| RAM Staging | Staging (hot RAM + cold offload) |
+| ~~RAM Staging~~ | **REMOVED for launch** (decision 1.A) — see [`docs/LAUNCH-READY-PLAN.md`](docs/LAUNCH-READY-PLAN.md). Do not professionalize; strip Hub/Deck/menus/ImDisk theater. |
 | Storage Cleanup | Cleanup & health |
 | Metadata | File intelligence (facts + tags + encode) |
 | Batch Rename | Rename & magnets |
@@ -164,7 +164,7 @@ absorb → professionalize hosts → About/Register polish → launch
 - [x] Semantic Desk → Visual Filters
 - [x] Policy Packs + Inbound → Drop Stack
 - [x] ZK Vault → Project Sandbox
-- [x] Ghost-Link → RAM Staging
+- [x] Ghost-Link → RAM Staging *(superseded for launch: Staging host itself is **removed** — decision 1.A)*
 - [x] Library Health → Storage Cleanup
 
 ## Professionalize progress
@@ -175,3 +175,4 @@ absorb → professionalize hosts → About/Register polish → launch
 - [x] Embedded child chrome renamed to host language (Magnets, Diff, Encode, Groups, Intake, Policies, Vault, Cold, Health)
 - [x] About + Register dialog polish
 - [ ] User smoke: install remaps, open each absorbed tab, Command Deck gating
+- [ ] **Launch Ready A1:** remove RAM Staging + Ghost product chrome; demote Design Board from Hub ([`docs/LAUNCH-READY-PLAN.md`](docs/LAUNCH-READY-PLAN.md))
