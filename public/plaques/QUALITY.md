@@ -30,7 +30,7 @@ Gather → review board → checklist pass → wire. Keepers only.
 | Access / question | `access-denied-*.svg` (Gravity UI) |
 | Panel idle | `unable-display-*.svg` (Gravity UI) |
 | Idle / no data | `no-data.svg` (unDraw, no people, accent baked) |
-| Warn | `warning.svg` (unDraw, no people, accent baked) |
+| Warn | `warning.svg` ← `document-warning.svg` (object only; people `warning`/`void` quarantined) |
 | Transfer | `data-transfer.svg` (unDraw, no people, accent baked) |
 | Tabs empty | `tab-empty.svg` (custom FM chips) |
 | Tab chrome | `tab-active*.svg`, `tab-inactive*.svg`, `tab-strip*.svg` |
@@ -51,3 +51,7 @@ Gather → review board → checklist pass → wire. Keepers only.
 | Debug `dotnet build` | **PASS** | 0 warn / 0 err |
 
 Board: `public/plaques/qc.html`
+
+### Follow-up (2026-09-15)
+- Quarantined people art in `warning.svg` / `void.svg` → `candidates/undraw-with-people/`.
+- Replaced wired warn keeper with object-only `document-warning.svg` published as `warning.svg`.
