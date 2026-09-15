@@ -61,6 +61,7 @@ internal static class ShellContextMenuEnumerator
                 var cm2 = cm as IContextMenu2;
                 var cm3 = cm as IContextMenu3;
                 var items = WalkMenu(cm, cm2, cm3, hMenu, depth: 0, extractIcons: false);
+                items = DedupeByCanonicalVerb(items);
                 return CompactSeparators(items);
             });
         }
@@ -403,6 +404,68 @@ internal static class ShellContextMenuEnumerator
         return verb.ToLowerInvariant() is
             "open" or "edit" or "openas" or "openwith" or "cut" or "copy" or "paste"
             or "delete" or "rename" or "properties" or "link" or "print" or "runas";
+    }
+
+    /// <summary>
+    /// Canonical (culture/label-invariant) key for verbs that Explorer only ever shows once,
+    /// even though a shell extension or a localized handler can enumerate the same command
+    /// twice (e.g. the OS "Open" plus a third-party "Open" echo, or "Properties" duplicated
+    /// by a non-English label). Returns null for opaque/extension-only verbs, which are never
+    /// merged here — only known canonical builtin verbs are deduped.
+    /// </summary>
+    private static string? CanonicalVerbKey(string? verb)
+    {
+        if (string.IsNullOrWhiteSpace(verb)) return null;
+        var v = verb.Trim().ToLowerInvariant();
+        // "openas"/"openwith" are the same command under different Shell32 verb spellings.
+        if (v is "openas" or "openwith") return "openwith";
+        return IsBuiltinVerb(v) ? v : null;
+    }
+
+    /// <summary>
+    /// Dedupe the live shell menu by canonical verb (not label text), so Open/Properties/etc.
+    /// aren't doubled when a shell extension re-registers a builtin verb or supplies a
+    /// non-English label for the same command id. Recurses into cascaded submenus (Send to,
+    /// New, …) so nested duplicates are caught too. Opaque extension commands without a
+    /// recognized verb are never merged — only the first occurrence of each canonical verb
+    /// at a given menu level survives, preserving the shell's original ordering/priority.
+    /// </summary>
+    private static List<EnumeratedItem> DedupeByCanonicalVerb(List<EnumeratedItem> items)
+    {
+        var result = new List<EnumeratedItem>(items.Count);
+        var seenVerbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            if (item.Separator)
+            {
+                result.Add(item);
+                continue;
+            }
+
+            if (item.Children is { Count: > 0 })
+            {
+                result.Add(new EnumeratedItem
+                {
+                    Id = item.Id,
+                    Label = item.Label,
+                    Verb = item.Verb,
+                    CommandId = item.CommandId,
+                    Separator = item.Separator,
+                    IsPrimary = item.IsPrimary,
+                    Kind = item.Kind,
+                    IconBase64 = item.IconBase64,
+                    Children = DedupeByCanonicalVerb(item.Children),
+                });
+                continue;
+            }
+
+            var canonicalVerb = CanonicalVerbKey(item.Verb);
+            if (canonicalVerb != null && !seenVerbs.Add(canonicalVerb))
+                continue; // already have this canonical command at this menu level
+
+            result.Add(item);
+        }
+        return result;
     }
 
     private static List<EnumeratedItem> CompactSeparators(List<EnumeratedItem> items)
