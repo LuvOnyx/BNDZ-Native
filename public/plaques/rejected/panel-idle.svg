@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="148" height="112" viewBox="0 0 148 112" fill="none">
+  <defs>
+    <linearGradient id="pg" x1="12" y1="10" x2="136" y2="102" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F8FB"/>
+      <stop offset="0.55" stop-color="#E4E9F1"/>
+      <stop offset="1" stop-color="#CBD4E1"/>
+    </linearGradient>
+    <linearGradient id="gl" x1="24" y1="22" x2="124" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="ps" x="-10%" y="-12%" width="120%" height="124%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#12151A" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="14" y="16" width="120" height="80" rx="16" fill="url(#pg)" filter="url(#ps)" stroke="#8F9BB0" stroke-opacity="0.45"/>
+  <rect x="14" y="16" width="120" height="80" rx="16" fill="url(#gl)"/>
+  <path d="M38 40h72M38 56h52M38 72h40" stroke="#7A879A" stroke-opacity="0.35" stroke-width="4" stroke-linecap="round"/>
+  <rect x="98" y="64" width="22" height="18" rx="6" fill="#5B6B82" fill-opacity="0.14" stroke="#5B6B82" stroke-opacity="0.3"/>
+</svg>

@@ -121,11 +121,32 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Notifications tab uses BNDZ Checkbox (not raw accent inputs)
 - [x] Extension Hub (PluginStoreDialog) redesigned — glass/squircle craft, aurora backdrop, shimmer CTA, animated catalog rows, grouped sections, capability items, version timeline card
 - [ ] Advanced plugins as **external installable packages** (npm/zip distribution, isolated runtime, signature check) — planned for a future BNDZ release; current hub manages built-in + JSON-imported manifests only. Do **not** vendor Rain-Explorer / QuickLook / filessh into `external/` for launch.
-- [ ] Visual Filters empty/default state craft
-- [ ] Tag Manager / Action History spot-check regressions
+- [x] Visual Filters empty/default state craft
+- [x] Tag Manager / Action History empty states → BndzPlaque (history / idle / folder)
 - [ ] Bottom plugin panel empty state + install gating still correct
+- [x] Tab right-click menu + Tabs settings still honor height/font/style/colors with plaque chrome
 - [ ] Menubar / context hover colors consistent after menu merge
 - [ ] Configuration dialog Shell Integration copy matches weave behavior
+
+### Native plaques / illustrations (modals · panels · list tabs · menus)
+
+**Process (mandatory):** gather/extract → `public/plaques/review.html` board → `QUALITY.md` pass → only then wire. No more stub SVG / reused Hexigon as “done.”
+
+**Asset pipeline**
+- [x] Reject wave-0 handmade fillers (`rejected/`) + park reused Hexigon as `candidates/legacy-hexigon/` (FAIL as new art)
+- [x] Extract web packs into `candidates/`: Gravity UI (MIT, 20), unDraw (100+, includes tabs/browsers), chrome-tabs geometry (MIT), curated illlustrations (CC0)
+- [x] Review board + attribution: `public/plaques/review.html`, `QUALITY.md`, `ATTRIBUTION.md`
+- [x] Visual keep/kill pass on board (no-people + soft FM tabs) (empties, errors, search, **tabs/chrome**, panels, transfer, menu density)
+- [x] Promote keepers to kebab names under `public/plaques/` (recolor to BNDZ tokens where needed)
+- [x] Only after pass: re-point `BndzPlaque` / surfaces; keep `PLAQUE_CONTEXT_MENU_ENABLED=false` until menu density pass
+
+**Modals / dialogs / panels / tabs**
+- [x] Re-wire only after keeper promotion (current UI still on legacy paths — treat as temporary)
+- [x] Empty-strip / no-tab affordance from **passed** tab assets (`tab-empty.svg`)
+- [ ] Context menus: wire **iff** density pass; else Icons8 + CSS
+
+**Done when:** keepers pass QUALITY; tabs included; builds green; no DnD/list regression.
+
 
 Shipped earlier:
 - Action History + Tag Manager BNDZ theme redesign

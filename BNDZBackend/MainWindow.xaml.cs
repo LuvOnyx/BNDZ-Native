@@ -10341,7 +10341,13 @@ namespace BNDZ
                 }
                 catch (Exception ex)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    // Partial batch failure — some items in this copy/move succeeded and were already
+                    // recorded to the action log; expose only the failed source paths so queue Retry
+                    // resubmits those instead of replaying the entire original batch.
+                    var failedPaths = ex is PartialTransferException partialEx
+                        ? partialEx.FailedItems.Select(f => f.Path).ToList()
+                        : null;
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message, failedPaths);
                     var failEvt = new
                     {
                         type = "PROGRESS_UPDATE",
@@ -10352,6 +10358,7 @@ namespace BNDZ
                             currentFile = "",
                             error = ex.Message,
                             engine,
+                            failedPaths,
                         },
                     };
                     PostToUi(() =>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
 import { flushSync } from 'react-dom';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { CloseGlyph } from './ChromeGlyphs';
 import { normalizeDirEntries } from '../lib/normalizeDirEntry';
 import { createInitialFileSystem, getDirContents, getEntityByPath, updateFileSystem } from '../data/initialFS';
@@ -4790,7 +4791,17 @@ export default function BNDZUI() {
                     pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
                     return;
                   }
-                  executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
+                  const failed = Array.isArray(job.failedPaths) ? job.failedPaths.filter(Boolean) : [];
+                  if (failed.length > 0) {
+                    // Narrow the pending stash so elevate-and-retry / queue Retry stay consistent.
+                    localTransferByOpRef.current.set(job.operationId, {
+                      action: pending.action,
+                      sources: failed,
+                      destDir: pending.destDir,
+                    });
+                  }
+                  const sources = failed.length > 0 ? failed : pending.sources;
+                  executeInternalDropRef.current?.(pending.action, sources, pending.destDir, undefined, { skipConfirm: true });
                 };
                 const skipFailedTransfer = () => {
                   window.dispatchEvent(new CustomEvent('bndz-skip-failed-transfer', {
@@ -4817,7 +4828,14 @@ export default function BNDZUI() {
                 const elevateAndRetry = async () => {
                   const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
                   if (pending) {
-                    stashPendingElevatedTransfer({ ...pending, savedAt: Date.now() });
+                    const failed = Array.isArray(job.failedPaths) ? job.failedPaths.filter(Boolean) : [];
+                    const stash = failed.length > 0
+                      ? { action: pending.action, sources: failed, destDir: pending.destDir }
+                      : pending;
+                    if (failed.length > 0) {
+                      localTransferByOpRef.current.set(job.operationId, stash);
+                    }
+                    stashPendingElevatedTransfer({ ...stash, savedAt: Date.now() });
                   }
                   const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
                   await promptElevationIfNeeded(
@@ -7307,15 +7325,29 @@ ${classified.detail}`,
 
   useEffect(() => {
     const onRetryLast = (ev: Event) => {
-      const opId = (ev as CustomEvent<{ operationId?: string }>).detail?.operationId;
+      const detail = (ev as CustomEvent<{ operationId?: string; failedPaths?: string[] }>).detail;
+      const opId = detail?.operationId;
       const pending = (opId && localTransferByOpRef.current.get(opId)) || lastLocalTransferRef.current;
       if (!pending?.sources?.length) {
         pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
         return;
       }
+      // Prefer host failedPaths[] (partial batch) — only resubmit what actually failed.
+      const failed = (detail?.failedPaths || []).filter(Boolean);
+      const sources = failed.length > 0
+        ? pending.sources.filter((s) => failed.some((f) => f.replace(/\\/g, '/').toLowerCase() === s.replace(/\\/g, '/').toLowerCase())
+          || failed.some((f) => s.replace(/\\/g, '/').toLowerCase().endsWith('/' + f.replace(/\\/g, '/').split('/').pop()!.toLowerCase())))
+        : pending.sources;
+      const retrySources = sources.length > 0 ? sources : (failed.length > 0 ? failed : pending.sources);
       try {
-        executeInternalDropRef.current?.(pending.action, pending.sources, pending.destDir, undefined, { skipConfirm: true });
-        pushToast({ kind: 'info', title: 'Retrying transfer', message: 'Replaying the failed local copy/move.' });
+        executeInternalDropRef.current?.(pending.action, retrySources, pending.destDir, undefined, { skipConfirm: true });
+        pushToast({
+          kind: 'info',
+          title: 'Retrying transfer',
+          message: failed.length > 0
+            ? `Retrying ${retrySources.length} failed item(s).`
+            : 'Replaying the failed local copy/move.',
+        });
       } catch { /* ignore */ }
     };
     const onSkipFailed = (_ev: Event) => {
@@ -12988,10 +13020,10 @@ ${classified.detail}`,
                 });
               }}
               emptyState={
-                <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-gray-500 gap-2 px-4 text-center">
+                <div className="bndz-list-empty-plaque text-gray-500">
                   {pathLoadErrors[normPanePath] && !(listRows?.length ?? 0) ? (
                     <>
-                      <Icons8Icon id="warning" size={28} className="opacity-70 text-rose-300" />
+                      <BndzPlaque tone="error" size="lg" className="bndz-plaque--hex-well" />
                       <span className="text-[12px] text-rose-200/90 max-w-md">
                         {/^IPC timeout:/i.test(pathLoadErrors[normPanePath])
                           ? 'Folder load timed out. The host may be busy — retry in a moment.'
@@ -13015,7 +13047,7 @@ ${classified.detail}`,
                     />
                   ) : (
                     <>
-                      <Icons8Icon id="folder_open_ui" size={28} className="opacity-40" />
+                      <BndzPlaque tone="folder" size="lg" />
                       <span className="text-[11px]">
                         {isFindingTabActive && currentTab.findingError ? currentTab.findingError
                           : isFindingTabActive ? `No results for "${currentTab.findingQuery}".`

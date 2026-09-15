@@ -20,6 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
 import { Icons8Icon, DragHandleGlyph, PopOutGlyph } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import BndzErrorBoundary from './BndzErrorBoundary';
 import { IPC } from '../lib/ipcBridge';
 import { pushToast } from './ToastHost';
@@ -339,8 +340,12 @@ export default function BottomPluginPanel(props: any & {
           <Icons8Icon id="extension_hub" size={14} />
           <span className="font-semibold">Plugin Panel</span>
         </div>
-        <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
-          <span>No plugins installed.</span>
+        <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3 px-6 text-center">
+          <BndzPlaque tone="panel" size="lg" />
+          <span className="text-sm font-medium text-gray-400">No plugins installed.</span>
+          <span className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">
+            Install extensions from the hub — only installed plugins appear here.
+          </span>
           {onOpenPluginStore && (
             <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold">
               <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub

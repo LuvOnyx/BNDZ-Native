@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { usePluginRegistry, PluginManifest } from '../data/PluginRegistryContext';
 import { showNativeAlert } from '../lib/nativeDialog';
@@ -285,7 +286,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           <div className="flex-1 overflow-y-auto styled-scrollbar p-2 min-h-0">
             {filteredPlugins.length === 0 ? (
               <div className="bndz-hub-empty">
-                <Icons8Icon id="search" size={28} className="opacity-30" />
+                <BndzPlaque tone="panel" size="md" />
                 <p className="text-[12px] text-center leading-relaxed max-w-[200px]">
                   {searchQuery.trim()
                     ? 'No extensions match your search.'
@@ -537,7 +538,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
             </>
           ) : (
             <div className="bndz-hub-empty h-full">
-              <Icons8Icon id="extension_hub" size={38} className="opacity-30" />
+              <BndzPlaque tone="panel" size="lg" />
               <p className="text-[13px] text-center">Select an extension to inspect details.</p>
             </div>
           )}

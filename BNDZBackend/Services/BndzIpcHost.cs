@@ -1154,7 +1154,8 @@ namespace BNDZ.Services
             _meshDropService = new MeshDropService(_fileTransferQueue);
             _ghostLinkService = new GhostLinkService(_linkService, _fileTransferQueue);
             _ghostLinkService.SetActionLog(_actionLogService);
-            _ghostLinkService.StartIdleScanner();
+            // Idle scanner deferred below (post-construction Task.Run) — first list paint must
+            // not wait behind the 2-minute-delayed background scan loop spinning up.
             _ramStagingService = new RamStagingService(_fileTransferQueue);
             ProjFsSandboxHost.BindRamStaging(_ramStagingService);
             _automationRunnerDeps = new AutomationRunnerDeps
@@ -1239,6 +1240,7 @@ namespace BNDZ.Services
                 try { UsnHealthWatcherService.Instance.Start(); } catch { }
                 try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
                 try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
+                try { _ghostLinkService.StartIdleScanner(); } catch { }
             });
             _meshDropService.SetSessionChangedHandler(evt =>
             {
@@ -1267,19 +1269,27 @@ namespace BNDZ.Services
             _settingsManager = new SettingsManager();
             _globalHotkeys = new GlobalHotkeyService();
             _globalHotkeys.HotkeyPressed += OnGlobalHotkeyPressed;
-            try
+            // Settings/action-log/transfer-history load is file I/O that first GET_DIR_CONTENTS
+            // does not depend on (listing uses live FS enumeration + tag/reparse enrich only, not
+            // FileOperationPreferences/hotkeys/QuickLook/media-cache/action-log/queue-history).
+            // Deferred post-construction so first list paint is not blocked behind disk reads —
+            // matches RestorePersistedWatchers / UsnHealthWatcherService.Start() pattern above.
+            _ = Task.Run(() =>
             {
-                var bootSettings = _settingsManager.LoadSettings();
-                bootSettings = SanitizeThumbnailSettingsJson(bootSettings);
-                FileOperationPreferences.ApplyFromJson(bootSettings);
-                ApplyFileOperationPreferences();
-                ApplyGlobalHotkeysFromSettingsJson(bootSettings);
-                ApplyOsQuickLookFromSettingsJson(bootSettings);
-                BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
-                _actionLogService.LoadPersistedIfEnabled();
-                _fileTransferQueue.LoadPersistedHistory();
-            }
-            catch { /* use defaults */ }
+                try
+                {
+                    var bootSettings = _settingsManager.LoadSettings();
+                    bootSettings = SanitizeThumbnailSettingsJson(bootSettings);
+                    FileOperationPreferences.ApplyFromJson(bootSettings);
+                    ApplyFileOperationPreferences();
+                    ApplyGlobalHotkeysFromSettingsJson(bootSettings);
+                    ApplyOsQuickLookFromSettingsJson(bootSettings);
+                    BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
+                    _actionLogService.LoadPersistedIfEnabled();
+                    _fileTransferQueue.LoadPersistedHistory();
+                }
+                catch { /* use defaults */ }
+            });
             _fileTransferQueue.QueueChanged += () =>
             {
                 PostFileTransferQueueChanged();
@@ -12449,7 +12459,12 @@ namespace BNDZ.Services
                 }
                 catch (Exception ex)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    // Partial batch failure — some items succeeded (already in the action log);
+                    // expose only failed source paths so queue Retry resubmits those.
+                    var failedPaths = ex is PartialTransferException partialEx
+                        ? partialEx.FailedItems.Select(f => f.Path).ToList()
+                        : null;
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message, failedPaths);
                     var failEvt = new
                     {
                         type = "PROGRESS_UPDATE",
@@ -12460,6 +12475,7 @@ namespace BNDZ.Services
                             currentFile = "",
                             error = ex.Message,
                             engine,
+                            failedPaths,
                         },
                     };
                     PostToUi(() =>

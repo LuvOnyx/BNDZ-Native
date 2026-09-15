@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="28" viewBox="0 0 220 28" fill="none">
+  <!-- Quality-gated candidate for context-menu headers  not wired until crisp at menu density. -->
+  <defs>
+    <linearGradient id="mh" x1="0" y1="0" x2="220" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F3F5F8"/>
+      <stop offset="1" stop-color="#DCE2EB"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="218" height="26" rx="7" fill="url(#mh)" stroke="#9AA5B5" stroke-opacity="0.4"/>
+  <circle cx="16" cy="14" r="5" fill="#6B7C93" fill-opacity="0.35"/>
+  <rect x="28" y="10" width="72" height="8" rx="3" fill="#6B7C93" fill-opacity="0.28"/>
+  <rect x="108" y="10" width="40" height="8" rx="3" fill="#6B7C93" fill-opacity="0.16"/>
+</svg>

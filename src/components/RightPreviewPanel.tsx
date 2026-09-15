@@ -12,6 +12,7 @@ import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
 import { Icons8Icon, PopOutGlyph } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
@@ -495,7 +496,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     return (
       <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 select-none">
         <div className="bndz-preview-empty">
-          <Icons8Icon id="file_ui" size={40} className="opacity-25" />
+          <BndzPlaque tone="panel" size="lg" />
           <div className="bndz-preview-empty-title">Inspector idle</div>
           <p className="bndz-preview-empty-desc">
             Select a file for preview, metadata, and media transport — or open a workspace.

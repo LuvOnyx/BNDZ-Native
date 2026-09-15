@@ -2355,14 +2355,7 @@ html.theme-light .bndz-chrome-omnibar {
   border-bottom-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* Tab row (pink accent line sits here) — light surface in light themes */
-html.theme-light .bndz-chrome-tabstrip,
-html.theme-light .bndz-chrome-tabs {
-  color: rgba(15, 23, 42, 0.88) !important;
-  background:
-    linear-gradient(180deg, #f4f6fa 0%, #e8ecf2 100%) !important;
-  border-bottom-color: rgba(15, 23, 42, 0.12) !important;
-}
+/* Tab row pale strip + chip paint: canonical light file-tabstrip block near file end. */
 
 /* Breadcrumb / address strip stays dark */
 html.theme-light .bndz-files-address-strip {
@@ -2439,13 +2432,8 @@ html.theme-light .bndz-chrome-omnibar input::placeholder {
   color: rgba(255, 255, 255, 0.42) !important;
 }
 
-html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
-  color: rgba(15, 23, 42, 0.55) !important;
-}
+/* Light tab chip ink/BG: see canonical block near file end (html.theme-light .bndz-tab-item). */
 
-html.theme-light .bndz-tab-item.bndz-tab-active {
-  color: rgba(15, 23, 42, 0.92) !important;
-}
 
 html.theme-light[data-theme] .nav-tree-row:hover:not(.nav-tree-row-selected) {
   background: rgba(0, 0, 0, 0.05) !important;
@@ -2874,7 +2862,7 @@ html.theme-light .bndz-context-menu-item--positive:hover {
   color: #fff !important;
 }
 html.theme-light .bndz-context-menu-item--accent:hover {
-  background: #007acc !important;
+  background: var(--accent, #007acc) !important;
   color: #fff !important;
 }
 
@@ -3069,39 +3057,7 @@ html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-sky-300 {
   color: #7dd3fc !important;
 }
 
-/* Light theme tabstrip: dark ink on pale tabs (address strip stays white-on-dark below) */
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item {
-  color: rgba(15, 23, 42, 0.72) !important;
-  border-color: transparent !important;
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):hover,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):hover {
-  color: rgba(15, 23, 42, 0.92) !important;
-  background: rgba(15, 23, 42, 0.06) !important;
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active {
-  color: rgba(15, 23, 42, 0.95) !important;
-  background: #ffffff !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 75%, transparent);
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-close,
-html.theme-light .bndz-chrome-tabs .bndz-tab-close {
-  color: rgba(15, 23, 42, 0.45);
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-close:hover,
-html.theme-light .bndz-chrome-tabs .bndz-tab-close:hover {
-  color: #fff;
-  background: rgba(232, 17, 35, 0.85);
-}
+/* Light tab chip paint + close: canonical block near file end (accent-safe). */
 
 html.theme-light .bndz-files-address-strip,
 html.theme-light .bndz-files-address-strip input,
@@ -5544,6 +5500,45 @@ html.theme-light .bndz-plugin-empty {
   color: rgba(148, 163, 184, 0.7);
 }
 
+/* Visual Filters — empty well + template chips (object plaques, soft FM craft) */
+.bndz-filters-empty-well {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  margin: 4px 2px 8px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.08), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+html.theme-light .bndz-filters-empty-well {
+  border-color: rgba(0, 0, 0, 0.08);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0, 120, 212, 0.08), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(0, 0, 0, 0.03));
+}
+.bndz-filters-template {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.bndz-filters-template:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 20px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+.bndz-filters-editor-idle {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(167, 139, 250, 0.08), transparent 50%),
+    rgba(0, 0, 0, 0.18);
+}
+.bndz-filters-hero-plaque {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
+}
+
 .bndz-plugin-btn {
   min-height: 28px;
 }
@@ -7793,6 +7788,14 @@ html[data-density="spacious"] .nav-tree-row {
   will-change: transform;
 }
 
+/* Locked tab: theme tokens (not hard-coded near-black chip). */
+.bndz-tab-item--locked:not([data-tab-accent]) {
+  background-color: color-mix(in srgb, var(--tab-inactive-bg, var(--bndz-surface-chrome, #1a1c22)) 82%, #b45309 18%);
+}
+html.theme-light .bndz-tab-item--locked:not([data-tab-accent]) {
+  background-color: color-mix(in srgb, #fef3c7 55%, #ffffff 45%) !important;
+}
+
 .bndz-tab-item--file-drop {
   background: color-mix(in srgb, var(--accent, #0078d4) 18%, transparent) !important;
   box-shadow: inset 0 -2px 0 var(--accent, #0078d4), 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 45%, transparent) !important;
@@ -7852,32 +7855,30 @@ html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 6px 6px 0 0 !important;
+  border-radius: 10px 10px 0 0 !important;
   padding-top: 5px !important;
   padding-bottom: 5px !important;
   border-color: transparent !important;
-  background: transparent !important;
+  background-color: transparent !important; /* keep plaque background-image */
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item[data-tab-accent] {
-  border-radius: 6px 6px 0 0 !important;
+  border-radius: 10px 10px 0 0 !important;
   padding-top: 5px !important;
   padding-bottom: 5px !important;
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
-  background: rgba(255, 255, 255, 0.055) !important;
+  filter: brightness(1.12);
   border-color: rgba(255, 255, 255, 0.04) !important;
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
-  background: var(--bndz-surface-raised, #1e1e1e) !important;
+  background-color: transparent !important; /* plaque SVG supplies the chip */
   color: #f3f3f3 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: transparent !important;
   border-bottom-color: transparent !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 70%, transparent);
+  box-shadow: none !important; /* accent bar is in tab-active.svg */
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
@@ -7892,14 +7893,11 @@ html[data-tab-style="explorer"] .bndz-tab-close:hover {
 
 /* Soft Modern — calm squircle tabs (Card-2x language) */
 html[data-tab-style="soft"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 11px 11px 5px 5px !important;
-  margin-bottom: 2px;
-  border-color: rgba(255, 255, 255, 0.07) !important;
-  background:
-    linear-gradient(180deg, rgba(48, 48, 56, 0.5) 0%, rgba(22, 22, 28, 0.42) 100%) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 1px 0 rgba(0, 0, 0, 0.18);
+  border-radius: 10px 10px 0 0 !important;
+  margin-bottom: 0;
+  border-color: transparent !important;
+  background-color: transparent !important; /* plaque chip */
+  box-shadow: none;
 }
 
 html[data-tab-style="soft"] .bndz-tab-item[data-tab-accent] {
@@ -7913,14 +7911,10 @@ html[data-tab-style="soft"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data
 }
 
 html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
-  background:
-    linear-gradient(180deg, rgba(54, 54, 64, 0.98) 0%, rgba(30, 30, 38, 0.96) 100%) !important;
-  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(190, 190, 190, 0.22)) !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
   color: #f8fafc !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 55%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.28);
+  box-shadow: none !important;
 }
 
 html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
@@ -8422,7 +8416,7 @@ html[data-theme] .bndz-destination-picker-footer {
 
 .bndz-context-menu-item:hover,
 .bndz-context-menu-item-active {
-  background: #007acc;
+  background: var(--accent, #007acc);
   color: #ffffff;
 }
 
@@ -8449,7 +8443,7 @@ html[data-theme] .bndz-destination-picker-footer {
 }
 .bndz-context-menu-item--accent:hover,
 .bndz-context-menu-item--accent.bndz-context-menu-item-active {
-  background: #007acc;
+  background: var(--accent, #007acc);
   color: #fff;
 }
 
@@ -8751,6 +8745,21 @@ html.bndz-panel-resizing .bndz-resize-handle {
 }
 
 .bndz-register-brand-mark {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.bndz-register-brand-mark.bndz-plaque,
+.bndz-register-brand .bndz-plaque.bndz-register-brand-mark {
+  width: 40px;
+  height: 40px;
+}
+.bndz-register-brand-mark .bndz-plaque-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.bndz-register-brand-mark-img {
   width: 40px;
   height: 40px;
   object-fit: cover;
@@ -11239,6 +11248,146 @@ html[data-theme] .nav-tree-row:focus-visible {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
+/* ── Native FM plaques (static empties / dialog tones / tab grain) ── */
+.bndz-plaque {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+  user-select: none;
+  pointer-events: none;
+}
+.bndz-plaque-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+.bndz-plaque--xs { width: 28px; height: 28px; }
+.bndz-plaque--sm { width: 44px; height: 44px; }
+.bndz-plaque--md { width: 72px; height: 72px; }
+.bndz-plaque--lg { width: 112px; height: 112px; }
+.bndz-plaque--xl { width: 148px; height: 148px; }
+.bndz-plaque--brand.bndz-plaque--sm { width: 40px; height: 40px; }
+.bndz-plaque--brand.bndz-plaque--md { width: 56px; height: 56px; }
+.bndz-plaque--animate {
+  animation: bndz-plaque-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes bndz-plaque-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.bndz-plaque--hex-well {
+  padding: 6px;
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 90% at 30% 15%, rgba(255, 255, 255, 0.1), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.18));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 20px rgba(0, 0, 0, 0.22);
+}
+html.theme-light .bndz-plaque--hex-well {
+  background:
+    radial-gradient(120% 90% at 30% 15%, rgba(255, 255, 255, 0.9), transparent 55%),
+    linear-gradient(165deg, #f7f8fb, #e6ebf3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 6px 16px rgba(26, 29, 35, 0.12);
+}
+
+/* Alert glyph wells that host Hexigon plaques */
+.bndz-native-alert-glyph--plaque {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  padding: 4px;
+  overflow: hidden;
+}
+.bndz-native-alert-glyph--plaque .bndz-plaque {
+  width: 100%;
+  height: 100%;
+}
+.bndz-native-alert-glyph--plaque .bndz-plaque-img {
+  object-fit: cover;
+}
+
+/* List tab strip rail — Classic Explorer + Soft Modern only (other Visual styles keep their CSS) */
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html[data-tab-style="soft"] .bndz-chrome-tabstrip {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.1)),
+    url('/plaques/tab-strip.svg');
+  background-size: auto, 480px 40px;
+  background-repeat: repeat-x;
+  background-blend-mode: normal, soft-light;
+  align-items: flex-end;
+}
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(236, 239, 244, 0.92)),
+    url('/plaques/tab-strip-light.svg');
+  background-blend-mode: normal, multiply;
+}
+
+/* Soft Explorer chips — only Classic Explorer + Soft Modern (honor other Visual style settings) */
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item,
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item {
+  border-radius: 10px 10px 0 0 !important;
+  border-bottom: none !important;
+}
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+  background-image: url('/plaques/tab-inactive.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-color: transparent !important;
+}
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+  background-image: url('/plaques/tab-active.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+  background-image: url('/plaques/tab-inactive-light.svg') !important;
+}
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+  background-image: url('/plaques/tab-active-light.svg') !important;
+}
+
+/* Right-click accent colors keep CSS fills (no plaque overlay) */
+.bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent] {
+  background-image: none !important;
+}
+
+.bndz-list-empty-plaque {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 160px;
+  padding: 16px;
+  text-align: center;
+}
+.bndz-conflict-plaque-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.bndz-conflict-plaque-row .bndz-plaque {
+  flex-shrink: 0;
+}
+
 .bndz-smart-section-header {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.18) 100%);
@@ -13557,16 +13706,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   padding: 24px;
   position: relative;
 }
-.bndz-history-empty-orb {
-  width: 72px;
-  height: 72px;
-  margin-bottom: 14px;
-  border-radius: 22px;
-  background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.2), transparent 45%),
-    linear-gradient(145deg, rgba(56, 189, 248, 0.35), rgba(167, 139, 250, 0.2));
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
+.bndz-history-empty-orb { display: none; } /* replaced by BndzPlaque history tone */
 .bndz-history-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.28));
@@ -18726,7 +18866,7 @@ html.theme-light .bndz-chrome-omnibar input {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
-/* File tabstrip is pale in light themes — dark ink (address strip above stays white-on-dark). */
+/* Canonical light file-tabstrip: pale strip + dark ink; accents never wiped. */
 html.theme-light .bndz-chrome-tabstrip,
 html.theme-light .bndz-chrome-tabs {
   color: rgba(15, 23, 42, 0.88) !important;
@@ -18747,7 +18887,10 @@ html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
 
 html.theme-light .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
   color: rgba(15, 23, 42, 0.55) !important;
-  background: transparent !important;
+  background-color: transparent !important;
+  background-image: url('/plaques/tab-inactive-light.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
 }
 
 html.theme-light .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
@@ -18756,22 +18899,33 @@ html.theme-light .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
   color: rgba(15, 23, 42, 0.78) !important;
 }
 
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]):hover,
+html.theme-light .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]):hover {
+  color: rgba(15, 23, 42, 0.92) !important;
+  background-color: transparent !important;
+  background-image: url('/plaques/tab-inactive-light.svg') !important;
+  background-size: 100% 100% !important;
+  filter: brightness(0.97);
+}
+
 html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
 html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
 html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
 html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
-  background: #ffffff !important;
+  background-color: transparent !important;
+  background-image: url('/plaques/tab-active-light.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
   color: rgba(15, 23, 42, 0.95) !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 75%, transparent);
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent],
 html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active[data-tab-accent],
 html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
 html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+  /* Preserve accent fill/gradient from tabAccentStyle — ink + border only. */
   color: rgba(15, 23, 42, 0.95) !important;
   border-color: rgba(15, 23, 42, 0.12) !important;
 }
@@ -18785,6 +18939,17 @@ html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-acti
 html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
 html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
   color: rgba(15, 23, 42, 0.78) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-close,
+html.theme-light .bndz-chrome-tabs .bndz-tab-close {
+  color: rgba(15, 23, 42, 0.45);
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-close:hover,
+html.theme-light .bndz-chrome-tabs .bndz-tab-close:hover {
+  color: #fff;
+  background: rgba(232, 17, 35, 0.85);
 }
 
 /*
