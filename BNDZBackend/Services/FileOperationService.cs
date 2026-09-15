@@ -474,56 +474,87 @@ public class FileOperationService
         long totalBytes = work.Sum(w => w.size);
         long transferred = 0;
         var sw = Stopwatch.StartNew();
+        var failedItems = new List<FileOpFailure>();
 
         for (int i = 0; i < work.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var (src, dest, size) = work[i];
-            var destDir = Path.GetDirectoryName(dest);
-            if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
-                Directory.CreateDirectory(destDir);
+            try
+            {
+                var destDir = Path.GetDirectoryName(dest);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                    Directory.CreateDirectory(destDir);
 
-            if (File.Exists(dest) && onConflict != null)
-            {
-                var resolution = await onConflict(operationId, Path.GetFileName(dest), src, dest);
-                if (resolution == "skip") continue;
-                if (resolution == "keepboth")
-                    dest = GetUniquePath(dest);
-            }
-
-            if (move && i == 0 && work.Count == 1 && File.Exists(src) && !File.Exists(dest))
-            {
-                File.Move(src, dest, overwrite: true);
-                if (preservePermissions) TryPreservePermissions(src, dest);
-                createdPaths.Add(dest);
-            }
-            else if (move && Directory.Exists(src) && work.Count > 1)
-            {
-                // handled per-file below then remove empty dirs
-            }
-            else
-            {
-                await CopyFileBufferedAsync(src, dest, cancellationToken, (fileDone, fileTotal) =>
+                if (File.Exists(dest) && onConflict != null)
                 {
-                    var soFar = transferred + fileDone;
-                    double speedNow = sw.Elapsed.TotalSeconds > 0 ? soFar / sw.Elapsed.TotalSeconds : 0;
-                    int pctNow = totalBytes > 0
-                        ? (int)Math.Clamp(soFar * 100 / totalBytes, 0, 99)
-                        : (int)((i + 1) * 100.0 / work.Count);
-                    onProgress?.Invoke(operationId, pctNow, src, soFar, totalBytes, speedNow, i, work.Count);
-                }).ConfigureAwait(false);
-                if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
-                    throw new IOException($"Copy verification failed for {Path.GetFileName(src)}");
-                if (preservePermissions) TryPreservePermissions(src, dest);
-                createdPaths.Add(dest);
-                if (move) try { File.Delete(src); } catch { /* best effort */ }
-            }
+                    var resolution = await onConflict(operationId, Path.GetFileName(dest), src, dest);
+                    if (resolution == "skip") continue;
+                    if (resolution == "keepboth")
+                        dest = GetUniquePath(dest);
+                }
 
-            transferred += size;
-            double speed = sw.Elapsed.TotalSeconds > 0 ? transferred / sw.Elapsed.TotalSeconds : 0;
-            int pct = totalBytes > 0 ? (int)(transferred * 100 / totalBytes) : (int)((i + 1) * 100.0 / work.Count);
-            onProgress?.Invoke(operationId, pct, src, transferred, totalBytes, speed, i + 1, work.Count);
+                if (move && i == 0 && work.Count == 1 && File.Exists(src) && !File.Exists(dest))
+                {
+                    File.Move(src, dest, overwrite: true);
+                    if (preservePermissions) TryPreservePermissions(src, dest);
+                    createdPaths.Add(dest);
+                }
+                else if (move && Directory.Exists(src) && work.Count > 1)
+                {
+                    // handled per-file below then remove empty dirs
+                }
+                else
+                {
+                    await CopyFileBufferedAsync(src, dest, cancellationToken, (fileDone, fileTotal) =>
+                    {
+                        var soFar = transferred + fileDone;
+                        double speedNow = sw.Elapsed.TotalSeconds > 0 ? soFar / sw.Elapsed.TotalSeconds : 0;
+                        int pctNow = totalBytes > 0
+                            ? (int)Math.Clamp(soFar * 100 / totalBytes, 0, 99)
+                            : (int)((i + 1) * 100.0 / work.Count);
+                        onProgress?.Invoke(operationId, pctNow, src, soFar, totalBytes, speedNow, i, work.Count);
+                    }).ConfigureAwait(false);
+                    if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
+                        throw new IOException($"Copy verification failed for {Path.GetFileName(src)}");
+                    if (preservePermissions) TryPreservePermissions(src, dest);
+                    createdPaths.Add(dest);
+                    if (move) try { File.Delete(src); } catch { /* best effort */ }
+                }
+
+                transferred += size;
+                double speed = sw.Elapsed.TotalSeconds > 0 ? transferred / sw.Elapsed.TotalSeconds : 0;
+                int pct = totalBytes > 0 ? (int)(transferred * 100 / totalBytes) : (int)((i + 1) * 100.0 / work.Count);
+                onProgress?.Invoke(operationId, pct, src, transferred, totalBytes, speed, i + 1, work.Count);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Continue the batch — later items still transfer. Caller surfaces failedPaths[]
+                // via PartialTransferException so Retry only resubmits what failed.
+                failedItems.Add(new FileOpFailure { Path = src, Reason = ex.Message });
+                Debug.WriteLine($"[FileOperation] item failed ({Path.GetFileName(src)}): {ex.Message}");
+                onProgress?.Invoke(
+                    operationId,
+                    totalBytes > 0 ? (int)Math.Clamp(transferred * 100 / Math.Max(totalBytes, 1), 0, 99) : (int)((i + 1) * 100.0 / work.Count),
+                    src,
+                    transferred,
+                    totalBytes,
+                    sw.Elapsed.TotalSeconds > 0 ? transferred / sw.Elapsed.TotalSeconds : 0,
+                    i + 1,
+                    work.Count);
+            }
             await Task.Yield();
+        }
+
+        if (failedItems.Count > 0)
+        {
+            throw new PartialTransferException(
+                BuildPartialFailureMessage(move ? "move" : "copy", createdPaths.Count, failedItems),
+                failedItems);
         }
 
         if (move)
@@ -687,6 +718,20 @@ public class FileOperationService
             Debug.WriteLine($"[FileOperation] Preserve permissions failed: {ex.Message}");
         }
     }
+
+    private static string BuildPartialFailureMessage(string action, int succeededCount, List<FileOpFailure> failedItems)
+    {
+        var verb = action == "move" ? "moved" : "copied";
+        var names = string.Join(", ", failedItems.Take(3).Select(f => Path.GetFileName(f.Path)));
+        var suffix = failedItems.Count > 3 ? ", …" : "";
+        if (succeededCount == 0)
+        {
+            return failedItems.Count == 1
+                ? $"{Path.GetFileName(failedItems[0].Path)}: {failedItems[0].Reason}"
+                : $"Failed to {action} {failedItems.Count} item(s): {names}{suffix}";
+        }
+        return $"{succeededCount} item(s) {verb}, {failedItems.Count} failed: {names}{suffix}";
+    }
 }
 
 public sealed class BatchRenameResult
@@ -694,4 +739,26 @@ public sealed class BatchRenameResult
     public int Renamed { get; init; }
     public int Skipped { get; init; }
     public int Failed { get; init; }
+}
+
+/// <summary>One item that failed within an otherwise-continuing copy/move batch.</summary>
+public sealed class FileOpFailure
+{
+    public required string Path { get; init; }
+    public required string Reason { get; init; }
+}
+
+/// <summary>
+/// Thrown when a multi-item copy/move batch partially fails — some items succeeded (already recorded
+/// to the action log by the caller) and some failed. Carries <see cref="FailedItems"/> so the queue job
+/// can expose failedPaths[] and let the UI Retry only the items that actually failed.
+/// </summary>
+public sealed class PartialTransferException : Exception
+{
+    public IReadOnlyList<FileOpFailure> FailedItems { get; }
+
+    public PartialTransferException(string message, IReadOnlyList<FileOpFailure> failedItems) : base(message)
+    {
+        FailedItems = failedItems;
+    }
 }

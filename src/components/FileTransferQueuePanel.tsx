@@ -417,7 +417,13 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
   };
 
   const handleRetryFailed = (operationId: string) => {
-    window.dispatchEvent(new CustomEvent('bndz-retry-last-transfer', { detail: { operationId } }));
+    const job = state.jobs.find((j) => j.operationId === operationId);
+    window.dispatchEvent(new CustomEvent('bndz-retry-last-transfer', {
+      detail: {
+        operationId,
+        failedPaths: Array.isArray(job?.failedPaths) ? job!.failedPaths : undefined,
+      },
+    }));
   };
 
   const handleOpenActionLog = () => {

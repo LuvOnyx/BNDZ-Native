@@ -53,6 +53,11 @@ public sealed class FileTransferJob
     public string VerifyMode { get; set; } = "none";
     /// <summary>pending | verified | skipped | failed</summary>
     public string VerifyStatus { get; set; } = "pending";
+    /// <summary>
+    /// Source paths that failed inside a partially-completed multi-item batch.
+    /// Empty for total failures — UI Retry then resubmits the whole batch.
+    /// </summary>
+    public List<string> FailedPaths { get; set; } = new();
 
     public object ToDto() => new
     {
@@ -78,6 +83,7 @@ public sealed class FileTransferJob
         etaSeconds = EtaSeconds,
         verifyMode = VerifyMode,
         verifyStatus = VerifyStatus,
+        failedPaths = FailedPaths,
     };
 }
 
@@ -317,7 +323,11 @@ public sealed class FileTransferQueueService
         NotifyChanged();
     }
 
-    public void MarkFailed(string operationId, string? error)
+    /// <param name="failedPaths">
+    /// Source paths that failed in a partially-completed multi-item batch (some items succeeded).
+    /// Null/empty for a total failure — UI Retry then falls back to resubmitting the whole batch.
+    /// </param>
+    public void MarkFailed(string operationId, string? error, List<string>? failedPaths = null)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
         // Don't overwrite terminal success/cancel/pause with a late failure from post-work hooks.
@@ -325,6 +335,8 @@ public sealed class FileTransferQueueService
         job.Status = FileTransferJobStatus.Failed;
         job.Error = EnrichDiskFullError(job, error);
         job.CompletedUtc = DateTime.UtcNow;
+        if (failedPaths != null && failedPaths.Count > 0)
+            job.FailedPaths = failedPaths;
         if (!string.IsNullOrWhiteSpace(error) && error.Contains("verification", StringComparison.OrdinalIgnoreCase))
         {
             job.VerifyMode = "sha256";

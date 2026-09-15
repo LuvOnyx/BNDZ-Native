@@ -82,6 +82,8 @@ export interface FileTransferJobDto {
   destinationPath?: string;
   verifyMode?: 'none' | 'size' | 'sha256' | string;
   verifyStatus?: 'pending' | 'verified' | 'skipped' | 'failed' | string;
+  /** Source paths that failed in a partially-completed multi-item batch. */
+  failedPaths?: string[];
 }
 
 export interface FileTransferQueueState {

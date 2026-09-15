@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1–A3 hosts crafted; E1 ops suite (into-self, disk need/free, Skip/Retry/Open log, path-too-long UX) landed; Wave C code verified (virtualization threshold 1); Wave D/Windows UAC·DnD live matrix still require Windows shell  
+**Status:** Execution in progress — A1–A3 hosts crafted; E1 ops suite (into-self, disk need/free, Skip/Retry/Open log, path-too-long UX) landed; Wave C code verified (virtualization threshold 1); code-side E1 unify + failedPaths + Wave F defer landed; Windows UAC·DnD live matrix still requires a Windows shell for click-through sign-off  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -290,7 +290,7 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 - [x] Native shell: idle-defer font pack + armed automations (same pattern as FilesHost) — do not contend with first `GET_DIR_CONTENTS` / settings
 - [x] Do not start default library indexing until `INDEX_PROGRESS` callback is wired (avoid silent progress + boot disk contention)
 - [x] Keep `BNDZ_UI_READY` / pending IPC queue — never drop listings for speed
-- [ ] Stretch (same wave if cheap): trim IpcHost critical-path scanners until after UI ready
+- [x] Stretch: defer IpcHost settings/history/idle-scanner boot I/O via post-ctor `Task.Run` (first list paint unblocked); more work on `BNDZ_UI_READY`
 
 ### F2 — Search index reaches a real finished state
 **Symptom:** status chip spins / “never finishes”; no 100% / Complete affordance.
@@ -338,13 +338,13 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 
 | Situation | Exists today? | Launch gap |
 |-----------|---------------|------------|
-| Same-name collision | Partial — `FileConflictModal` on **bndz** engine (files + folders); default **native** uses Explorer UI | Unify / optional default-engine policy |
+| Same-name collision | Yes — default/background engine is **bndz** so `FileConflictModal` owns collisions; explicit `native`/`windows` engine keeps Explorer UI | Done (default + BackgroundProcessing → bndz) |
 | Disk full | Yes — failed-job modal shows need vs free (host enrich + drive probe); Storage Cleanup / Skip / Retry / Open log | Windows live verify on full volume |
 | Access denied → UAC | Partial — elevate + stash/replay for last local transfer | Windows live verify UAC Allow/Cancel |
 | File in use | Yes — classified modal with working Skip / Retry / Open log | Mid-batch continue (engine) optional |
 | Folder into itself | Yes — list DnD + Copy/Move To + paste guards; host bndz engine also rejects | Windows live verify remaining |
 | Path too long | Yes — rename/shorten hint + Open destination + working Skip / Retry / Open log | Windows live verify |
-| Partial batch failure | Yes — queue Retry (per-op stash) / Skip (clears history) / Open log | Host failedPaths[] stretch optional |
+| Partial batch failure | Yes — per-item continue + `PartialTransferException` → job `failedPaths[]`; Retry resubmits only failed sources | Done |
 | Shell Integration admin | Mostly yes | Windows live verify toggles (E3) |
 
 ### E progress (this pass)
