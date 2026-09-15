@@ -226,7 +226,7 @@ function SortablePaneTab({
       style={style}
       data-tab-id={tab.id}
       data-tab-index={index}
-      className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[10px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow] duration-75 ease-out ${
+      className={`relative bndz-tab-item flex items-center px-2.5 py-[5px] ml-[1px] rounded-t-[10px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow,filter] duration-75 ease-out ${
         flexibleTabWidth
           ? 'bndz-tab-item--flexible'
           : useCustom
@@ -390,11 +390,11 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     <div
       data-tabstrip
       data-pane-id={paneId}
-      className={`bndz-chrome-tabstrip flex pt-1 px-1 pb-0.5 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''} ${
+      className={`bndz-chrome-tabstrip flex pt-0.5 px-1 pb-0 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''} ${
         String(buttonsPosition || '').toLowerCase() === 'right' ? 'flex-row-reverse' : ''
       }`}
       style={{
-        minHeight: Math.max(tabBarHeight || 28, 32),
+        minHeight: Math.max(tabBarHeight || 28, 34),
         background: 'var(--bndz-surface-chrome)',
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',
