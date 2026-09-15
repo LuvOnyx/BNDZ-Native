@@ -129,35 +129,23 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 
 ### Native plaques / illustrations (modals · panels · list tabs · menus)
 
-Quiet functional PNG/SVG plaques so static FM surfaces feel native — not SaaS icon+CSS empties. Reuse Hexigon + brand first; generate/extract only gaps. Adapt into BNDZ tokens (no raw Uiverse dumps). **Leave alone:** list rows, OLE/DnD spine, FluidDrag ghosts, toolbar icon strips.
+**Process (mandatory):** gather/extract → `public/plaques/review.html` board → `QUALITY.md` pass → only then wire. No more stub SVG / reused Hexigon as “done.”
 
 **Asset pipeline**
-- [x] Stage `public/plaques/` — kebab names; Hexigon idle/error/question + brand mark + generated idle/panel/tab grain SVGs
-- [x] Shared `BndzPlaque` (`idle` | `warn` | `error` | `brand` | `panel` | `folder`) + CSS sizes (`sm`–`xl`)
-- [x] Inventory / quality gate before wiring dense chrome (context menus): candidate `menu-header-candidate.svg` staged; `PLAQUE_CONTEXT_MENU_ENABLED=false` until crisp at menu density
+- [x] Reject wave-0 handmade fillers (`rejected/`) + park reused Hexigon as `candidates/legacy-hexigon/` (FAIL as new art)
+- [x] Extract web packs into `candidates/`: Gravity UI (MIT, 20), unDraw (100+, includes tabs/browsers), chrome-tabs geometry (MIT), curated illlustrations (CC0)
+- [x] Review board + attribution: `public/plaques/review.html`, `QUALITY.md`, `ATTRIBUTION.md`
+- [ ] Visual keep/kill pass on board (empties, errors, search, **tabs/chrome**, panels, transfer, menu density)
+- [ ] Promote keepers to kebab names under `public/plaques/` (recolor to BNDZ tokens where needed)
+- [ ] Only after pass: re-point `BndzPlaque` / surfaces; keep `PLAQUE_CONTEXT_MENU_ENABLED=false` until menu density pass
 
-**Modals / dialogs**
-- [x] List empty + list load error (`BNDZUI` emptyState)
-- [x] Transfer / elevation alert tones via `NativeDialogShell` (Hexigon Error / Question)
-- [x] File conflict sheet header plaque (keep file thumbnails)
-- [x] About + Register brand plaque polish
-- [x] Extension Hub empty (`PluginStoreDialog`)
+**Modals / dialogs / panels / tabs**
+- [ ] Re-wire only after keeper promotion (current UI still on legacy paths — treat as temporary)
+- [ ] Empty-strip / no-tab affordance from **passed** tab assets
+- [ ] Context menus: wire **iff** density pass; else Icons8 + CSS
 
-**Panels**
-- [x] `PluginEmptyState` default plaque (all plugin empties inherit)
-- [x] Bottom plugin panel “none installed”
-- [x] Preview inspector idle
-- [x] Index / smart-search empty (`BndzIndexEmptyState`)
+**Done when:** keepers pass QUALITY; tabs included; builds green; no DnD/list regression.
 
-**List tabs**
-- [x] Tab strip paper/grain craft (`.bndz-chrome-tabstrip`) — subtle material, not marketing heroes
-- [ ] Empty-strip / no-tab affordance plaque if strip can appear barren
-
-**Context menus (quality-gated)**
-- [ ] Candidate small header / section plaque assets only — wire **iff** they stay readable in dense menus and do not slow open (`menu-header-candidate.svg` waiting on gate)
-- [ ] If assets fail the gate: keep Icons8 + CSS; do not force bitmaps
-
-**Done when:** empties/modals/panels/tab strip use `BndzPlaque` (or deliberate skip); `npm run build` + Debug `dotnet` green; no DnD/list regression from plaque work.
 
 Shipped earlier:
 - Action History + Tag Manager BNDZ theme redesign
