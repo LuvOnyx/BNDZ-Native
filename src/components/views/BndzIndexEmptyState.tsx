@@ -51,7 +51,7 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
 
   return (
     <div className="bndz-smart-empty flex flex-col items-center justify-center h-full min-h-[240px] gap-3 px-8 text-center">
-      <BndzPlaque tone="idle" size="lg" className="bndz-plaque--hex-well" />
+      <BndzPlaque tone="search" size="lg" />
       <div className="space-y-1.5 max-w-md">
         <h3 className="text-[13px] font-semibold text-[#e4e6ea]">{title}</h3>
         {hint && <p className="text-[11px] text-[#8b919a] leading-relaxed">{hint}</p>}

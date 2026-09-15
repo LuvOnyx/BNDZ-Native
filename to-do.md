@@ -135,13 +135,13 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Reject wave-0 handmade fillers (`rejected/`) + park reused Hexigon as `candidates/legacy-hexigon/` (FAIL as new art)
 - [x] Extract web packs into `candidates/`: Gravity UI (MIT, 20), unDraw (100+, includes tabs/browsers), chrome-tabs geometry (MIT), curated illlustrations (CC0)
 - [x] Review board + attribution: `public/plaques/review.html`, `QUALITY.md`, `ATTRIBUTION.md`
-- [ ] Visual keep/kill pass on board (empties, errors, search, **tabs/chrome**, panels, transfer, menu density)
-- [ ] Promote keepers to kebab names under `public/plaques/` (recolor to BNDZ tokens where needed)
-- [ ] Only after pass: re-point `BndzPlaque` / surfaces; keep `PLAQUE_CONTEXT_MENU_ENABLED=false` until menu density pass
+- [x] Visual keep/kill pass on board (no-people + soft FM tabs) (empties, errors, search, **tabs/chrome**, panels, transfer, menu density)
+- [x] Promote keepers to kebab names under `public/plaques/` (recolor to BNDZ tokens where needed)
+- [x] Only after pass: re-point `BndzPlaque` / surfaces; keep `PLAQUE_CONTEXT_MENU_ENABLED=false` until menu density pass
 
 **Modals / dialogs / panels / tabs**
-- [ ] Re-wire only after keeper promotion (current UI still on legacy paths — treat as temporary)
-- [ ] Empty-strip / no-tab affordance from **passed** tab assets
+- [x] Re-wire only after keeper promotion (current UI still on legacy paths — treat as temporary)
+- [x] Empty-strip / no-tab affordance from **passed** tab assets (`tab-empty.svg`)
 - [ ] Context menus: wire **iff** density pass; else Icons8 + CSS
 
 **Done when:** keepers pass QUALITY; tabs included; builds green; no DnD/list regression.

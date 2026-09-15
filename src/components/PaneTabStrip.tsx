@@ -226,7 +226,7 @@ function SortablePaneTab({
       style={style}
       data-tab-id={tab.id}
       data-tab-index={index}
-      className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[6px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow] duration-75 ease-out ${
+      className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[10px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow] duration-75 ease-out ${
         flexibleTabWidth
           ? 'bndz-tab-item--flexible'
           : useCustom
