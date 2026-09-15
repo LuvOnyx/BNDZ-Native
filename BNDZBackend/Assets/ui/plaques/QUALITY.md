@@ -11,15 +11,16 @@ Gather → review board → checklist pass → wire. Keepers only.
 5. **Tabs:** soft Explorer-like chips (rounded top, flush bottom) + strip rail
 6. **Menus:** stay gated (`PLAQUE_CONTEXT_MENU_ENABLED=false`) until density pass
 7. **Budget:** prefer SVG; brand mark may stay PNG
+8. **`<img>` safe:** no live `currentColor` / CSS vars in wired keepers (accent baked)
 
 ## Wave 0 — FAIL
 | Asset | Result |
 |-------|--------|
 | Handmade idle/panel/grain/menu SVGs | FAIL → `rejected/` |
 | Reused Hexigon PNGs as “new art” | FAIL → `candidates/legacy-hexigon/` |
-| unDraw art with people/skin tones | FAIL → `candidates/undraw-with-people/` |
+| unDraw art with people/skin tones | FAIL → `candidates/undraw-with-people/` (32) |
 
-## Wave 1 keepers — PASS (approved to wire)
+## Wave 1 keepers — PASS (approved + wired)
 | Role | Keeper |
 |------|--------|
 | Folder empty | `folder-empty-dark.svg` / `folder-empty-light.svg` (Gravity UI) |
@@ -28,11 +29,25 @@ Gather → review board → checklist pass → wire. Keepers only.
 | Search empty | `search-empty-*.svg` (Gravity UI) |
 | Access / question | `access-denied-*.svg` (Gravity UI) |
 | Panel idle | `unable-display-*.svg` (Gravity UI) |
-| Idle / no data | `no-data.svg` (unDraw, no people) |
-| Warn | `warning.svg` (unDraw, no people) |
-| Transfer | `data-transfer.svg` (unDraw, no people) |
-| Tabs empty | `tab-empty.svg` (custom FM chips, no people) |
-| Tab chrome | `tab-active*.svg`, `tab-inactive*.svg`, `tab-strip*.svg` (custom soft FM shape) |
+| Idle / no data | `no-data.svg` (unDraw, no people, accent baked) |
+| Warn | `warning.svg` (unDraw, no people, accent baked) |
+| Transfer | `data-transfer.svg` (unDraw, no people, accent baked) |
+| Tabs empty | `tab-empty.svg` (custom FM chips) |
+| Tab chrome | `tab-active*.svg`, `tab-inactive*.svg`, `tab-strip*.svg` |
 | Brand | `brand-mark.png` |
 
-People-containing unDraw (`opened-tabs`, `close-tab`, etc.) are **not** wired.
+## QC session (2026-09-15)
+| Check | Result | Evidence |
+|-------|--------|----------|
+| Skin/people scan on keepers | **PASS** | 0 skin hits; 32 quarantined |
+| BndzPlaque path resolve | **PASS** | All tone paths exist |
+| Tab CSS path resolve | **PASS** | strip + active/inactive L/D |
+| currentColor bake for `<img>` | **PASS** | 15 SVGs baked to `#0078d4` |
+| Real-size matrix xs→xl | **PASS** | `qc.html` dark + light |
+| Soft FM tab strip mock | **PASS** | 40px rail dark + light |
+| Objects-only empties | **PASS** | folder/search/tabs/transfer |
+| Context menus | **GATED** | still off |
+| `npm run build` | **PASS** | green |
+| Debug `dotnet build` | **PASS** | 0 warn / 0 err |
+
+Board: `public/plaques/qc.html`
