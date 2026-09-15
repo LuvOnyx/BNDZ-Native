@@ -2862,7 +2862,7 @@ html.theme-light .bndz-context-menu-item--positive:hover {
   color: #fff !important;
 }
 html.theme-light .bndz-context-menu-item--accent:hover {
-  background: #007acc !important;
+  background: var(--accent, #007acc) !important;
   color: #fff !important;
 }
 
@@ -8386,7 +8386,7 @@ html[data-theme] .bndz-destination-picker-footer {
 
 .bndz-context-menu-item:hover,
 .bndz-context-menu-item-active {
-  background: #007acc;
+  background: var(--accent, #007acc);
   color: #ffffff;
 }
 
@@ -8413,7 +8413,7 @@ html[data-theme] .bndz-destination-picker-footer {
 }
 .bndz-context-menu-item--accent:hover,
 .bndz-context-menu-item--accent.bndz-context-menu-item-active {
-  background: #007acc;
+  background: var(--accent, #007acc);
   color: #fff;
 }
 
