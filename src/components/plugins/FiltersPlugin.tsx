@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { BndzPlaque } from '../BndzPlaque';
 import { useAppConfig, VisualFilter } from '../../data/configContext';
 import { FILTER_MATCH_HINTS } from '../../lib/visualFilterEngine';
 import PluginPanelShell from './PluginPanelShell';
@@ -167,7 +168,7 @@ export default function FiltersPlugin({
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
                 <PluginHeroStrip
-                    icon={<Icons8Icon id="filters" size={52} className="opacity-90" />}
+                    icon={<BndzPlaque tone="search" size="md" className="bndz-filters-hero-plaque" />}
                     name="Rules studio"
                     typeLabel="Easy templates · advanced editor"
                     meta={
@@ -211,7 +212,7 @@ export default function FiltersPlugin({
                             key={tpl.name}
                             type="button"
                             onClick={() => applyQuickTemplate(tpl)}
-                            className="text-left rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent px-3 py-2.5 hover:border-violet-400/35 transition-all"
+                            className="bndz-filters-template text-left rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent px-3 py-2.5 hover:border-violet-400/35 transition-all"
                         >
                             <div className="flex items-center gap-2">
                                 <span className="w-2.5 h-2.5 rounded-full ring-2 ring-white/10" style={{ background: tpl.badgeColor }} />
@@ -232,11 +233,15 @@ export default function FiltersPlugin({
 
                     <div className="flex-1 overflow-y-auto bndz-scrollbar space-y-2 min-h-0 pr-0.5">
                         {filters.length === 0 && (
-                            <PluginEmptyState
-                                icon="filters"
-                                title="No filter rules"
-                                description="Use a template above or create a rule to color-code files by extension, size, age, and more."
-                            />
+                            <div className="bndz-filters-empty-well">
+                                <PluginEmptyState
+                                    icon="filters"
+                                    tone="idle"
+                                    size="lg"
+                                    title="No filter rules"
+                                    description="Use a template above or create a rule to color-code files by extension, size, age, and more."
+                                />
+                            </div>
                         )}
                         {filters.map(f => {
                             const selected = editing?.id === f.id;
@@ -404,9 +409,11 @@ export default function FiltersPlugin({
                             </div>
                         </form>
                     ) : (
-                        <PluginCard className="flex-1 flex flex-col items-center justify-center !p-6">
+                        <PluginCard className="bndz-filters-editor-idle flex-1 flex flex-col items-center justify-center !p-6">
                             <PluginEmptyState
                                 icon="pencil_ui"
+                                tone="panel"
+                                size="md"
                                 title="Rule editor"
                                 description="Select a rule on the left, or create a new one to open the studio panel."
                             />

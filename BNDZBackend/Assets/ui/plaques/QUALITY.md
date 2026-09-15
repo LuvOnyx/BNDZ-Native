@@ -35,6 +35,7 @@ Gather → review board → checklist pass → wire. Keepers only.
 | Tabs empty | `tab-empty.svg` (custom FM chips) |
 | Tab chrome | `tab-active*.svg`, `tab-inactive*.svg`, `tab-strip*.svg` |
 | Brand | `brand-mark.png` |
+| History | `history-dark.svg` (Gravity UI clipboard — Action History empty) |
 
 ## QC session (2026-09-15)
 | Check | Result | Evidence |

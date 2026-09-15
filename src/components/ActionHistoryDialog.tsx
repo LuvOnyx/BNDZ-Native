@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { IPC } from '../lib/ipcBridge';
 import { isQueuedIpcResult } from '../lib/transferIpc';
@@ -192,7 +193,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
           )}
           {!loading && pool.length === 0 && (
             <div className="bndz-history-empty">
-              <div className="bndz-history-empty-orb" aria-hidden />
+              <BndzPlaque tone="history" size="lg" className="mb-1" />
               <div className="text-sm text-white/70 font-medium">
                 {tab === 'undo' ? 'No actions to undo yet' : 'Nothing to redo'}
               </div>

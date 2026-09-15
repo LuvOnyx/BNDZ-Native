@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { TagGlyph } from './TagGlyph';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { ShellNativeIcon } from './ShellNativeIcon';
@@ -255,8 +256,11 @@ export function TagManagerDialog({
             ))}
             {tags.length === 0 && (
               <div className="bndz-tagmgr-empty">
-                <Icons8Icon id="sparkles_ui" size={22} className="opacity-40 mb-2" />
+                <BndzPlaque tone="idle" size="md" className="mb-1" />
                 <div className="text-sm text-white/60">Create your first tag above</div>
+                <div className="text-[12px] text-white/35 mt-1.5 max-w-[240px] leading-relaxed">
+                  Labels color-code files across the list, Properties, and Tag Assignment.
+                </div>
               </div>
             )}
           </div>
@@ -290,6 +294,7 @@ export function TagManagerDialog({
             )}
             {!loadingTagged && filteredItems.length === 0 && (
               <div className="bndz-tagmgr-empty">
+                <BndzPlaque tone="folder" size="md" className="mb-1" />
                 <div className="text-sm text-white/55">No tagged files in the library yet</div>
                 <div className="text-[12px] text-white/35 mt-1.5 max-w-[280px] leading-relaxed">
                   Tag items from the list, Properties, or Tag Assignment Mode.

@@ -18,7 +18,8 @@ export type BndzPlaqueTone =
   | 'folder'
   | 'search'
   | 'tabs'
-  | 'transfer';
+  | 'transfer'
+  | 'history';
 
 export type BndzPlaqueSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
@@ -38,6 +39,7 @@ const PLAQUE_SRC: Record<BndzPlaqueTone, ThemePair> = {
   search: { dark: '/plaques/search-empty-dark.svg', light: '/plaques/search-empty-light.svg' },
   tabs: { dark: '/plaques/tab-empty.svg', light: '/plaques/tab-empty.svg' },
   transfer: { dark: '/plaques/data-transfer.svg', light: '/plaques/data-transfer.svg' },
+  history: { dark: '/plaques/history-dark.svg', light: '/plaques/history-dark.svg' },
 };
 
 const SIZE_CLASS: Record<BndzPlaqueSize, string> = {

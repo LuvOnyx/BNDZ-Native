@@ -1,6 +1,6 @@
 import React, { type CSSProperties, type ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { BndzPlaque } from '../BndzPlaque';
+import { BndzPlaque, type BndzPlaqueSize, type BndzPlaqueTone } from '../BndzPlaque';
 import { formatUiPath } from '../../lib/displayPath';
 
 export const PLUGIN_INPUT_CLASS =
@@ -248,6 +248,8 @@ export function PluginEmptyState({
   description,
   message,
   hint,
+  tone = 'panel',
+  size = 'md',
 }: {
   icon?: string;
   title?: string;
@@ -255,11 +257,13 @@ export function PluginEmptyState({
   /** Alias used by some plugins */
   message?: string;
   hint?: string;
+  tone?: BndzPlaqueTone;
+  size?: BndzPlaqueSize;
 }) {
   const body = description || message || hint;
   return (
     <div className="bndz-plugin-empty flex flex-col items-center justify-center h-full min-h-[120px] gap-3 p-6 select-none text-center">
-      <BndzPlaque tone="panel" size="md" className="opacity-95" />
+      <BndzPlaque tone={tone} size={size} className="opacity-95" />
       <span className="sr-only">{icon}</span>
       {title && <p className="text-sm font-medium text-gray-400">{title}</p>}
       {body && <p className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">{body}</p>}
