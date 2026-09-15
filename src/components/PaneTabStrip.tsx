@@ -291,7 +291,7 @@ function SortablePaneTab({
         </span>
       )}
       {tab.locked && <Icons8Icon id="lock_ui" size={10} className="mr-1 shrink-0 pointer-events-none" title="Locked" />}
-      <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, 11px)' }}>{label}</span>
+      <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, var(--bndz-tab-font-size, 11px))' }}>{label}</span>
       {showXClose && (
         <span
           data-tab-close
@@ -394,7 +394,9 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
         String(buttonsPosition || '').toLowerCase() === 'right' ? 'flex-row-reverse' : ''
       }`}
       style={{
-        minHeight: Math.max(tabBarHeight || 28, 34),
+        /* Configuration → Tabs → Tab bar height (24–36px) */
+        minHeight: tabBarHeight ?? undefined,
+        height: tabBarHeight ? `${tabBarHeight}px` : 'var(--bndz-tab-bar-height, 34px)',
         background: 'var(--bndz-surface-chrome)',
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',

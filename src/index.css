@@ -11314,47 +11314,58 @@ html.theme-light .bndz-plaque--hex-well {
   object-fit: cover;
 }
 
-/* List tab strip — soft FM rail (object chrome, not browser marketing) */
-.bndz-chrome-tabstrip {
+/* List tab strip rail — Classic Explorer + Soft Modern only (other Visual styles keep their CSS) */
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html[data-tab-style="soft"] .bndz-chrome-tabstrip {
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.1)),
     url('/plaques/tab-strip.svg');
   background-size: auto, 480px 40px;
   background-repeat: repeat-x;
   background-blend-mode: normal, soft-light;
-  min-height: 36px;
   align-items: flex-end;
 }
-html.theme-light .bndz-chrome-tabstrip {
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip {
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(236, 239, 244, 0.92)),
     url('/plaques/tab-strip-light.svg');
   background-blend-mode: normal, multiply;
 }
 
-/* Soft Explorer-like tab chips: rounded top, flush bottom */
-.bndz-chrome-tabstrip .bndz-tab-item {
+/* Soft Explorer chips — only Classic Explorer + Soft Modern (honor other Visual style settings) */
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item,
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item {
   border-radius: 10px 10px 0 0 !important;
   border-bottom: none !important;
 }
-.bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
   background-image: url('/plaques/tab-inactive.svg') !important;
   background-size: 100% 100% !important;
   background-repeat: no-repeat !important;
   background-color: transparent !important;
 }
-.bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
   background-image: url('/plaques/tab-active.svg') !important;
   background-size: 100% 100% !important;
   background-repeat: no-repeat !important;
   background-color: transparent !important;
   box-shadow: none !important;
 }
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
   background-image: url('/plaques/tab-inactive-light.svg') !important;
 }
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
   background-image: url('/plaques/tab-active-light.svg') !important;
+}
+
+/* Right-click accent colors keep CSS fills (no plaque overlay) */
+.bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent] {
+  background-image: none !important;
 }
 
 .bndz-list-empty-plaque {

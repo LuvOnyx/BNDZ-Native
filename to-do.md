@@ -124,6 +124,7 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Visual Filters empty/default state craft
 - [x] Tag Manager / Action History empty states → BndzPlaque (history / idle / folder)
 - [ ] Bottom plugin panel empty state + install gating still correct
+- [x] Tab right-click menu + Tabs settings still honor height/font/style/colors with plaque chrome
 - [ ] Menubar / context hover colors consistent after menu merge
 - [ ] Configuration dialog Shell Integration copy matches weave behavior
 
