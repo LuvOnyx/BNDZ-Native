@@ -163,27 +163,22 @@ function SortablePaneTab({
   const effectiveWidth = liveWidth ?? customWidth;
   const useCustom = !flexibleTabWidth && resizableTabs && typeof effectiveWidth === 'number' && effectiveWidth > 0;
 
+  // Light theme: CSS owns chip paint (pale strip + dark ink). Inline BG/color here
+  // would fight accent fills; only dark themes set chip tokens inline.
+  const isLightTheme =
+    typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light');
   const style: React.CSSProperties = {
-    ...(applyColors
-      ? {
-          background: isActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
-          color: isActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)',
-        }
-      : {
-          background: isActive ? 'var(--tab-active-bg, var(--bndz-surface-raised))' : 'var(--tab-inactive-bg, var(--bndz-surface-chrome))',
-          color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
-        }),
-    // Light themes keep dark tabstrip — always prefer light ink when theme-light is on
-    ...(typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light')
-      ? {
-          ...(tab.color
-            ? {}
-            : {
-                background: isActive ? 'var(--tab-active-bg, #2a2e36)' : 'var(--tab-inactive-bg, #1a1c22)',
-              }),
-          color: isActive ? 'var(--tab-active-text, rgba(255,255,255,0.95))' : 'var(--tab-inactive-text, rgba(255,255,255,0.58))',
-        }
-      : {}),
+    ...(isLightTheme
+      ? {}
+      : applyColors
+        ? {
+            background: isActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
+            color: isActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)',
+          }
+        : {
+            background: isActive ? 'var(--tab-active-bg, var(--bndz-surface-raised))' : 'var(--tab-inactive-bg, var(--bndz-surface-chrome))',
+            color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
+          }),
     ...tabAccentStyle(tab.color, isActive),
     transform: CSS.Translate.toString(
       transform ? { ...transform, y: 0, scaleX: 1, scaleY: 1 } : null,
@@ -239,9 +234,9 @@ function SortablePaneTab({
             : 'bndz-tab-item--fixed'
       } ${isActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${
         makeSelectedTabBold && isActive ? 'font-bold' : 'font-semibold'
-      } ${isDragging ? 'opacity-60 bndz-tab-item--dragging' : ''} ${
+      } ${isDragging ? 'bndz-tab-item--dragging' : ''} ${
         isFileDropHover ? 'bndz-tab-item--file-drop' : ''
-      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${
+      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bndz-tab-item--locked' : ''} ${
         isBndzCanvasPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--spatial' : ''
       } ${
         isBndzAutomationPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--automation' : ''

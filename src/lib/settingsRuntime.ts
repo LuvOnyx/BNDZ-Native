@@ -985,8 +985,8 @@ function clearColorCssVars(root: HTMLElement): void {
  * After applyColors, restore light-theme chrome contrast tokens that color packs
  * commonly overwrite (dark #252528 menus, black status/breadcrumb text on dark
  * strips, light tree text on white sidebar). Popup menus stay pale + black ink;
- * top menubar/toolbar/tabstrip/address stay dark + white ink; footer statusbar is
- * pale paper + black ink (never white-on-pale).
+ * top menubar/toolbar/address stay dark + white ink; file tab chips are pale +
+ * dark ink; footer statusbar is pale paper + black ink (never white-on-pale).
  */
 function lockLightThemeChromeContrast(root: HTMLElement): void {
   if (!root.classList.contains('theme-light')) return;
@@ -1020,11 +1020,12 @@ function lockLightThemeChromeContrast(root: HTMLElement): void {
   root.style.setProperty('--toolbar-bg', '#1a1a1f');
   root.style.setProperty('--toolbar-text', chromeText);
 
-  // Tabs sit on dark tabstrip — keep chips dark + white ink (color packs often force pale chips + black text).
-  root.style.setProperty('--tab-active-bg', '#2a2e36');
-  root.style.setProperty('--tab-active-text', chromeText);
-  root.style.setProperty('--tab-inactive-bg', '#1a1c22');
-  root.style.setProperty('--tab-inactive-text', chromeMuted);
+  // File tabstrip is pale in light themes — lock chips to dark ink (not dark chips + white ink).
+  // Menubar/toolbar/address stay dark via --chrome-dark-* / --toolbar-* above.
+  root.style.setProperty('--tab-active-bg', '#ffffff');
+  root.style.setProperty('--tab-active-text', 'rgba(15, 23, 42, 0.95)');
+  root.style.setProperty('--tab-inactive-bg', 'transparent');
+  root.style.setProperty('--tab-inactive-text', 'rgba(15, 23, 42, 0.55)');
 
   // Pale panels keep black type
   root.style.setProperty('--tree-text', 'rgba(0,0,0,0.88)');
