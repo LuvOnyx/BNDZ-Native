@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { CloseGlyph } from '../ChromeGlyphs';
 import { Icons8Icon } from '../Icons8Icon';
+import { BndzPlaque, type BndzPlaqueTone } from '../BndzPlaque';
 import type { NativeDialogButton, NativeDialogTone } from '../BndzNativeDialog';
 
 export type NativeDialogSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
@@ -42,6 +43,12 @@ const TONE_ICON: Record<NativeDialogTone, string> = {
   warning: 'warning',
   destructive: 'error_ui',
   conflict: 'copy',
+};
+
+const TONE_PLAQUE: Partial<Record<NativeDialogTone, BndzPlaqueTone>> = {
+  warning: 'warn',
+  destructive: 'error',
+  conflict: 'question',
 };
 
 export function NativeDialogCheckbox({
@@ -85,6 +92,7 @@ export function NativeDialogShell({
   if (!open) return null;
 
   const resolvedIcon = iconId ?? TONE_ICON[tone];
+  const plaqueTone = !iconId ? TONE_PLAQUE[tone] : undefined;
   const showFooter = footer != null || (footerButtons && footerButtons.length > 0);
   const isAlert = variant === 'alert';
 
@@ -111,8 +119,15 @@ export function NativeDialogShell({
 
         {isAlert ? (
           <div className={`bndz-native-alert-body ${bodyClassName}`}>
-            <div className={`bndz-native-alert-glyph bndz-native-alert-glyph--${tone}`} aria-hidden>
-              <Icons8Icon id={resolvedIcon} size={32} />
+            <div
+              className={`bndz-native-alert-glyph bndz-native-alert-glyph--${tone}${plaqueTone ? ' bndz-native-alert-glyph--plaque' : ''}`}
+              aria-hidden
+            >
+              {plaqueTone ? (
+                <BndzPlaque tone={plaqueTone} size="sm" animate={false} />
+              ) : (
+                <Icons8Icon id={resolvedIcon} size={32} />
+              )}
             </div>
             <div className="bndz-native-alert-content min-w-0 flex-1">
               {subtitle && <p className="bndz-native-alert-lead">{subtitle}</p>}

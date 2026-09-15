@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { showNativeAlert } from '../lib/nativeDialog';
 import { NativeDialogShell } from './native/NativeDialogShell';
 
@@ -71,7 +72,7 @@ export default function AboutDialog({
     >
       <div className="bndz-about-body space-y-4 -mt-1">
         <div className="bndz-register-brand !mb-0">
-          <img src="/Bndz-main.png" alt="" className="bndz-register-brand-mark" draggable={false} />
+          <BndzPlaque tone="brand" size="md" className="bndz-register-brand-mark" animate={false} />
           <div className="bndz-register-brand-copy">
             <div className="bndz-register-brand-name">BNDZ</div>
             <div className="bndz-register-brand-tag">Built for people who live in files all day</div>

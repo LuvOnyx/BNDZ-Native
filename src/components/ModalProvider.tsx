@@ -3,6 +3,7 @@ import { ThumbnailIcon } from './ThumbnailIcon';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import { BndzNativeDialog } from './BndzNativeDialog';
 import { NativeDialogCheckbox } from './native/NativeDialogShell';
+import { BndzPlaque } from './BndzPlaque';
 import {
   subscribeNativeConfirm,
   subscribeNativePrompt,
@@ -206,6 +207,12 @@ function FileConflictModal({
       ]}
     >
       <div className="space-y-3 -mt-0.5">
+        <div className="bndz-conflict-plaque-row">
+          <BndzPlaque tone="question" size="sm" className="bndz-plaque--hex-well" animate={false} />
+          <p className="text-[11px] text-gray-400 leading-relaxed m-0">
+            Same name on disk — compare Incoming vs Existing, then Replace, Keep both, or Skip.
+          </p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <ConflictFileCard
             label="Incoming"

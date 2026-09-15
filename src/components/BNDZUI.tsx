@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
 import { flushSync } from 'react-dom';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { CloseGlyph } from './ChromeGlyphs';
 import { normalizeDirEntries } from '../lib/normalizeDirEntry';
 import { createInitialFileSystem, getDirContents, getEntityByPath, updateFileSystem } from '../data/initialFS';
@@ -13019,10 +13020,10 @@ ${classified.detail}`,
                 });
               }}
               emptyState={
-                <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-gray-500 gap-2 px-4 text-center">
+                <div className="bndz-list-empty-plaque text-gray-500">
                   {pathLoadErrors[normPanePath] && !(listRows?.length ?? 0) ? (
                     <>
-                      <Icons8Icon id="warning" size={28} className="opacity-70 text-rose-300" />
+                      <BndzPlaque tone="error" size="lg" className="bndz-plaque--hex-well" />
                       <span className="text-[12px] text-rose-200/90 max-w-md">
                         {/^IPC timeout:/i.test(pathLoadErrors[normPanePath])
                           ? 'Folder load timed out. The host may be busy — retry in a moment.'
@@ -13046,7 +13047,7 @@ ${classified.detail}`,
                     />
                   ) : (
                     <>
-                      <Icons8Icon id="folder_open_ui" size={28} className="opacity-40" />
+                      <BndzPlaque tone="folder" size="lg" />
                       <span className="text-[11px]">
                         {isFindingTabActive && currentTab.findingError ? currentTab.findingError
                           : isFindingTabActive ? `No results for "${currentTab.findingQuery}".`
