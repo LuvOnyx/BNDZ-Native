@@ -29,13 +29,15 @@ Gather → review board → checklist pass → wire. Keepers only.
 | Search empty | `search-empty-*.svg` (Gravity UI) |
 | Access / question | `access-denied-*.svg` (Gravity UI) |
 | Panel idle | `unable-display-*.svg` (Gravity UI) |
-| Idle / no data | `no-data.svg` (unDraw, no people, accent baked) |
+| Idle / empty tray | `fm-idle-dark.svg` / `fm-idle-light.svg` (custom FM object scene) |
 | Warn | `warning.svg` ← `document-warning.svg` (object only; people `warning`/`void` quarantined) |
-| Transfer | `data-transfer.svg` (unDraw, no people, accent baked) |
+| Panel host | `fm-panel-dark.svg` / `fm-panel-light.svg` (custom FM window chrome) |
+| Transfer | `fm-transfer-dark.svg` / `fm-transfer-light.svg` (custom dual-tray transfer) |
 | Tabs empty | `tab-empty.svg` (custom FM chips) |
-| Tab chrome | `tab-active*.svg`, `tab-inactive*.svg`, `tab-strip*.svg` |
+| Tab chrome | instrument chips `tab-active*.svg`, `tab-inactive*.svg`, `tab-strip*.svg` (bottom slit in CSS) |
 | Brand | `brand-mark.png` |
 | History | `history-dark.svg` (Gravity UI clipboard — Action History empty) |
+| Quarantined web/office | `candidates/web-office/` (former unDraw/unable-display dumps) |
 
 ## QC session (2026-09-15)
 | Check | Result | Evidence |

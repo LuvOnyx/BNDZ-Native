@@ -125,6 +125,9 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Tag Manager / Action History empty states → BndzPlaque (history / idle / folder)
 - [ ] Bottom plugin panel empty state + install gating still correct
 - [x] Tab right-click menu + Tabs settings still honor height/font/style/colors with plaque chrome
+- [x] Instrument tab chrome: taller/wider defaults, chamfer chips, CSS bottom color slit (`--bndz-tab-slit`)
+- [x] Shell cascade parent icons (`ContextSubmenu.iconSrc` + enumerator depth≤1 extract + child fallback)
+- [x] Context menu zero-shift open: await shell verbs (~160ms budget) + reserved cascade/tools skeletons
 - [ ] Menubar / context hover colors consistent after menu merge
 - [ ] Configuration dialog Shell Integration copy matches weave behavior
 
@@ -138,6 +141,8 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Review board + attribution: `public/plaques/review.html`, `QUALITY.md`, `ATTRIBUTION.md`
 - [x] Visual keep/kill pass on board (no-people + soft FM tabs) (empties, errors, search, **tabs/chrome**, panels, transfer, menu density)
 - [x] Promote keepers to kebab names under `public/plaques/` (recolor to BNDZ tokens where needed)
+- [x] Wave-2 FM object plaques: `fm-idle-*`, `fm-panel-*`, `fm-transfer-*`; quarantine web/office dumps to `candidates/web-office/`
+- [x] `PluginEmptyState` tone-from-icon (stop blanket `unable-display` reuse)
 - [x] Only after pass: re-point `BndzPlaque` / surfaces; keep `PLAQUE_CONTEXT_MENU_ENABLED=false` until menu density pass
 
 **Modals / dialogs / panels / tabs**

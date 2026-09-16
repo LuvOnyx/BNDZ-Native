@@ -226,7 +226,7 @@ function SortablePaneTab({
       style={style}
       data-tab-id={tab.id}
       data-tab-index={index}
-      className={`relative bndz-tab-item flex items-center px-2.5 py-[5px] ml-[1px] rounded-t-[10px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow,filter] duration-75 ease-out ${
+      className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[8px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow,filter] duration-75 ease-out ${
         flexibleTabWidth
           ? 'bndz-tab-item--flexible'
           : useCustom
@@ -242,6 +242,7 @@ function SortablePaneTab({
         isBndzAutomationPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--automation' : ''
       }`}
       data-tab-accent={tab.color ? '1' : undefined}
+      title={label}
       data-workspace-tab={isBndzCanvasPath(tab.path) ? 'spatial' : isBndzAutomationPath(tab.path) ? 'automation' : undefined}
       {...attributes}
       {...dragListeners}
@@ -285,13 +286,13 @@ function SortablePaneTab({
           <ShellNativeIcon
             path={tab.path}
             isDir={tab.path !== '/' && !tab.path.match(/^\/[A-Za-z]:$/)}
-            size={12}
+            size={14}
             eager
           />
         </span>
       )}
-      {tab.locked && <Icons8Icon id="lock_ui" size={10} className="mr-1 shrink-0 pointer-events-none" title="Locked" />}
-      <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, var(--bndz-tab-font-size, 11px))' }}>{label}</span>
+      {tab.locked && <Icons8Icon id="lock_ui" size={11} className="mr-1 shrink-0 pointer-events-none" title="Locked" />}
+      <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, var(--bndz-tab-font-size, 12px))' }}>{label}</span>
       {showXClose && (
         <span
           data-tab-close
@@ -303,7 +304,7 @@ function SortablePaneTab({
             onClose(e);
           }}
         >
-          <CloseGlyph size={12} />
+          <CloseGlyph size={13} />
         </span>
       )}
       {resizableTabs && !flexibleTabWidth && (
@@ -367,8 +368,8 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const ids = useMemo(() => tabs.map(t => t.id), [tabs]);
-  const minWidth = Math.max(48, Number(minimumTabWidthInPixels) || 72);
-  const maxWidth = Math.max(minWidth, Number(maximumTabWidthInPixels) || 200);
+  const minWidth = Math.max(64, Number(minimumTabWidthInPixels) || 100);
+  const maxWidth = Math.max(minWidth, Number(maximumTabWidthInPixels) || 320);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -396,7 +397,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
       style={{
         /* Configuration → Tabs → Tab bar height (24–36px) */
         minHeight: tabBarHeight ?? undefined,
-        height: tabBarHeight ? `${tabBarHeight}px` : 'var(--bndz-tab-bar-height, 34px)',
+        height: tabBarHeight ? `${tabBarHeight}px` : 'var(--bndz-tab-bar-height, 36px)',
         background: 'var(--bndz-surface-chrome)',
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',

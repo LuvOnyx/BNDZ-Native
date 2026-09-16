@@ -451,11 +451,17 @@ function ContextMenuView({
       ? item.iconBase64
       : null;
     if (item.children && item.children.length > 0) {
+      const parentIcon =
+        iconSrc
+        ?? (item.children
+          .map(c => (typeof c.iconBase64 === 'string' && c.iconBase64.startsWith('data:') ? c.iconBase64 : null))
+          .find(Boolean) ?? null);
       return (
         <ContextSubmenu
           key={`${keyPrefix}-${item.id || item.label || i}`}
           label={item.label || item.id || 'More'}
-          iconVerb={item.icon || 'shell'}
+          iconSrc={parentIcon}
+          iconVerb={parentIcon ? undefined : (item.icon || 'shell')}
         >
           {item.children.map((child, j) => renderNativeItem(child, j, `${keyPrefix}-${i}`))}
         </ContextSubmenu>
@@ -480,19 +486,30 @@ function ContextMenuView({
   const renderShellSlot = (slot: ShellMergeSlot, opts?: { pending?: boolean; withSep?: boolean }) => {
     if (!shellMergeEnabled) return null;
     const items = shellSlots[slot];
-    const showPending = !!opts?.pending && shellPending && slot === 'tools';
+    // Reserve height for any shell slot while pending — cascades/tools/open all grow the menu.
+    const showPending = !!opts?.pending && shellPending && items.length === 0;
     if (!showPending && !items.length) return null;
+    const pendingMin =
+      slot === 'cascades' ? 88
+        : slot === 'tools' ? 72
+          : slot === 'open' ? 48
+            : 56;
     return (
       <>
         {(opts?.withSep !== false) && <div className="bndz-context-menu-sep" />}
         {showPending ? (
-          <div className="bndz-context-menu-shell-skeleton" aria-hidden>
+          <div className="bndz-context-menu-shell-skeleton" style={{ minHeight: pendingMin }} aria-hidden>
             <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '72%' }} />
             <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '54%' }} />
-            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '63%' }} />
+            {slot === 'cascades' && (
+              <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '63%' }} />
+            )}
           </div>
         ) : (
-          <div className={shellMergeSettling ? 'bndz-context-menu-shell-settling' : undefined}>
+          <div
+            className={shellMergeSettling ? 'bndz-context-menu-shell-settling' : undefined}
+            style={items.length ? { minHeight: Math.max(pendingMin, items.length * 28) } : undefined}
+          >
             {items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))}
           </div>
         )}
@@ -822,11 +839,11 @@ function ContextMenuView({
             {onGoForward && <ContextMenuItem label="Forward" iconVerb="forward" onClick={() => { onGoForward(); onClose(); }} />}
           </>
         )}
-        {renderShellSlot('open')}
-        {renderShellSlot('cascades')}
+        {renderShellSlot('open', { pending: true })}
+        {renderShellSlot('cascades', { pending: true })}
         {renderShellSlot('tools', { pending: true })}
         {renderShellSlot('clipboard', { withSep: false })}
-        {renderShellSlot('footer')}
+        {renderShellSlot('footer', { pending: true })}
         <div className="bndz-context-menu-sep" />
         <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
       </ClampedFixedMenu>
@@ -1057,7 +1074,7 @@ function ContextMenuView({
         <ContextMenuItem label="Open With..." iconVerb="openas" onClick={() => handleVerb('openas')} />
       )}
 
-      {renderShellSlot('open', { withSep: false })}
+      {renderShellSlot('open', { withSep: false, pending: true })}
 
       <div className="bndz-context-menu-sep" />
 
@@ -1112,7 +1129,7 @@ function ContextMenuView({
       )}
 
       {renderShellSlot('clipboard')}
-      {renderShellSlot('cascades')}
+      {renderShellSlot('cascades', { pending: true })}
 
       {!isBackground && showShareMenu && (
         <ContextSubmenu label="Share" iconVerb="share" onOpen={() => setShareRequested(true)}>
@@ -1695,7 +1712,7 @@ function ContextMenuView({
       />
 
       {renderShellSlot('tools', { pending: true })}
-      {renderShellSlot('footer')}
+      {renderShellSlot('footer', { pending: true })}
 
       <div className="bndz-context-menu-sep" />
       <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />

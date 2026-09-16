@@ -2546,14 +2546,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  </SettingsHint>
                  <div className="flex items-center gap-2 ml-[20px] mb-2 mt-1">
                     <input type="number" 
-                       value={localConfig.minimumTabWidthInPixels ?? 72} 
-                       onChange={(e) => updateLocalConfig({minimumTabWidthInPixels: parseInt(e.target.value) || 72})} 
+                       value={localConfig.minimumTabWidthInPixels ?? 100} 
+                       onChange={(e) => updateLocalConfig({minimumTabWidthInPixels: parseInt(e.target.value) || 100})} 
                        className="w-[45px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-center outline-none disabled:opacity-50"
                        disabled={!localConfig.flexibleTabWidth && !localConfig.resizableTabs}
                     />
                     <input type="number" 
-                       value={localConfig.maximumTabWidthInPixels ?? 200} 
-                       onChange={(e) => updateLocalConfig({maximumTabWidthInPixels: parseInt(e.target.value) || 200})} 
+                       value={localConfig.maximumTabWidthInPixels ?? 320} 
+                       onChange={(e) => updateLocalConfig({maximumTabWidthInPixels: parseInt(e.target.value) || 320})} 
                        className="w-[45px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-center outline-none disabled:opacity-50"
                        disabled={!localConfig.flexibleTabWidth && !localConfig.resizableTabs}
                     />
@@ -2562,7 +2562,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  
                  <div className="flex items-center gap-[42px] mb-[8px] mt-2">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Tab bar height:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.tabBarHeight ?? 28} onChange={e => updateLocalConfig({ tabBarHeight: parseInt(e.target.value) })}>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.tabBarHeight ?? 36} onChange={e => updateLocalConfig({ tabBarHeight: parseInt(e.target.value) })}>
                        {[24, 26, 28, 30, 32, 36].map(n => <option key={n} value={n}>{n}px</option>)}
                     </select>
                  </div>

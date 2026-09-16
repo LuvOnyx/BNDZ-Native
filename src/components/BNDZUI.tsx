@@ -4171,7 +4171,7 @@ export default function BNDZUI() {
     return () => { cancelled = true; };
   }, [openMenuId, panes, activePaneId]);
 
-  const handleContextMenuRequest = (
+  const handleContextMenuRequest = async (
     e: React.MouseEvent,
     targetPath: string,
     entityId: string | null,
@@ -4222,7 +4222,80 @@ export default function BNDZUI() {
 
       // Always use the BNDZ context menu. Native shell verbs are merged when enabled (default on).
       // Shift+right-click opens the live Windows shell popup (Vanara IContextMenu) for full extension parity.
-      setShellExtensionsPending(false);
+      // Pure BNDZ menu (icons + product verbs) unless user opted into merging shell verbs.
+      const mergeShellVerbs = !!(config.useNativeOSContextMenu || config.nativeContextMenu);
+      const shellPaths = (selectedPaths?.length
+        ? selectedPaths
+        : [winPath]).map(p => toWindowsPath(p)).filter(Boolean);
+
+      // Shift+right-click → real host shell menu (multi-select aware).
+      if (e.shiftKey && shellPaths.length > 0 && !isVirtualLocation) {
+        void import('../lib/ipcBridge').then(({ IPC }) => {
+          IPC.showNativeContextMenu(shellPaths, Math.round(e.screenX), Math.round(e.screenY));
+        });
+        return;
+      }
+
+      const cacheKey = shellPaths.length === 1 ? shellPaths[0] : shellPaths.slice().sort().join('|');
+      let initialNative: any[] = [];
+      let pendingShell = false;
+
+      if (mergeShellVerbs && !isVirtualLocation && shellPaths.length > 0) {
+        try {
+          const { getCachedNativeContextMenu, setCachedNativeContextMenu, prefetchNativeContextMenu } = await import('../lib/nativeContextMenuCache');
+          const cachedNative = getCachedNativeContextMenu(cacheKey) as any[] | null;
+          if (cachedNative?.length) {
+            initialNative = cachedNative;
+            // Background refresh — signature gate avoids height thrash when unchanged.
+            void (async () => {
+              try {
+                const { IPC } = await import('../lib/ipcBridge');
+                const nativeItems = await IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
+                if (requestId !== contextMenuRequestRef.current) return;
+                if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
+                setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+                  && nativeContextSignature(prev.nativeContextItems) !== nativeContextSignature(nativeItems)
+                  ? { ...prev, nativeContextItems: nativeItems }
+                  : prev);
+              } catch { /* ignore background refresh */ }
+            })();
+          } else {
+            // Await shell verbs before first paint (budget) so the list does not grow under the cursor.
+            const SHELL_OPEN_BUDGET_MS = 160;
+            const { IPC } = await import('../lib/ipcBridge');
+            const fetchPromise = IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
+            const raced = await Promise.race([
+              fetchPromise.then(items => ({ ok: true as const, items })),
+              new Promise<{ ok: false }>(resolve => setTimeout(() => resolve({ ok: false }), SHELL_OPEN_BUDGET_MS)),
+            ]);
+            if (requestId !== contextMenuRequestRef.current) return;
+            if (raced.ok && raced.items?.length) {
+              initialNative = raced.items;
+              setCachedNativeContextMenu(cacheKey, raced.items);
+            } else {
+              pendingShell = true;
+              void fetchPromise.then(nativeItems => {
+                if (requestId !== contextMenuRequestRef.current) return;
+                if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
+                setShellExtensionsPending(false);
+                setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+                  ? { ...prev, nativeContextItems: nativeItems || [] }
+                  : prev);
+              }).catch(err => {
+                if (requestId === contextMenuRequestRef.current) setShellExtensionsPending(false);
+                console.warn('Native context menu fetch failed', err);
+              });
+            }
+            // Warm sibling selection paths for next open.
+            if (shellPaths.length === 1) prefetchNativeContextMenu(shellPaths[0], (p) => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>);
+          }
+        } catch (err) {
+          console.warn('Native context menu open path failed', err);
+          pendingShell = mergeShellVerbs;
+        }
+      }
+
+      setShellExtensionsPending(pendingShell);
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
@@ -4233,60 +4306,9 @@ export default function BNDZUI() {
           isDirectory,
           isGhostLink: !!(menuEntity as any)?.isGhostLink,
           surface,
-          nativeContextItems: [],
+          nativeContextItems: initialNative,
           selectedPaths
       });
-
-      // Skip native shell verb fetch for virtual locations — they produce empty/separator-only menus.
-      if (isVirtualLocation) return;
-
-      const shellPaths = (selectedPaths?.length
-        ? selectedPaths
-        : [winPath]).map(p => toWindowsPath(p)).filter(Boolean);
-
-      // Shift+right-click → real host shell menu (multi-select aware).
-      if (e.shiftKey && shellPaths.length > 0) {
-        void import('../lib/ipcBridge').then(({ IPC }) => {
-          IPC.showNativeContextMenu(shellPaths, Math.round(e.screenX), Math.round(e.screenY));
-        });
-        setContextMenu(null);
-        return;
-      }
-
-      // Pure BNDZ menu (icons + product verbs) unless user opted into merging shell verbs.
-      const mergeShellVerbs = !!(config.useNativeOSContextMenu || config.nativeContextMenu);
-      if (!mergeShellVerbs) return;
-
-      const cacheKey = shellPaths.length === 1 ? shellPaths[0] : shellPaths.slice().sort().join('|');
-      // Start shell fetch immediately (no idle delay) — list menus must feel as snappy as sidebar.
-      void (async () => {
-        try {
-          const { getCachedNativeContextMenu, setCachedNativeContextMenu } = await import('../lib/nativeContextMenuCache');
-          if (requestId !== contextMenuRequestRef.current) return;
-          const cachedNative = getCachedNativeContextMenu(cacheKey) as any[] | null;
-          if (cachedNative?.length) {
-            setShellExtensionsPending(false);
-            setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
-              ? { ...prev, nativeContextItems: cachedNative }
-              : prev);
-            // Still refresh in background so verbs stay current, without blocking the open.
-          } else {
-            setShellExtensionsPending(true);
-          }
-          const { IPC } = await import('../lib/ipcBridge');
-          const nativeItems = await IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
-          if (requestId !== contextMenuRequestRef.current) return;
-          if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
-          setShellExtensionsPending(false);
-          setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
-            && nativeContextSignature(prev.nativeContextItems) !== nativeContextSignature(nativeItems)
-            ? { ...prev, nativeContextItems: nativeItems }
-            : prev);
-        } catch (err) {
-          if (requestId === contextMenuRequestRef.current) setShellExtensionsPending(false);
-          console.warn('Native context menu fetch failed', err);
-        }
-      })();
   };
 
   const guardedSetCurrentPath = (p: string) => {

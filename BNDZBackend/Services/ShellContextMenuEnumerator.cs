@@ -34,7 +34,7 @@ internal static class ShellContextMenuEnumerator
         /// <summary>shell = third-party / extension; builtin = classic verbs we already render in BNDZ.</summary>
         public string Kind { get; init; } = "shell";
         /// <summary>data:image/png;base64,… from the shell menu HBITMAP when available.</summary>
-        public string? IconBase64 { get; init; }
+        public string? IconBase64 { get; set; }
         /// <summary>Cascaded submenu children (New, Send to, etc.).</summary>
         public List<EnumeratedItem>? Children { get; init; }
     }
@@ -60,8 +60,11 @@ internal static class ShellContextMenuEnumerator
 
                 var cm2 = cm as IContextMenu2;
                 var cm3 = cm as IContextMenu3;
+                // Structure: fast path (root + first cascade only). Icons: always on those levels
+                // so WinRAR/7-Zip parents get bitmaps without InitAllPopups.
                 var items = WalkMenu(cm, cm2, cm3, hMenu, depth: 0, extractIcons: false);
                 items = DedupeByCanonicalVerb(items);
+                items = FillCascadeParentIconsFromChildren(items);
                 return CompactSeparators(items);
             });
         }
@@ -145,6 +148,8 @@ internal static class ShellContextMenuEnumerator
                     ? WalkMenu(cm, cm2, cm3, sub, depth + 1, extractIcons)
                     : new List<EnumeratedItem>();
                 children = CompactSeparators(children);
+                // Always pull bitmaps for root + first cascade (even on fast structure path).
+                var wantIcon = depth <= 1;
                 if (children.Count == 0)
                 {
                     // Rare: popup header is itself an invokable command (owner-draw / delayed).
@@ -162,7 +167,7 @@ internal static class ShellContextMenuEnumerator
                             Verb = string.IsNullOrEmpty(verb) ? id : verb,
                             CommandId = offset,
                             Kind = kind,
-                            IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
+                            IconBase64 = wantIcon ? TryExtractMenuItemIconBase64(hMenu, i) : null,
                         });
                     }
                     continue;
@@ -173,7 +178,7 @@ internal static class ShellContextMenuEnumerator
                     Id = $"submenu:{label.ToLowerInvariant()}",
                     Label = label,
                     Kind = "shell",
-                    IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
+                    IconBase64 = wantIcon ? TryExtractMenuItemIconBase64(hMenu, i) : null,
                     Children = children,
                 });
                 continue;
@@ -202,10 +207,35 @@ internal static class ShellContextMenuEnumerator
                 CommandId = leafOffset,
                 IsPrimary = string.Equals(leafVerb, "open", StringComparison.OrdinalIgnoreCase),
                 Kind = leafKind,
-                IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
+                IconBase64 = depth <= 1 ? TryExtractMenuItemIconBase64(hMenu, i) : null,
             });
         }
 
+        return items;
+    }
+
+    /// <summary>
+    /// Owner-draw cascade headers (HBMMENU_CALLBACK) often have no HBITMAP while children do.
+    /// Promote the first child bitmap onto the parent so WinRAR/7-Zip parents match children.
+    /// </summary>
+    private static List<EnumeratedItem> FillCascadeParentIconsFromChildren(List<EnumeratedItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.Children is { Count: > 0 } && string.IsNullOrEmpty(item.IconBase64))
+            {
+                foreach (var child in item.Children)
+                {
+                    if (!string.IsNullOrEmpty(child.IconBase64))
+                    {
+                        item.IconBase64 = child.IconBase64;
+                        break;
+                    }
+                }
+            }
+            if (item.Children is { Count: > 0 })
+                FillCascadeParentIconsFromChildren(item.Children);
+        }
         return items;
     }
 

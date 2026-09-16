@@ -29,16 +29,16 @@ export const PLAQUE_CONTEXT_MENU_ENABLED = false;
 type ThemePair = { dark: string; light?: string };
 
 const PLAQUE_SRC: Record<BndzPlaqueTone, ThemePair> = {
-  idle: { dark: '/plaques/no-data.svg', light: '/plaques/no-data.svg' },
+  idle: { dark: '/plaques/fm-idle-dark.svg', light: '/plaques/fm-idle-light.svg' },
   warn: { dark: '/plaques/warning.svg', light: '/plaques/warning.svg' },
   error: { dark: '/plaques/error-dark.svg', light: '/plaques/error-light.svg' },
   brand: { dark: '/plaques/brand-mark.png', light: '/plaques/brand-mark.png' },
   question: { dark: '/plaques/access-denied-dark.svg', light: '/plaques/access-denied-light.svg' },
-  panel: { dark: '/plaques/unable-display-dark.svg', light: '/plaques/unable-display-light.svg' },
+  panel: { dark: '/plaques/fm-panel-dark.svg', light: '/plaques/fm-panel-light.svg' },
   folder: { dark: '/plaques/folder-empty-dark.svg', light: '/plaques/folder-empty-light.svg' },
   search: { dark: '/plaques/search-empty-dark.svg', light: '/plaques/search-empty-light.svg' },
   tabs: { dark: '/plaques/tab-empty.svg', light: '/plaques/tab-empty.svg' },
-  transfer: { dark: '/plaques/data-transfer.svg', light: '/plaques/data-transfer.svg' },
+  transfer: { dark: '/plaques/fm-transfer-dark.svg', light: '/plaques/fm-transfer-light.svg' },
   history: { dark: '/plaques/history-dark.svg', light: '/plaques/history-dark.svg' },
 };
 

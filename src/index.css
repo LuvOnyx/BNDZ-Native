@@ -7691,17 +7691,21 @@ html[data-density="spacious"] .nav-tree-row {
 
 /* Tab strip variants ? snappy press; Classic Explorer vs Soft Modern */
 .bndz-tab-item {
-  transition: background 0.06s ease, border-color 0.06s ease, color 0.06s ease, box-shadow 0.06s ease !important;
+  transition: background 0.06s ease, border-color 0.06s ease, color 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease !important;
   user-select: none;
   touch-action: pan-x;
   cursor: default;
-  min-width: var(--bndz-tab-min-width, 72px);
-  max-width: var(--bndz-tab-max-width, 200px);
+  min-width: var(--bndz-tab-min-width, 100px);
+  max-width: var(--bndz-tab-max-width, 320px);
   width: max-content;
+  min-height: calc(var(--bndz-tab-bar-height, 36px) - 4px);
+  padding-left: 12px !important;
+  padding-right: 10px !important;
+  --bndz-tab-slit: var(--accent, #0078d4);
 }
 
 .bndz-tab-item--flexible {
-  max-width: min(var(--bndz-tab-max-width, 200px), 100%);
+  max-width: min(var(--bndz-tab-max-width, 320px), 100%);
   flex: 1 1 auto;
   width: auto;
 }
@@ -7715,7 +7719,35 @@ html[data-density="spacious"] .nav-tree-row {
   flex: 0 0 auto;
   width: var(--bndz-tab-custom-width);
   max-width: var(--bndz-tab-custom-width);
-  min-width: var(--bndz-tab-min-width, 72px);
+  min-width: var(--bndz-tab-min-width, 100px);
+}
+
+/* Instrument bottom slit — tracks theme accent or right-click tab color */
+.bndz-chrome-tabstrip .bndz-tab-item::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 3px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--bndz-tab-slit, var(--accent, #0078d4));
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 0 8px var(--bndz-tab-slit-glow, transparent);
+  transition: opacity 0.08s ease, background 0.08s ease, box-shadow 0.08s ease;
+}
+.bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active::after,
+.bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent]::after {
+  opacity: 0.92;
+}
+.bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent])::after {
+  opacity: 0;
+}
+html[data-tab-style="underline"] .bndz-chrome-tabstrip .bndz-tab-item::after,
+html[data-tab-style="segment"] .bndz-chrome-tabstrip .bndz-tab-item::after,
+html[data-tab-style="flat"] .bndz-chrome-tabstrip .bndz-tab-item::after {
+  display: none;
 }
 
 .bndz-tab-resize-handle {
@@ -7737,10 +7769,10 @@ html[data-density="spacious"] .nav-tree-row {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   margin-left: 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   color: rgba(203, 213, 225, 0.55);
   cursor: default;
   flex-shrink: 0;
@@ -7855,17 +7887,19 @@ html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 10px 10px 0 0 !important;
-  padding-top: 5px !important;
-  padding-bottom: 5px !important;
+  border-radius: 8px 8px 0 0 !important;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
+  padding-top: 6px !important;
+  padding-bottom: 7px !important;
   border-color: transparent !important;
   background-color: transparent !important; /* keep plaque background-image */
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item[data-tab-accent] {
-  border-radius: 10px 10px 0 0 !important;
-  padding-top: 5px !important;
-  padding-bottom: 5px !important;
+  border-radius: 8px 8px 0 0 !important;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
+  padding-top: 6px !important;
+  padding-bottom: 7px !important;
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
@@ -7891,9 +7925,10 @@ html[data-tab-style="explorer"] .bndz-tab-close:hover {
   color: #ffffff;
 }
 
-/* Soft Modern — calm squircle tabs (Card-2x language) */
+/* Soft Modern — instrument chips with chamfer + bottom slit */
 html[data-tab-style="soft"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 10px 10px 0 0 !important;
+  border-radius: 8px 8px 0 0 !important;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
   margin-bottom: 0;
   border-color: transparent !important;
   background-color: transparent !important; /* plaque chip */
@@ -7901,8 +7936,9 @@ html[data-tab-style="soft"] .bndz-tab-item:not([data-tab-accent]) {
 }
 
 html[data-tab-style="soft"] .bndz-tab-item[data-tab-accent] {
-  border-radius: 11px 11px 5px 5px !important;
-  margin-bottom: 2px;
+  border-radius: 8px 8px 0 0 !important;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
+  margin-bottom: 0;
 }
 
 html[data-tab-style="soft"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
@@ -11333,39 +11369,39 @@ html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip {
   background-blend-mode: normal, multiply;
 }
 
-/* Soft Explorer chips — only Classic Explorer + Soft Modern (honor other Visual style settings) */
+/* Soft Explorer / Soft Modern instrument chips — plaque body + CSS color slit */
 html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item,
 html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item {
-  border-radius: 10px 10px 0 0 !important;
+  border-radius: 8px 8px 0 0 !important;
   border-bottom: none !important;
 }
-html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
-html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
   background-image: url('/plaques/tab-inactive.svg') !important;
   background-size: 100% 100% !important;
   background-repeat: no-repeat !important;
   background-color: transparent !important;
 }
-html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
-html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
   background-image: url('/plaques/tab-active.svg') !important;
   background-size: 100% 100% !important;
   background-repeat: no-repeat !important;
   background-color: transparent !important;
   box-shadow: none !important;
 }
-html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
-html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
   background-image: url('/plaques/tab-inactive-light.svg') !important;
 }
-html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
-html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
   background-image: url('/plaques/tab-active-light.svg') !important;
 }
 
-/* Right-click accent colors keep CSS fills (no plaque overlay) */
+/* Accent tint sits under plaque; slit color comes from --bndz-tab-slit */
 .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent] {
-  background-image: none !important;
+  background-blend-mode: soft-light, normal;
 }
 
 .bndz-list-empty-plaque {

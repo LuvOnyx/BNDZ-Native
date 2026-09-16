@@ -248,7 +248,7 @@ export function PluginEmptyState({
   description,
   message,
   hint,
-  tone = 'panel',
+  tone,
   size = 'md',
 }: {
   icon?: string;
@@ -261,14 +261,29 @@ export function PluginEmptyState({
   size?: BndzPlaqueSize;
 }) {
   const body = description || message || hint;
+  const resolvedTone = tone ?? toneFromPluginIcon(icon);
   return (
     <div className="bndz-plugin-empty flex flex-col items-center justify-center h-full min-h-[120px] gap-3 p-6 select-none text-center">
-      <BndzPlaque tone={tone} size={size} className="opacity-95" />
+      <BndzPlaque tone={resolvedTone} size={size} className="opacity-95" />
       <span className="sr-only">{icon}</span>
       {title && <p className="text-sm font-medium text-gray-400">{title}</p>}
       {body && <p className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">{body}</p>}
     </div>
   );
+}
+
+/** Map plugin empty icons to FM plaque tones — stop every surface sharing "unable-display". */
+function toneFromPluginIcon(icon: string): BndzPlaqueTone {
+  const id = String(icon || '').toLowerCase();
+  if (/search|find|filter|magnif/.test(id)) return 'search';
+  if (/folder|dir|vault|sandbox|library|project/.test(id)) return 'folder';
+  if (/sync|transfer|mesh|drop|upload|download|queue|inbox|compare/.test(id)) return 'transfer';
+  if (/history|log|timeline|clock|action/.test(id)) return 'history';
+  if (/tab|window/.test(id)) return 'tabs';
+  if (/warn|alert|shield|policy/.test(id)) return 'warn';
+  if (/error|fail|missing|delete/.test(id)) return 'error';
+  if (/idle|empty|layers|inbox/.test(id)) return 'idle';
+  return 'idle';
 }
 
 export function PluginStatCard({
