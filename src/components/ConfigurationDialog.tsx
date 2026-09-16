@@ -939,7 +939,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <SectionHeader title="Context Menus" />
               <div className="ml-2 mb-4 space-y-[6px]">
                  <SettingsHint>
-                   Merge native Windows shell verbs from Shell Integration → Context Menu. This tab configures BNDZ menu extras only.
+                   Weave native Windows shell verbs from Shell Integration → “Include Native shell verbs in BNDZ menu.” This tab configures BNDZ menu extras only.
                  </SettingsHint>
                  <div className="ml-[0px]">
                     <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>old Ctrl to invert the above selection</span>} checked={localConfig.holdCtrlToInvertTheAboveSelection ?? false} onChange={e => updateLocalConfig({ holdCtrlToInvertTheAboveSelection: e.target.checked })} />
@@ -1914,7 +1914,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
 
               <SectionHeader title="Shell Succession" />
-              <p className="text-[12px] text-[#e0e0e0] mb-[22px] mt-1 ml-[8px]">Make BNDZ the default folder handler — reversible. Changes take effect immediately for this user.</p>
+              <p className="text-[12px] text-[#e0e0e0] mb-[22px] mt-1 ml-[8px]">
+                Make BNDZ the default folder handler — reversible.
+                {' '}Current user writes HKCU (Explorer may need a refresh). All users elevates and writes HKLM.
+              </p>
 
               <div className="flex items-center gap-[42px] ml-[24px] mb-8 mt-[10px]">
                  <span className="text-[12px] text-[#e0e0e0]">Scope:</span>

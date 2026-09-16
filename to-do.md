@@ -101,8 +101,8 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 
 ### Fast Search
 - [x] Folder scope via path field + … (not duplicate Browse/Add buttons)
-- [ ] Result list keyboard nav + Enter open feels Explorer-snappy
-- [ ] Empty / no-Everything engine fallback messaging
+- [x] Result list keyboard nav + Enter open (dirs navigate; files open via bndz-open-in-bndz) + PageUp/PageDown
+- [x] Empty / no-Everything engine fallback messaging
 
 ### Toolbar / chrome
 - [x] Remove macOS traffic-light dots from Toolbar Designer preview
@@ -128,8 +128,10 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Instrument tab chrome: taller/wider defaults, chamfer chips, CSS bottom color slit (`--bndz-tab-slit`)
 - [x] Shell cascade parent icons (`ContextSubmenu.iconSrc` + enumerator depth≤1 extract + child fallback)
 - [x] Context menu zero-shift open: await shell verbs (~160ms budget) + reserved cascade/tools skeletons
-- [ ] Menubar / context hover colors consistent after menu merge
-- [ ] Configuration dialog Shell Integration copy matches weave behavior
+- [x] Menubar / context hover colors consistent after menu merge (`bndz-menubar-row` → `var(--accent)`)
+- [x] Configuration dialog Shell Integration copy matches weave behavior
+- [x] Uninstalled plugin toast points to Extension Hub (not “Plugin Store”)
+- [x] Multi-res `BNDZ.ico` (16–256 incl. 20/24/60) synced public ↔ ApplicationIcon; gen script relative + 9 sizes
 
 ### Native plaques / illustrations (modals · panels · list tabs · menus)
 

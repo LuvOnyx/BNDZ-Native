@@ -286,7 +286,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           <div className="flex-1 overflow-y-auto styled-scrollbar p-2 min-h-0">
             {filteredPlugins.length === 0 ? (
               <div className="bndz-hub-empty">
-                <BndzPlaque tone="panel" size="md" />
+                <BndzPlaque tone={searchQuery.trim() ? 'search' : 'brand'} size="md" />
                 <p className="text-[12px] text-center leading-relaxed max-w-[200px]">
                   {searchQuery.trim()
                     ? 'No extensions match your search.'
@@ -538,7 +538,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
             </>
           ) : (
             <div className="bndz-hub-empty h-full">
-              <BndzPlaque tone="panel" size="lg" />
+              <BndzPlaque tone="brand" size="lg" />
               <p className="text-[13px] text-center">Select an extension to inspect details.</p>
             </div>
           )}

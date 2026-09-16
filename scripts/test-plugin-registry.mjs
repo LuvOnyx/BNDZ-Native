@@ -30,13 +30,8 @@ const defFiles = {
   CatalogPluginDef: 'CatalogPlugin.tsx',
   ActionLogPluginDef: 'ActionLogPlugin.tsx',
   MeshPluginDef: 'MeshPlugin.tsx',
-  RamStagingPluginDef: 'RamStagingPlugin.tsx',
   ProjectSandboxPluginDef: 'ProjectSandboxPlugin.tsx',
-  CapacitySolverPluginDef: 'CapacitySolverPlugin.tsx',
   BranchingTimePluginDef: 'BranchingTimePlugin.tsx',
-  CaptureInboxPluginDef: 'CaptureInboxPlugin.tsx',
-  RealityCheckPluginDef: 'RealityCheckPlugin.tsx',
-  DesignBoardPluginDef: 'DesignBoardPlugin.tsx',
 };
 
 function readDefId(defName) {
@@ -77,13 +72,8 @@ const componentPaths = {
   CatalogPlugin: 'CatalogPlugin.tsx',
   ActionLogPlugin: 'ActionLogPlugin.tsx',
   MeshPlugin: 'MeshPlugin.tsx',
-  RamStagingPlugin: 'RamStagingPlugin.tsx',
   ProjectSandboxPlugin: 'ProjectSandboxPlugin.tsx',
-  CapacitySolverPlugin: 'CapacitySolverPlugin.tsx',
   BranchingTimePlugin: 'BranchingTimePlugin.tsx',
-  CaptureInboxPlugin: 'CaptureInboxPlugin.tsx',
-  RealityCheckPlugin: 'RealityCheckPlugin.tsx',
-  DesignBoardPlugin: 'DesignBoardPlugin.tsx',
 };
 
 for (const comp of components) {
@@ -112,7 +102,7 @@ if (!iconStudio.includes('export default function IconStudioPlugin')) {
 }
 
 
-// Remap table must send retired IDs to living hosts; retired IDs must not remain in Hub catalog.
+// Remap table must send absorbed IDs to living hosts; dropped Staging IDs scrub (no remap).
 const remapBlock = src.match(/RETIRED_PLUGIN_REMAP[\s\S]*?=\s*\{([\s\S]*?)\n\};/)?.[1] ?? '';
 const expectedRemaps = {
   'drop-magnet': 'batch-rename',
@@ -123,7 +113,6 @@ const expectedRemaps = {
   'inbound-volume': 'dropstack',
   'capture-inbox': 'dropstack',
   'zk-vault': 'project-sandbox',
-  'ghost-link': 'ram-staging',
   'library-health': 'storage-cleanup',
   'reality-check': 'storage-cleanup',
 };
@@ -132,6 +121,16 @@ for (const [from, to] of Object.entries(expectedRemaps)) {
   if (!re.test(remapBlock)) errors.push(`RETIRED_PLUGIN_REMAP missing ${from} → ${to}`);
   if (seenIds.has(from)) errors.push(`retired id still in Hub catalog: ${from}`);
   if (!seenIds.has(to)) errors.push(`remap target missing from Hub catalog: ${to}`);
+}
+// Launch Ready A1 — Staging removed from Hub (scrub, do not remap to a living host).
+for (const dropped of ['ghost-link', 'ram-staging', 'design-board', 'photo-studio']) {
+  if (seenIds.has(dropped)) errors.push(`dropped Hub id still in catalog: ${dropped}`);
+  if (new RegExp(String.raw`['"\`]?${dropped}['"\`]?\s*:`).test(remapBlock)) {
+    errors.push(`dropped Hub id must not be remapped: ${dropped}`);
+  }
+}
+if (!src.includes('DROPPED_HUB_PLUGIN_IDS')) {
+  errors.push('DROPPED_HUB_PLUGIN_IDS missing from PluginRegistryContext');
 }
 if (!defaultInstalled.length) errors.push('DEFAULT_INSTALLED_PLUGINS parsed empty — regex likely broken');
 

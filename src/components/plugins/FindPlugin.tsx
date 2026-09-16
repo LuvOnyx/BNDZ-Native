@@ -239,7 +239,11 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const openResultAt = (index: number) => {
         const item = results[index];
         const path = String(item?.path || '');
-        if (path) navigateTo(path);
+        if (!path) return;
+        const isDirectory = !!(item as { isDirectory?: boolean })?.isDirectory;
+        window.dispatchEvent(new CustomEvent('bndz-open-in-bndz', {
+          detail: { path, isDirectory },
+        }));
     };
 
     const onResultsKeyDown = (e: React.KeyboardEvent) => {
@@ -254,6 +258,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             e.preventDefault();
             const idx = activeResultIndex >= 0 ? activeResultIndex : 0;
             openResultAt(idx);
+        } else if (e.key === 'PageDown') {
+            e.preventDefault();
+            setActiveResultIndex(i => Math.min(results.length - 1, Math.max(0, i) + 10));
+        } else if (e.key === 'PageUp') {
+            e.preventDefault();
+            setActiveResultIndex(i => Math.max(0, (i < 0 ? 0 : i) - 10));
         } else if (e.key === 'Home') {
             e.preventDefault();
             setActiveResultIndex(0);
@@ -729,9 +739,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     role="option"
                                     data-find-result-index={i}
                                     aria-selected={active || checked}
-                                    className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''} ${active ? 'bg-[#094771]/28 ring-1 ring-inset ring-sky-400/35' : ''}`}
+                                    className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[color-mix(in_srgb,var(--accent,#0078d4)_18%,transparent)] cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''} ${active ? 'bg-[color-mix(in_srgb,var(--accent,#0078d4)_28%,transparent)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--accent,#0078d4)_45%,transparent)]' : ''}`}
                                     onClick={() => setActiveResultIndex(i)}
-                                    onDoubleClick={() => navigateTo(path)}
+                                    onDoubleClick={() => openResultAt(i)}
                                     title={r.snippet ? `${shown}\n${r.snippet}` : shown}
                                   >
                                     <input

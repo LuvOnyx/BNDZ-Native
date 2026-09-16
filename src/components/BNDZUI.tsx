@@ -1685,7 +1685,7 @@ export default function BNDZUI() {
     // Never auto-install — only open plugins the user already has installed.
     if (!installedPluginIdSet.has(resolvedId)) {
       const label = (pluginRegistry || []).find((p: { id: string }) => p.id === resolvedId)?.name || resolvedId;
-      setToastMessage(`“${label}” isn’t installed. Add it from the Plugin Store.`, 'warning');
+      setToastMessage(`“${label}” isn’t installed. Add it from Extension Hub.`, 'warning');
       return;
     }
     setIsBottomPanelOpen(true);
@@ -13757,12 +13757,12 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('File')}             >File</button>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'File'} anchorEl={menubarAnchors.current['File']} minWidth={260}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const ents = getMenuSelectedEntities();
                         if (!ents[0]) { setToastMessage('Select an item first.'); return; }
                         import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(joinPanePath(currentTab.path, ents[0])), 'open'));
                     })}><Icons8Icon id="folder_open_ui" size={14} /> Open Selected</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const sel = currentTab.selectedItems[0];
                       if (!sel) { setToastMessage('Select an item first.'); return; }
                       const entity = pathContentsCache[currentTab.path]?.find((x: any) => x.id === sel);
@@ -13770,14 +13770,14 @@ ${classified.detail}`,
                       addTab(activePaneId, targetPath);
                     })}><Icons8Icon id="folder_open_ui" size={14} /> Open in New Tab</div>
                     <MenubarSubmenu label="Open Special" iconId="folder_open_ui">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         if (!focusedItemId) { setToastMessage('No focused item.'); return; }
                         const ent = findEntityInCache(pathContentsCache, focusedItemId)
                           || (pathContentsCache[currentTab.path] || []).find((x: any) => x.id === focusedItemId);
                         if (!ent) { setToastMessage('Focused item not found.'); return; }
                         import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(joinPanePath(currentTab.path, ent)), 'open'));
                       })}><Icons8Icon id="folder_open_ui" size={14} /> Open Focused Item <span className="ml-auto text-[10px] text-gray-500">Ctrl+Enter</span></div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                         const { IPC } = await import('../lib/ipcBridge');
                         const files = await IPC.openFileDialog('All files (*.*)|*.*');
                         if (files[0]) {
@@ -13786,10 +13786,10 @@ ${classified.detail}`,
                           else setToastMessage('Could not open that path.');
                         }
                       })}><Icons8Icon id="folder_open_ui" size={14} /> Open… <span className="ml-auto text-[10px] text-gray-500">Ctrl+O</span></div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('openas'))}>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('openas'))}>
                         <Icons8Icon id="folder_open_ui" size={14} /> Open with… <span className="ml-auto text-[10px] text-gray-500">Ctrl+Alt+Enter</span>
                       </div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         void (async () => {
                           const p = getMenuPrimaryPath();
                           if (!p) { setToastMessage('Select an item first.'); return; }
@@ -13805,40 +13805,40 @@ ${classified.detail}`,
                           IPC.shellExecute('runCommand', `"${win}" ${args}`, workDir);
                         })();
                       })}><Icons8Icon id="cmd" size={14} /> Open with Arguments…</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         addTab(activePaneId, currentTab.path);
                         setToastMessage('Opened a throw-away clone tab.');
                       })}><Icons8Icon id="folder_open_ui" size={14} /> Open Throw Away Clone</div>
                     </MenubarSubmenu>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const sel = currentTab.selectedItems[0];
                       if (!sel) { setToastMessage('Select an item to rename.'); return; }
                       const entity = pathContentsCache[currentTab.path]?.find((x: any) => x.id === sel);
                       if (entity) beginInlineRename(currentTab.path, sel, entity);
                     })}><Icons8Icon id="pencil_ui" size={14} /> Rename</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('batch-rename'))}><Icons8Icon id="batch_rename" size={14} /> Batch / Smart Rename…</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('batch-rename'))}><Icons8Icon id="batch_rename" size={14} /> Batch / Smart Rename…</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       setClipboardState(getSelectedEntityPaths(), 'cut');
                     })}><Icons8Icon id="cut" size={14} /> Cut</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       setClipboardState(getSelectedEntityPaths(), 'copy');
                     })}><Icons8Icon id="copy" size={14} /> Copy</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void executePaste(currentTab.path))}><Icons8Icon id="clipboard" size={14} /> Paste</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void executePaste(currentTab.path))}><Icons8Icon id="clipboard" size={14} /> Paste</div>
                     <MenubarSubmenu label="To Clipboard" iconId="clipboard">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const paths = getSelectedEntityPaths();
                         if (!paths[0]) { setToastMessage('Select an item first.'); return; }
                         void copyTextToClipboard(toWindowsPath(paths[0]), 'Path copied.');
                       })}><Icons8Icon id="copy" size={14} /> Copy Path</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const ents = getMenuSelectedEntities();
                         if (!ents[0]) { setToastMessage('Select an item first.'); return; }
                         void copyTextToClipboard(ents[0].name || '', 'Name copied.');
                       })}><Icons8Icon id="copy" size={14} /> Copy Name</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         void copyTextToClipboard(toWindowsPath(currentTab.path), 'Location copied.');
                       })}><Icons8Icon id="copy" size={14} /> Copy Location</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void duplicateSelectedItems(); })}><Icons8Icon id="copy" size={14} /> Duplicate</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void duplicateSelectedItems(); })}><Icons8Icon id="copy" size={14} /> Duplicate</div>
                     </MenubarSubmenu>
                     <div className="h-[1px] bg-[#444] my-1"></div>
 
@@ -13849,7 +13849,7 @@ ${classified.detail}`,
                         ((config.recentFiles as string[]) || []).map(rp => (
                           <div
                             key={rp}
-                            className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 truncate max-w-[320px]"
+                            className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 truncate max-w-[320px]"
                             title={rp}
                             onMouseDown={menuAct(() => setCurrentPath(rp))}
                           >
@@ -13861,13 +13861,13 @@ ${classified.detail}`,
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <MenubarSubmenu label="New" iconId="new_folder">
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                                void createNewItemInActivePane('New folder', 'dir');
                             })}><Icons8Icon id="new_folder" size={14} /> New Folder</div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                                void createNewItemInActivePane('New Text Document.txt', 'file');
                             })}><Icons8Icon id="new_file" size={14} /> New Text Document</div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
                               if (!paths.length) { setToastMessage('Select files to archive.'); return; }
                               const dest = `${toWindowsPath(currentTab.path)}\\Archive-${Date.now()}.zip`;
@@ -13875,7 +13875,7 @@ ${classified.detail}`,
                               const res = await IPC.createArchive(paths.map(toWindowsPath), dest, 'zip');
                               setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'Archive created.' : (res.error || 'Archive failed.')));
                             })}>ZIP Archive</div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
                               if (paths.length !== 1) { setToastMessage('Select one item for a shortcut.'); return; }
                               const { IPC } = await import('../lib/ipcBridge');
@@ -13896,7 +13896,7 @@ ${classified.detail}`,
                                   return (
                                     <div
                                       key={`shell-new-${item.id || verb || i}`}
-                                      className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200"
+                                      className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200"
                                       onMouseDown={menuAct(() => {
                                         const folder = toWindowsPath(currentTab.path);
                                         import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(folder, verb));
@@ -13911,9 +13911,9 @@ ${classified.detail}`,
                     </MenubarSubmenu>
 
                     <MenubarSubmenu label="Copy / Move / Backup" iconId="copy_to">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}><Icons8Icon id="copy_to" size={14} /> Copy To…</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}><Icons8Icon id="cut" size={14} /> Move To…</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}><Icons8Icon id="copy_to" size={14} /> Copy To…</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}><Icons8Icon id="cut" size={14} /> Move To…</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const other = panes.find(p => p.id !== activePaneId);
                         const dest = other?.tabs[other.activeTabIndex]?.path;
                         if (dest) void copyOrMoveToTarget('copy', dest);
@@ -13922,14 +13922,14 @@ ${classified.detail}`,
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const paths = getSelectedEntityPaths();
                       if (!paths[0]) return;
                       let win = toWindowsPath(paths[0]);
                       win = applyWebPathMap(config, win);
                       import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', win));
                     })}><Icons8Icon id="copy" size={14} /> Copy Path</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const items = getSortedContentsForActivePane() as any[];
                       if (!items?.length) {
                         setToastMessage('Nothing to export in this folder.');
@@ -13960,8 +13960,8 @@ ${classified.detail}`,
                         setToastMessage('Could not write CSV to clipboard.');
                       }
                     })}><Icons8Icon id="download" size={14} /> Export List as CSV</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => refreshWorkspace())}><Icons8Icon id="refresh" size={14} /> Refresh</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => refreshWorkspace())}><Icons8Icon id="refresh" size={14} /> Refresh</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const entities = getMenuSelectedEntities();
                         if (!entities.length) {
                           // Folder properties when nothing selected
@@ -13976,36 +13976,36 @@ ${classified.detail}`,
                     })}>
                        <Icons8Icon id="properties" size={14} /> Properties
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('metadata'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('metadata'))}>
                       <Icons8Icon id="info_ui" size={14} /> Metadata <span className="ml-auto text-[10px] text-gray-500">Shift+Enter</span>
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       if (!isPreviewPanelOpen) togglePreviewPanel();
                     })}><Icons8Icon id="toggle_preview" size={14} /> Quick File View <span className="ml-auto text-[10px] text-gray-500">Ctrl+Q</span></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       if (!focusedItemId && !(currentTab.selectedItems?.length)) {
                         setToastMessage('Select or focus an item first.');
                         return;
                       }
                       openQuickPreview();
                     })}><Icons8Icon id="eye_ui" size={14} /> Floating Preview <span className="ml-auto text-[10px] text-gray-500">Space</span></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('share'))}><Icons8Icon id="share" size={14} /> Share…</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('share'))}><Icons8Icon id="share" size={14} /> Share…</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}><Icons8Icon id="config" size={14} /> Configuration...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Icons8Icon id="wrench" size={14} /> Customize Toolbar...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}><Icons8Icon id="config" size={14} /> Configuration...</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Icons8Icon id="wrench" size={14} /> Customize Toolbar...</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       await import('../data/configContext').then(m => m.flushPendingSettingsSave());
                       setToastMessage('Settings saved.');
                     })}><Icons8Icon id="check" size={14} /> Save Settings</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       await import('../lib/settingsExport').then(m => m.exportSettingsBundle(config as Record<string, unknown>));
                       setToastMessage('Settings exported.');
                     })}><Icons8Icon id="download" size={14} /> Export Settings…</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const r = await import('../lib/settingsExport').then(m => m.importSettingsBundle(s => updateConfig(s as any)));
                       setToastMessage(r.message);
                     })}><Icons8Icon id="upload" size={14} /> Import Settings…</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('ini'); })}><Icons8Icon id="config" size={14} /> Open Configuration File</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('ini'); })}><Icons8Icon id="config" size={14} /> Open Configuration File</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#e81123]/80 cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const tab = currentTab;
@@ -14016,7 +14016,7 @@ ${classified.detail}`,
                       } else setToastMessage('Select item(s) to delete.');
                     })}><Icons8Icon id="delete" size={14} /> Delete <span className="ml-auto text-[10px] text-gray-500">Del</span></div>
                     <MenubarSubmenu label="Exit" iconId="close">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                         await import('../data/configContext').then(m => m.discardPendingSettingsSave());
                         import('../lib/ipcBridge').then(({ IPC }) => IPC.requestClose('restart-without-saving'));
                       })}><Icons8Icon id="refresh" size={14} /> Restart without Saving</div>
@@ -14044,13 +14044,13 @@ ${classified.detail}`,
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Edit'} anchorEl={menubarAnchors.current['Edit']} minWidth={240}>
                     <MenubarSubmenu label="New">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         void createNewItemInActivePane('New folder', 'dir');
                       })}>New Folder</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         void createNewItemInActivePane('New Text Document.txt', 'file');
                       })}>New Text Document</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                         const paths = getSelectedEntityPaths();
                         if (paths.length !== 1) { setToastMessage('Select one item for a shortcut.'); return; }
                         const { IPC } = await import('../lib/ipcBridge');
@@ -14060,16 +14060,16 @@ ${classified.detail}`,
                       })}>New Shortcut</div>
                     </MenubarSubmenu>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setClipboardState(getSelectedEntityPaths(), 'cut'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setClipboardState(getSelectedEntityPaths(), 'cut'))}>
                       <Icons8Icon id="cut" size={14} /> Cut
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setClipboardState(getSelectedEntityPaths(), 'copy'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setClipboardState(getSelectedEntityPaths(), 'copy'))}>
                       <Icons8Icon id="copy" size={14} /> Copy
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void executePaste(currentTab.path))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void executePaste(currentTab.path))}>
                       <Icons8Icon id="clipboard" size={14} /> Paste
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const ents = getMenuSelectedEntities();
                       if (!ents.length) { setToastMessage('Select item(s) first.'); return; }
                       const names = ents.map((e: any) => e.name).join('\n');
@@ -14090,7 +14090,7 @@ ${classified.detail}`,
                         const fileRow = (label: React.ReactNode, fn: () => void | Promise<void>, shortcut?: string) => (
                           <div
                             key={String(label)}
-                            className={fileClip ? 'px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2' : 'px-3 py-1 text-sm text-gray-500 cursor-default select-none'}
+                            className={fileClip ? 'px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2' : 'px-3 py-1 text-sm text-gray-500 cursor-default select-none'}
                             onMouseDown={act(fn)}
                           >
                             {label}
@@ -14113,14 +14113,14 @@ ${classified.detail}`,
                             })}
                             <div className="h-[1px] bg-[#444] my-1" />
                             {/* Link paste always live — pasteAsLinksFromClipboard falls back to CF_HDROP when BNDZ clipboard is empty */}
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('shortcut'); })}>Paste As Shortcut(s)</div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('hardlink'); })}>Paste As Hard Link(s)</div>
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('shortcut'); })}>Paste As Shortcut(s)</div>
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('hardlink'); })}>Paste As Hard Link(s)</div>
                             {/* One symlink row — files AND folders; backend auto-detects file vs dir flag */}
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('symlink'); })}>Paste As Symbolic Link(s)</div>
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('symlink'); })}>Paste As Symbolic Link(s)</div>
                             {/* Junction: folder targets only — always clickable; backend rejects file targets */}
                             <div
                               key="junction"
-                              className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2"
+                              className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2"
                               title="NTFS junction — folder targets only"
                               onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('junction'); })}
                             >
@@ -14132,11 +14132,11 @@ ${classified.detail}`,
                             <div className="h-[1px] bg-[#444] my-1" />
                             {fileRow('Paste Folder Structure', () => { void pasteFolderStructureOnly(); })}
                             <div className="h-[1px] bg-[#444] my-1" />
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteTextAsItems(); })}>Paste Text As Item(s)</div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteTextIntoNewFile(); })}>
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteTextAsItems(); })}>Paste Text As Item(s)</div>
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteTextIntoNewFile(); })}>
                               Paste Text Into New File <span className="ml-auto text-[10px] text-gray-500 pl-3">Ctrl+Alt+V</span>
                             </div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteImageIntoNewPng(); })}>
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteImageIntoNewPng(); })}>
                               Paste Image Into New PNG File <span className="ml-auto text-[10px] text-gray-500 pl-3">Ctrl+Shift+Alt+V</span>
                             </div>
                             <div className="h-[1px] bg-[#444] my-1" />
@@ -14151,12 +14151,12 @@ ${classified.detail}`,
                             <div className="h-[1px] bg-[#444] my-1" />
                             {fileRow('Edit Clipboard…', () => { void editClipboardPaths(); })}
                             <div
-                              className={clipboardHistory.length ? 'px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2' : 'px-3 py-1 text-sm text-gray-500 cursor-default select-none'}
+                              className={clipboardHistory.length ? 'px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2' : 'px-3 py-1 text-sm text-gray-500 cursor-default select-none'}
                               onMouseDown={clipboardHistory.length ? actAlways(() => {
                                 if (restorePreviousClipboard()) setToastMessage('Previous clipboard restored.');
                               }) : undefined}
                             >Restore Previous Clipboard</div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => {
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => {
                               clearClipboard();
                               setToastMessage('Clipboard cleared.');
                             })}>Clear Clipboard</div>
@@ -14168,91 +14168,91 @@ ${classified.detail}`,
                     <div className="h-[1px] bg-[#444] my-1"></div>
 
                     <MenubarSubmenu label="Select">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         const items = pathContentsCache[currentTab.path] || [];
                         setSelectedItems(items.map((x: any) => x.id), activePaneId);
                       })}>Select All</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setSelectedItems([], activePaneId))}>Select None</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => invertSelectionInActivePane())}>Invert Selection</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setSelectedItems([], activePaneId))}>Select None</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => invertSelectionInActivePane())}>Invert Selection</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         const items = (pathContentsCache[currentTab.path] || []).filter((x: any) => x.type === 'directory');
                         setSelectedItems(items.map((x: any) => x.id), activePaneId);
                       })}>Select Folders</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         const items = (pathContentsCache[currentTab.path] || []).filter((x: any) => x.type !== 'directory');
                         setSelectedItems(items.map((x: any) => x.id), activePaneId);
                       })}>Select Files</div>
                     </MenubarSubmenu>
 
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const items = pathContentsCache[currentTab.path] || [];
                       setSelectedItems(items.map((x: any) => x.id), activePaneId);
                     })}><Icons8Icon id="checksquare_ui" size={14} /> Select All</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
 
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void runUndoRedo(false); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void runUndoRedo(false); })}>
                       <Icons8Icon id="undo" size={14} /> Undo <span className="ml-auto text-[10px] text-gray-500">Ctrl+Z</span>
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void runUndoRedo(true); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void runUndoRedo(true); })}>
                       <Icons8Icon id="redo" size={14} /> Redo <span className="ml-auto text-[10px] text-gray-500">Ctrl+Y</span>
                     </div>
                     {config.logActionsAndEnableUndoRedo !== false && (
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>
                         <Icons8Icon id="clock_ui" size={14} /> History…
                       </div>
                     )}
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>
                       <Icons8Icon id="clock_ui" size={14} /> Action Log / Recent Ops…
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const ents = getMenuSelectedEntities();
                       if (!ents[0]) { setToastMessage('Select an item first.'); return; }
                       import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', toWindowsPath(joinPanePath(currentTab.path, ents[0]))));
                     })}><Icons8Icon id="copy" size={14} /> Copy Path</div>
 
                     <MenubarSubmenu label="Copy To..." iconId="copy_to">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         const other = panes.find(p => p.id !== activePaneId);
                         const dest = other?.tabs[other.activeTabIndex]?.path;
                         if (dest) void copyOrMoveToTarget('copy', dest);
                       })}>Other Pane</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}>Browse...</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}>Browse...</div>
                     </MenubarSubmenu>
 
                     <MenubarSubmenu label="Move To...">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         const other = panes.find(p => p.id !== activePaneId);
                         const dest = other?.tabs[other.activeTabIndex]?.path;
                         if (dest) void copyOrMoveToTarget('move', dest);
                       })}>Other Pane</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}>Browse...</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}>Browse...</div>
                     </MenubarSubmenu>
 
                     <MenubarSubmenu label="Backup To…">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         const other = panes.find(p => p.id !== activePaneId);
                         const dest = other?.tabs[other.activeTabIndex]?.path;
                         if (dest) void copyOrMoveToTarget('copy', dest);
                         else void copyOrMoveToTarget('copy');
                       })}>Other Pane (copy)</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}>Browse…</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}>Browse…</div>
                     </MenubarSubmenu>
 
                     <MenubarSubmenu label="Compare">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => startFolderCompare())}>Compare / Sync Folders</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => openBottomPlugin('find'))}>Find Differences…</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => startFolderCompare())}>Compare / Sync Folders</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => openBottomPlugin('find'))}>Find Differences…</div>
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('batch-rename'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('batch-rename'))}>
                       <Icons8Icon id="sparkles_ui" size={14} /> Smart Rename
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('find'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('find'))}>
                       <Icons8Icon id="file_search_ui" size={14} /> Find Files…
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { omniFilterRef.current?.focus(); })}>Find Now / Quick Search</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { omniFilterRef.current?.focus(); })}>Find Now / Quick Search</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       void (async () => {
                         const q = filterText.trim() || (await requestNativePrompt({
                           title: 'Global search',
@@ -14284,24 +14284,24 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('View')}             >View</button>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'View'} anchorEl={menubarAnchors.current['View']} minWidth={200}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { toggleDualPane(); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { toggleDualPane(); })}>
                        <Icons8Icon id="toggle_dual_pane" size={14} /> {isDualPane ? 'Single Pane' : 'Dual Pane'}
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { togglePreviewPanel(); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { togglePreviewPanel(); })}>
                         <Icons8Icon id="toggle_preview" size={14} /> {isPreviewPanelOpen ? 'Hide Preview Panel' : 'Show Preview Panel'}
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { toggleBottomPanel(); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { toggleBottomPanel(); })}>
                         <Icons8Icon id="toggle_bottom" size={14} /> {isBottomPanelOpen ? 'Hide Bottom Panel' : 'Show Bottom Panel'}
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { refreshWorkspace(); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { refreshWorkspace(); })}>
                        <Icons8Icon id="refresh" size={14} /> Refresh
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => scanCurrentFolderSizes(true, { manual: true }))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => scanCurrentFolderSizes(true, { manual: true }))}>
                        <Icons8Icon id="folder_size_sync" size={14} /> Get Folder Sizes
                     </div>
                     <div
-                      className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${config.autoSyncFolderSizes !== false ? 'text-emerald-300' : 'text-gray-200'}`}
+                      className={`px-3 py-1 bndz-menubar-row cursor-pointer text-sm flex items-center gap-2 ${config.autoSyncFolderSizes !== false ? 'text-emerald-300' : 'text-gray-200'}`}
                       onMouseDown={menuAct(() => {
                         const next = config.autoSyncFolderSizes === false;
                         updateConfig({ autoSyncFolderSizes: next });
@@ -14317,7 +14317,7 @@ ${classified.detail}`,
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     {/* Show hidden files toggle — synced with Settings → showHiddenFiles */}
                     <div
-                      className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${config.showHiddenFiles ? 'text-emerald-300' : 'text-gray-200'}`}
+                      className={`px-3 py-1 bndz-menubar-row cursor-pointer text-sm flex items-center gap-2 ${config.showHiddenFiles ? 'text-emerald-300' : 'text-gray-200'}`}
                       onMouseDown={menuAct(() => {
                         const next = !config.showHiddenFiles;
                         updateConfig({
@@ -14335,7 +14335,7 @@ ${classified.detail}`,
                     </div>
                     {/* Show system files toggle — synced with Settings → showSystemFiles */}
                     <div
-                      className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${config.showSystemFiles ? 'text-emerald-300' : 'text-gray-200'}`}
+                      className={`px-3 py-1 bndz-menubar-row cursor-pointer text-sm flex items-center gap-2 ${config.showSystemFiles ? 'text-emerald-300' : 'text-gray-200'}`}
                       onMouseDown={menuAct(() => {
                         const next = !config.showSystemFiles;
                         updateConfig({
@@ -14351,15 +14351,15 @@ ${classified.detail}`,
                       Show System Files
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('details', activePaneId))}><Icons8Icon id="view_details" size={14} /> Details</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('grid', activePaneId))}><Icons8Icon id="view_grid" size={14} /> Grid</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('list', activePaneId))}><Icons8Icon id="view_list" size={14} /> List</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('details', activePaneId))}><Icons8Icon id="view_details" size={14} /> Details</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('grid', activePaneId))}><Icons8Icon id="view_grid" size={14} /> Grid</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('list', activePaneId))}><Icons8Icon id="view_list" size={14} /> List</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}><Icons8Icon id="config" size={14} /> Configuration...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Icons8Icon id="wrench" size={14} /> Customize Toolbar...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsCommandPaletteOpen(true))}><Icons8Icon id="command_ui" size={14} /> Command Palette</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}><Icons8Icon id="config" size={14} /> Configuration...</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Icons8Icon id="wrench" size={14} /> Customize Toolbar...</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsCommandPaletteOpen(true))}><Icons8Icon id="command_ui" size={14} /> Command Palette</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setShowTutorial(true); closeMenu(); })}><Icons8Icon id="sparkles_ui" size={14} /> Show tutorial</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setShowTutorial(true); closeMenu(); })}><Icons8Icon id="sparkles_ui" size={14} /> Show tutorial</div>
                  </MenubarPortalMenu>
              )}
          </div>
@@ -14371,16 +14371,16 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Go')}             >Go</button>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Go'} anchorEl={menubarAnchors.current['Go']} minWidth={260}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goBack())}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goBack())}>
                        <Icons8Icon id="nav_back" size={14} /> Back
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goForward())}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goForward())}>
                        <Icons8Icon id="nav_forward" size={14} /> Forward
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goBack())}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goBack())}>
                        Previous Location
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const items = pathContentsCache[currentTab.path] || [];
                       if (!items.length) return;
                       const ids = items.map((x: any) => x.id);
@@ -14392,7 +14392,7 @@ ${classified.detail}`,
                         setSelectedItems([prev.id], activePaneId);
                       }
                     })}>Previous Item</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const other = panes.find(p => p.id !== activePaneId);
                       const dest = other?.tabs[other.activeTabIndex]?.path;
                       if (dest) setCurrentPath(dest);
@@ -14401,39 +14401,39 @@ ${classified.detail}`,
                         setCurrentPath(currentTab.history[i]);
                       } else setToastMessage('No last target available.');
                     })}>Last Target</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goUp())}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goUp())}>
                        <Icons8Icon id="nav_up" size={14} /> Up One Level
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goToDriveRoot())}>Top (Drive Root)</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goUp())}>Up</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => enterFocusedOrSelectedFolder())}>Down (Enter Folder)</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => focusAddressBar())}>Breadcrumb / Address Bar</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goToDriveRoot())}>Top (Drive Root)</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goUp())}>Up</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => enterFocusedOrSelectedFolder())}>Down (Enter Folder)</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => focusAddressBar())}>Breadcrumb / Address Bar</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(BNDZ_HOME))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(BNDZ_HOME))}>
                        <Icons8Icon id="home" size={14} /> Continuum
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       openWorkspaceToolTab(BNDZ_CANVAS);
                       window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
                     })}>
                        <Icons8Icon id="layers_ui" size={14} /> Pillar Board
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
                        <Icons8Icon id="home" size={14} /> {(windowsUsername && windowsUsername !== 'Public') ? windowsUsername : 'Profile'}
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openWorkspaceToolTab(BNDZ_CANVAS))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openWorkspaceToolTab(BNDZ_CANVAS))}>
                        <Icons8Icon id="view_grid" size={14} /> Spatial Canvas
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openWorkspaceToolTab(BNDZ_AUTOMATION))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openWorkspaceToolTab(BNDZ_AUTOMATION))}>
                        <Icons8Icon id="zap_ui" size={14} /> Automation
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/'))}>
                        <Icons8Icon id="this_pc" size={14} /> This PC
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Desktop'))}><Icons8Icon id="monitor_ui" size={14} /> Desktop</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Personal'))}><Icons8Icon id="file_ui" size={14} /> Documents</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Downloads'))}><Icons8Icon id="arrow_down_circle_ui" size={14} /> Downloads</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Desktop'))}><Icons8Icon id="monitor_ui" size={14} /> Desktop</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Personal'))}><Icons8Icon id="file_ui" size={14} /> Documents</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Downloads'))}><Icons8Icon id="arrow_down_circle_ui" size={14} /> Downloads</div>
                     <MenubarSubmenu label="Drives">
                       {(navigationDrives || []).length === 0 ? (
                         <div className="px-3 py-1 text-sm text-gray-500 italic">(No drives)</div>
@@ -14441,7 +14441,7 @@ ${classified.detail}`,
                         navigationDrives.map((d: any) => (
                           <div
                             key={d.name}
-                            className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200"
+                            className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200"
                             onMouseDown={menuAct(() => setCurrentPath(d.name))}
                           >
                             {formatDriveDisplayName(d.label, d.name)}
@@ -14457,7 +14457,7 @@ ${classified.detail}`,
                           const p = typeof v === 'string' ? v : (v?.path || '');
                           if (!p) return null;
                           return (
-                            <div key={`${p}-${i}`} className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 truncate max-w-[320px]" title={p} onMouseDown={menuAct(() => setCurrentPath(p))}>
+                            <div key={`${p}-${i}`} className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 truncate max-w-[320px]" title={p} onMouseDown={menuAct(() => setCurrentPath(p))}>
                               {formatAddressBarPath(p)}
                             </div>
                           );
@@ -14469,7 +14469,7 @@ ${classified.detail}`,
                         <div className="px-3 py-1 text-sm text-gray-500 italic">(Empty)</div>
                       ) : (
                         rapidAccessItems.slice(0, 16).map((s) => (
-                          <div key={s.path} className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 truncate max-w-[320px]" title={formatUiPath(s.path)} onMouseDown={menuAct(() => setCurrentPath(s.path))}>
+                          <div key={s.path} className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 truncate max-w-[320px]" title={formatUiPath(s.path)} onMouseDown={menuAct(() => setCurrentPath(s.path))}>
                             {s.name || formatUiPath(s.path)}
                           </div>
                         ))
@@ -14477,7 +14477,7 @@ ${classified.detail}`,
                     </MenubarSubmenu>
                     <MenubarSubmenu label="Tablist">
                       {currentPane?.tabs?.length ? currentPane.tabs.map((t: any, i: number) => (
-                        <div key={t.id || i} className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 truncate max-w-[320px]" title={formatUiPath(t.path)} onMouseDown={menuAct(() => {
+                        <div key={t.id || i} className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 truncate max-w-[320px]" title={formatUiPath(t.path)} onMouseDown={menuAct(() => {
                           setPanes(prev => prev.map(p => p.id === activePaneId ? { ...p, activeTabIndex: i } : p));
                         })}>
                           {getPaneTabLabel(t.path) || formatUiPath(t.path) || `Tab ${i + 1}`}
@@ -14486,16 +14486,16 @@ ${classified.detail}`,
                         <div className="px-3 py-1 text-sm text-gray-500 italic">(No tabs)</div>
                       )}
                     </MenubarSubmenu>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>History…</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>History…</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       // Native FM: jump straight into the address bar — never browser prompt().
                       focusAddressBar();
                     })}>Go to… / Go Now</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('app'); })}>Application Folder</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData Folder</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('app'); })}>Application Folder</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData Folder</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => addTab(activePaneId, currentTab.path))}><Icons8Icon id="folder_open_ui" size={14} /> Open Location in New Tab</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => addTab(activePaneId, currentTab.path))}><Icons8Icon id="folder_open_ui" size={14} /> Open Location in New Tab</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       void (async () => {
                         const q = filterText.trim() || (await requestNativePrompt({
                           title: 'New Finding Tab',
@@ -14517,17 +14517,17 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Tools')}             >Tools</button>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tools'} anchorEl={menubarAnchors.current['Tools']} minWidth={260}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => scanCurrentFolderSizes(true, { manual: true }))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => scanCurrentFolderSizes(true, { manual: true }))}>
                        <Icons8Icon id="folder_size_sync" size={14} /> Get Folder Sizes
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => startFolderCompare())}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => startFolderCompare())}>
                        <Icons8Icon id="sync_folders" size={14} /> Sync / Compare Folders
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsSmartToolsOpen(true))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsSmartToolsOpen(true))}>
                        <Icons8Icon id="smart_tools" size={14} /> AI Smart Workspace Tools
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         import('../lib/ipcBridge').then(({ IPC }) => {
                             IPC.clearIconCache().then(() => {
                                 updateConfig({ iconCacheBuster: Date.now() });
@@ -14537,7 +14537,7 @@ ${classified.detail}`,
                     })}>
                        <Icons8Icon id="refresh" size={14} /> Clear Icon Cache
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         import('../lib/ipcBridge').then(async ({ IPC }) => {
                             await IPC.clearIconCache();
                             updateConfig({ iconCacheBuster: Date.now() });
@@ -14556,11 +14556,11 @@ ${classified.detail}`,
                        <Icons8Icon id="refresh" size={14} /> Rebuild Icon Cache
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsPluginStoreOpen(true))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsPluginStoreOpen(true))}>
                        <Icons8Icon id="extension_hub" size={14} /> Extension Hub
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); closeMenu(); })}><Icons8Icon id="tag_manager" size={14} /> Manage Tags...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setBottomPluginTab('batch-rename'); if (!isBottomPanelOpen) toggleBottomPanel(); closeMenu(); })}><Icons8Icon id="batch_rename" size={14} /> Batch Rename</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); closeMenu(); })}><Icons8Icon id="tag_manager" size={14} /> Manage Tags...</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setBottomPluginTab('batch-rename'); if (!isBottomPanelOpen) toggleBottomPanel(); closeMenu(); })}><Icons8Icon id="batch_rename" size={14} /> Batch Rename</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <MenubarSubmenu label="Intent">
                       {WORK_INTENT_ORDER.map(id => {
@@ -14569,7 +14569,7 @@ ${classified.detail}`,
                         return (
                           <div
                             key={id}
-                            className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${active ? 'text-amber-200' : 'text-gray-200'}`}
+                            className={`px-3 py-1 bndz-menubar-row cursor-pointer text-sm flex items-center gap-2 ${active ? 'text-amber-200' : 'text-gray-200'}`}
                             onMouseDown={menuAct(() => {
                               const { patch, toast } = applyWorkIntentPack(id, { installedPluginIds: installedPluginIdSet });
                               updateConfig(patch);
@@ -14586,27 +14586,27 @@ ${classified.detail}`,
                       })}
                     </MenubarSubmenu>
                     <MenubarSubmenu label="Customize">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void navigateToAppDataFolder('ini'); })}>Open Configuration File</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void navigateToAppDataFolder('ini'); })}>Open Configuration File</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Keyboard Shortcuts');
                         setIsConfigDialogOpen(true);
                       })}>Keyboard Shortcuts…</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Refresh, Icons, History');
                         setIsConfigDialogOpen(true);
                       })}>File Icons…</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}>Toolbar…</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}>Toolbar…</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Tree and List');
                         setIsConfigDialogOpen(true);
                       })}>Tree…</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Tabs');
                         setIsConfigDialogOpen(true);
                       })}>List / Tabs…</div>
                     </MenubarSubmenu>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>
                        <Icons8Icon id="config" size={14} /> Configuration
                     </div>
                  </MenubarPortalMenu>
@@ -14620,8 +14620,8 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Favorites')}             >Rapid access</button>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Favorites'} anchorEl={menubarAnchors.current['Favorites']} minWidth={260}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { toggleFavoriteFolder(); })}><Icons8Icon id="zap_ui" size={14} /> Toggle Rapid access pin</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { toggleFavoriteFolder(); })}><Icons8Icon id="zap_ui" size={14} /> Toggle Rapid access pin</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const path = collapseKnownFolderShadowPath(
                         resolveShellKnownFolderToFs(normalizePanePath(currentTab.path), shortcuts),
                         shortcuts,
@@ -14651,7 +14651,7 @@ ${classified.detail}`,
                       rapidAccessItems.map((s) => (
                         <div
                           key={s.path}
-                          className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 truncate max-w-[340px] flex items-center gap-2"
+                          className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 truncate max-w-[340px] flex items-center gap-2"
                           title={formatUiPath(s.path)}
                           onMouseDown={menuAct(() => setCurrentPath(s.path))}
                         >
@@ -14662,19 +14662,19 @@ ${classified.detail}`,
                     )}
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <MenubarSubmenu label="Special System Folders">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Desktop'))}>Desktop</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Personal'))}>Documents</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Downloads'))}>Downloads</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Pictures'))}>Pictures</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Music'))}>Music</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Video'))}>Videos</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Libraries'))}>Libraries</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath(CONTROL_PANEL_PATH))}>Control Panel</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Desktop'))}>Desktop</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Personal'))}>Documents</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Downloads'))}>Downloads</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Pictures'))}>Pictures</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Music'))}>Music</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Video'))}>Videos</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Libraries'))}>Libraries</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath(CONTROL_PANEL_PATH))}>Control Panel</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData</div>
                     </MenubarSubmenu>
                     <MenubarSubmenu label="Manage Rapid access">
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Organize pins...</div>
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Organize pins...</div>
+                            <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                               updateConfig({ pinnedFavorites: [] });
                               setToastMessage('Cleared custom Rapid access pins (defaults remain).');
                             })}>Clear custom pins</div>
@@ -14697,7 +14697,7 @@ ${classified.detail}`,
                         availableTags.map(tag => {
                           const tagColor = tag.color || '#FACC15';
                           return (
-                            <div key={tag.name || tag.label} className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2"
+                            <div key={tag.name || tag.label} className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2"
                                  onMouseDown={menuAct(() => { void applyTagToSelection(tag); })}>
                               <TagGlyph color={tagColor} size={12} />
                               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tagColor }} />
@@ -14707,12 +14707,12 @@ ${classified.detail}`,
                         })
                       )}
                     </MenubarSubmenu>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const tag = lastAppliedTagRef.current;
                       if (!tag) { setToastMessage('No previous label — apply a tag first.'); return; }
                       void applyTagToSelection(tag);
                     })}>Apply Last Label</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const paths = getSelectedEntityPaths().map(toWindowsPath);
                       if (!paths.length) { setToastMessage('Select an item first.'); return; }
                       const comment = await requestNativePrompt({
@@ -14736,7 +14736,7 @@ ${classified.detail}`,
                     {availableTags.map(tag => {
                         const tagColor = tag.color || '#FACC15';
                         return (
-                        <div key={tag.name || tag.label} className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" 
+                        <div key={tag.name || tag.label} className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" 
                              onMouseDown={menuAct(() => { void applyTagToSelection(tag); })}>
                             <TagGlyph color={tagColor} size={12} />
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tagColor }} />
@@ -14745,14 +14745,14 @@ ${classified.detail}`,
                         );
                     })}
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setTagAssignmentActive(true); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setTagAssignmentActive(true); })}>
                       <TagGlyph color="#9CA3AF" size={12} /> Tag assignment mode…
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); })}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); })}>
                       <TagGlyph color="#9CA3AF" size={12} /> Manage Tags...
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const { IPC } = await import('../lib/ipcBridge');
                       const tags = await IPC.getTagsConfig();
                       const blob = new Blob([JSON.stringify(tags, null, 2)], { type: 'application/json' });
@@ -14763,7 +14763,7 @@ ${classified.detail}`,
                       URL.revokeObjectURL(a.href);
                       setToastMessage('Tags database exported.');
                     })}>Export Tags Database…</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const input = document.createElement('input');
                       input.type = 'file';
                       input.accept = 'application/json,.json';
@@ -14783,7 +14783,7 @@ ${classified.detail}`,
                       };
                       input.click();
                     })}>Import Tags Database…</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const { IPC } = await import('../lib/ipcBridge');
                       const tags = await IPC.getTagsConfig();
                       setAvailableTags(tags);
@@ -14800,13 +14800,13 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('User')}             >User</button>
              {config.userDefinedCommands !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'User'} anchorEl={menubarAnchors.current['User']} minWidth={200}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       const paths = getSelectedEntityPaths();
                       void import('../lib/ipcBridge').then(({ IPC }) => {
                         IPC.shellExecute('openTerminal', paths.length ? paths : currentTab.path, undefined, buildShellExecuteOptions(config));
                       });
                     })}>Open Terminal Here</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsCommandPaletteOpen(true))}>Command Palette</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsCommandPaletteOpen(true))}>Command Palette</div>
                  </MenubarPortalMenu>
              )}
          </div>
@@ -14818,14 +14818,14 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Scripting')}             >Scripting</button>
              {config.scripting !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Scripting'} anchorEl={menubarAnchors.current['Scripting']} minWidth={200}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       void (async () => {
                         const { IPC } = await import('../lib/ipcBridge');
                         const files = await IPC.openFileDialog('Scripts (*.ps1;*.bat;*.cmd)|*.ps1;*.bat;*.cmd|All files (*.*)|*.*');
                         if (files[0]) { IPC.shellExecute('executeScript', files[0], currentTab.path); setToastMessage('Running script...'); }
                       })();
                     })}>Load Script File...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       void (async () => {
                         const { IPC } = await import('../lib/ipcBridge');
                         const files = await IPC.openFileDialog('Scripts (*.ps1;*.bat;*.cmd)|*.ps1;*.bat;*.cmd|All files (*.*)|*.*');
@@ -14843,13 +14843,13 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Panes')}             >Panes</button>
              {config.dualPaneFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Panes'} anchorEl={menubarAnchors.current['Panes']} minWidth={200}>
-                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { toggleDualPane(); })}>Toggle Dual Pane</div>
-                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { swapPanes(); })}>Swap Panes</div>
-                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { syncPanesToSamePath(); })}>Sync Panes</div>
-                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { setActivePaneId(panes[0]?.id || activePaneId); })}>Focus Left Pane</div>
-                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { setActivePaneId(panes[1]?.id || activePaneId); })}>Focus Right Pane</div>
+                   <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { toggleDualPane(); })}>Toggle Dual Pane</div>
+                   <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { swapPanes(); })}>Swap Panes</div>
+                   <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { syncPanesToSamePath(); })}>Sync Panes</div>
+                   <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { setActivePaneId(panes[0]?.id || activePaneId); })}>Focus Left Pane</div>
+                   <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { setActivePaneId(panes[1]?.id || activePaneId); })}>Focus Right Pane</div>
                    {isDualPane && (
-                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { setDualPaneDiffActive(p => !p); })}>
+                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { setDualPaneDiffActive(p => !p); })}>
                        {dualPaneDiffActive ? 'Hide Diff Strip' : 'Compare Panes (DiffPlex)'}
                      </div>
                    )}
@@ -14864,11 +14864,11 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Tabsets')}             >Tabsets</button>
              {config.tabsets !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tabsets'} anchorEl={menubarAnchors.current['Tabsets']} minWidth={200}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setIsSaveTabsetOpen(true);
                         setTabsetNameInput('');
                     })}>Save Tabset As...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsLoadTabsetOpen(true))}>Load Tabset...</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsLoadTabsetOpen(true))}>Load Tabset...</div>
                  </MenubarPortalMenu>
              )}
          </div>
@@ -14880,7 +14880,7 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Window')}             >Window</button>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Window'} anchorEl={menubarAnchors.current['Window']} minWidth={200}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       void (async () => {
                         const name = await requestNativePrompt({
                           title: 'Save window layout',
@@ -14893,7 +14893,7 @@ ${classified.detail}`,
                         setToastMessage(`Saved layout: ${name.trim()}`);
                       })();
                     })}>Save Window Layout…</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       const presets = config.workspaceLayoutPresets || [];
                       if (!presets.length) { setToastMessage('No saved layouts.'); return; }
                       const last = presets[presets.length - 1];
@@ -14903,14 +14903,14 @@ ${classified.detail}`,
                       setToastMessage(`Loaded layout: ${last.name}`);
                     })}>Restore Last Layout</div>
                     <div className="h-[1px] bg-[#444] my-1" />
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       const next = !config.alwaysOnTop;
                       updateConfig({ alwaysOnTop: next });
                       import('../lib/ipcBridge').then(({ IPC }) => IPC.setAlwaysOnTop(next));
                       setToastMessage(next ? 'Always on top enabled.' : 'Always on top disabled.');
                     })}>Always on Top</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('minimize')); })}>Minimize</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize')); })}>Maximize / Restore</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('minimize')); })}>Minimize</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize')); })}>Maximize / Restore</div>
                     <div className="px-3 py-1 hover:bg-[#e81123] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('close')); })}>Close</div>
                  </MenubarPortalMenu>
              )}
@@ -14923,18 +14923,18 @@ ${classified.detail}`,
                  onPointerDown={stopMenubarPointerBubble} onMouseDown={stopMenubarPointerBubble} onClick={openMenubarMenu('Help')}             >Help</button>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Help'} anchorEl={menubarAnchors.current['Help']} minWidth={220}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowHelpTopics(true))}>Help Topics</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowHelpTopics(true))}>Help Topics</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       setConfigInitialTab('Keyboard Shortcuts');
                       setIsConfigDialogOpen(true);
                     })}>Keyboard Shortcuts</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Settings Reference...</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Settings Reference...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                       await import('../lib/settingsExport').then(m => m.exportSettingsBundle(config as Record<string, unknown>));
                       setToastMessage('Settings exported.');
                     })}>Export Settings...</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                       const r = await import('../lib/settingsExport').then(m => m.importSettingsBundle(s => updateConfig(s as any)));
                       setToastMessage(r.message);
                     })}>Import Settings...</div>
@@ -14942,7 +14942,7 @@ ${classified.detail}`,
                     <div className="px-3 py-1.5 hover:bg-emerald-700/80 cursor-pointer text-sm text-emerald-100 flex items-center gap-2" onMouseDown={menuAct(() => setShowRegisterDialog(true))}>
                       <Icons8Icon id="lock_ui" size={13} className="opacity-80" /> Register Product...
                     </div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       setToastMessage('Checking for updates…');
                       void IPC.checkForUpdates(config.updateCheckUrl, !!config.includeBetaVersions).then(r => {
                         if (r.error) setToastMessage(`Update check failed: ${r.error}`);
@@ -14951,10 +14951,10 @@ ${classified.detail}`,
                       });
                     })}>Check for Updates...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('eula').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open EULA.'); }))}>License Agreement (EULA)</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('privacy').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open Privacy Policy.'); }))}>Privacy Policy</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('third-party').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open third-party licenses.'); }))}>Third-Party Licenses</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowAboutDialog(true))}>About BNDZ</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('eula').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open EULA.'); }))}>License Agreement (EULA)</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('privacy').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open Privacy Policy.'); }))}>Privacy Policy</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('third-party').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open third-party licenses.'); }))}>Third-Party Licenses</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowAboutDialog(true))}>About BNDZ</div>
                  </MenubarPortalMenu>
              )}
          </div>

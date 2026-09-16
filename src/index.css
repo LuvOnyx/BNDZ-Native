@@ -2845,10 +2845,12 @@ html.theme-light .bndz-context-menu-icon {
   color: rgba(0, 0, 0, 0.55) !important;
 }
 
-/* Hover keeps dark ink on pale fill (never flip to white/cyan) — except semantic tones */
+/* Hover: light theme menubar/context rows stay pale; dark uses accent via .bndz-menubar-row */
 html.theme-light .bndz-context-menu-item:hover,
 html.theme-light .bndz-context-menu-item-active,
 html.theme-light .bndz-menubar-menu > div.px-3:hover,
+html.theme-light .bndz-menubar-menu > div.bndz-menubar-row:hover,
+html.theme-light .bndz-menubar-menu .bndz-menubar-row:hover,
 html.theme-light .bndz-context-menu > div.px-3:hover {
   background: rgba(0, 0, 0, 0.06) !important;
   color: rgba(0, 0, 0, 0.92) !important;
@@ -7912,7 +7914,7 @@ html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active:not([data-tab-acc
   color: #f3f3f3 !important;
   border-color: transparent !important;
   border-bottom-color: transparent !important;
-  box-shadow: none !important; /* accent bar is in tab-active.svg */
+  box-shadow: none !important; /* bottom slit is CSS ::after (--bndz-tab-slit) */
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
@@ -8454,6 +8456,15 @@ html[data-theme] .bndz-destination-picker-footer {
 .bndz-context-menu-item-active {
   background: var(--accent, #007acc);
   color: #ffffff;
+}
+
+/* Menubar rows — same accent hover as context items (no hardcoded #007acc) */
+.bndz-menubar-menu > div.bndz-menubar-row:hover,
+.bndz-menubar-menu .bndz-menubar-row:hover,
+[data-bndz-menubar-menu] > div.bndz-menubar-row:hover,
+[data-bndz-menubar-menu] .bndz-menubar-row:hover {
+  background: var(--accent, #0078d4) !important;
+  color: #ffffff !important;
 }
 
 .bndz-context-menu-item--danger {

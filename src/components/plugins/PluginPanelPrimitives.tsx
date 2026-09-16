@@ -276,13 +276,14 @@ export function PluginEmptyState({
 function toneFromPluginIcon(icon: string): BndzPlaqueTone {
   const id = String(icon || '').toLowerCase();
   if (/search|find|filter|magnif/.test(id)) return 'search';
-  if (/folder|dir|vault|sandbox|library|project/.test(id)) return 'folder';
-  if (/sync|transfer|mesh|drop|upload|download|queue|inbox|compare/.test(id)) return 'transfer';
+  if (/folder|dir|vault|sandbox|library|project|rename|batch/.test(id)) return 'folder';
+  if (/sync|transfer|mesh|drop|upload|download|queue|inbox|compare|copy|duplicate/.test(id)) return 'transfer';
   if (/history|log|timeline|clock|action/.test(id)) return 'history';
   if (/tab|window/.test(id)) return 'tabs';
   if (/warn|alert|shield|policy/.test(id)) return 'warn';
   if (/error|fail|missing|delete/.test(id)) return 'error';
-  if (/idle|empty|layers|inbox/.test(id)) return 'idle';
+  if (/panel|plugin|hub|rack|tool/.test(id)) return 'panel';
+  if (/idle|empty|layers/.test(id)) return 'idle';
   return 'idle';
 }
 
