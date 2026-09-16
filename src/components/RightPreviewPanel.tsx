@@ -1327,7 +1327,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     </motion.div>
 
                     {/* Security & Access Box */}
-                    <div className="mt-2 border bndz-preview-detail-card rounded-[4px] p-3 shadow-inner">
+                    <div className="mt-2 border bndz-preview-detail-card rounded-[var(--bndz-radius-sm)] p-2.5">
                        <div className="flex items-center gap-1.5 bndz-panel-section-title mb-2">
                           <Icons8Icon id="shield_ui" size={14} className="bndz-preview-inline-icon" /> Access Properties
                        </div>
@@ -1358,7 +1358,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     </div>
 
                     {extendedDetails && Object.keys(extendedDetails).length > 0 && (
-                       <div className="border bndz-preview-detail-card rounded-[4px] p-3">
+                       <div className="border bndz-preview-detail-card rounded-[var(--bndz-radius-sm)] p-2.5">
                           <div className="bndz-panel-section-title mb-2 flex items-center gap-1">
                              <Icons8Icon id="database_ui" size={14} className="bndz-preview-inline-icon" /> Extended Metadata
                           </div>

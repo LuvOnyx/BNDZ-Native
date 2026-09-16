@@ -73,7 +73,7 @@ export default function AclDramaPanel({ path }: { path: string | null }) {
   if (!path) return null;
 
   return (
-    <div className="bndz-acl-drama-panel border bndz-preview-detail-card rounded-[4px] p-3 mt-3">
+    <div className="bndz-acl-drama-panel border bndz-preview-detail-card rounded-[var(--bndz-radius-sm)] p-2.5 mt-3">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="bndz-panel-section-title flex items-center gap-1.5">
           <Icons8Icon id="key_ui" size={14} className="bndz-preview-inline-icon" />

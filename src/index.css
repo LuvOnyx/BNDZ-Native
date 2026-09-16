@@ -76,10 +76,10 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .bndz-glass-panel {
-  border-radius: var(--bndz-radius-lg);
-  background: #252526;
-  border: 1px solid #454545;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border-radius: var(--bndz-radius-md);
+  background: var(--bndz-surface-raised, #252526);
+  border: 1px solid var(--border-subtle, #454545);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 
 .bndz-storage-track {
@@ -2141,9 +2141,11 @@ html[data-theme] .bndz-chrome-preview .bndz-preview-stage {
 }
 
 html[data-theme] .bndz-chrome-preview .bndz-preview-detail-card {
-  border-radius: var(--bndz-radius-md);
-  background: var(--bndz-glass-bg) !important;
-  border-color: var(--bndz-glass-border) !important;
+  border-radius: var(--bndz-radius-sm);
+  background: color-mix(in srgb, var(--panel-preview-bg, #2a2a2a) 88%, #000 12%) !important;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
 html[data-theme] .bndz-chrome-bottom {
@@ -16685,16 +16687,31 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   pointer-events: none !important;
   margin: 0;
   box-sizing: border-box;
-  /* Clone keeps real .nav-tree-row / selected paint — just lift + soft shadow */
+  /* Real .nav-tree-row / .nav-tree-row-selected paint — only lift */
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+    0 12px 32px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
   opacity: 0.98;
   will-change: transform;
   cursor: grabbing;
+  /* Keep selected gradient from .nav-tree-row-selected — never flatten to solid */
+  background-image: inherit;
+}
+.bndz-tree-drag-ghost.nav-tree-row-selected {
+  /* Ensure drag ghost always shows the picked-up accent strip */
+  background: linear-gradient(
+    90deg,
+    var(--list-selected-bg, #a855f7) 0%,
+    color-mix(in srgb, var(--list-selected-bg, #a855f7) 55%, transparent) 100%
+  ) !important;
+  box-shadow:
+    inset 2px 0 0 color-mix(in srgb, var(--list-focused-bg, #a855f7) 85%, #6db4e6),
+    0 12px 32px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 .bndz-tree-drag-ghost .nav-tree-chevron,
-.bndz-tree-drag-ghost [data-nav-expand] {
+.bndz-tree-drag-ghost [data-nav-expand],
+.bndz-tree-drag-ghost .nav-tree-reorder-grip {
   pointer-events: none !important;
 }
 .bndz-fluid-drag-lead {
@@ -20369,6 +20386,33 @@ html.theme-light .bndz-xfer-toast-track {
 }
 .bndz-batch-opsrail .bndz-plugin-toolbar-btn,
 .bndz-magnet-opsrail .bndz-plugin-toolbar-btn { flex-shrink: 0; }
+
+/* Fast Search mode strip — denser FM chips, not SaaS gradient cards */
+.bndz-find-mode-chip {
+  border-radius: var(--bndz-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--bndz-surface-raised, #1e1e22) 92%, #000 8%);
+  color: rgba(255, 255, 255, 0.88);
+}
+.bndz-find-mode-chip:hover {
+  border-color: color-mix(in srgb, var(--accent, #99c9f0) 35%, transparent);
+  background: color-mix(in srgb, var(--accent, #99c9f0) 10%, #1e1e22);
+}
+.bndz-find-mode-chip.is-active {
+  border-color: color-mix(in srgb, var(--accent, #99c9f0) 55%, transparent);
+  background: color-mix(in srgb, var(--accent, #99c9f0) 18%, #1a1a1e);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #99c9f0) 22%, transparent);
+}
+html.theme-light .bndz-find-mode-chip {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(0, 0, 0, 0.82);
+}
+html.theme-light .bndz-find-mode-chip:hover,
+html.theme-light .bndz-find-mode-chip.is-active {
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 40%, transparent);
+  background: color-mix(in srgb, var(--accent, #0078d4) 12%, #ffffff);
+}
 
 /* ── Omnibar Command Hub + live suggest (native FM command bar) ── */
 .bndz-omnibar-hub {

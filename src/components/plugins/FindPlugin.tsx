@@ -380,20 +380,20 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 />
                 <div className="px-4 pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
                     {([
-                        { id: 'local' as const, label: 'Easy', hint: 'This folder + chips', icon: 'find', tone: 'from-violet-500/18 border-violet-400/30' },
-                        { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network', tone: 'from-sky-500/18 border-sky-400/30' },
-                        { id: 'advanced' as const, label: 'Advanced', hint: 'Boolean · multi-root', icon: 'code_ui', tone: 'from-amber-500/18 border-amber-400/30' },
-                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Hash groups in scope', icon: 'copy', tone: 'from-emerald-500/18 border-emerald-400/30' },
+                        { id: 'local' as const, label: 'Easy', hint: 'This folder + chips', icon: 'find' },
+                        { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network' },
+                        { id: 'advanced' as const, label: 'Advanced', hint: 'Boolean · multi-root', icon: 'code_ui' },
+                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Hash groups in scope', icon: 'copy' },
                     ]).map(card => (
                         <button
                             key={card.id}
                             type="button"
                             onClick={() => setMode(card.id)}
-                            className={`text-left rounded-2xl border bg-gradient-to-br to-transparent px-3 py-2.5 transition-all ${card.tone} ${
-                                mode === card.id ? 'ring-1 ring-white/25 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]' : 'opacity-85 hover:opacity-100'
+                            className={`bndz-find-mode-chip text-left px-2.5 py-2 transition-colors ${
+                                mode === card.id ? 'is-active' : ''
                             }`}
                         >
-                            <div className="flex items-center gap-1.5 text-[12px] font-semibold text-white/95">
+                            <div className="flex items-center gap-1.5 text-[12px] font-semibold">
                                 <Icons8Icon id={card.icon} size={13} /> {card.label}
                             </div>
                             <p className="text-[10px] bndz-panel-muted mt-0.5 leading-snug">{card.hint}</p>

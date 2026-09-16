@@ -681,35 +681,33 @@ export function VirtualizedNavTree({
       removeTreeGhost();
       try {
         const rect = rowEl.getBoundingClientRect();
-        const cs = getComputedStyle(rowEl);
         const clone = rowEl.cloneNode(true) as HTMLElement;
-        clone.classList.add('bndz-tree-drag-ghost', 'nav-tree-row-selected');
+        // Keep real .nav-tree-row paint; force selected so drag reads as “picked up.”
+        clone.classList.add('bndz-tree-drag-ghost', 'nav-tree-row', 'nav-tree-row-selected');
+        clone.classList.remove('nav-tree-row-dragging', 'nav-tree-row-trace', 'nav-tree-file-drop-target');
         clone.removeAttribute('data-nav-path');
         clone.removeAttribute('data-tree-key');
-        clone.querySelectorAll('button, [data-nav-expand], input').forEach(el => {
+        clone.querySelectorAll('button, [data-nav-expand], input, .nav-tree-reorder-grip').forEach(el => {
           el.setAttribute('tabindex', '-1');
           (el as HTMLElement).style.pointerEvents = 'none';
         });
-        // Paint like the live tree button — not a generic card.
+        clone.querySelectorAll('.nav-tree-reorder-grip').forEach(el => {
+          (el as HTMLElement).style.visibility = 'hidden';
+        });
+        // Do NOT overwrite background with getComputedStyle().backgroundColor —
+        // that flattens the selected gradient into a muddy solid.
         clone.style.cssText = [
           'position:fixed',
           'left:0',
           'top:0',
           `width:${Math.max(rect.width, 120)}px`,
           `height:${rect.height}px`,
-          `padding-left:${cs.paddingLeft}`,
-          `padding-right:${cs.paddingRight}`,
-          `background:${cs.backgroundColor}`,
-          `color:${cs.color}`,
-          `border-radius:${cs.borderRadius}`,
-          `font:${cs.font}`,
-          'box-shadow:0 10px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.1)',
-          'opacity:0.98',
           'z-index:9500',
           'pointer-events:none',
           'margin:0',
           'box-sizing:border-box',
           'will-change:transform',
+          'cursor:grabbing',
         ].join(';');
         document.body.appendChild(clone);
         treeGhostEl = clone;

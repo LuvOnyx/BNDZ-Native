@@ -11335,6 +11335,7 @@ ${classified.detail}`,
             <ToolbarButton launcherIcon={launcherIconUrl('nav_up')} className="bndz-files-nav-btn" onClick={() => goUp(pane.id)} />
             <div 
               className="bndz-breadcrumb-slot bndz-files-address-well flex flex-1 min-w-0 basis-0 items-center text-[13px] px-2 overflow-x-auto overflow-y-hidden whitespace-nowrap cursor-text relative"
+              title="Click to edit path · double-click empty for Command Hub"
               onClick={() => {
                  if (!isGlobal) {
                      if (isDualPane && pane.id !== activePaneId) setActivePaneId(pane.id);
@@ -11342,6 +11343,17 @@ ${classified.detail}`,
                      setAddressBarInput(formatAddressBarPath(currentTab.path));
                      setAddressSuggestIndex(0);
                  }
+              }}
+              onDoubleClick={(e) => {
+                if (isGlobal) return;
+                const t = e.target as HTMLElement;
+                // Editing input keeps native word-select; crumbs navigate on their own.
+                if (t.tagName === 'INPUT' || t.closest('[data-breadcrumb-path], button')) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setEditingAddressBarPaneId(null);
+                const handled = dispatchCustomEvent(config, 'double-click-white-breadcrumb', buildCeaHandlers(pane.id));
+                if (!handled) setOmnibarHubOpen(true);
               }}
             >
               {editingAddressBarPaneId === pane.id && !isGlobal ? (
@@ -11470,6 +11482,11 @@ ${classified.detail}`,
                     if (opts?.newTab) { addTab(pane.id, path); return; }
                     if (isDualPane && pane.id !== activePaneId) setActivePaneId(pane.id);
                     setCurrentPath(path, pane.id);
+                  }}
+                  onWhiteDoubleClick={() => {
+                    setEditingAddressBarPaneId(null);
+                    const handled = dispatchCustomEvent(config, 'double-click-white-breadcrumb', buildCeaHandlers(pane.id));
+                    if (!handled) setOmnibarHubOpen(true);
                   }}
                 />
               )}
