@@ -141,6 +141,9 @@ import { filterByName } from '../lib/fuzzyFilter';
 import PaneTabStrip from './PaneTabStrip';
 import MiniTreePanel from './MiniTreePanel';
 import AddressAutocompleteDropdown from './AddressAutocompleteDropdown';
+import type { OmniSuggestItem } from './AddressAutocompleteDropdown';
+import OmnibarCommandHub from './OmnibarCommandHub';
+import { matchOmnibarCommands, looksLikeOmnibarPath } from '../lib/omnibarCommands';
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
 import MeshDropDialog from './meshdrop/MeshDropDialog';
@@ -271,7 +274,6 @@ import {
 } from '../lib/listColumns';
 import ListColumnHeaderStrip from './ListColumnHeaderStrip';
 import { computeAutosizedColumnWidths, parseColumnAutosizeLimits } from '../lib/columnAutosize';
-import RapidAccessPopup from './RapidAccessPopup';
 import BndzErrorBoundary from './BndzErrorBoundary';
 import ClipboardMarkBadge from './ClipboardMarkBadge';
 import {
@@ -1740,7 +1742,7 @@ export default function BNDZUI() {
   }, []);
 
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-  const [rapidAccessPopupOpen, setRapidAccessPopupOpen] = useState(false);
+  const [omnibarHubOpen, setOmnibarHubOpen] = useState(false);
   const [tagAssignmentActive, setTagAssignmentActive] = useState(false);
   const [inlineRename, setInlineRename] = useState<{ path: string, entityId: string, currentName: string } | null>(null);
   const [renameDialog, setRenameDialog] = useState<{ path: string; entityId: string; entity: any; value: string } | null>(null);
@@ -5274,10 +5276,18 @@ ${classified.detail}`,
     });
   }, [editingAddressBarPaneId, addressBarInput, config.navigationHistory, config.pinnedFavorites, config.autoCompleteRecentlyUsedItems, config.addressBar, config.autoCompleteFilter, config.moveLastUsedItemToTop, shortcuts]);
 
-  const findLocationSuggestions = useMemo(() => {
-    // Settings → Auto-Complete Path Names → Find Files Location
-    if (!config.findFilesLocation) return [];
-    if (!filterText.trim() || filterText.trimStart().startsWith('>')) return [];
+  const findLocationSuggestions = useMemo((): OmniSuggestItem[] => {
+    const raw = filterText;
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    // Live `>` command suggestions
+    if (trimmed.startsWith('>')) {
+      return matchOmnibarCommands(trimmed.slice(1), 10);
+    }
+
+    // Path autocomplete: always when input looks like a path; otherwise honor Find Files Location setting
+    if (!config.findFilesLocation && !looksLikeOmnibarPath(trimmed)) return [];
     const pathCandidates = (shortcuts || [])
       .filter((s): s is { name?: string; path: string } => !!s.path)
       .map(s => ({ path: s.path, label: s.name }));
@@ -6766,7 +6776,7 @@ ${classified.detail}`,
   const runAddressQuickScriptHandler = (raw: string, paneId: string) => {
     const pane = panes.find(p => p.id === paneId);
     const tabPath = pane?.tabs[pane.activeTabIndex]?.path || currentPath;
-    runAddressQuickScript(raw, {
+    return runAddressQuickScript(raw, {
       paneId,
       tabPath,
       refresh: () => { void refetchPath(tabPath); },
@@ -6809,6 +6819,7 @@ ${classified.detail}`,
    *   C:\path, D:\ etc.       — drive letters
    *   shell:Downloads etc.    — shell known folders
    *   \\server\share          — UNC paths
+   *   ::scripts               — address-bar quick scripts
    *
    * Command mode ('>' prefix):
    *   >refresh / >reload      — reload active folder
@@ -6818,14 +6829,20 @@ ${classified.detail}`,
    *   >rename                 — batch rename plugin
    *   >find [query]           — fast search plugin (or new finding tab if query given)
    *   >search [query]         — alias for >find
+   *   >go / >cd [path]        — navigate
    *   >metadata               — metadata inspector plugin
    *   >tabset                 — save tabset
    *   >palette / >commands    — open command palette
-   *   >plugins / >store       — open plugin marketplace
+   *   >plugins / >store / >hub — Extension Hub
    */
   const tryOmnibarSubmit = async (raw: string): Promise<boolean> => {
     const trimmed = raw.trim();
     if (!trimmed) return false;
+
+    // --- :: quick scripts (same as address bar) ---
+    if (trimmed.startsWith('::')) {
+      return runAddressQuickScriptHandler(trimmed, activePaneId);
+    }
 
     // --- Command mode: '>' prefix ---
     if (trimmed.startsWith('>')) {
@@ -6834,13 +6851,32 @@ ${classified.detail}`,
       const arg = restParts.join(' ');
       const lc = cmd.toLowerCase();
 
+      const navigateArg = async () => {
+        if (!arg.trim()) {
+          setToastMessage('Usage: >go <path>');
+          return;
+        }
+        const { IPC } = await import('../lib/ipcBridge');
+        const expand = (p: string) => IPC.expandEnvironmentPath(p);
+        const parsedPath = (await resolveUserPathToPane(arg.trim(), expand)) || parseUserPathToPane(arg.trim());
+        if (!parsedPath) {
+          setToastMessage(`Could not resolve path: ${arg}`);
+          return;
+        }
+        const newPath = resolveShellKnownFolderToFs(parsedPath, shortcuts);
+        setCurrentPath(newPath, activePaneId);
+      };
+
       const commandTable: Record<string, () => void> = {
         refresh:   () => { void refetchPath(currentPath); setToastMessage('Folder refreshed.'); },
         reload:    () => { void refetchPath(currentPath); setToastMessage('Folder refreshed.'); },
+        r:         () => { void refetchPath(currentPath); setToastMessage('Folder refreshed.'); },
         dual:      toggleDualPane,
         split:     toggleDualPane,
+        dp:        toggleDualPane,
         preview:   togglePreviewPanel,
         inspector: togglePreviewPanel,
+        i:         togglePreviewPanel,
         settings:  () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
         config:    () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
         rename:    () => openBottomPlugin('batch-rename'),
@@ -6856,6 +6892,8 @@ ${classified.detail}`,
         commands:  () => setIsCommandPaletteOpen(true),
         plugins:   () => setIsPluginStoreOpen(true),
         store:     () => setIsPluginStoreOpen(true),
+        go:        () => { void navigateArg(); },
+        cd:        () => { void navigateArg(); },
       };
 
       const handler = commandTable[lc];
@@ -6863,21 +6901,12 @@ ${classified.detail}`,
         handler();
         return true;
       }
-      setToastMessage(`Unknown command: '${cmd}'. Try: refresh, dual, preview, settings, find, search, terminal, filters, palette, plugins`);
+      setToastMessage(`Unknown command: '${cmd}'. Try: refresh, dual, preview, settings, find, go, terminal, filters, palette, hub`);
       return true; // consumed — error toast shown
     }
 
     // --- Path navigation mode (no prefix required) ---
-    // Recognise: %VAR%, drive letters (C:\...), shell:..., \\UNC, bare drive (C:), known folders
-    const looksLikePath = (s: string) =>
-      /^%[A-Za-z_]/.test(s) ||
-      /^[A-Za-z]:[\\\/]/.test(s) ||
-      /^[A-Za-z]:$/.test(s) ||
-      s.toLowerCase().startsWith('shell:') ||
-      s.startsWith('\\\\') ||
-      /^(appdata|localappdata|temp|tmp|userprofile|home|desktop|downloads|documents)$/i.test(s);
-
-    if (!looksLikePath(trimmed)) return false;
+    if (!looksLikeOmnibarPath(trimmed)) return false;
 
     const { IPC } = await import('../lib/ipcBridge');
     const expand = (p: string) => IPC.expandEnvironmentPath(p);
@@ -9831,7 +9860,7 @@ ${classified.detail}`,
       const p = panes.find(x => x.id === paneId);
       void refetchPath(p?.tabs[p?.activeTabIndex ?? 0]?.path || '/');
     },
-    openFavorites: () => setRapidAccessPopupOpen(true),
+    openFavorites: () => setOmnibarHubOpen(true),
     openEditMenu: () => setOpenMenuId('Edit'),
     openSmallTabMenu: (x: number, y: number) => openTabContextMenuAt(paneId, tabIndex ?? 0, x, y),
     autosizeColumns: () => {
@@ -11363,7 +11392,9 @@ ${classified.detail}`,
                  <AddressAutocompleteDropdown
                    suggestions={addressSuggestions}
                    selectedIndex={addressSuggestIndex}
-                   onSelect={path => {
+                   onSelect={item => {
+                     if (item.kind === 'command') return;
+                     const path = item.path;
                      setCurrentPath(path, pane.id);
                      setEditingAddressBarPaneId(null);
                      // Settings → Select match on drop down: highlight same-named item in the opened folder.
@@ -15277,16 +15308,36 @@ ${classified.detail}`,
          </div>
       </div>
 
-      {/* Omni-Filter Bar + docked selection actions (opt-in via Appearance) */}
+      {/* Omni-Filter / Command Bar + docked selection actions (opt-in via Appearance) */}
       <div className="shrink-0 relative z-30">
-      <div data-tutorial="omnibar" className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0 gap-2" style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}>
-         <Icons8Icon id="search" size={14} className="mr-2 opacity-60" />
+      <div
+        data-tutorial="omnibar"
+        className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0 gap-2"
+        style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}
+        title="Filter · path · >command · ::script — double-click for Command Hub"
+        onDoubleClick={(e) => {
+          const t = e.target as HTMLElement;
+          // Empty bar / chrome / icon → Command Hub. Filled input keeps word-select.
+          if (t.tagName === 'INPUT' && filterText.trim()) return;
+          e.preventDefault();
+          const handled = dispatchCustomEvent(config, 'double-click-white-omnibar', buildCeaHandlers(activePaneId));
+          if (!handled) setOmnibarHubOpen(true);
+        }}
+      >
+         <button
+           type="button"
+           className="bndz-omnibar-hub-trigger shrink-0 opacity-70 hover:opacity-100 p-0.5 rounded"
+           title="Open Command Hub (places, paths, commands)"
+           onClick={() => setOmnibarHubOpen(true)}
+         >
+           <Icons8Icon id="search" size={14} />
+         </button>
          <input 
             ref={omniFilterRef}
             type="text"
             className="bndz-omnibar-input flex-1 text-white border border-[#444] px-2 py-[2px] text-[12px] focus:outline-none transition-colors placeholder-[#666]"
             style={{ background: 'var(--bndz-surface-raised)' }}
-            placeholder="Filter files… Enter %VAR%, C:\, shell: or drive to navigate · >command to run"
+            placeholder="Filter · path · >command · ::script — dbl-click for Hub"
             value={filterText}
             onChange={(e) => {
                if (activeTab.viewLocked) {
@@ -15294,6 +15345,7 @@ ${classified.detail}`,
                  return;
                }
                setFilterText(e.target.value);
+               setFindSuggestIndex(0);
             }}
             onFocus={(e) => {
               listTypeAheadArmedRef.current = false;
@@ -15303,11 +15355,48 @@ ${classified.detail}`,
             }}
             onKeyDown={(e) => {
                if (e.key === 'Escape') {
+                   if (findLocationSuggestions.length) {
+                     setFindSuggestIndex(0);
+                   }
                    setFilterText('');
                    omniFilterRef.current?.blur();
+               } else if (e.key === 'ArrowDown' && findLocationSuggestions.length) {
+                 e.preventDefault();
+                 setFindSuggestIndex(i => (i + 1) % findLocationSuggestions.length);
+               } else if (e.key === 'ArrowUp' && findLocationSuggestions.length) {
+                 e.preventDefault();
+                 setFindSuggestIndex(i => (i - 1 + findLocationSuggestions.length) % findLocationSuggestions.length);
+               } else if (e.key === 'Tab' && findLocationSuggestions.length) {
+                 e.preventDefault();
+                 const item = findLocationSuggestions[findSuggestIndex];
+                 if (item?.kind === 'command') {
+                   setFilterText(item.insert.endsWith(' ') ? item.insert : `${item.insert} `);
+                 } else if (item && 'path' in item) {
+                   setFilterText(formatUiPath(item.path));
+                 }
+               } else if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+                 e.preventDefault();
+                 setOmnibarHubOpen(true);
                } else if (e.key === 'Enter') {
                  const v = (e.target as HTMLInputElement).value;
                  e.preventDefault();
+                 const item = findLocationSuggestions[findSuggestIndex];
+                 if (item && findLocationSuggestions.length) {
+                   if (item.kind === 'command') {
+                     void tryOmnibarSubmit(item.insert).then(handled => {
+                       if (handled) {
+                         setFilterText('');
+                         omniFilterRef.current?.blur();
+                       }
+                     });
+                     return;
+                   }
+                   setCurrentPath(item.path, activePaneId);
+                   setFilterText('');
+                   setFindSuggestIndex(0);
+                   omniFilterRef.current?.blur();
+                   return;
+                 }
                  // Try navigation / command first; fall through to toggle-filter-clear if not handled
                  void tryOmnibarSubmit(v).then(handled => {
                    if (handled) {
@@ -15334,15 +15423,27 @@ ${classified.detail}`,
           <AddressAutocompleteDropdown
             suggestions={findLocationSuggestions}
             selectedIndex={findSuggestIndex}
-            onSelect={(path) => {
-              setCurrentPath(path, activePaneId);
+            onSelect={(item) => {
+              if (item.kind === 'command') {
+                void tryOmnibarSubmit(item.insert).then(handled => {
+                  if (handled) {
+                    setFilterText('');
+                    setFindSuggestIndex(0);
+                    omniFilterRef.current?.blur();
+                  } else {
+                    setFilterText(item.insert);
+                  }
+                });
+                return;
+              }
+              setCurrentPath(item.path, activePaneId);
               setFilterText('');
               setFindSuggestIndex(0);
               if (config.selectMatchOnDropDown) {
-                const leaf = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
+                const leaf = item.path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
                 if (leaf) {
                   queueMicrotask(() => {
-                    const items = pathContentsCacheRef.current[normalizePanePath(path)] || [];
+                    const items = pathContentsCacheRef.current[normalizePanePath(item.path)] || [];
                     const hit = items.find((x: any) => String(x.name || '').toLowerCase() === leaf.toLowerCase());
                     if (hit) {
                       setSelectedItems([hit.id], activePaneId);
@@ -16501,11 +16602,21 @@ ${classified.detail}`,
         </Suspense>
       )}
 
-      <RapidAccessPopup
-        open={rapidAccessPopupOpen}
-        items={rapidAccessItems}
-        onClose={() => setRapidAccessPopupOpen(false)}
+      <OmnibarCommandHub
+        open={omnibarHubOpen}
+        places={rapidAccessItems}
+        recent={config.navigationHistory || []}
+        onClose={() => setOmnibarHubOpen(false)}
         onNavigate={(path) => setCurrentPath(normalizePanePath(path))}
+        onRunCommand={(line) => {
+          void tryOmnibarSubmit(line).then((handled) => {
+            if (handled) setFilterText('');
+          });
+        }}
+        onInsert={(text) => {
+          setFilterText(text);
+          queueMicrotask(() => omniFilterRef.current?.focus());
+        }}
       />
 
       {tabContextMenu && (() => {

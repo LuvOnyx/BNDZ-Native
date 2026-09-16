@@ -1,40 +1,48 @@
 import React from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import type { PathSuggestion } from '../lib/addressAutocomplete';
+import type { OmnibarCommandSuggestion } from '../lib/omnibarCommands';
 import { formatUiPath } from '../lib/displayPath';
 
+export type OmniSuggestItem =
+  | (PathSuggestion & { kind?: 'path' })
+  | OmnibarCommandSuggestion;
+
 type Props = {
-  suggestions: PathSuggestion[];
+  suggestions: OmniSuggestItem[];
   selectedIndex: number;
-  onSelect: (path: string) => void;
+  onSelect: (item: OmniSuggestItem) => void;
   onHover: (index: number) => void;
 };
 
-/** FilePilot / XYplorer GoTo address autocomplete dropdown */
+/** Address / omnibar autocomplete — paths + `>` commands */
 export default function AddressAutocompleteDropdown({ suggestions, selectedIndex, onSelect, onHover }: Props) {
   if (!suggestions.length) return null;
 
   return (
-    <div className="absolute left-0 right-0 top-full z-50 mt-0.5 bg-[#2b2b2b] border border-[#454545] shadow-[0_2px_8px_rgba(0,0,0,0.35)] max-h-[240px] overflow-y-auto bndz-scrollbar">
-      {suggestions.map((s, i) => (
-        <button
-          key={s.path}
-          type="button"
-          className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] ${
-            i === selectedIndex ? 'bg-[#094771] text-[#cce4f7]' : 'text-gray-300 hover:bg-[#094771]/50'
-          }`}
-          onMouseEnter={() => onHover(i)}
-          onMouseDown={e => { e.preventDefault(); onSelect(s.path); }}
-        >
-          <Icons8Icon
-            id={s.source === 'favorite' ? 'zap_ui' : s.source === 'path' ? 'folder_open_ui' : 'clock_ui'}
-            size={11}
-            className="shrink-0"
-          />
-          <span className="font-medium truncate">{s.label}</span>
-          <span className="text-gray-500 truncate ml-auto font-mono text-[10px]">{formatUiPath(s.path)}</span>
-        </button>
-      ))}
+    <div className="bndz-omni-suggest absolute left-0 right-0 top-full z-50 mt-0.5 max-h-[280px] overflow-y-auto bndz-scrollbar">
+      {suggestions.map((s, i) => {
+        const isCmd = s.kind === 'command';
+        const label = isCmd ? s.label : s.label;
+        const sub = isCmd ? s.hint : formatUiPath(s.path);
+        const icon = isCmd
+          ? (s.icon || 'command')
+          : s.source === 'favorite' ? 'zap_ui' : s.source === 'path' ? 'folder_open_ui' : 'clock_ui';
+        return (
+          <button
+            key={isCmd ? `cmd:${s.id}` : s.path}
+            type="button"
+            className={`bndz-omni-suggest-row ${i === selectedIndex ? 'is-active' : ''}`}
+            onMouseEnter={() => onHover(i)}
+            onMouseDown={e => { e.preventDefault(); onSelect(s); }}
+          >
+            <Icons8Icon id={icon} size={11} className="shrink-0 opacity-80" />
+            <span className="font-medium truncate">{label}</span>
+            <span className="text-white/35 truncate ml-auto font-mono text-[10px]">{sub}</span>
+            {isCmd && <span className="bndz-omni-suggest-badge">Cmd</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
