@@ -163,8 +163,8 @@ function SortablePaneTab({
   const effectiveWidth = liveWidth ?? customWidth;
   const useCustom = !flexibleTabWidth && resizableTabs && typeof effectiveWidth === 'number' && effectiveWidth > 0;
 
-  // Light theme: CSS owns chip paint (pale strip + dark ink). Inline BG/color here
-  // would fight accent fills; only dark themes set chip tokens inline.
+  // Light theme: CSS owns chip paint. Dark themes: set text only —
+  // plaque / accent CSS owns background (inline `background` shorthand fought plaques and looked tiny).
   const isLightTheme =
     typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light');
   const style: React.CSSProperties = {
@@ -172,11 +172,9 @@ function SortablePaneTab({
       ? {}
       : applyColors
         ? {
-            background: isActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
             color: isActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)',
           }
         : {
-            background: isActive ? 'var(--tab-active-bg, var(--bndz-surface-raised))' : 'var(--tab-inactive-bg, var(--bndz-surface-chrome))',
             color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
           }),
     ...tabAccentStyle(tab.color, isActive),
@@ -226,7 +224,7 @@ function SortablePaneTab({
       style={style}
       data-tab-id={tab.id}
       data-tab-index={index}
-      className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[8px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow,filter] duration-75 ease-out ${
+      className={`relative bndz-tab-item flex items-center px-3.5 py-[7px] ml-[2px] rounded-t-[10px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow,filter] duration-75 ease-out ${
         flexibleTabWidth
           ? 'bndz-tab-item--flexible'
           : useCustom

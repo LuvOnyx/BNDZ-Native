@@ -1054,7 +1054,9 @@ export default function BNDZUI() {
       workspaceLayoutVersion: WORKSPACE_LAYOUT_VERSION,
       workspaceLayoutOuter: migrated.outer,
       workspaceLayoutMainRow: migrated.mainRow,
-      workspaceLayoutInner: config.workspaceLayoutInner ?? { ...DEFAULT_INNER_LAYOUT },
+      // Always restore the canonical bottom plugin height on layout bumps —
+      // keeping a persisted ~5–10% leaves the dock looking collapsed.
+      workspaceLayoutInner: { ...DEFAULT_INNER_LAYOUT },
     });
   }, [config.workspaceLayoutVersion]);
 
@@ -1132,8 +1134,19 @@ export default function BNDZUI() {
       patches.sidebarOrder = order;
       patches.showMiniTree = false;
     }
+    if ((config.productDefaultsVersion ?? 0) < 3) {
+      patches.productDefaultsVersion = 3;
+      // List names were shipping as muted #e0e0e0 — whiten unless the user already customized.
+      const listText = String(config.colorConfig10 || '').toLowerCase();
+      if (!listText || listText === '#e0e0e0' || listText === '#e0e0e0ff') {
+        patches.colorConfig10 = '#f3f4f6';
+      }
+      if ((config.tabBarHeight ?? 36) <= 36) {
+        patches.tabBarHeight = 40;
+      }
+    }
     if ((config.productDefaultsVersion ?? 0) < 2) {
-      patches.productDefaultsVersion = 2;
+      patches.productDefaultsVersion = Math.max(Number(patches.productDefaultsVersion) || 0, 2);
       patches.branchViewStrip = false;
       patches.theme = 'Midnight Cobalt';
       patches.applyColors = true;
@@ -1395,15 +1408,15 @@ export default function BNDZUI() {
 
   const resetBottomPanelLayout = React.useCallback(() => {
     if (bottomImmersive) return;
-    const targetMain = innerDefaultLayout.main!;
-    const targetBottom = innerDefaultLayout.bottom!;
+    const targetMain = DEFAULT_INNER_LAYOUT.main!;
+    const targetBottom = DEFAULT_INNER_LAYOUT.bottom!;
     lastDockedBottomPctRef.current = targetBottom;
     try {
       innerGroupRef.current?.setLayout({ main: targetMain, bottom: targetBottom });
     } catch { /* ignore */ }
     updateConfig({ workspaceLayoutInner: { main: targetMain, bottom: targetBottom } });
     bottomPanelRef.current?.expand();
-  }, [bottomImmersive, innerDefaultLayout, innerGroupRef, updateConfig, bottomPanelRef]);
+  }, [bottomImmersive, innerGroupRef, updateConfig, bottomPanelRef]);
 
   const saveInnerLayout = (layout: Record<string, number>) => {
     const bottomRaw = layout.bottom ?? innerDefaultLayout.bottom ?? 22;
@@ -1710,7 +1723,7 @@ export default function BNDZUI() {
       commandDeck: false,
       appearanceTabStyle: 'explorer',
       visualStyleTabs: 'Classic Explorer',
-      tabBarHeight: 36,
+      tabBarHeight: 40,
       makeSelectedTabBold: true,
     } as any);
   }, [installedPluginIdSet, openBottomPlugin, updateConfig]);
@@ -4244,8 +4257,13 @@ export default function BNDZUI() {
 
       if (mergeShellVerbs && !isVirtualLocation && shellPaths.length > 0) {
         try {
-          const { getCachedNativeContextMenu, setCachedNativeContextMenu, prefetchNativeContextMenu } = await import('../lib/nativeContextMenuCache');
-          const cachedNative = getCachedNativeContextMenu(cacheKey) as any[] | null;
+          const {
+            lookupNativeContextMenu,
+            storeNativeContextMenu,
+            prefetchNativeContextMenu,
+          } = await import('../lib/nativeContextMenuCache');
+          // Exact path OR extension/shape — paint immediately when warm.
+          const cachedNative = lookupNativeContextMenu(shellPaths) as any[] | null;
           if (cachedNative?.length) {
             initialNative = cachedNative;
             // Background refresh — signature gate avoids height thrash when unchanged.
@@ -4254,7 +4272,7 @@ export default function BNDZUI() {
                 const { IPC } = await import('../lib/ipcBridge');
                 const nativeItems = await IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
                 if (requestId !== contextMenuRequestRef.current) return;
-                if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
+                if (nativeItems?.length) storeNativeContextMenu(shellPaths, nativeItems);
                 setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
                   && nativeContextSignature(prev.nativeContextItems) !== nativeContextSignature(nativeItems)
                   ? { ...prev, nativeContextItems: nativeItems }
@@ -4262,33 +4280,21 @@ export default function BNDZUI() {
               } catch { /* ignore background refresh */ }
             })();
           } else {
-            // Await shell verbs before first paint (budget) so the list does not grow under the cursor.
-            const SHELL_OPEN_BUDGET_MS = 160;
+            // Paint BNDZ verbs immediately — never wait / never skeleton on cache miss.
+            pendingShell = true;
             const { IPC } = await import('../lib/ipcBridge');
             const fetchPromise = IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
-            const raced = await Promise.race([
-              fetchPromise.then(items => ({ ok: true as const, items })),
-              new Promise<{ ok: false }>(resolve => setTimeout(() => resolve({ ok: false }), SHELL_OPEN_BUDGET_MS)),
-            ]);
-            if (requestId !== contextMenuRequestRef.current) return;
-            if (raced.ok && raced.items?.length) {
-              initialNative = raced.items;
-              setCachedNativeContextMenu(cacheKey, raced.items);
-            } else {
-              pendingShell = true;
-              void fetchPromise.then(nativeItems => {
-                if (requestId !== contextMenuRequestRef.current) return;
-                if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
-                setShellExtensionsPending(false);
-                setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
-                  ? { ...prev, nativeContextItems: nativeItems || [] }
-                  : prev);
-              }).catch(err => {
-                if (requestId === contextMenuRequestRef.current) setShellExtensionsPending(false);
-                console.warn('Native context menu fetch failed', err);
-              });
-            }
-            // Warm sibling selection paths for next open.
+            void fetchPromise.then(nativeItems => {
+              if (requestId !== contextMenuRequestRef.current) return;
+              if (nativeItems?.length) storeNativeContextMenu(shellPaths, nativeItems);
+              setShellExtensionsPending(false);
+              setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+                ? { ...prev, nativeContextItems: nativeItems || [] }
+                : prev);
+            }).catch(err => {
+              if (requestId === contextMenuRequestRef.current) setShellExtensionsPending(false);
+              console.warn('Native context menu fetch failed', err);
+            });
             if (shellPaths.length === 1) prefetchNativeContextMenu(shellPaths[0], (p) => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>);
           }
         } catch (err) {
@@ -5159,7 +5165,7 @@ ${classified.detail}`,
     setMarqueeActive(false);
   }, [workspaceToolActive]);
 
-  // Warm native shell context menu verbs for the active folder + current selection (list open feels instant).
+  // Warm native shell context menu verbs by folder + selection + distinct extensions (first right-click feels instant).
   useEffect(() => {
     if (!(config.useNativeOSContextMenu || config.nativeContextMenu)) return;
     const path = normalizePanePath(currentPath);
@@ -5174,21 +5180,38 @@ ${classified.detail}`,
         return ent ? toWindowsPath(joinPanePath(currentPath, ent)) : '';
       })
       .filter(Boolean);
-    const warmPaths = selWins.length > 0 ? selWins.slice(0, 8) : [win];
+    // Sample visible files by distinct extension so shape cache covers first opens.
+    const extSeen = new Set<string>();
+    const extSamples: string[] = [];
+    for (const ent of contents) {
+      if (extSamples.length >= 6) break;
+      if (ent?.type === 'directory' || ent?.type === 'folder') continue;
+      const name = String(ent?.name || '');
+      const dot = name.lastIndexOf('.');
+      if (dot <= 0) continue;
+      const ext = name.slice(dot).toLowerCase();
+      if (extSeen.has(ext)) continue;
+      extSeen.add(ext);
+      const wp = toWindowsPath(joinPanePath(currentPath, ent));
+      if (wp) extSamples.push(wp);
+    }
+    const warmPaths = [
+      ...(selWins.length > 0 ? selWins.slice(0, 4) : [win]),
+      ...extSamples,
+    ].filter((p, i, arr) => arr.indexOf(p) === i);
     void import('../lib/ipcBridge').then(({ IPC }) => {
       if (!IPC.isNative || cancelled) return;
       void import('../lib/nativeContextMenuCache').then(({ prefetchNativeContextMenu }) => {
         if (cancelled) return;
         const fetchOne = (p: string) => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>;
-        if (warmPaths.length === 1) {
-          prefetchNativeContextMenu(warmPaths[0], fetchOne);
-          return;
+        for (const p of warmPaths.slice(0, 8)) {
+          prefetchNativeContextMenu(p, fetchOne);
         }
-        const multiKey = warmPaths.slice().sort().join('|');
-        prefetchNativeContextMenu(multiKey, () =>
-          IPC.fetchNativeContextMenuItems(warmPaths) as Promise<unknown[]>);
-        // Also warm the focused single path for single-item right-clicks.
-        prefetchNativeContextMenu(warmPaths[0], fetchOne);
+        if (selWins.length > 1) {
+          const multiKey = selWins.slice().sort().join('|');
+          prefetchNativeContextMenu(multiKey, () =>
+            IPC.fetchNativeContextMenuItems(selWins) as Promise<unknown[]>);
+        }
       });
     });
     return () => { cancelled = true; };
@@ -11213,7 +11236,7 @@ ${classified.detail}`,
         key={pane.id}
         data-pane-id={pane.id}
         className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden ${config.applyColors ? '' : 'bg-[#1c1c1c]'} ${isActive && isDualPane ? 'shadow-[inset_0_0_0_1px_rgba(59,130,246,0.6)] z-10' : ''} relative`}
-        style={config.applyColors ? { background: 'var(--list-bg)', color: 'var(--list-text)' } : { background: 'var(--list-bg, #1c1c1c)', color: 'var(--list-text, #d4d4d4)' }}
+        style={config.applyColors ? { background: 'var(--list-bg)', color: 'var(--list-text)' } : { background: 'var(--list-bg, #1c1c1c)', color: 'var(--list-text, #f3f4f6)' }}
         onClick={() => { setActivePaneId(pane.id); }}
       >
         {config.shadeInactivePane !== false && !isActive && isDualPane && (

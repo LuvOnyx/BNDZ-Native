@@ -2565,8 +2565,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  
                  <div className="flex items-center gap-[42px] mb-[8px] mt-2">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Tab bar height:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.tabBarHeight ?? 36} onChange={e => updateLocalConfig({ tabBarHeight: parseInt(e.target.value) })}>
-                       {[24, 26, 28, 30, 32, 36].map(n => <option key={n} value={n}>{n}px</option>)}
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.tabBarHeight ?? 40} onChange={e => updateLocalConfig({ tabBarHeight: parseInt(e.target.value) })}>
+                       {[24, 26, 28, 30, 32, 36, 40, 44].map(n => <option key={n} value={n}>{n}px</option>)}
                     </select>
                  </div>
                  <div className="flex items-center gap-[42px] mb-[8px]">

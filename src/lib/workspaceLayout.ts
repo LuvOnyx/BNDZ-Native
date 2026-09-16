@@ -11,7 +11,7 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 63;
+export const WORKSPACE_LAYOUT_VERSION = 64;
 
 /**
  * Canonical outer split (user-confirmed):
@@ -258,6 +258,11 @@ export function normalizeInnerLayout(raw: unknown): Layout {
     if (Math.abs(sum - 100) > 0.05) {
         main = (main / sum) * 100;
         bottom = (bottom / sum) * 100;
+    }
+
+    // Near-collapsed bottoms are almost always a bad persist — restore usable default.
+    if (bottom < 14) {
+        return { ...DEFAULT_INNER_LAYOUT };
     }
 
     main = clamp(main, MIN_INNER_LAYOUT.main!, 95);

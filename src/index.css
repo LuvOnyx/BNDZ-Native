@@ -6064,7 +6064,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   font-family: var(--bndz-font-list-family, var(--bndz-font-family));
   font-weight: 500;
   letter-spacing: 0;
-  color: var(--list-text, rgba(236, 242, 250, 0.92));
+  color: var(--list-text, #f3f4f6);
   min-width: 64px;
 }
 
@@ -6855,14 +6855,14 @@ html[data-col-resizing] * {
   cursor: col-resize !important;
 }
 
-/* Flat native list column headers — Explorer/File Pilot density, not segmented SaaS chips */
+/* Flat native list column headers — Explorer density with quieter dividers */
 .bndz-list-header-bar {
   gap: 0;
   padding: 0;
-  color: #9aa0a8;
+  color: #c4cad3;
   min-height: 28px;
   box-sizing: border-box;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 /* Matches .bndz-list-header-bar outer height — reserved when column headers are hidden but tools remain. */
@@ -6882,7 +6882,7 @@ html[data-col-resizing] * {
   align-items: center;
   gap: 3px;
   min-height: 26px;
-  padding: 3px 8px 3px 8px;
+  padding: 3px 10px 3px 10px;
   border-radius: 0;
   border: none;
   background: transparent;
@@ -6911,10 +6911,10 @@ html[data-col-resizing] * {
   content: '';
   position: absolute;
   right: 0;
-  top: 6px;
-  bottom: 6px;
+  top: 8px;
+  bottom: 8px;
   width: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
   pointer-events: none;
 }
 
@@ -6935,8 +6935,8 @@ html[data-col-resizing] * {
 }
 
 .bndz-list-col-header--sortable:hover {
-  color: #e5e7eb;
-  background: rgba(255, 255, 255, 0.045);
+  color: #f3f4f6;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .bndz-list-col-header--sortable:hover::before {
@@ -6944,10 +6944,10 @@ html[data-col-resizing] * {
 }
 
 .bndz-list-col-header--active {
-  color: #f3f6fa;
-  background: rgba(255, 255, 255, 0.035);
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.03);
   border: none;
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--col-accent) 72%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent, #0078d4) 70%, transparent);
 }
 
 .bndz-list-col-header--active::before {
@@ -6988,11 +6988,11 @@ html[data-col-resizing] * {
 }
 
 .bndz-list-sort-caret--asc {
-  border-bottom: 5px solid color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 55%, #fff);
+  border-bottom: 5px solid color-mix(in srgb, var(--accent, #0078d4) 65%, #fff);
 }
 
 .bndz-list-sort-caret--desc {
-  border-top: 5px solid color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 55%, #fff);
+  border-top: 5px solid color-mix(in srgb, var(--accent, #0078d4) 65%, #fff);
 }
 
 .bndz-col-reorder-grip {
@@ -7681,9 +7681,9 @@ html[data-density="spacious"] .nav-tree-row {
   min-width: var(--bndz-tab-min-width, 100px);
   max-width: var(--bndz-tab-max-width, 320px);
   width: max-content;
-  min-height: calc(var(--bndz-tab-bar-height, 36px) - 4px);
-  padding-left: 12px !important;
-  padding-right: 10px !important;
+  min-height: calc(var(--bndz-tab-bar-height, 40px) - 4px);
+  padding-left: 14px !important;
+  padding-right: 12px !important;
   --bndz-tab-slit: var(--accent, #0078d4);
 }
 
@@ -7870,19 +7870,20 @@ html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 8px 8px 0 0 !important;
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
-  padding-top: 6px !important;
-  padding-bottom: 7px !important;
+  border-radius: 10px 10px 0 0 !important;
+  /* Plaque SVG already chamfers — do not double-cut with clip-path */
+  clip-path: none;
+  padding-top: 7px !important;
+  padding-bottom: 8px !important;
   border-color: transparent !important;
   background-color: transparent !important; /* keep plaque background-image */
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item[data-tab-accent] {
-  border-radius: 8px 8px 0 0 !important;
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
-  padding-top: 6px !important;
-  padding-bottom: 7px !important;
+  border-radius: 10px 10px 0 0 !important;
+  clip-path: none;
+  padding-top: 7px !important;
+  padding-bottom: 8px !important;
 }
 
 html[data-tab-style="explorer"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
@@ -7908,10 +7909,10 @@ html[data-tab-style="explorer"] .bndz-tab-close:hover {
   color: #ffffff;
 }
 
-/* Soft Modern — instrument chips with chamfer + bottom slit */
+/* Soft Modern — instrument chips with bottom slit (plaque owns silhouette) */
 html[data-tab-style="soft"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 8px 8px 0 0 !important;
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
+  border-radius: 10px 10px 0 0 !important;
+  clip-path: none;
   margin-bottom: 0;
   border-color: transparent !important;
   background-color: transparent !important; /* plaque chip */
@@ -7919,8 +7920,8 @@ html[data-tab-style="soft"] .bndz-tab-item:not([data-tab-accent]) {
 }
 
 html[data-tab-style="soft"] .bndz-tab-item[data-tab-accent] {
-  border-radius: 8px 8px 0 0 !important;
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px);
+  border-radius: 10px 10px 0 0 !important;
+  clip-path: none;
   margin-bottom: 0;
 }
 
@@ -8401,7 +8402,7 @@ html[data-theme] .bndz-destination-picker-footer {
   }
 }
 
-/* Theme-aware context / menubar menus ? flat desktop density (Explorer-like) */
+/* Theme-aware context / menubar menus — flat desktop density (Explorer-like) */
 .bndz-context-menu,
 .bndz-context-submenu,
 .bndz-menubar-menu {
@@ -8412,19 +8413,19 @@ html[data-theme] .bndz-destination-picker-footer {
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.50),
     0 1px 0 rgba(255, 255, 255, 0.05) inset;
-  padding: 6px;
+  padding: 4px;
   contain: layout style;
   will-change: opacity, transform;
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .bndz-context-menu-item {
   color: var(--menu-text, #f3f4f6);
   margin: 0;
-  padding: 5px 12px 5px 10px;
-  min-height: 28px;
-  gap: 10px;
+  padding: 3px 10px 3px 8px;
+  min-height: 26px;
+  gap: 8px;
   border-radius: 4px;
   transition: background-color 50ms ease-out, color 50ms ease-out;
   will-change: auto;
@@ -8487,9 +8488,9 @@ html[data-theme] .bndz-destination-picker-footer {
 
 .bndz-context-menu-sep {
   height: 1px;
-  margin: 4px 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 0;
+  margin: 2px 8px;
+  background: color-mix(in srgb, var(--menu-border, #454545) 85%, transparent);
+  border: none;
 }
 
 /* While dragging a panel splitter, freeze list scroll/hit-testing underneath. */
@@ -8512,13 +8513,6 @@ html.bndz-panel-resizing .bndz-resize-handle {
 
 .bndz-context-chevron--open {
   opacity: 0.9;
-}
-
-.bndz-context-menu-sep {
-  height: 1px;
-  margin: 4px 10px;
-  background: color-mix(in srgb, var(--menu-border, #454545) 85%, transparent);
-  border: none;
 }
 
 /* Soft hit targets for legacy menubar / menu rows that still use Tailwind hover fills */
@@ -18255,11 +18249,11 @@ html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {
 }
 html[data-bndz-shell="files-host"] .bndz-tab-item,
 html[data-bndz-shell="native-host"] .bndz-tab-item {
-  border-radius: 6px 6px 0 0 !important;
-  min-height: 30px !important;
-  padding: 5px 12px !important;
+  border-radius: 10px 10px 0 0 !important;
+  min-height: calc(var(--bndz-tab-bar-height, 40px) - 4px) !important;
+  padding: 6px 14px !important;
   margin-right: 2px !important;
-  font-size: 12px !important;
+  font-size: 12.5px !important;
 }
 html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
 html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {

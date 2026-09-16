@@ -4,7 +4,7 @@ import { ContextMenuIcon } from './ContextMenuIcon';
 import { Icons8Icon } from './Icons8Icon';
 
 export const menuItemClass =
-  'bndz-context-menu-item flex items-center gap-2.5 cursor-default text-sm select-none leading-[24px]';
+  'bndz-context-menu-item flex items-center gap-2 cursor-default text-[13px] select-none leading-[22px]';
 
 export type ContextMenuTone = 'danger' | 'positive' | 'accent';
 

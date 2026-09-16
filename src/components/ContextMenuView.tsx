@@ -186,7 +186,6 @@ function ContextMenuView({
   const shellSlots = shellMergeEnabled
     ? partitionShellMergeItems(supplementalNative)
     : { open: [], clipboard: [], cascades: [], tools: [], footer: [] };
-  const shellPending = shellMergeEnabled && shellExtensionsPending && supplementalNative.length === 0;
   /** After shell verbs merge in, briefly ignore clicks so layout settle doesn't steal a fast click. */
   const [shellMergeSettling, setShellMergeSettling] = useState(false);
   const prevShellCountRef = useRef(0);
@@ -194,7 +193,7 @@ function ContextMenuView({
     const n = supplementalNative.length;
     if (n > 0 && prevShellCountRef.current === 0 && !shellExtensionsPending) {
       setShellMergeSettling(true);
-      const t = window.setTimeout(() => setShellMergeSettling(false), 160);
+      const t = window.setTimeout(() => setShellMergeSettling(false), 48);
       prevShellCountRef.current = n;
       return () => window.clearTimeout(t);
     }
@@ -486,33 +485,14 @@ function ContextMenuView({
   const renderShellSlot = (slot: ShellMergeSlot, opts?: { pending?: boolean; withSep?: boolean }) => {
     if (!shellMergeEnabled) return null;
     const items = shellSlots[slot];
-    // Reserve height for any shell slot while pending — cascades/tools/open all grow the menu.
-    const showPending = !!opts?.pending && shellPending && items.length === 0;
-    if (!showPending && !items.length) return null;
-    const pendingMin =
-      slot === 'cascades' ? 88
-        : slot === 'tools' ? 72
-          : slot === 'open' ? 48
-            : 56;
+    // No skeleton placeholders — paint static BNDZ verbs immediately; shell rows patch in silently.
+    if (!items.length) return null;
     return (
       <>
         {(opts?.withSep !== false) && <div className="bndz-context-menu-sep" />}
-        {showPending ? (
-          <div className="bndz-context-menu-shell-skeleton" style={{ minHeight: pendingMin }} aria-hidden>
-            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '72%' }} />
-            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '54%' }} />
-            {slot === 'cascades' && (
-              <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '63%' }} />
-            )}
-          </div>
-        ) : (
-          <div
-            className={shellMergeSettling ? 'bndz-context-menu-shell-settling' : undefined}
-            style={items.length ? { minHeight: Math.max(pendingMin, items.length * 28) } : undefined}
-          >
-            {items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))}
-          </div>
-        )}
+        <div className={shellMergeSettling ? 'bndz-context-menu-shell-settling' : undefined}>
+          {items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))}
+        </div>
       </>
     );
   };

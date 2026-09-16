@@ -58,7 +58,7 @@ export const COLOR_CONFIG_FIELDS: ColorConfigField[] = [
   { key: 'colorConfig8', label: 'Inactive Tab Text', default: '#888888', previewText: '#1a1a1a', section: 'tabs', applyAs: 'foreground' },
   { key: 'colorConfig9', label: 'Inactive Tab Background', default: '#1a1a1a', previewText: '#888888', section: 'tabs', applyAs: 'background' },
 
-  { key: 'colorConfig10', label: 'List Text', default: '#e0e0e0', previewText: '#1c1c1c', section: 'list', applyAs: 'foreground' },
+  { key: 'colorConfig10', label: 'List Text', default: '#f3f4f6', previewText: '#1c1c1c', section: 'list', applyAs: 'foreground' },
   { key: 'colorConfig11', label: 'List Background', default: '#1c1c1c', previewText: '#e0e0e0', section: 'list', applyAs: 'background' },
   { key: 'colorConfig12', label: 'Alternate Row', default: '#222222', previewText: '#e0e0e0', section: 'list', applyAs: 'background' },
   { key: 'colorConfig13', label: 'Hover Row', default: '#2a2d2e', previewText: '#ffffff', section: 'list', applyAs: 'background' },
