@@ -2738,7 +2738,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             <TabsContent value="Bottom Panel" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Bottom Panel</h1>
               <p className="text-[12px] text-gray-400 mb-6 max-w-[520px]">
-                Control the plugin dock at the bottom of the workspace. Drag tabs on the panel itself to reorder them — order is saved automatically.
+                Control the bottom plugin panel. Drag tabs on the panel itself to reorder them — order is saved automatically.
               </p>
 
               <SectionHeader title="Visibility &amp; Startup" />

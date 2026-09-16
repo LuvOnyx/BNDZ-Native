@@ -368,7 +368,7 @@ export default function BottomPluginPanel(props: any & {
             type="button"
             className="bndz-bottom-immersive-exit"
             onClick={() => onExitImmersive?.()}
-            title="Restore docked panel (Esc)"
+            title="Restore panel (Esc)"
           >
             <Icons8Icon id="chevron_down" size={12} />
             Restore
@@ -377,7 +377,7 @@ export default function BottomPluginPanel(props: any & {
             Immersive · {activePlugin?.name || 'Plugin'}
           </span>
           <span className="text-[10px] text-gray-500 ml-auto">
-            Covers the file list · Esc to restore
+            Covers the file list · Esc restores the panel
           </span>
         </div>
       )}

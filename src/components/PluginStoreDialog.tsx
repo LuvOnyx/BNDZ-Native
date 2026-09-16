@@ -273,8 +273,8 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           <span className="bndz-hub-stat-orb bndz-hub-stat-orb--available">{stats.available}</span>
           available
         </span>
-        <span className="ml-auto text-[10px] tracking-[0.08em] uppercase text-white/20 font-medium">
-          BNDZ Extension Hub
+        <span className="ml-auto text-[10px] tracking-[0.06em] text-white/25 font-medium">
+          Extension Hub
         </span>
       </div>
 

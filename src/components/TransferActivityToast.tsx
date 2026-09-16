@@ -115,11 +115,11 @@ export default function TransferActivityToast() {
       >
         <span className="bndz-xfer-toast-orb" aria-hidden>
           {running ? (
-            <EmblemIcon id="state-sync" size={16} className="bndz-xfer-toast-spin" />
+            <EmblemIcon id="state-sync" size={13} className="bndz-xfer-toast-spin" />
           ) : primary?.status === 'failed' ? (
-            <EmblemIcon id="state-error" size={16} />
+            <EmblemIcon id="state-error" size={13} />
           ) : (
-            <EmblemIcon id="state-ok" size={16} />
+            <EmblemIcon id="state-ok" size={13} />
           )}
         </span>
         <span className="bndz-xfer-toast-title min-w-0 flex-1 truncate">

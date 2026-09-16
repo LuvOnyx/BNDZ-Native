@@ -260,10 +260,10 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         <Checkbox
           label={
             <>
-              Dock preview above bottom plugin panel
+              Place preview above the bottom plugin panel
               <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
                 Off (default): classic layout — preview is full-height on the right; bottom plugins span only under the file list.
-                On: preview shares the list row and sits above the plugin dock.
+                On: preview shares the list row and sits above the bottom plugin panel.
               </span>
             </>
           }

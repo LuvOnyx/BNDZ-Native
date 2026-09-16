@@ -1260,7 +1260,7 @@ export default function BNDZUI() {
       : { list: 100, preview: 0 }),
     [config.workspaceLayoutMainRow, effectivePreviewOpen, previewDockedInWorkspace],
   );
-  /** Updated after pane state — workspace tools hide the bottom plugin dock. */
+  /** Updated after pane state — workspace tools hide the bottom plugin panel. */
   const layoutBottomOpenRef = useRef(effectiveBottomOpen);
 
   const outerLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -13731,9 +13731,9 @@ ${classified.detail}`,
           import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize'));
         }}
       >
-         <div className="flex items-center gap-2 pl-3 pr-3 border-r border-[#444] shrink-0 h-full" data-bndz-menubar-logo style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-            <img src={BNDZ_APP_ICON} alt="BNDZ" className={`${isNativeShellHostBoot() ? 'w-7 h-7' : 'w-12 h-12'} rounded-[9px] object-cover object-center drop-shadow-md shrink-0`} draggable={false} />
-            <span className="text-[12px] font-bold tracking-widest text-gray-200 uppercase hidden sm:inline">BNDZ</span>
+         <div className="flex items-center gap-1.5 pl-2.5 pr-2.5 border-r border-[#444] shrink-0 h-full" data-bndz-menubar-logo style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-5 h-5 rounded-[5px] object-cover object-center shrink-0" draggable={false} />
+            <span className="text-[11px] font-semibold tracking-wide text-gray-300 hidden sm:inline">BNDZ</span>
          </div>
          <div
            className="flex items-center shrink-0 px-1 min-w-0 overflow-x-auto overflow-y-visible scrollbar-hidden"
@@ -15271,7 +15271,7 @@ ${classified.detail}`,
             <ToolbarButton launcherIcon={launcherIconUrl('toggle_dual_pane')} className="ml-1" title="Toggle Dual Pane View" onClick={toggleDualPane} />
          )}
          <div className="flex-1"></div>
-         <ToolbarButton launcherIcon={launcherIconUrl('extension_hub')} title="Extension Hub (Plugin Marketplace)" onClick={() => setIsPluginStoreOpen(true)} />
+         <ToolbarButton launcherIcon={launcherIconUrl('extension_hub')} title="Extension Hub" onClick={() => setIsPluginStoreOpen(true)} />
          <ToolbarButton launcherIcon={launcherIconUrl('toggle_bottom')} title={workspaceToolActive ? 'Bottom panel hidden in workspace tools' : (uiRuntime.bottomPanel ? 'Toggle Bottom Plugin Panel' : 'Bottom panel disabled in settings')} onClick={toggleBottomPanel} className={!uiRuntime.bottomPanel || workspaceToolActive ? 'opacity-40 pointer-events-none' : ''} />
          <ToolbarButton launcherIcon={launcherIconUrl('toggle_preview')} title={uiRuntime.previewPanel ? "Toggle Right Side Preview Panel" : "Preview panel disabled in settings"} onClick={togglePreviewPanel} className={!uiRuntime.previewPanel ? 'opacity-40 pointer-events-none' : ''} />
          </div>
@@ -15284,7 +15284,7 @@ ${classified.detail}`,
          <input 
             ref={omniFilterRef}
             type="text"
-            className="flex-1 text-white border border-[#444] rounded px-2 py-[2px] text-[12px] focus:outline-none focus:border-blue-500 transition-colors placeholder-[#666]"
+            className="bndz-omnibar-input flex-1 text-white border border-[#444] px-2 py-[2px] text-[12px] focus:outline-none transition-colors placeholder-[#666]"
             style={{ background: 'var(--bndz-surface-raised)' }}
             placeholder="Filter files… Enter %VAR%, C:\, shell: or drive to navigate · >command to run"
             value={filterText}
