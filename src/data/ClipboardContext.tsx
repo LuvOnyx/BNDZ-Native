@@ -482,10 +482,8 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Always refresh the paste target so the list updates even if FS watch is quiet.
+    // Single coalesced invalidate — double 0+500ms refresh caused flicker on small pastes.
     window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
-    window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
-    }, 500);
 
     // Background ack is not completion — leave list refresh to the transfer queue listener.
     // Cut clipboard still clears (Explorer clears Cut on paste start); do not toast “done”.

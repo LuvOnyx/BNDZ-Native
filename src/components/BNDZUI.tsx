@@ -4460,6 +4460,11 @@ export default function BNDZUI() {
       });
 
       xferMetaRef.current.set(opId, { op: 'delete', label });
+      try {
+        window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
+          detail: { opId, op: 'delete', label },
+        }));
+      } catch { /* ignore */ }
       // Progress lives only in FileTransferQueuePanel — no center sticky toasts.
       IPC.executeFsOperation(opId, 'delete', winPaths, '', bypassRecycle, label, 'high');
       // Skip aggressive RAM refetch — tombstones keep rows hidden until the job completes.
@@ -4729,6 +4734,7 @@ export default function BNDZUI() {
     const completed = new Set<string>();
     const refreshCategories = new Set(['fs', 'recycle', 'archive', 'folder-sync', 'mesh']);
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let midRunRefreshAt = 0;
     const unsub = IPC.onFileTransferQueueChanged(state => {
       const queuedOrRunning = state.jobs.filter(j =>
         j.status === 'queued' || j.status === 'running' || j.status === 'paused',
@@ -4741,15 +4747,26 @@ export default function BNDZUI() {
       let batchIsDeleteOnly = true;
       let hasDeleteFailure = false;
       const failedTombstoneClears: string[] = [];
+      const pathsToRefresh = new Set<string>();
+      const enqueuePath = (raw?: string | null) => {
+        if (!raw) return;
+        const pane = watcherDirToPanePath(String(raw));
+        if (pane) pathsToRefresh.add(normalizePanePath(pane));
+      };
 
       for (const job of state.jobs) {
         if (!refreshCategories.has(job.category || 'fs')) continue;
-        // Refresh destination while copy/move is still running so pasted items appear live.
+        // Throttled mid-run dest refresh — keeps optimistic rows stable on small ops.
         if ((job.status === 'queued' || job.status === 'running') && job.destinationPath) {
           const destPane = watcherDirToPanePath(String(job.destinationPath));
           if (destPane && panesRef.current.some(p => p.tabs.some(t => normalizePanePath(t.path) === destPane))) {
-            shouldRefresh = true;
-            batchIsDeleteOnly = false;
+            const now = Date.now();
+            if (now - midRunRefreshAt > 800) {
+              midRunRefreshAt = now;
+              shouldRefresh = true;
+              batchIsDeleteOnly = false;
+              enqueuePath(job.destinationPath);
+            }
           }
         }
         if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
@@ -4764,9 +4781,14 @@ export default function BNDZUI() {
 
             const isDelete = action === 'delete' || meta?.op === 'delete';
             const isMove = action === 'move' || meta?.op === 'move' || action === 'mesh-move';
+            const isCopy = action === 'copy' || meta?.op === 'copy' || action === 'mesh-copy';
             const pendingOp = pendingFsOpsRef.current.get(job.operationId);
             const isRename = pendingOp?.kind === 'rename' || job.operationId.startsWith('rename-');
             if (!isDelete) batchIsDeleteOnly = false;
+            enqueuePath(job.destinationPath);
+            if (pendingOp?.namesByPane) {
+              for (const pane of Object.keys(pendingOp.namesByPane)) enqueuePath(pane);
+            }
             if ((isDelete || isMove || isRename) && (job.status === 'failed' || job.status === 'cancelled')) {
               hasDeleteFailure = true;
               // Instant reinject — don't wait for disk refresh (blank gap after optimistic hide).
@@ -4777,7 +4799,7 @@ export default function BNDZUI() {
             } else if ((isDelete || isMove) && job.status === 'completed') {
               // Keep tombstones through disk refresh — prevents flicker-back when listing lags AV/recycle.
               const opId = job.operationId;
-              const tombstoneClearMs = isDelete ? 1500 : 3200;
+              const tombstoneClearMs = isDelete ? 900 : 1800;
               setTimeout(() => clearFsTombstone(opId), tombstoneClearMs);
             } else {
               clearFsTombstone(job.operationId);
@@ -4923,16 +4945,21 @@ ${classified.detail}`,
                 });
               }
             } else if (job.status === 'completed') {
-              const doneVerb = isDelete ? 'Deleted'
-                : action === 'move' || meta?.op === 'move' || action === 'mesh-move' ? 'Move complete'
-                : action === 'copy' || meta?.op === 'copy' || action === 'mesh-copy' ? 'Copy complete'
-                : action === 'mesh-upload' ? 'Upload complete'
-                : action === 'mesh-download' ? 'Download complete'
-                : job.operationId.startsWith('archive-') ? 'Archive created'
-                : job.operationId.startsWith('extract-') ? 'Extraction complete'
-                : 'Transfer complete';
-              pushToast({ kind: 'success', title: doneVerb, message: label });
-              if (isDelete || isMove || action === 'copy' || meta?.op === 'copy' || meta?.op === 'move') {
+              // Floating toast / transfer panel already surface success — skip center success spam
+              // for ordinary copy/move/delete (keep mesh/archive and failure messaging).
+              const quietSuccess = isDelete || isMove || isCopy;
+              if (!quietSuccess) {
+                const doneVerb = isDelete ? 'Deleted'
+                  : action === 'move' || meta?.op === 'move' || action === 'mesh-move' ? 'Move complete'
+                  : action === 'copy' || meta?.op === 'copy' || action === 'mesh-copy' ? 'Copy complete'
+                  : action === 'mesh-upload' ? 'Upload complete'
+                  : action === 'mesh-download' ? 'Download complete'
+                  : job.operationId.startsWith('archive-') ? 'Archive created'
+                  : job.operationId.startsWith('extract-') ? 'Extraction complete'
+                  : 'Transfer complete';
+                pushToast({ kind: 'success', title: doneVerb, message: label });
+              }
+              if (isDelete || isMove || isCopy) {
                 refreshUndoRedoState();
               }
               if (meta?.op === 'move' && meta.selectParentPath && config.selectParentOfMovedFolder) {
@@ -4944,19 +4971,22 @@ ${classified.detail}`,
       }
       if (shouldRefresh) {
         if (refreshTimer) clearTimeout(refreshTimer);
-        // Delete completions: refresh immediately — tombstones already hid the rows so the only
-        // purpose of the refresh is FS truth confirmation, which should feel instant.
-        // A failed delete also needs an immediate refresh to restore tombstoned rows.
-        // Copy/move/archive: keep the 400ms anti-flicker buffer.
-        const delay = (batchIsDeleteOnly || hasDeleteFailure) ? 0 : 400;
+        // Instant confirmation refresh for ordinary FS ops — optimism already updated the list.
+        // Tiny delay only when coalescing a mid-run dest tick with a completion in the same burst.
+        const delay = (batchIsDeleteOnly || hasDeleteFailure || pathsToRefresh.size > 0) ? 0 : 50;
         const clears = failedTombstoneClears.slice();
+        const scoped = [...pathsToRefresh];
         refreshTimer = setTimeout(() => {
           void (async () => {
             for (const opId of clears) {
               try { await IPC.tombstoneClear?.(opId); } catch { /* ignore */ }
               pendingFsOpsRef.current.delete(opId);
             }
-            refreshWorkspace();
+            if (scoped.length) {
+              for (const p of scoped) invalidatePath(p);
+            } else {
+              refreshPathsForPanes();
+            }
           })();
         }, delay);
       }
@@ -4965,7 +4995,7 @@ ${classified.detail}`,
       unsub();
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [refreshPathsForPanes, config.selectParentOfMovedFolder, clearFsTombstone, reinjectFsTombstone, refreshUndoRedoState]);
+  }, [refreshPathsForPanes, invalidatePath, config.selectParentOfMovedFolder, clearFsTombstone, reinjectFsTombstone, refreshUndoRedoState]);
 
   useEffect(() => {
     if (config.showTopMenubar === false || config.showTopMenuBar === false) return;
@@ -7027,6 +7057,11 @@ ${classified.detail}`,
       });
     }
     const winDest = (await resolvePanePathForFs(dest)).replace(/\\$/, '');
+    try {
+      window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
+        detail: { opId, op: mode, label, dest },
+      }));
+    } catch { /* ignore */ }
     void IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high').then(res => {
       if (!isQueuedIpcResult(res) && !res.ok && mode === 'move') {
         reinjectFsTombstone(opId);
@@ -7332,6 +7367,11 @@ ${classified.detail}`,
           return next;
         });
       }
+      try {
+        window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
+          detail: { opId, op, label, dest: destWin },
+        }));
+      } catch { /* ignore */ }
       void IPC.executeFsOperation(opId, op, resolvedSources, destWin, false, label, 'high').then(res => {
         if (!isQueuedIpcResult(res) && !res.ok && op === 'move') {
           reinjectFsTombstone(opId);

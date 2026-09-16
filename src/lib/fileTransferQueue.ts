@@ -1,6 +1,6 @@
 import type { FileTransferJobDto, FileTransferQueueState } from './ipcBridge';
 
-const COMPLETED_VISIBLE_MS = 45_000;
+const COMPLETED_VISIBLE_MS = 2_500;
 
 /** Shared hook for the native file-transfer queue (background jobs). */
 export function useFileTransferQueue(

@@ -15,8 +15,8 @@ function jobIsActive(j: FileTransferJobDto): boolean {
 const EMPTY_QUEUE: FileTransferQueueState = { queuedCount: 0, activeCount: 0, jobs: [] };
 
 /**
- * Floating transfer loader — visible while copy/move/delete/empty-recycle run,
- * so background processing is never a silent minute-long wait.
+ * Floating transfer loader — push-first; light fallback poll only while idle.
+ * Small ops should appear instantly via `bndz-transfer-started` and leave quickly.
  */
 export default function TransferActivityToast() {
   const [queue, setQueue] = useState<FileTransferQueueState>(EMPTY_QUEUE);
@@ -25,54 +25,34 @@ export default function TransferActivityToast() {
 
   useEffect(() => {
     IPC.init();
-    let pollMs = 700;
     let poll = 0;
+    let lastPushAt = Date.now();
 
     function pull() {
       void IPC.getFileTransferQueue().then((state) => {
         if (!state) return;
         setQueue(state);
-        if (isTransferActive(state)) {
-          setOptimistic(null);
-          bumpHot();
-        } else {
-          bumpIdle();
-        }
+        if (isTransferActive(state)) setOptimistic(null);
       }).catch(() => {});
     }
 
-    function bumpHot() {
-      if (pollMs === 160) return;
-      pollMs = 160;
-      window.clearInterval(poll);
-      poll = window.setInterval(pull, pollMs);
-    }
-
-    function bumpIdle() {
-      if (pollMs === 700) return;
-      pollMs = 700;
-      window.clearInterval(poll);
-      poll = window.setInterval(pull, pollMs);
-    }
-
     const unsub = IPC.onFileTransferQueueChanged((state: FileTransferQueueState) => {
+      lastPushAt = Date.now();
       setQueue(state);
-      if (isTransferActive(state)) {
-        setOptimistic(null);
-        bumpHot();
-      } else {
-        bumpIdle();
-      }
+      if (isTransferActive(state)) setOptimistic(null);
     });
     pull();
-    poll = window.setInterval(pull, pollMs);
+    // Fallback only: if pushes go quiet for 2.5s, soft-poll once per 2s (not 160ms hot loop).
+    poll = window.setInterval(() => {
+      if (Date.now() - lastPushAt > 2500) pull();
+    }, 2000);
+
     const onOptimistic = (e: Event) => {
       const d = (e as CustomEvent<{ label?: string }>).detail;
       setOptimistic({
         label: d?.label || 'Transfer',
-        until: Date.now() + 12_000,
+        until: Date.now() + 4_000,
       });
-      bumpHot();
       pull();
     };
     window.addEventListener('bndz-transfer-started', onOptimistic as EventListener);
@@ -98,8 +78,12 @@ export default function TransferActivityToast() {
   if (!show) return null;
 
   const primary = active[0] || recentDone[0];
-  const pct = Math.max(0, Math.min(100, Math.round(primary?.progress ?? (showOptimistic ? 8 : 0))));
+  const rawPct = Math.max(0, Math.min(100, Math.round(primary?.progress ?? (showOptimistic ? 12 : 0))));
+  const isDelete = (primary?.action || '').toLowerCase() === 'delete' || (primary?.action || '').toLowerCase() === 'purge';
   const running = active.length > 0 || showOptimistic;
+  // No fake 6% floor — small ops should not look mid-flight.
+  const pct = running && rawPct <= 0 ? (showOptimistic ? 12 : 0) : rawPct;
+  const showBar = running && !isDelete;
 
   return (
     <div
@@ -129,7 +113,7 @@ export default function TransferActivityToast() {
               : (formatTransferAction(primary?.action || '') || optimistic?.label || 'Transfer'))
             : (primary?.status === 'failed' ? 'Transfer failed' : 'Transfer done')}
         </span>
-        {running && (
+        {running && showBar && (
           <span className="bndz-xfer-toast-pct tabular-nums">{pct}%</span>
         )}
         <span className="text-[10px] opacity-60">{collapsed ? '▸' : '▾'}</span>
@@ -137,9 +121,9 @@ export default function TransferActivityToast() {
 
       {!collapsed && (
         <div className="bndz-xfer-toast-body">
-          {running && (
+          {showBar && (
             <div className="bndz-xfer-toast-track" aria-hidden>
-              <div className="bndz-xfer-toast-fill" style={{ width: `${Math.max(pct, 6)}%` }} />
+              <div className="bndz-xfer-toast-fill" style={{ width: `${Math.max(pct, 2)}%` }} />
             </div>
           )}
           <div className="bndz-xfer-toast-line truncate">

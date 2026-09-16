@@ -271,9 +271,9 @@ function SortableItem(props: any) {
       {isTag ? (
         <TagGlyph color={itemDef.color || '#FACC15'} size={18} />
       ) : png ? (
-        <img src={png} alt="" className="w-[18px] h-[18px] object-contain" draggable={false} />
+        <img src={png} alt="" className="w-5 h-5 object-contain" draggable={false} />
       ) : (
-        <Icons8Icon id="tag_manager" size={18} color={itemDef.color || '#FACC15'} />
+        <Icons8Icon id="tag_manager" size={16} color={itemDef.color || '#FACC15'} />
       )}
     </div>
   );
@@ -483,21 +483,26 @@ export default function ToolbarConfigurator({
               <div className="flex-1 p-5 flex flex-col gap-4 min-h-0 overflow-y-auto styled-scrollbar">
                 <div>
                   <div className="bndz-tb-section-label mb-2.5">Live preview</div>
-                  <div className="bndz-tb-chrome">
+                  <div className={`bndz-tb-chrome${config.compactToolbar ? ' bndz-compact-toolbar' : ''}`}>
                     <div className="bndz-tb-chrome-caption">
-                      <span className="text-[10px] text-white/30 tracking-wide">BNDZ toolbar</span>
+                      <span className="text-[10px] text-white/30 tracking-wide">
+                        Matches main toolbar{config.compactToolbar ? ' · compact' : ''}
+                      </span>
                     </div>
                     <ToolbarDropZone empty={currentLayout.length === 0}>
                       <SortableContext items={currentLayout.map(i => i.uid)} strategy={rectSortingStrategy}>
                         {currentLayout.map(item => {
                           if (item.id === 'new_row') {
-                            return <div key={item.uid} className="w-full h-0 mb-2 basis-full" />;
+                            return <div key={item.uid} className="w-full h-0 mb-1 basis-full" />;
                           }
                           return <SortableItem key={item.uid} id={item.uid} itemId={item.id} tags={availableTags} />;
                         })}
                       </SortableContext>
                     </ToolbarDropZone>
                   </div>
+                  <p className="mt-2 text-[10px] text-white/30 leading-relaxed">
+                    Drive letters and panel toggles always appear on the live bar (not editable here).
+                  </p>
                 </div>
 
                 <TrashDropZone />

@@ -336,15 +336,16 @@ export default function BottomPluginPanel(props: any & {
   if (orderedPlugins.length === 0) {
     return (
       <div className="bndz-bottom-panel flex flex-col h-full min-h-0 border-t border-white/[0.06]">
-        <div className="bndz-bottom-tabstrip flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05] bndz-panel-muted shrink-0">
+        <div className="bndz-bottom-tabstrip flex items-center gap-2 px-4 py-2 border-b border-white/[0.05] bndz-panel-muted shrink-0">
           <Icons8Icon id="extension_hub" size={14} />
-          <span className="font-semibold">Plugin Panel</span>
+          <span className="font-semibold text-[12px]">Plugin Panel</span>
         </div>
         <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3 px-6 text-center">
           <BndzPlaque tone="panel" size="lg" />
-          <span className="text-sm font-medium text-gray-400">No plugins installed.</span>
-          <span className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">
-            Install extensions from the hub — only installed plugins appear here.
+          <span className="text-sm font-medium text-gray-300">No plugins installed</span>
+          <span className="text-xs bndz-panel-muted max-w-[300px] leading-relaxed">
+            Only installed plugins appear here and on the Command Deck.
+            Defaults are System Properties, Fast Search, and Visual Filters — add them from Extension Hub.
           </span>
           {onOpenPluginStore && (
             <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold">

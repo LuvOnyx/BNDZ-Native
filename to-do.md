@@ -106,11 +106,11 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 
 ### Toolbar / chrome
 - [x] Remove macOS traffic-light dots from Toolbar Designer preview
-- [ ] Toolbar Designer preview matches live toolbar density/spacing
+- [x] Toolbar Designer preview matches live toolbar density/spacing
 
 ### Transfers / feel
 - [x] Adaptive hot poll while jobs run
-- [ ] Copy/move toast + list refresh feel instantaneous on small ops
+- [x] Copy/move toast + list refresh feel instantaneous on small ops
 
 ### Remote / terminal
 - [x] Local ConPTY → in-panel xterm (not HWND / not detached wt)
@@ -123,7 +123,7 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [ ] Advanced plugins as **external installable packages** (npm/zip distribution, isolated runtime, signature check) — planned for a future BNDZ release; current hub manages built-in + JSON-imported manifests only. Do **not** vendor Rain-Explorer / QuickLook / filessh into `external/` for launch.
 - [x] Visual Filters empty/default state craft
 - [x] Tag Manager / Action History empty states → BndzPlaque (history / idle / folder)
-- [ ] Bottom plugin panel empty state + install gating still correct
+- [x] Bottom plugin panel empty state + install gating still correct
 - [x] Tab right-click menu + Tabs settings still honor height/font/style/colors with plaque chrome
 - [x] Instrument tab chrome: taller/wider defaults, chamfer chips, CSS bottom color slit (`--bndz-tab-slit`)
 - [x] Shell cascade parent icons (`ContextSubmenu.iconSrc` + enumerator depth≤1 extract + child fallback)
