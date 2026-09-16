@@ -1,7 +1,7 @@
 /** In-memory cache for native shell context menu verbs (speeds repeat opens). */
 
-const CACHE_TTL_MS = 45_000;
-const MAX_ENTRIES = 64;
+const CACHE_TTL_MS = 120_000;
+const MAX_ENTRIES = 96;
 
 type CacheEntry = { items: unknown[]; at: number };
 
@@ -78,9 +78,33 @@ export function storeNativeContextMenu(paths: string | string[], items: unknown[
 
 export function prefetchNativeContextMenu(path: string, fetcher: (p: string) => Promise<unknown[]>): void {
   if (lookupNativeContextMenu(path)?.length) return;
+  // Also nudge the host shape-cache (no await) so COM work happens before right-click.
+  try {
+    void import('./ipcBridge').then(({ IPC }) => {
+      IPC.prefetchNativeContextMenuItems(path);
+    });
+  } catch { /* ignore */ }
   fetcher(path)
     .then(items => { if (items?.length) storeNativeContextMenu(path, items); })
     .catch(() => {});
+}
+
+/** Hover / selection: warm exact path so the menu is already filled on right-click. */
+export function warmNativeContextMenuForPath(winPath: string): void {
+  const p = String(winPath || '').trim();
+  if (!p) return;
+  if (lookupNativeContextMenu(p)?.length) {
+    // Still keep host warm in case FE cache outlives a host restart mid-session.
+    try {
+      void import('./ipcBridge').then(({ IPC }) => IPC.prefetchNativeContextMenuItems(p));
+    } catch { /* ignore */ }
+    return;
+  }
+  void import('./ipcBridge').then(({ IPC }) => {
+    if (!IPC.isNative) return;
+    IPC.prefetchNativeContextMenuItems(p);
+    prefetchNativeContextMenu(p, (x) => IPC.fetchNativeContextMenuItems(x) as Promise<unknown[]>);
+  });
 }
 
 export function clearNativeContextMenuCache(path?: string): void {

@@ -331,6 +331,17 @@ function FileListRow(props: FileListRowProps) {
       onMouseDown={(e) => {
         if (e.button !== 0) return;
       }}
+      onPointerEnter={() => {
+        // Hover-warm shell verbs so right-click already has options (host + FE cache).
+        try {
+          const win = resolveEntityWindowsPath(panePath, entity);
+          if (win) {
+            void import('../../lib/nativeContextMenuCache').then(({ warmNativeContextMenuForPath }) => {
+              warmNativeContextMenuForPath(win);
+            });
+          }
+        } catch { /* ignore */ }
+      }}
       onClick={(e) => {
         if (suppressRowClickRef.current) {
           suppressRowClickRef.current = false;

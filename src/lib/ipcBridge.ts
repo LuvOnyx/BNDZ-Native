@@ -2488,6 +2488,19 @@ export const IPC = {
     return Promise.resolve([]);
   },
 
+  /** Fire-and-forget: warm host shape-cache so the next right-click is already populated. */
+  prefetchNativeContextMenuItems(path: string | string[]): void {
+    if (!this.isNative) return;
+    const paths = (Array.isArray(path) ? path : [path]).filter(Boolean);
+    if (!paths.length) return;
+    try {
+      (window as any).chrome?.webview?.postMessage?.({
+        type: 'PREFETCH_CONTEXT_MENU_ITEMS',
+        payload: { path: paths[0], paths },
+      });
+    } catch { /* ignore */ }
+  },
+
   /** Live Windows shell popup (Vanara IContextMenu / TrackPopupMenu) — never opens Explorer. */
   showNativeContextMenu(path: string | string[], x: number, y: number) {
     if (!this.isNative) return;

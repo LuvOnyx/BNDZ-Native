@@ -3198,6 +3198,34 @@ namespace BNDZ
                         });
                     });
                 }
+                else if (type == "PREFETCH_CONTEXT_MENU_ITEMS")
+                {
+                    var paths = new List<string>();
+                    try {
+                        var payload = root.GetProperty("payload");
+                        if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var el in pathsEl.EnumerateArray())
+                            {
+                                var p = NormalizeFsPath(el.GetString() ?? "");
+                                if (!string.IsNullOrEmpty(p)) paths.Add(p);
+                            }
+                        }
+                        if (paths.Count == 0 && payload.TryGetProperty("path", out var pathEl))
+                        {
+                            var single = NormalizeFsPath(pathEl.GetString() ?? "");
+                            if (!string.IsNullOrEmpty(single)) paths.Add(single);
+                        }
+                    } catch { }
+                    if (paths.Count > 0)
+                    {
+                        _ = Task.Run(() =>
+                        {
+                            try { _shellContextMenuService.PrefetchContextMenuItems(paths); }
+                            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Prefetch context menu failed: {ex.Message}"); }
+                        });
+                    }
+                }
                 else if (type == "EXECUTE_UNDO")
                 {
                     var idProp = root.TryGetProperty("id", out var uid) ? uid.GetString() : null;

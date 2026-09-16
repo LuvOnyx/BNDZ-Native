@@ -4280,21 +4280,33 @@ export default function BNDZUI() {
               } catch { /* ignore background refresh */ }
             })();
           } else {
-            // Paint BNDZ verbs immediately — never wait / never skeleton on cache miss.
-            pendingShell = true;
+            // Prefer a short wait for host shape-cache (usually <20ms when warm).
+            // No skeleton — if still cold after budget, paint BNDZ verbs and patch in silently.
+            const SHELL_OPEN_BUDGET_MS = 48;
             const { IPC } = await import('../lib/ipcBridge');
             const fetchPromise = IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
-            void fetchPromise.then(nativeItems => {
-              if (requestId !== contextMenuRequestRef.current) return;
-              if (nativeItems?.length) storeNativeContextMenu(shellPaths, nativeItems);
-              setShellExtensionsPending(false);
-              setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
-                ? { ...prev, nativeContextItems: nativeItems || [] }
-                : prev);
-            }).catch(err => {
-              if (requestId === contextMenuRequestRef.current) setShellExtensionsPending(false);
-              console.warn('Native context menu fetch failed', err);
-            });
+            const raced = await Promise.race([
+              fetchPromise.then(items => ({ ok: true as const, items })),
+              new Promise<{ ok: false }>(resolve => setTimeout(() => resolve({ ok: false }), SHELL_OPEN_BUDGET_MS)),
+            ]);
+            if (requestId !== contextMenuRequestRef.current) return;
+            if (raced.ok && raced.items?.length) {
+              initialNative = raced.items;
+              storeNativeContextMenu(shellPaths, raced.items);
+            } else {
+              pendingShell = true;
+              void fetchPromise.then(nativeItems => {
+                if (requestId !== contextMenuRequestRef.current) return;
+                if (nativeItems?.length) storeNativeContextMenu(shellPaths, nativeItems);
+                setShellExtensionsPending(false);
+                setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+                  ? { ...prev, nativeContextItems: nativeItems || [] }
+                  : prev);
+              }).catch(err => {
+                if (requestId === contextMenuRequestRef.current) setShellExtensionsPending(false);
+                console.warn('Native context menu fetch failed', err);
+              });
+            }
             if (shellPaths.length === 1) prefetchNativeContextMenu(shellPaths[0], (p) => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>);
           }
         } catch (err) {
@@ -5205,6 +5217,8 @@ ${classified.detail}`,
         if (cancelled) return;
         const fetchOne = (p: string) => IPC.fetchNativeContextMenuItems(p) as Promise<unknown[]>;
         for (const p of warmPaths.slice(0, 8)) {
+          // Host shape-cache first (fire-and-forget), then FE cache fill.
+          IPC.prefetchNativeContextMenuItems(p);
           prefetchNativeContextMenu(p, fetchOne);
         }
         if (selWins.length > 1) {
