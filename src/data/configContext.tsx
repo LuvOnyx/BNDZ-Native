@@ -317,6 +317,13 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         }
         merged.uiFontFamilyMigrationVersion = 1;
     }
+    // Explorer-parity rename: show extensions in the edit box so type can be changed (with confirm).
+    if ((merged.renameExtVisibleMigrationVersion ?? 0) < 1) {
+        merged.hideExtensionsFromRenameEditBox = false;
+        merged.excludeFileExtensionFromInitialSelection = true;
+        merged.preselectName = true;
+        merged.renameExtVisibleMigrationVersion = 1;
+    }
     // Corrupted toolbarProfiles (flat array / null) must not blow up chrome `.map`.
     if (!Array.isArray(merged.toolbarProfiles) || !merged.toolbarProfiles.every((p: unknown) => Array.isArray(p))) {
         merged.toolbarProfiles = [

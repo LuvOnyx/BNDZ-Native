@@ -206,7 +206,16 @@ function FileListRow(props: FileListRowProps) {
   const commitInlineRename = () => {
     if (!inlineRename || inlineRename.entityId !== entity.id || inlineRename.path !== panePath) return;
     void commitRenameForEntity(entity, panePath, inlineRename.currentName).then(ok => {
-      if (ok) setInlineRename(null);
+      if (ok) {
+        setInlineRename(null);
+        return;
+      }
+      // Extension confirm cancelled / validation failed — keep editing and restore focus.
+      requestAnimationFrame(() => {
+        const el = document.querySelector('.bndz-inline-rename-input') as HTMLInputElement | null;
+        el?.focus();
+        el?.select();
+      });
     });
   };
 
@@ -331,6 +340,9 @@ function FileListRow(props: FileListRowProps) {
       }}
       onMouseDown={(e) => {
         if (e.button !== 0) return;
+        if (inlineRenameActive) {
+          e.stopPropagation();
+        }
       }}
       onPointerEnter={() => {
         // Hover-warm shell verbs so right-click already has options (host + FE cache).
@@ -344,6 +356,11 @@ function FileListRow(props: FileListRowProps) {
         } catch { /* ignore */ }
       }}
       onClick={(e) => {
+        if (inlineRenameActive) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (suppressRowClickRef.current) {
           suppressRowClickRef.current = false;
           e.preventDefault();

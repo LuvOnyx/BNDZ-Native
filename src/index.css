@@ -19302,6 +19302,13 @@ html.theme-light .bndz-dual-diff-strip__row:hover {
   border: 1px solid var(--accent, #007acc) !important;
   border-radius: 4px;
   caret-color: #fff;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.bndz-inline-rename {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 html.theme-light .bndz-inline-rename-input {
   background: #fff !important;

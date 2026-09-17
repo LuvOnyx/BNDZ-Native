@@ -361,19 +361,31 @@ function TreeRow({
         <input
           type="text"
           autoFocus
+          data-bndz-inline-rename="1"
           className="bndz-inline-rename-input px-1.5 outline-none text-[12px] w-[140px] rounded-sm"
           value={inlineRename.currentName}
           onChange={e => setInlineRename({ ...inlineRename, currentName: e.target.value })}
-          onBlur={() => {
-            if (inlineRename.currentName !== row.label && row.path) {
-              const parentPath = row.path.substring(0, row.path.lastIndexOf('/'));
-              IPC.executeFsOperation(`rename-${Date.now()}`, 'move', row.path, `${parentPath}/${inlineRename.currentName}`);
-            }
-            setInlineRename(null);
+          onMouseDown={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+          onBlur={(e) => {
+            const next = e.relatedTarget as HTMLElement | null;
+            if (next?.closest?.('[data-bndz-inline-rename], .bndz-inline-rename-input')) return;
+            window.setTimeout(() => {
+              if (document.activeElement?.classList?.contains('bndz-inline-rename-input')) return;
+              if (inlineRename.currentName !== row.label && row.path) {
+                const parentPath = row.path.substring(0, row.path.lastIndexOf('/'));
+                IPC.executeFsOperation(`rename-${Date.now()}`, 'move', row.path, `${parentPath}/${inlineRename.currentName}`);
+              }
+              setInlineRename(null);
+            }, 0);
           }}
           onKeyDown={e => {
             if (e.key === 'Enter') e.currentTarget.blur();
-            else if (e.key === 'Escape') setInlineRename(null);
+            else if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              setInlineRename(null);
+            }
           }}
           onClick={e => e.stopPropagation()}
           onDoubleClick={e => e.stopPropagation()}

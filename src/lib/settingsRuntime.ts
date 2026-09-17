@@ -452,7 +452,7 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
 export function getRenameInitialValue(entity: any, config: AppConfig): string {
   const name = entity.name || '';
   if (shouldHideRenameExtension(entity, config)) {
-    return stripEntityExtension(name, entity.extension);
+    return stripEntityExtension(name, entity.extension || splitFileName(name).ext);
   }
   return name;
 }
@@ -461,13 +461,21 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Split `file.tar.gz` → stem `file.tar`, ext `gz` (Explorer-style last segment). */
+export function splitFileName(name: string): { stem: string; ext: string } {
+  const base = String(name || '').split(/[/\\]/).pop() || '';
+  const i = base.lastIndexOf('.');
+  if (i <= 0 || i === base.length - 1) return { stem: base, ext: '' };
+  return { stem: base.slice(0, i), ext: base.slice(i + 1) };
+}
+
 function stripEntityExtension(name: string, extension: string | undefined): string {
   if (!extension) return name;
   return name.replace(new RegExp(`\\.${escapeRegExp(extension)}$`, 'i'), '');
 }
 
 function shouldHideRenameExtension(entity: any, config: AppConfig): boolean {
-  const ext = String(entity?.extension || '').toLowerCase();
+  const ext = String(entity?.extension || splitFileName(entity?.name || '').ext || '').toLowerCase();
   if (!ext || entity?.type === 'directory') return false;
   if (ext === 'lnk' && config.hideShortcutExtensions !== false) return true;
   return !!config.hideExtensionsFromRenameEditBox;
@@ -475,7 +483,7 @@ function shouldHideRenameExtension(entity: any, config: AppConfig): boolean {
 
 /** Resolve the actual filesystem name represented by the rename edit box. */
 export function resolveRenameTargetName(entity: any, editedValue: string, config: AppConfig): string {
-  const ext = String(entity?.extension || '');
+  const ext = String(entity?.extension || splitFileName(entity?.name || '').ext || '');
   const raw = String(editedValue || '').trim();
   if (!raw || entity?.type === 'directory' || !shouldHideRenameExtension(entity, config)) {
     return raw;
@@ -488,17 +496,35 @@ export function resolveRenameTargetName(entity: any, editedValue: string, config
   return `${raw}${suffix}`;
 }
 
+/** True when rename changes the file type (extension), including removal. */
+export function renameChangesFileExtension(
+  originalName: string,
+  nextName: string,
+  isDirectory?: boolean,
+): boolean {
+  if (isDirectory) return false;
+  const a = splitFileName(originalName).ext.toLowerCase();
+  const b = splitFileName(nextName).ext.toLowerCase();
+  return a !== b;
+}
+
 /** Explorer-style initial selection for inline rename fields. */
 export function applyRenameInputSelection(input: HTMLInputElement, entity: any, config: AppConfig): void {
   if (!input || config.preselectName === false) return;
   requestAnimationFrame(() => {
     try {
       const value = input.value;
-      const ext = String(entity?.extension || '');
-      const shouldSelectBase = entity?.type !== 'directory'
-        && ext
-        && (config.excludeFileExtensionFromInitialSelection !== false || shouldHideRenameExtension(entity, config));
-      const end = shouldSelectBase ? stripEntityExtension(value, ext).length : value.length;
+      const ext = String(entity?.extension || splitFileName(value).ext || '');
+      const extInBox = entity?.type !== 'directory'
+        && !!ext
+        && !shouldHideRenameExtension(entity, config);
+      // Extension visible → select stem only (Explorer). Hidden → whole field is the stem.
+      const shouldSelectBase = extInBox
+        ? config.excludeFileExtensionFromInitialSelection !== false
+        : true;
+      const end = shouldSelectBase && extInBox
+        ? stripEntityExtension(value, ext).length
+        : value.length;
       input.focus();
       input.setSelectionRange(0, Math.max(0, end));
     } catch {

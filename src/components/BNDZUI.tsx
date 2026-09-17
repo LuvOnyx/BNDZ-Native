@@ -317,6 +317,8 @@ import {
   getDisplayName,
   getRenameInitialValue,
   resolveRenameTargetName,
+  renameChangesFileExtension,
+  splitFileName,
   applyRenameInputSelection,
   buildSettingsRuntime,
   resolveSortColumn,
@@ -2951,6 +2953,21 @@ export default function BNDZUI() {
     }
     if (targetName === entity.name) return true;
 
+    if (renameChangesFileExtension(entity.name, targetName, entity.type === 'directory' || entity.isDirectory)) {
+      const fromExt = splitFileName(entity.name).ext;
+      const toExt = splitFileName(targetName).ext;
+      const fromLabel = fromExt ? `.${fromExt}` : '(no extension)';
+      const toLabel = toExt ? `.${toExt}` : '(no extension)';
+      const approved = await confirm({
+        title: 'Change file extension?',
+        message: `If you change a file name extension, the file might become unusable.\n\nAre you sure you want to change it from ${fromLabel} to ${toLabel}?\n\nThis only renames the file — it does not convert its contents.`,
+        type: 'warning',
+        confirmLabel: 'Change',
+        cancelLabel: 'Keep extension',
+      });
+      if (!approved) return false;
+    }
+
     if (isPortableDeviceReadOnly(panePath, config.treatPortableDevicesAsReadOnly === true)
       || isPortableDeviceReadOnly(entity.path, config.treatPortableDevicesAsReadOnly === true)) {
       setToastMessage('Portable device is read-only. Disable that option in Settings to rename on MTP.', 'warning');
@@ -3045,7 +3062,7 @@ export default function BNDZUI() {
       return true;
     }
     return true;
-  }, [config, settingsRt.rename, refetchPath, registerFsTombstone, clearFsTombstone, reinjectFsTombstone, pushToast]);
+  }, [config, settingsRt.rename, refetchPath, registerFsTombstone, clearFsTombstone, reinjectFsTombstone, pushToast, confirm]);
 
   const prefetchPathQuiet = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
@@ -12075,7 +12092,7 @@ ${classified.detail}`,
               const recentPress = listItemPressGuardRef.current;
               if (recentPress && performance.now() - recentPress.at < 500) return;
               // Row hits own handlers; only true list canvas clears selection.
-              if ((e.target as HTMLElement).closest('.fs-item-wrapper')) return;
+              if ((e.target as HTMLElement).closest('.fs-item-wrapper, [data-bndz-inline-rename]')) return;
               setSelectedItems([], pane.id);
               selectionAnchorRef.current = null;
               scheduleSelectionChrome([], true);
@@ -12089,7 +12106,7 @@ ${classified.detail}`,
               if (isWorkspacePointerTarget(e.target)) return;
               if (isBndzHomePath(normPanePath) || isBndzWorkspacePath(normPanePath) || normPanePath === BNDZ_VIEWS_ROOT) return;
               if ((e.target as HTMLElement).closest('[data-bndz-surface], .react-flow, .bndz-automation, .bndz-spatial-canvas, .bndz-home')) return;
-              if ((e.target as HTMLElement).closest('input, textarea, button, select, a')) return;
+              if ((e.target as HTMLElement).closest('input, textarea, button, select, a, [data-bndz-inline-rename]')) return;
 
               const listEl = e.currentTarget as HTMLElement;
               listEl.focus({ preventScroll: true });
@@ -16712,21 +16729,29 @@ ${classified.detail}`,
             },
           ]}
         >
-          <label className="bndz-native-field-label block mb-2">New name</label>
+          <label className="bndz-native-field-label block mb-2">New name (includes extension)</label>
           <input
             autoFocus
             type="text"
             value={renameDialog.value}
             onChange={(e) => setRenameDialog({ ...renameDialog, value: e.target.value })}
             className="bndz-native-input w-full"
+            ref={(el) => {
+              if (!el || (el as any).__bndzRenameSel) return;
+              (el as any).__bndzRenameSel = true;
+              applyRenameInputSelection(el, renameDialog.entity, config);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 void commitRenameForEntity(renameDialog.entity, renameDialog.path, renameDialog.value).then(ok => {
                   if (ok) setRenameDialog(null);
                 });
+              } else if (e.key === 'Escape') {
+                setRenameDialog(null);
               }
             }}
           />
+          <p className="text-[10px] text-gray-500 mt-1.5">Changing the part after the last period changes the file type and asks for confirmation.</p>
           {settingsRt.rename.showNameLength && (
             <p className="text-[10px] text-gray-500 mt-2 tabular-nums">{renameDialog.value.length} characters</p>
           )}
