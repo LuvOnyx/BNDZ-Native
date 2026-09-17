@@ -252,7 +252,7 @@ export default function BndzHomeView({
     if (!q) return [];
     const out: OmniSuggestion[] = [];
     const aliases: OmniSuggestion[] = [
-      { id: 'a-home', label: 'Home', sub: 'Continuum', path: BNDZ_HOME, kind: 'alias' },
+      { id: 'a-home', label: 'Home', sub: 'Places & recent', path: BNDZ_HOME, kind: 'alias' },
       { id: 'a-smart', label: 'Smart views', path: BNDZ_VIEWS_ROOT, kind: 'alias' },
       { id: 'a-recent', label: 'Recent files', path: BNDZ_RECENT, kind: 'alias' },
       { id: 'a-pc', label: 'This PC', path: '/', kind: 'alias' },
@@ -447,7 +447,7 @@ export default function BndzHomeView({
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           >
             <span className="bndz-home-wordmark">BNDZ</span>
-            <span className="bndz-home-tag">Continuum</span>
+            <span className="bndz-home-tag">Home</span>
           </motion.div>
           <motion.p
             className="bndz-home-lede"
@@ -459,7 +459,7 @@ export default function BndzHomeView({
               ? `${fileCount.toLocaleString()} files indexed`
                 + (library.images ? ` · ${library.images.toLocaleString()} photos` : '')
                 + (library.videos ? ` · ${library.videos.toLocaleString()} videos` : '')
-              : 'Places are live. Index libraries to ignite the Continuum rail.'}
+              : 'Places are live. Index libraries to fill the Home rail.'}
           </motion.p>
         </header>
 
@@ -630,11 +630,11 @@ export default function BndzHomeView({
           </section>
         )}
 
-        <section className="bndz-home-continuum" aria-label="Continuum">
+        <section className="bndz-home-continuum" aria-label="Home">
           <div className="bndz-home-section-label">
-            <span>Continuum</span>
+            <span>Home</span>
             <span className="bndz-home-muted">
-              {loading ? 'Loading Continuum…' : deckSyncing ? 'Refreshing pulse…' : '← → snap · Space Quick Look · click opens'}
+              {loading ? 'Loading Home…' : deckSyncing ? 'Refreshing…' : '← → snap · Space Quick Look · click opens'}
             </span>
           </div>
           <div
@@ -659,7 +659,7 @@ export default function BndzHomeView({
                   className="bndz-home-rail-empty"
                   onClick={() => { onIndexInvite?.(); }}
                 >
-                  <span className="bndz-home-rail-empty-title">Continuum is dark</span>
+                  <span className="bndz-home-rail-empty-title">Home rail is empty</span>
                   <span>Index Desktop, Documents, Pictures, Music, and Videos — then the rail lights with real CAS thumbs.</span>
                 </button>
               ) : continuum.map((item, i) => {

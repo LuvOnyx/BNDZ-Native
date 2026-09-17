@@ -57,8 +57,8 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       open
       title="Register BNDZ"
       subtitle="Online activation — one Windows PC per serial"
-      tone="info"
       variant="sheet"
+      iconId=""
       onClose={onClose}
       showCloseButton
       zIndexClass="z-[10050]"

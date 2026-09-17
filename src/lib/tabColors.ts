@@ -12,13 +12,15 @@ export const TAB_ACCENT_PRESETS = [
 ] as const;
 
 /**
- * Colored tab chrome — instrument chip with a bottom color slit.
- * Plaque silhouette stays in CSS; only --bndz-tab-slit changes with the pick.
+ * Colored tab chrome — same chip silhouette as uncolored tabs.
+ * CSS owns plaque / native-host fill; we only set slit + under-plaque tint vars.
+ * Never set inline `background` — that clears plaques and shrinks the painted chip.
  */
 export function tabAccentStyle(color?: string | null, _isActive?: boolean): Record<string, string> | undefined {
   if (!color) return undefined;
   return {
     ['--bndz-tab-slit' as string]: color,
     ['--bndz-tab-slit-glow' as string]: `${color}66`,
+    ['--bndz-tab-accent-tint' as string]: color,
   } as Record<string, string>;
 }

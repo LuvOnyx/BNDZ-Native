@@ -91,8 +91,9 @@ export function NativeDialogShell({
 }: NativeDialogShellProps) {
   if (!open) return null;
 
-  const resolvedIcon = iconId ?? TONE_ICON[tone];
-  const plaqueTone = !iconId ? TONE_PLAQUE[tone] : undefined;
+  const resolvedIcon = iconId !== undefined ? iconId : TONE_ICON[tone];
+  const plaqueTone = iconId === undefined ? TONE_PLAQUE[tone] : undefined;
+  const showGlyph = Boolean(resolvedIcon) || Boolean(plaqueTone);
   const showFooter = footer != null || (footerButtons && footerButtons.length > 0);
   const isAlert = variant === 'alert';
 
@@ -119,16 +120,18 @@ export function NativeDialogShell({
 
         {isAlert ? (
           <div className={`bndz-native-alert-body ${bodyClassName}`}>
-            <div
-              className={`bndz-native-alert-glyph bndz-native-alert-glyph--${tone}${plaqueTone ? ' bndz-native-alert-glyph--plaque' : ''}`}
-              aria-hidden
-            >
-              {plaqueTone ? (
-                <BndzPlaque tone={plaqueTone} size="sm" animate={false} />
-              ) : (
-                <Icons8Icon id={resolvedIcon} size={32} />
-              )}
-            </div>
+            {showGlyph && (
+              <div
+                className={`bndz-native-alert-glyph bndz-native-alert-glyph--${tone}${plaqueTone ? ' bndz-native-alert-glyph--plaque' : ''}`}
+                aria-hidden
+              >
+                {plaqueTone ? (
+                  <BndzPlaque tone={plaqueTone} size="sm" animate={false} />
+                ) : (
+                  <Icons8Icon id={resolvedIcon} size={32} />
+                )}
+              </div>
+            )}
             <div className="bndz-native-alert-content min-w-0 flex-1">
               {subtitle && <p className="bndz-native-alert-lead">{subtitle}</p>}
               {children}

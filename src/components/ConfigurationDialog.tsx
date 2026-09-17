@@ -2504,7 +2504,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        <ActionBtn label="..." className="w-[30px] h-6 min-h-[24px]" onClick={() => void browseFolderInto('newTabPath', 'Select default new tab folder')} />
                     </div>
                  </div>
-                 <Checkbox label={<span>Keep Continuum Home as a permanent locked tab</span>} checked={localConfig.permanentHomeTab === true} onChange={e => updateLocalConfig({ permanentHomeTab: e.target.checked })} />
+                 <Checkbox label={<span>Keep Home as a permanent locked tab</span>} checked={localConfig.permanentHomeTab === true} onChange={e => updateLocalConfig({ permanentHomeTab: e.target.checked })} />
                  <p className="text-[11px] text-[#888] ml-[20px] mb-2 max-w-[520px] leading-snug">
                     Home (`/bndz/home`) stays pinned and locked in every pane. New tabs still follow the path above.
                  </p>
