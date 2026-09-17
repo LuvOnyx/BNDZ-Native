@@ -276,6 +276,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
       const result = await apply();
       if (!result.success && result.needsElevation) {
+        // Persist the intended toggle BEFORE relaunch — elevated host loads shell
+        // settings from disk via SettingsManager, not from dialog-local React state.
+        const { persistConfigNow } = await import('../data/configContext');
+        await persistConfigNow(globalConfig, nextConfig, updateGlobalConfig);
         // Pass --apply-shell so the elevated process force-applies ALL shell settings
         // from persisted config before the WebView / fingerprint system initialises.
         const elevated = await promptElevationIfNeeded(result, {
@@ -290,6 +294,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             }
             return reverted;
           });
+          // Roll back the optimistic persist so Cancel does not leave a dirty disk state.
+          try {
+            const rolled = { ...nextConfig };
+            for (const key of Object.keys(updates)) {
+              (rolled as any)[key] = !(updates as any)[key];
+            }
+            await persistConfigNow(globalConfig, rolled, updateGlobalConfig);
+          } catch { /* ignore */ }
           setShellStatus('Administrator approval was required but not granted.');
           return;
         }

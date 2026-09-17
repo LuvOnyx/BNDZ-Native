@@ -18301,8 +18301,9 @@ html[data-bndz-shell="native-host"] .bndz-view-mode-btn {
 }
 html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip,
 html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {
-  min-height: 40px !important;
-  padding-top: 8px !important;
+  min-height: var(--bndz-tab-bar-height, 40px) !important;
+  height: var(--bndz-tab-bar-height, 40px);
+  padding-top: 4px !important;
   padding-left: 6px !important;
   padding-right: 4px !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -18313,7 +18314,7 @@ html[data-bndz-shell="files-host"] .bndz-tab-item,
 html[data-bndz-shell="native-host"] .bndz-tab-item {
   border-radius: 10px 10px 0 0 !important;
   min-height: calc(var(--bndz-tab-bar-height, 40px) - 4px) !important;
-  padding: 6px 14px !important;
+  padding: 4px 14px !important;
   margin-right: 2px !important;
   font-size: 12.5px !important;
 }

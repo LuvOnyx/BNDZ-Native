@@ -322,28 +322,8 @@ internal static class BndzOutboundDragGhostOverlay
             for (var y = 0; y < h; y++)
             {
                 Marshal.Copy(data.Scan0 + y * srcStride, row, 0, srcStride);
-                // UpdateLayeredWindow + AC_SRC_ALPHA requires premultiplied BGRA.
-                for (var x = 0; x < w; x++)
-                {
-                    var i = x * 4;
-                    var b = row[i];
-                    var g = row[i + 1];
-                    var r = row[i + 2];
-                    var a = row[i + 3];
-                    if (a == 0)
-                    {
-                        row[i] = 0;
-                        row[i + 1] = 0;
-                        row[i + 2] = 0;
-                    }
-                    else if (a < 255)
-                    {
-                        row[i] = (byte)((b * a) / 255);
-                        row[i + 1] = (byte)((g * a) / 255);
-                        row[i + 2] = (byte)((r * a) / 255);
-                    }
-                }
-                Marshal.Copy(row, 0, bits + y * dstStride, dstStride);
+                // BuildCardBitmap already PremultiplyAlpha — copy only (do not scale twice).
+                Marshal.Copy(row, 0, bits + y * dstStride, Math.Min(srcStride, dstStride));
             }
         }
         finally
