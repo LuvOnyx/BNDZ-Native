@@ -15,6 +15,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.Web.WebView2.Core;
 
 namespace BNDZShell.Bndz;
@@ -38,6 +39,9 @@ public sealed partial class CraftPaneHost : UserControl
 	private bool _documentReady;
 	private bool _initStarted;
 	private int _readyWatchGeneration;
+	/// <summary>Consecutive RenderProcessUnresponsive events — do not reload on the first hit.</summary>
+	private int _unresponsiveStreak;
+	private Storyboard? _bootLoaderStoryboard;
 	private string? _uiRoot;
 	private string? _navigatedPane;
 	private CoreWebView2Environment? _webEnv;
@@ -114,8 +118,74 @@ public sealed partial class CraftPaneHost : UserControl
 	/// <summary>Surface a fatal shell error on the pane status strip (used from MainWindow / App).</summary>
 	public void ShowPaneStatus(string message)
 	{
-		PaneStatusHint.Visibility = Visibility.Visible;
-		PaneStatusHint.Text = message;
+		HideBootLoader();
+		PaneStatusHint.Text = message ?? string.Empty;
+		PaneStatusHint.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
+	}
+
+	private void ShowBootLoader()
+	{
+		PaneStatusHint.Visibility = Visibility.Collapsed;
+		PaneStatusHint.Text = string.Empty;
+		PaneBootOverlay.Visibility = Visibility.Visible;
+		EnsureBootLoaderStoryboard().Begin();
+	}
+
+	private void HideBootLoader()
+	{
+		try { _bootLoaderStoryboard?.Stop(); } catch { /* ignore */ }
+		PaneBootOverlay.Visibility = Visibility.Collapsed;
+	}
+
+	private void HidePaneChromeHints()
+	{
+		HideBootLoader();
+		PaneStatusHint.Visibility = Visibility.Collapsed;
+		PaneStatusHint.Text = string.Empty;
+	}
+
+	private Storyboard EnsureBootLoaderStoryboard()
+	{
+		if (_bootLoaderStoryboard is not null)
+			return _bootLoaderStoryboard;
+
+		var spin = new DoubleAnimation
+		{
+			From = 0,
+			To = 360,
+			Duration = new Duration(TimeSpan.FromMilliseconds(1100)),
+			RepeatBehavior = RepeatBehavior.Forever,
+		};
+		Storyboard.SetTarget(spin, BootOrbitRotate);
+		Storyboard.SetTargetProperty(spin, "Angle");
+
+		var pulseX = new DoubleAnimation
+		{
+			From = 0.72,
+			To = 1.18,
+			Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+			AutoReverse = true,
+			RepeatBehavior = RepeatBehavior.Forever,
+		};
+		Storyboard.SetTarget(pulseX, BootPulseScale);
+		Storyboard.SetTargetProperty(pulseX, "ScaleX");
+
+		var pulseY = new DoubleAnimation
+		{
+			From = 0.72,
+			To = 1.18,
+			Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+			AutoReverse = true,
+			RepeatBehavior = RepeatBehavior.Forever,
+		};
+		Storyboard.SetTarget(pulseY, BootPulseScale);
+		Storyboard.SetTargetProperty(pulseY, "ScaleY");
+
+		_bootLoaderStoryboard = new Storyboard();
+		_bootLoaderStoryboard.Children.Add(spin);
+		_bootLoaderStoryboard.Children.Add(pulseX);
+		_bootLoaderStoryboard.Children.Add(pulseY);
+		return _bootLoaderStoryboard;
 	}
 
 	private async void PaneWebView_Loaded(object sender, RoutedEventArgs e)
@@ -130,18 +200,17 @@ public sealed partial class CraftPaneHost : UserControl
 		if (_initialized || _initStarted)
 			return;
 		_initStarted = true;
+		_ = showHint; // retained for call-site clarity; boot always uses the silent loader.
 
 		try
 		{
-			// Always show status until BNDZ_UI_READY — blank dark chrome with no hint looks like a crash.
-			PaneStatusHint.Visibility = Visibility.Visible;
-			PaneStatusHint.Text = showHint ? "Loading BNDZ…" : "Starting WebView2…";
+			// Silent animated loader until BNDZ_UI_READY — no "Starting WebView2" text chatter.
+			ShowBootLoader();
 
 			_uiRoot = ResolveUiAssetsRoot();
 			if (_uiRoot is null)
 			{
-				PaneStatusHint.Visibility = Visibility.Visible;
-				PaneStatusHint.Text = "BNDZ UI assets missing — run npm run build and stage Assets/ui.";
+				ShowPaneStatus("BNDZ UI assets missing — run npm run build and stage Assets/ui.");
 				_initStarted = false;
 				return;
 			}
@@ -150,7 +219,6 @@ public sealed partial class CraftPaneHost : UserControl
 				GetSharedPaneEnvironmentAsync(),
 				TimeSpan.FromSeconds(20),
 				"WebView2 profile create timed out (another BNDZShell/WebView may be locking the profile). Close other instances and relaunch.").ConfigureAwait(true);
-			PaneStatusHint.Text = "Initializing WebView2…";
 			try
 			{
 				await AwaitWithTimeout(
@@ -161,7 +229,6 @@ public sealed partial class CraftPaneHost : UserControl
 			catch (Exception envEx)
 			{
 				Debug.WriteLine($"[CraftPaneHost] profile env failed ({envEx.Message}), using default runtime");
-				PaneStatusHint.Text = "Retrying WebView2 with default profile…";
 				await AwaitWithTimeout(
 					PaneWebView.EnsureCoreWebView2Async().AsTask(),
 					TimeSpan.FromSeconds(25),
@@ -276,14 +343,13 @@ public sealed partial class CraftPaneHost : UserControl
 			WebViewInitialized?.Invoke(this, EventArgs.Empty);
 			TryRegisterOleDropTarget();
 			TryInstallDragStartingBridge();
-			PaneStatusHint.Text = "Loading BNDZ UI…";
+			ShowBootLoader();
 			ApplyPaneRoute(forceNavigate: true);
 			ScheduleReadyWatchdog();
 		}
 		catch (Exception ex)
 		{
-			PaneStatusHint.Visibility = Visibility.Visible;
-			PaneStatusHint.Text = $"Pane host failed: {FormatInitException(ex)}";
+			ShowPaneStatus($"Pane host failed: {FormatInitException(ex)}");
 			Debug.WriteLine($"[CraftPaneHost] init failed: {ex}");
 			_initStarted = false;
 		}
@@ -825,27 +891,50 @@ public sealed partial class CraftPaneHost : UserControl
 		{
 			if (!_documentReady)
 			{
-				PaneStatusHint.Visibility = Visibility.Visible;
-				PaneStatusHint.Text = "Painting BNDZ UI…";
+				ShowBootLoader();
 				ScheduleReadyWatchdog();
 			}
 			return;
 		}
 
-		PaneStatusHint.Visibility = Visibility.Visible;
-		PaneStatusHint.Text = $"WebView navigation failed ({args.WebErrorStatus}). Close other BNDZShell windows and relaunch.";
+		ShowPaneStatus($"WebView navigation failed ({args.WebErrorStatus}). Close other BNDZShell windows and relaunch.");
 		Debug.WriteLine($"[CraftPaneHost] NavigationCompleted failed: {args.WebErrorStatus}");
 		AppendShellLog($"NavigationCompleted failed: {args.WebErrorStatus}");
 	}
 
 	private void Core_ProcessFailed(CoreWebView2 sender, CoreWebView2ProcessFailedEventArgs args)
 	{
+		// Log kind + reason — Unresponsive is not a crash (busy main thread / large refresh).
+		var reason = args.Reason.ToString();
+		AppendShellLog($"ProcessFailed kind={args.ProcessFailedKind} reason={reason} exit={args.ExitCode}");
+		Debug.WriteLine($"[CraftPaneHost] ProcessFailed: {args.ProcessFailedKind} / {reason}");
+
+		if (args.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+		{
+			_unresponsiveStreak++;
+			// WebView2 raises this every few seconds while the renderer is busy.
+			// Reloading here is what painted "UI process crashed" on context-menu Refresh.
+			if (_unresponsiveStreak < 8)
+				return;
+
+			AppendShellLog($"RenderProcessUnresponsive sustained ({_unresponsiveStreak}) — reloading UI");
+			_unresponsiveStreak = 0;
+			StopOutboundDragCleanup();
+			_documentReady = false;
+			ShowPaneStatus("UI was busy too long — reloading…");
+			TryRecoverWebView();
+			return;
+		}
+
+		_unresponsiveStreak = 0;
 		StopOutboundDragCleanup();
 		_documentReady = false;
-		PaneStatusHint.Visibility = Visibility.Visible;
-		PaneStatusHint.Text = "UI process crashed — reloading…";
-		AppendShellLog($"ProcessFailed kind={args.ProcessFailedKind} exit={args.ExitCode}");
-		Debug.WriteLine($"[CraftPaneHost] ProcessFailed: {args.ProcessFailedKind}");
+		ShowPaneStatus("UI process crashed — reloading…");
+		TryRecoverWebView();
+	}
+
+	private void TryRecoverWebView()
+	{
 		try
 		{
 			if (DispatcherQueue is not null && !DispatcherQueue.HasThreadAccess)
@@ -857,7 +946,7 @@ public sealed partial class CraftPaneHost : UserControl
 		}
 		catch (Exception ex)
 		{
-			PaneStatusHint.Text = $"UI process crashed: {ex.Message}";
+			ShowPaneStatus($"UI process crashed: {ex.Message}");
 		}
 	}
 
@@ -877,8 +966,7 @@ public sealed partial class CraftPaneHost : UserControl
 				{
 					if (_documentReady || generation != _readyWatchGeneration)
 						return;
-					PaneStatusHint.Visibility = Visibility.Visible;
-					PaneStatusHint.Text = "BNDZ UI is taking too long — relaunch if this stays blank.";
+					ShowPaneStatus("BNDZ UI is taking too long — relaunch if this stays blank.");
 					AppendShellLog("Ready watchdog: BNDZ_UI_READY not received within 18s");
 				});
 			}
@@ -917,7 +1005,7 @@ public sealed partial class CraftPaneHost : UserControl
 			_navigatedPane = "plugin-window";
 			_documentReady = false;
 			PaneWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?{popQs}");
-			PaneStatusHint.Visibility = Visibility.Collapsed;
+			HidePaneChromeHints();
 			return;
 		}
 
@@ -928,12 +1016,13 @@ public sealed partial class CraftPaneHost : UserControl
 		{
 			if (!forceNavigate && _documentReady && string.Equals(_navigatedPane, "browser", StringComparison.OrdinalIgnoreCase))
 			{
-				PaneStatusHint.Visibility = Visibility.Collapsed;
+				HidePaneChromeHints();
 				return;
 			}
 
 			_navigatedPane = "browser";
 			_documentReady = false;
+			ShowBootLoader();
 			PaneWebView.CoreWebView2.Navigate(BuildNativeShellNavigateUrl());
 			return;
 		}
@@ -947,7 +1036,7 @@ public sealed partial class CraftPaneHost : UserControl
 				payload = new { pane, plugin = PluginId, path = (string?)null },
 			});
 			_navigatedPane = pane;
-			PaneStatusHint.Visibility = Visibility.Collapsed;
+			HidePaneChromeHints();
 			return;
 		}
 
@@ -1078,7 +1167,7 @@ public sealed partial class CraftPaneHost : UserControl
 					payload = new { pane = target, plugin },
 				});
 			}
-			PaneStatusHint.Visibility = Visibility.Collapsed;
+			HidePaneChromeHints();
 			return;
 		}
 
@@ -1345,8 +1434,9 @@ public sealed partial class CraftPaneHost : UserControl
 						$"{DateTime.Now:HH:mm:ss.fff} UI_READY bundle={bundle}{Environment.NewLine}");
 				}
 				catch { /* never break host on logging */ }
-				PaneStatusHint.Visibility = Visibility.Collapsed;
+				HidePaneChromeHints();
 				_documentReady = true;
+				_unresponsiveStreak = 0;
 				_readyWatchGeneration++;
 				FlushPendingContext();
 				PaneMessage?.Invoke(this, root.Clone());
@@ -1369,7 +1459,6 @@ public sealed partial class CraftPaneHost : UserControl
 			if (type is "BNDZ_UI_CRASH")
 			{
 				_documentReady = false;
-				PaneStatusHint.Visibility = Visibility.Visible;
 				var msg = "React render crashed — see shell-crash.log";
 				if (root.TryGetProperty("payload", out var crashPayload)
 					&& crashPayload.TryGetProperty("message", out var crashMsg)
@@ -1378,7 +1467,7 @@ public sealed partial class CraftPaneHost : UserControl
 				{
 					msg = $"UI crash: {crashMsg.GetString()}";
 				}
-				PaneStatusHint.Text = msg;
+				ShowPaneStatus(msg);
 				AppendShellLog(msg);
 				return;
 			}

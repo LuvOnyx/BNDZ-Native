@@ -9998,8 +9998,10 @@ ${classified.detail}`,
   const refreshActiveList = () => {
     const pane = panes.find(p => p.id === activePaneId);
     const tabPath = pane?.tabs[pane.activeTabIndex]?.path;
+    // Single force-refetch for the active tab — do not also fan out invalidatePath
+    // (that double-scheduled the same listing and could freeze the renderer long enough
+    // for WebView2 to raise RenderProcessUnresponsive).
     if (tabPath) void refetchPath(tabPath);
-    refreshPathsForPanes();
   };
 
   // View-mode buttons are explicit toggles. `undefined` = the neutral default

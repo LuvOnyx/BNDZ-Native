@@ -16,15 +16,62 @@
             DefaultBackgroundColor="Transparent"
             Loaded="PaneWebView_Loaded" />
         <!-- Removed opaque OleGhostMask — it covered File/Edit menubar during in-app drags. -->
+
+        <!-- Silent boot loader — replaces "Starting WebView2…" / "Painting…" text chatter. -->
+        <Grid
+            x:Name="PaneBootOverlay"
+            Background="#E0080B12"
+            IsHitTestVisible="False"
+            Visibility="Collapsed">
+            <Grid
+                Width="56"
+                Height="56"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <RotateTransform x:Name="BootOrbitRotate" Angle="0" />
+                </Grid.RenderTransform>
+                <Ellipse
+                    Width="56"
+                    Height="56"
+                    Stroke="#334B6BFF"
+                    StrokeThickness="2" />
+                <Ellipse
+                    Width="9"
+                    Height="9"
+                    Margin="0,-3,0,0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Fill="#8BA4FF" />
+            </Grid>
+            <Ellipse
+                Width="12"
+                Height="12"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Fill="#5B7CFF"
+                Opacity="0.9"
+                RenderTransformOrigin="0.5,0.5">
+                <Ellipse.RenderTransform>
+                    <ScaleTransform x:Name="BootPulseScale" ScaleX="1" ScaleY="1" />
+                </Ellipse.RenderTransform>
+            </Ellipse>
+        </Grid>
+
+        <!-- Errors / recovery only — not used for normal boot chatter. -->
         <TextBlock
             x:Name="PaneStatusHint"
             Style="{StaticResource BndzBodyTextBlockStyle}"
             Margin="16"
+            MaxWidth="420"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Foreground="#9CA3AF"
             IsHitTestVisible="False"
-            Text="Loading BNDZ craft pane…"
+            Text=""
+            TextAlignment="Center"
+            TextWrapping="WrapWholeWords"
             Visibility="Collapsed" />
     </Grid>
 </UserControl>
