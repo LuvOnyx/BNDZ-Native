@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { ShellNativeIcon } from '../ShellNativeIcon';
 import { SizeBar, type SizeBarStyle } from '../SizeBar';
 import { useAppConfig } from '../../data/configContext';
+import { BndzPlaque } from '../BndzPlaque';
 
 export type FolderSizeListItem = {
   name: string;
@@ -49,6 +50,7 @@ export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFo
   if (!sorted.length) {
     return (
       <div className="bndz-sizemap-empty">
+        <BndzPlaque tone="folder" size="md" className="mb-1" />
         <span className="bndz-sizemap-empty-title">This folder is empty</span>
       </div>
     );

@@ -77,6 +77,18 @@ export default function TransferActivityToast() {
     return () => window.clearTimeout(t);
   }, [optimistic]);
 
+  // Tick while recent terminal jobs are visible so the toast drops without waiting for the idle poll.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const jobs = queue.jobs || [];
+    const needsTick = jobs.some(j =>
+      j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled',
+    ) || !!optimistic;
+    if (!needsTick) return;
+    const id = window.setInterval(() => setTick(n => n + 1), 400);
+    return () => window.clearInterval(id);
+  }, [queue.jobs, optimistic]);
+
   const jobs = visibleTransferJobs(queue.jobs || []);
   const active = jobs.filter(jobIsActive);
   const recentDone = jobs.filter(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled').slice(0, 3);

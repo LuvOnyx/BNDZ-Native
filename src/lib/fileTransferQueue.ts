@@ -1,7 +1,5 @@
 import type { FileTransferJobDto, FileTransferQueueState } from './ipcBridge';
 
-const COMPLETED_VISIBLE_MS = 2_500;
-
 /** Shared hook for the native file-transfer queue (background jobs). */
 export function useFileTransferQueue(
   onChange?: (state: FileTransferQueueState) => void,
@@ -126,12 +124,16 @@ export function formatTransferProgressLine(job: FileTransferJobDto, showSpeedEta
   return parts.join(' · ');
 }
 
+const COMPLETED_VISIBLE_MS = 2_500;
+const FAILED_VISIBLE_MS = 6_000;
+
 function isRecentlyCompleted(job: FileTransferJobDto): boolean {
   if (job.status !== 'completed' && job.status !== 'failed' && job.status !== 'cancelled') return false;
   if (!job.completedUtc) return false;
   const completed = Date.parse(job.completedUtc);
   if (Number.isNaN(completed)) return false;
-  return Date.now() - completed < COMPLETED_VISIBLE_MS;
+  const windowMs = job.status === 'failed' ? FAILED_VISIBLE_MS : COMPLETED_VISIBLE_MS;
+  return Date.now() - completed < windowMs;
 }
 
 export function isTransferActive(state: FileTransferQueueState): boolean {
@@ -140,8 +142,9 @@ export function isTransferActive(state: FileTransferQueueState): boolean {
     || state.jobs.some(isRecentlyCompleted);
 }
 
+/** Jobs shown in toast + panel: live work, plus terminal jobs only inside the visibility window. */
 export function visibleTransferJobs(jobs: FileTransferJobDto[]): FileTransferJobDto[] {
   return jobs.filter(j =>
-    j.status === 'queued' || j.status === 'running' || j.status === 'paused' || j.status === 'failed' || isRecentlyCompleted(j),
+    j.status === 'queued' || j.status === 'running' || j.status === 'paused' || isRecentlyCompleted(j),
   );
 }

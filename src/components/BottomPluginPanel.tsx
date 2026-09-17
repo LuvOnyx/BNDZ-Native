@@ -489,8 +489,17 @@ export default function BottomPluginPanel(props: any & {
           );
         })}
         {!activeTab && (
-          <div className="flex items-center justify-center h-full bndz-panel-muted">
-            Select a plugin capability above.
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <BndzPlaque tone="panel" size="md" />
+            <span className="text-sm font-medium text-gray-300">Select a plugin above</span>
+            <span className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">
+              Installed plugins open here — pick a tab from the strip to start.
+            </span>
+            {onOpenPluginStore && (
+              <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-3 py-1.5 text-xs font-semibold">
+                <Icons8Icon id="extension_hub" size={12} /> Extension Hub
+              </button>
+            )}
           </div>
         )}
       </div>
