@@ -78,6 +78,18 @@ public sealed partial class MainWindow : Window
 
         ChromeHost.PaneMessage += ChromeHost_PaneMessage;
         NativeList.ContextChanged += (_, _) => { };
+        NativeTerminal.SessionClosed += (_, sid) =>
+        {
+            try
+            {
+                ChromeHost.PostHostMessage(new
+                {
+                    type = "NATIVE_TERMINAL_CLOSED",
+                    payload = new { sessionId = sid },
+                });
+            }
+            catch { /* ignore */ }
+        };
             ChromeHost.WebViewInitialized += (_, _) =>
         {
             WireHostLifecycle();
@@ -94,6 +106,7 @@ public sealed partial class MainWindow : Window
         {
             RemoveWindowSubclass();
             DisposeTray();
+            try { NativeTerminal.Close(notify: false); } catch { /* ignore */ }
             try
             {
                 // Plugin pop-outs share the main process OLE target — never revoke it on close
@@ -699,10 +712,94 @@ public sealed partial class MainWindow : Window
         if (type is "BNDZ_NATIVE_LIST_BOUNDS" or "BNDZ_PANE_NAVIGATE" or "BNDZ_REQUEST_DIR_LISTING")
             return;
 
+        if (type is "NATIVE_TERMINAL_OPEN" or "NATIVE_TERMINAL_LAYOUT" or "NATIVE_TERMINAL_CLOSE")
+        {
+            HandleNativeTerminalMessage(type, root);
+            return;
+        }
+
         if (type is "BNDZ_UI_READY")
         {
             ScheduleMenubarInputRegionRefresh("ui-ready");
             return;
+        }
+    }
+
+    private void HandleNativeTerminalMessage(string? type, JsonElement root)
+    {
+        if (_launch.IsPlugin) return;
+        JsonElement payload = default;
+        var hasPayload = root.TryGetProperty("payload", out payload);
+
+        if (type is "NATIVE_TERMINAL_CLOSE")
+        {
+            NativeTerminal.Close(notify: true);
+            return;
+        }
+
+        if (type is "NATIVE_TERMINAL_LAYOUT" && hasPayload)
+        {
+            var x = payload.TryGetProperty("x", out var xEl) && xEl.TryGetDouble(out var xd) ? xd : 0;
+            var y = payload.TryGetProperty("y", out var yEl) && yEl.TryGetDouble(out var yd) ? yd : 0;
+            var w = payload.TryGetProperty("width", out var wEl) && wEl.TryGetDouble(out var wd) ? wd : 0;
+            var h = payload.TryGetProperty("height", out var hEl) && hEl.TryGetDouble(out var hd) ? hd : 0;
+            var visible = !payload.TryGetProperty("visible", out var vEl) || vEl.ValueKind != JsonValueKind.False;
+            // Keep hole aligned even before Open — Open will show the control.
+            if (NativeTerminal.HasSession || visible)
+                NativeTerminal.ApplyBounds(x, y, w, h, visible && NativeTerminal.HasSession);
+            else
+                NativeTerminal.ApplyBounds(0, 0, 0, 0, visible: false);
+            return;
+        }
+
+        if (type is "NATIVE_TERMINAL_OPEN" && hasPayload)
+        {
+            var sessionId = payload.TryGetProperty("sessionId", out var sidEl) && sidEl.ValueKind == JsonValueKind.String
+                ? sidEl.GetString()
+                : $"term-{Guid.NewGuid():N}";
+            var cmd = payload.TryGetProperty("commandLine", out var cmdEl) && cmdEl.ValueKind == JsonValueKind.String
+                ? cmdEl.GetString()
+                : null;
+            var cwd = payload.TryGetProperty("cwd", out var cwdEl) && cwdEl.ValueKind == JsonValueKind.String
+                ? cwdEl.GetString()
+                : null;
+            var label = payload.TryGetProperty("label", out var labEl) && labEl.ValueKind == JsonValueKind.String
+                ? labEl.GetString()
+                : "Local";
+            var x = payload.TryGetProperty("x", out var xEl) && xEl.TryGetDouble(out var xd) ? xd : 0;
+            var y = payload.TryGetProperty("y", out var yEl) && yEl.TryGetDouble(out var yd) ? yd : 0;
+            var w = payload.TryGetProperty("width", out var wEl) && wEl.TryGetDouble(out var wd) ? wd : 0;
+            var h = payload.TryGetProperty("height", out var hEl) && hEl.TryGetDouble(out var hd) ? hd : 0;
+
+            try
+            {
+                NativeTerminal.Open(sessionId!, cmd, cwd, label ?? "Local");
+                if (w >= 24 && h >= 24)
+                    NativeTerminal.ApplyBounds(x, y, w, h, visible: true);
+
+                var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                ChromeHost.PostHostMessage(new
+                {
+                    type = "NATIVE_TERMINAL_OPEN_RESULT",
+                    id,
+                    payload = new
+                    {
+                        ok = true,
+                        sessionId,
+                        label = NativeTerminal.Label,
+                    },
+                });
+            }
+            catch (Exception ex)
+            {
+                var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                ChromeHost.PostHostMessage(new
+                {
+                    type = "NATIVE_TERMINAL_OPEN_RESULT",
+                    id,
+                    payload = new { ok = false, error = ex.Message },
+                });
+            }
         }
     }
 

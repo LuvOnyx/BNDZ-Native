@@ -6,6 +6,7 @@ import { IPC } from '../../lib/ipcBridge';
 import { formatUiPath } from '../../lib/displayPath';
 import { isMeshPath, parseMeshPath } from '../../lib/meshPaths';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { isNativeShellHostBoot } from '../../lib/nativeShellHostBoot';
 import MeshHostsManager from '../mesh/MeshHostsManager';
 import MeshBucketsSharesPanel from '../mesh/MeshBucketsSharesPanel';
 import MeshEphemeralPanel from '../mesh/MeshEphemeralPanel';
@@ -18,6 +19,83 @@ import {
 } from './PluginPanelPrimitives';
 import { type MeshSyncRule, type MeshHost, normalizeMeshHost } from '../../lib/meshTypes';
 import type { BottomPluginLaunchContext } from '../BottomPluginPanel';
+
+const useNativeWinUiTerminal = () => isNativeShellHostBoot();
+
+function buildSshCommandLine(host: MeshHost): string {
+  const user = host.username || '';
+  const hostname = host.hostname || host.alias || '';
+  const port = Number(host.port) || 22;
+  const target = user ? `${user}@${hostname}` : hostname;
+  const portArg = port !== 22 ? ` -p ${port}` : '';
+  return `ssh${portArg} ${target}`.trim();
+}
+
+/** Reports the React hole rect so WinUI can align TermControl overlay. */
+function NativeTerminalHole({
+  active,
+  sessionLabel,
+}: {
+  active: boolean;
+  sessionLabel: string | null;
+}) {
+  const holeRef = useRef<HTMLDivElement>(null);
+
+  const publishLayout = useCallback((visible: boolean) => {
+    const el = holeRef.current;
+    if (!el) {
+      IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    IPC.nativeTerminalLayout({
+      x: r.left,
+      y: r.top,
+      width: r.width,
+      height: r.height,
+      visible: visible && r.width >= 24 && r.height >= 24,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      publishLayout(false);
+      return;
+    }
+    publishLayout(true);
+    const el = holeRef.current;
+    const ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => publishLayout(true))
+      : null;
+    ro?.observe(el!);
+    const onWin = () => publishLayout(true);
+    window.addEventListener('resize', onWin);
+    const t1 = window.setTimeout(() => publishLayout(true), 32);
+    const t2 = window.setTimeout(() => publishLayout(true), 160);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', onWin);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      publishLayout(false);
+    };
+  }, [active, publishLayout]);
+
+  return (
+    <div
+      ref={holeRef}
+      className="absolute inset-0 w-full h-full bndz-native-term-hole bg-[#07090e]"
+      aria-label={sessionLabel ? `Terminal — ${sessionLabel}` : 'Terminal'}
+      role="application"
+    >
+      {!sessionLabel && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-gray-500 p-6 text-center">
+          Starting terminal…
+        </div>
+      )}
+    </div>
+  );
+}
 
 function decodeTerminalB64(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -272,7 +350,11 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionLabel, setSessionLabel] = useState<string | null>(null);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
+  const nativeTerm = useNativeWinUiTerminal();
+  const holeMeasureRef = useRef<HTMLDivElement | null>(null);
   const [liveShareOn, setLiveShareOn] = useState(false);
   const [livePeers, setLivePeers] = useState<any[]>([]);
 
@@ -284,8 +366,18 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   useEffect(() => { void refreshRules(); }, [refreshRules]);
 
-  // Buffer ConPTY/SSH output even before the Terminal tab mounts xterm.
-  useEffect(() => { ensureMeshTerminalOutputHub(); }, []);
+  // Buffer ConPTY/SSH output even before the Terminal tab mounts xterm (classic host only).
+  useEffect(() => {
+    if (!nativeTerm) ensureMeshTerminalOutputHub();
+  }, [nativeTerm]);
+
+  useEffect(() => {
+    if (!nativeTerm) return;
+    return IPC.onNativeTerminalClosed((sid) => {
+      setSessionId((cur) => (cur === sid ? null : cur));
+      setSessionLabel((cur) => (cur && sid ? null : cur));
+    });
+  }, [nativeTerm]);
 
   useEffect(() => {
     if (!pluginLaunch) return;
@@ -344,14 +436,36 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     } finally { setBusy(false); }
   };
 
+  const measureHole = useCallback(() => {
+    const el = document.querySelector('.bndz-native-term-hole') as HTMLElement | null
+      ?? holeMeasureRef.current;
+    if (!el) return { x: 0, y: 0, width: 0, height: 0 };
+    const r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, width: r.width, height: r.height };
+  }, []);
+
+  const closeTerminalSession = useCallback(() => {
+    if (nativeTerm) {
+      IPC.nativeTerminalClose();
+    } else if (sessionId) {
+      IPC.meshTerminalClose(sessionId);
+    }
+    setSessionId(null);
+    setSessionLabel(null);
+  }, [nativeTerm, sessionId]);
+
   const openTerminal = useCallback(async (hostId?: string, local = false) => {
     setBusy(true);
-    // Mount xterm before OpenLocal so FitAddon can measure a real hole.
     setTab('terminal');
+    setNewMenuOpen(false);
     try {
       let cwd: string | undefined;
+      let commandLine: string | undefined;
+      let label = 'Local';
+
       if (local) {
         cwd = currentPath && !isMeshPath(currentPath) ? toWindowsPath(currentPath) : undefined;
+        label = cwd ? `Local · ${cwd}` : 'Local';
       } else if (currentPath && isMeshPath(currentPath)) {
         const parsed = parseMeshPath(currentPath);
         if (parsed.hostId && (!hostId || parsed.hostId === hostId)) {
@@ -359,14 +473,50 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           cwd = parsed.remotePath || '/';
         }
       }
+
       if (!local && hostId) {
-        const conn = await IPC.meshConnect(hostId);
-        if (conn?.error) {
-          setStatus(String(conn.error));
-          return;
+        const host = hosts.find(h => h.id === hostId);
+        label = host ? `SSH · ${host.alias}` : `SSH · ${hostId}`;
+        if (nativeTerm) {
+          if (host) commandLine = buildSshCommandLine(host);
+          else commandLine = `ssh ${hostId}`;
+        } else {
+          const conn = await IPC.meshConnect(hostId);
+          if (conn?.error) {
+            setStatus(String(conn.error));
+            return;
+          }
         }
       }
-      // Wait for xterm + FitAddon geometry (never guess from CSS font metrics).
+
+      if (nativeTerm) {
+        // One session at a time — close prior WinUI TermControl first.
+        if (sessionId) IPC.nativeTerminalClose();
+        // Let the hole mount / flex before measuring.
+        for (let i = 0; i < 8; i++) {
+          await new Promise<void>(r => requestAnimationFrame(() => r()));
+        }
+        const rect = measureHole();
+        const res = await IPC.nativeTerminalOpen({
+          sessionId: `term-${Date.now().toString(36)}`,
+          commandLine: local || !commandLine ? undefined : commandLine,
+          cwd: local ? cwd : undefined,
+          label,
+          ...rect,
+        });
+        if (!res.ok) {
+          setStatus(res.error || 'Terminal failed to open');
+          setSessionId(null);
+          setSessionLabel(null);
+          return;
+        }
+        setSessionId(res.sessionId || null);
+        setSessionLabel(res.label || label);
+        setStatus(res.label || label);
+        return;
+      }
+
+      // Classic host: ConPTY/SSH.NET → xterm
       let cols = 120;
       let rows = 30;
       for (let i = 0; i < 24; i++) {
@@ -381,6 +531,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           } catch { /* keep trying */ }
         }
       }
+      if (sessionId) IPC.meshTerminalClose(sessionId);
       const session = await IPC.meshTerminalOpen({
         hostId,
         local,
@@ -398,14 +549,14 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
         return;
       }
       setSessionId(sid);
+      setSessionLabel(label);
       setStatus(local ? 'Local PowerShell' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
-      // ACK + fit run in MeshSshTerminalPanel when sessionId lands.
     } catch (e: any) {
       setStatus(e?.message || 'Terminal failed to open');
     } finally { setBusy(false); }
-  }, [currentPath]);
+  }, [currentPath, hosts, measureHole, nativeTerm, sessionId]);
 
-  // First visit to Terminal tab → open Local ConPTY so the prompt paints without an extra click.
+  // First visit to Terminal tab → open Local so the prompt paints without an extra click.
   const autoLocalOpenedRef = useRef(false);
   useEffect(() => {
     if (tab !== 'terminal' || sessionId || busy) return;
@@ -417,6 +568,14 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     autoLocalOpenedRef.current = true;
     void openTerminal(undefined, true);
   }, [tab, sessionId, busy, pluginLaunch?.sessionId, openTerminal]);
+
+  // Hide WinUI overlay when leaving terminal density.
+  useEffect(() => {
+    if (!nativeTerm) return;
+    if (tab !== 'terminal') {
+      IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
+    }
+  }, [tab, nativeTerm]);
 
   const addRule = () => {
     const hostId = selectedHostId || hosts[0]?.id || '';
@@ -471,32 +630,57 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       scrollable={!terminalMode}
       density={terminalMode ? 'terminal' : 'default'}
       toolbar={terminalMode ? (
-        <div className="bndz-mesh-term-actions flex items-center gap-1 w-full min-h-0">
-          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto scrollbar-hidden">
-            <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
-              Local
-            </PluginToolbarButton>
-            {hosts.filter(h => h.provider === 0).slice(0, 2).map(h => (
-              <PluginToolbarButton key={h.id} onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }} disabled={busy}>
-                SSH · {h.alias}
+        <div className="bndz-mesh-term-actions flex items-center gap-2 w-full min-h-0 relative">
+          <div className="min-w-0 flex-1 truncate text-[11px] text-sky-100/85 font-medium tracking-wide">
+            {sessionLabel || (busy ? 'Opening…' : 'Terminal')}
+          </div>
+          <div className="flex items-center gap-1 shrink-0 relative">
+            <div className="relative">
+              <PluginToolbarButton
+                onClick={() => setNewMenuOpen(v => !v)}
+                disabled={busy}
+              >
+                New
               </PluginToolbarButton>
-            ))}
-            {meshBrowseHint && (
-              <PluginToolbarButton onClick={() => void openTerminal()} disabled={busy}>
-                Shell Here
-              </PluginToolbarButton>
-            )}
+              {newMenuOpen && (
+                <div className="absolute right-0 top-[calc(100%+4px)] z-40 min-w-[168px] rounded-lg border border-white/10 bg-[#12151c] shadow-xl py-1">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-1.5 text-[11px] text-gray-200 hover:bg-white/8"
+                    onClick={() => void openTerminal(undefined, true)}
+                  >
+                    Local shell
+                  </button>
+                  {meshBrowseHint && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-[11px] text-gray-200 hover:bg-white/8"
+                      onClick={() => void openTerminal()}
+                    >
+                      Shell Here
+                    </button>
+                  )}
+                  {hosts.filter(h => h.provider === 0).slice(0, 8).map(h => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-[11px] text-gray-200 hover:bg-white/8"
+                      onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }}
+                    >
+                      SSH · {h.alias}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {sessionId && (
-              <PluginToolbarButton onClick={() => {
-                IPC.meshTerminalClose(sessionId);
-                setSessionId(null);
-              }}>
+              <PluginToolbarButton onClick={closeTerminalSession}>
                 Close
               </PluginToolbarButton>
             )}
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <PluginToolbarButton onClick={() => setTab('hosts')}>Hosts</PluginToolbarButton>
+            <PluginToolbarButton onClick={() => { setNewMenuOpen(false); setTab('hosts'); }}>
+              Hosts
+            </PluginToolbarButton>
           </div>
         </div>
       ) : (
@@ -567,7 +751,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
               : 'relative p-3 overflow-y-auto bndz-scrollbar'
           }`}
         >
-          {/* Keep xterm mounted after first open so ConPTY output survives Remote tab switches. */}
+          {/* Native WinUI TermControl hole (BNDZShell) or classic xterm (WPF host). */}
           {(terminalMode || sessionId) && (
             <div
               className={`bndz-mesh-terminal-frame bg-[#07090e] ${
@@ -577,14 +761,20 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
               }`}
               aria-hidden={!terminalMode}
             >
-              <MeshTerminalPanel
-                sessionId={sessionId}
-                active={terminalMode}
-              />
-              {!sessionId && terminalMode && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-gray-500 p-6 text-center z-[1]">
-                  Opening Local PowerShell… Or pick SSH / Shell Here above.
-                </div>
+              {nativeTerm ? (
+                <NativeTerminalHole active={terminalMode} sessionLabel={sessionLabel} />
+              ) : (
+                <>
+                  <MeshTerminalPanel
+                    sessionId={sessionId}
+                    active={terminalMode}
+                  />
+                  {!sessionId && terminalMode && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-gray-500 p-6 text-center z-[1]">
+                      Opening Local PowerShell…
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

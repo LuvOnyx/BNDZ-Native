@@ -47,6 +47,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="EasyWindowsTerminalControl.WinUI" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
     <PackageReference Include="Microsoft.Web.WebView2" />

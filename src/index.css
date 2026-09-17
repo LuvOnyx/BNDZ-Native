@@ -13489,17 +13489,17 @@ html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bnd
   min-height: 0;
 }
 .bndz-plugin-toolbar--terminal {
-  min-height: 28px;
-  max-height: 30px;
+  min-height: 34px;
+  max-height: 40px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   background: color-mix(in srgb, var(--panel-bottom-bg, #0c0e14) 88%, #000 12%);
 }
 .bndz-plugin-toolbar--terminal .bndz-mesh-term-actions button,
 .bndz-plugin-toolbar--terminal button {
-  padding-top: 2px !important;
-  padding-bottom: 2px !important;
-  font-size: 10px !important;
-  line-height: 1.15 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
 }
 /* When Terminal is active, compress the bottom plugin tabstrip so it doesn't
    steal ~20% of the panel from the ConPTY hole. */
@@ -13540,6 +13540,18 @@ html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bnd
   overflow: hidden;
   padding: 0;
   margin: 0;
+}
+.bndz-native-term-hole {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #07090e;
+  /* Hits go to WinUI TermControl overlay above WebView2. */
+  pointer-events: none;
+}
+.bndz-mesh-surface--terminal .bndz-mesh-terminal-frame {
+  padding: 0;
 }
 .bndz-mesh-terminal .xterm {
   height: 100%;

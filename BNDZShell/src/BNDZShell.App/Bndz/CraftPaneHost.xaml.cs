@@ -1343,6 +1343,7 @@ public sealed partial class CraftPaneHost : UserControl
 			var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
 			requestType = type;
 			if (type is "BNDZ_PANE_TOOL" or "BNDZ_PANE_NAVIGATE" or "BNDZ_PANE_SWITCH" or "BNDZ_REQUEST_DIR_LISTING" or "BNDZ_NATIVE_LIST_BOUNDS"
+				or "NATIVE_TERMINAL_OPEN" or "NATIVE_TERMINAL_LAYOUT" or "NATIVE_TERMINAL_CLOSE"
 				or "WINDOW_CHROME" or "GET_WINDOW_STATE"
 				or "SET_SYSTEM_BACKDROP" or "SHOW_APP_NOTIFICATION"
 				or "OPEN_FILE_DIALOG" or "SAVE_FILE_DIALOG" or "OPEN_FOLDER_DIALOG"

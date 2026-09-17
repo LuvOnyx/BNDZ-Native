@@ -659,7 +659,80 @@ export const IPC = {
     });
   },
 
-  /** Legacy no-op — local shell is ConPTY→xterm, never HWND SetParent. */
+  /**
+   * BNDZShell: open a real WinUI TermControl overlay over the plugin hole.
+   * Classic WPF host keeps meshTerminalOpen → xterm.
+   */
+  nativeTerminalOpen(opts: {
+    sessionId?: string;
+    commandLine?: string;
+    cwd?: string;
+    label?: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  }): Promise<{ ok: boolean; sessionId?: string; label?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_nativeTerm`;
+    return _nativeCall<any>('NATIVE_TERMINAL_OPEN', 'NATIVE_TERMINAL_OPEN_RESULT', id, {
+      sessionId: opts.sessionId || `term-${Date.now().toString(36)}`,
+      commandLine: opts.commandLine,
+      cwd: opts.cwd,
+      label: opts.label,
+      x: opts.x ?? 0,
+      y: opts.y ?? 0,
+      width: opts.width ?? 0,
+      height: opts.height ?? 0,
+    }, 60000).then((r) => ({
+      ok: r?.ok !== false && !r?.error,
+      sessionId: r?.sessionId,
+      label: r?.label,
+      error: r?.error ? String(r.error) : undefined,
+    }));
+  },
+
+  nativeTerminalLayout(opts: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  }): void {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({
+        type: 'NATIVE_TERMINAL_LAYOUT',
+        payload: opts,
+      });
+    } catch { /* ignore */ }
+  },
+
+  nativeTerminalClose(): void {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({ type: 'NATIVE_TERMINAL_CLOSE', payload: {} });
+    } catch { /* ignore */ }
+  },
+
+  onNativeTerminalClosed(cb: (sessionId: string) => void): () => void {
+    const handler = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data?.type !== 'NATIVE_TERMINAL_CLOSED') return;
+        const sid = data?.payload?.sessionId || data?.payload?.SessionId;
+        if (sid) cb(String(sid));
+      } catch { /* ignore */ }
+    };
+    try {
+      (window as any).chrome?.webview?.addEventListener('message', handler);
+    } catch { /* ignore */ }
+    return () => {
+      try { (window as any).chrome?.webview?.removeEventListener('message', handler); } catch { /* ignore */ }
+    };
+  },
+
+  /** @deprecated Prefer nativeTerminalLayout on BNDZShell. */
   meshTerminalLayout(_opts: {
     sessionId: string;
     screenX: number;
@@ -668,7 +741,13 @@ export const IPC = {
     height: number;
     visible: boolean;
   }): void {
-    /* intentionally empty */
+    this.nativeTerminalLayout({
+      x: _opts.screenX,
+      y: _opts.screenY,
+      width: _opts.width,
+      height: _opts.height,
+      visible: _opts.visible,
+    });
   },
 
   meshStat(path: string): Promise<any> {
