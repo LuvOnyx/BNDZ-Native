@@ -5073,14 +5073,22 @@ export default function BNDZUI() {
                   classified.summary = `The destination volume does not have enough free space (${line}).`;
                 }
               }
-              if (classified.kind !== 'other' && !isDelete && !isRename) {
+              const failedPaths = Array.isArray(job.failedPaths) ? job.failedPaths.filter(Boolean) : [];
+              const isPartialBatch = failedPaths.length > 0;
+              // Partial batch always gets an ops sheet (Retry failed / Skip rest) even when
+              // the summary message does not match a known error regex.
+              if ((classified.kind !== 'other' || isPartialBatch) && !isDelete && !isRename) {
+                if (isPartialBatch && classified.kind === 'other') {
+                  classified.title = 'Transfer partially failed';
+                  classified.summary = `${failedPaths.length} item(s) failed. Retry only those paths, skip the rest, or open the Action Log.`;
+                }
                 const retryThisTransfer = () => {
                   const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
                   if (!pending?.sources?.length) {
                     pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
                     return;
                   }
-                  const failed = Array.isArray(job.failedPaths) ? job.failedPaths.filter(Boolean) : [];
+                  const failed = failedPaths;
                   if (failed.length > 0) {
                     // Narrow the pending stash so elevate-and-retry / queue Retry stay consistent.
                     localTransferByOpRef.current.set(job.operationId, {
@@ -5117,7 +5125,7 @@ export default function BNDZUI() {
                 const elevateAndRetry = async () => {
                   const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
                   if (pending) {
-                    const failed = Array.isArray(job.failedPaths) ? job.failedPaths.filter(Boolean) : [];
+                    const failed = failedPaths;
                     const stash = failed.length > 0
                       ? { action: pending.action, sources: failed, destDir: pending.destDir }
                       : pending;
@@ -5127,15 +5135,30 @@ export default function BNDZUI() {
                     stashPendingElevatedTransfer({ ...stash, savedAt: Date.now() });
                   }
                   const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
-                  await promptElevationIfNeeded(
+                  const ok = await promptElevationIfNeeded(
                     { success: false, needsElevation: true, message: classified.detail },
                     { title: classified.title, message: `${classified.summary}
 
 Restart BNDZ as administrator to retry?` },
                   );
+                  if (!ok) {
+                    pushToast({
+                      kind: 'warning',
+                      title: 'Elevation cancelled',
+                      message: 'Transfer was not retried.',
+                    });
+                  }
                 };
+                const installedIds = Array.isArray(configRef.current.installedPlugins)
+                  ? configRef.current.installedPlugins
+                  : [];
+                const cleanupInstalled = installedIds.includes('storage-cleanup');
                 let actions: { label: string; style?: 'primary' | 'secondary' | 'destructive'; action: () => void | Promise<void> }[];
-                if (classified.kind === 'accessDenied') {
+                if (classified.kind === 'intoSelf') {
+                  actions = [
+                    { label: 'OK', style: 'primary', action: () => skipFailedTransfer() },
+                  ];
+                } else if (classified.kind === 'accessDenied') {
                   actions = [
                     { label: 'Open Action Log', style: 'secondary', action: () => openActionLog() },
                     { label: 'Cancel', style: 'secondary', action: () => skipFailedTransfer() },
@@ -5156,7 +5179,9 @@ Restart BNDZ as administrator to retry?` },
                   ];
                 } else if (classified.kind === 'diskFull') {
                   actions = [
-                    { label: 'Open Storage Cleanup', style: 'secondary', action: () => openStorageCleanup() },
+                    ...(cleanupInstalled
+                      ? [{ label: 'Open Storage Cleanup', style: 'secondary' as const, action: () => openStorageCleanup() }]
+                      : []),
                     { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
                     { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
                     { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
@@ -5172,6 +5197,12 @@ Restart BNDZ as administrator to retry?` },
                     { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
                     { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
+                } else if (isPartialBatch) {
+                  actions = [
+                    { label: 'Skip rest', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry failed', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
+                  ];
                 } else {
                   actions = [
                     { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
@@ -5183,7 +5214,7 @@ Restart BNDZ as administrator to retry?` },
                   ? `\n\n${classified.capacityLine}`
                   : '';
                 showModal({
-                  type: classified.kind === 'accessDenied' || classified.kind === 'diskFull' ? 'warning' : 'destructive',
+                  type: classified.kind === 'accessDenied' || classified.kind === 'diskFull' || classified.kind === 'intoSelf' ? 'warning' : 'destructive',
                   title: classified.title,
                   message: `${classified.summary}${capacityNote}
 

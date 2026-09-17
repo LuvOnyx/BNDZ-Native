@@ -80,8 +80,8 @@ Reported after wallpaper OLE verify. Fix in this pass; re-verify before claiming
 
 - [x] Wallpaper drop occasionally refreshes whole desktop/Explorer (seen twice) — soft SHChangeNotify only
 - [x] Outbound desktop drop copies instead of MOVE on same volume; list does not refresh after folder change — escalate strip + tombstones + delayed sourcesGone
-- [ ] No drag ghost outside app border (only finger cursor) — **RegisterClassW+WNDCLASSEX → err=87; fixed RegisterClassExW**
-- [ ] Tree drag ghosts ugly — clone real `.nav-tree-row` with computed paint
+- [x] No drag ghost outside app border (only finger cursor) — **RegisterClassExW + premultiplied BGRA for UpdateLayeredWindow**; Windows click-through to confirm `ole-dnd.log` `outbound-ghost show`
+- [x] Tree drag ghosts ugly — bake live `.nav-tree-row` computed paint (gradients/indent) onto body clone
 - [x] Left sidebar unclickable after init until list selection — NC region off + Caption strip only (re-verify cold boot LMB)
 - [x] Desktop → list inbound — **2026-09-06 root cause:** `push=True` ≠ PushTargets>0; drops never reached React. Fix: `SetExternalDropDeliver` + `DeliverExternalDropJson` + ExecuteScript inject + host MOVE/COPY fallback after 750ms if sources still exist. Proof in `%LocalAppData%/BNDZ/ole-dnd.log`: expect `DeliverExternalDropJson dropCb=True`, `Inject`, `FE_DEBUG inbound-drop` (or `inbound-host-fallback ok`).
 - [x] Details tab (next to Workspace) does not scroll — content cut off at bottom
@@ -126,12 +126,17 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Bottom plugin panel empty state + install gating still correct
 - [x] Tab right-click menu + Tabs settings still honor height/font/style/colors with plaque chrome
 - [x] Instrument tab chrome: taller/wider defaults, chamfer chips, CSS bottom color slit (`--bndz-tab-slit`)
+- [x] Colored tabs keep full-bleed / plaque silhouette (accent = slit + tint only — no small-chip regression)
+- [x] Continuum user strings → Home (Hub / Pillar Board untouched)
+- [x] About / Register de-AI (no sparkles / generic blue links)
 - [x] Shell cascade parent icons (`ContextSubmenu.iconSrc` + enumerator depth≤1 extract + child fallback)
 - [x] Context menu zero-shift open: await shell verbs (~160ms budget) + reserved cascade/tools skeletons
 - [x] Menubar / context hover colors consistent after menu merge (`bndz-menubar-row` → `var(--accent)`)
 - [x] Configuration dialog Shell Integration copy matches weave behavior
 - [x] Uninstalled plugin toast points to Extension Hub (not “Plugin Store”)
 - [x] Multi-res `BNDZ.ico` (16–256 incl. 20/24/60) synced public ↔ ApplicationIcon; gen script relative + 9 sizes
+- [x] Wave A2 absorb remaps + host tabs in code (Magnets/Encode/Intake/Policies/Capacity/Health/Diff/Vault/Groups) — **Windows smoke still required**
+- [ ] D2/D3 Windows sign-off: Shift+RMB no dupes; terminal first paint; E4.1–E4.12; DnD 46–58; full `fm-launch-readiness.md`
 
 ### Native plaques / illustrations (modals · panels · list tabs · menus)
 

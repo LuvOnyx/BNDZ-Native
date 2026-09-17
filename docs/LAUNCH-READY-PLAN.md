@@ -66,6 +66,7 @@ Per [`PLUGINS-TODO-BEFORE-LAUNCH.MD`](../PLUGINS-TODO-BEFORE-LAUNCH.MD) must-mov
 | Remaps | `RETIRED_PLUGIN_REMAP` in `PluginRegistryContext.tsx` |
 
 - **Exception:** Ghost → RAM Staging absorb is **superseded by A1 remove** — do not professionalize Staging; remove it.
+- [x] Code audit: remaps + host tabs present (Magnets/Encode/Intake/Policies/Capacity/Health/Diff/Vault/Groups)
 - [ ] Windows UI smoke: open each host tab once after install remap hydrate
 
 ### A3 — Keep + professionalize (big-company hosts)
@@ -215,7 +216,7 @@ Do not ship Shell Integration as “looks wired” — run the toggles on Window
 
 ### E4 — Launch-readiness additions (Wave E)
 
-Add/sign checks for: name collision modal; disk-full modal; access-denied → UAC Allow; UAC Cancel; Shell Integration toggle elevate round-trip; file-in-use; folder-into-self block.
+Rows **E4.1–E4.12** are now in [`docs/fm-launch-readiness.md`](fm-launch-readiness.md). Sign on real Windows for: name collision; folder conflict; disk-full; in-use; path-too-long; access-denied → UAC Allow/Cancel; into-self; partial batch; Shell Integration elevate round-trip.
 
 ---
 
@@ -350,22 +351,27 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 | Shell Integration admin | Mostly yes | Windows live verify toggles (E3) |
 
 ### E progress (this pass)
-- [x] Transfer error classifier (`transferErrorKind.ts`) — disk full / in-use / path too long / access denied
+- [x] Transfer error classifier (`transferErrorKind.ts`) — disk full / in-use / path too long / access denied / intoSelf
 - [x] Failed-job ops dialogs in BNDZUI (dedicated modal, not toast-only)
 - [x] Folder-into-self reject — list DnD + Copy/Move To + paste + host bndz guard (OLE untouched)
 - [x] Bndz engine folder same-name → `FileConflictModal` (skip / replace / keep both)
-- [x] Elevation: stash last local transfer + replay after admin relaunch
+- [x] Elevation: stash last local transfer in **localStorage** + replay after admin relaunch
+- [x] Transfer UAC no longer stamps `bndz-shell-apply-pending` (only `--apply-shell` relaunches do)
 - [x] Host `PrivilegePolicyService` classifies diskFull / sharingViolation / pathTooLong / accessDenied
 - [x] Disk-full need-vs-free capacity line (parse host Need/have + drive probe + MarkFailed enrich)
-- [x] Partial-batch suite — per-op Retry stash, Skip clears history, Open Action Log (modal + queue)
+- [x] Partial-batch suite — ops modal even when summary is unclassified; Retry failed / Skip rest / Open Action Log
 - [x] Path-too-long Skip/Open destination/Retry UX (Skip no longer a no-op)
 - [x] CheckSpaceBeforeCopy defaults on for bndz engine preflight
+- [x] E4.1–E4.12 checklist rows added to `fm-launch-readiness.md`
 - [ ] Windows live verify: Shell Integration toggles + UAC Allow/Cancel matrix
 - [ ] Windows live verify: disk-full / path-too-long / into-self click-through
 
 ### C progress (this pass)
 - [x] VirtualizedFileList default threshold = 1 (always virtualize) — code audit
+- [x] Outside-app OLE ghost — premultiplied BGRA for UpdateLayeredWindow + failure logging
+- [x] Tree drag ghost — bake live `.nav-tree-row` computed paint
 - [ ] Windows scroll FPS ≈ display Hz with warm icons (live measure)
+- [ ] Windows confirm outbound ghost follows on wallpaper (`ole-dnd.log`)
 
 ### D progress (this pass)
 - [x] Build gate recipe still `npm run build` + Debug `dotnet` after product turns

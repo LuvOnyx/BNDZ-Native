@@ -693,8 +693,37 @@ export function VirtualizedNavTree({
       removeTreeGhost();
       try {
         const rect = rowEl.getBoundingClientRect();
+        const hadSelected = rowEl.classList.contains('nav-tree-row-selected');
+        if (!hadSelected) rowEl.classList.add('nav-tree-row-selected');
+        const cs = getComputedStyle(rowEl);
+        // Bake live sidebar paint before cloning — body orphans lose
+        // `html[data-bndz-shell] .bndz-chrome-sidebar .nav-tree-row-selected` rules.
+        const paint = {
+          backgroundImage: cs.backgroundImage,
+          backgroundColor: cs.backgroundColor,
+          backgroundSize: cs.backgroundSize,
+          backgroundPosition: cs.backgroundPosition,
+          backgroundRepeat: cs.backgroundRepeat,
+          boxShadow: cs.boxShadow,
+          borderTop: cs.borderTop,
+          borderRight: cs.borderRight,
+          borderBottom: cs.borderBottom,
+          borderLeft: cs.borderLeft,
+          borderRadius: cs.borderRadius,
+          color: cs.color,
+          font: cs.font,
+          paddingTop: cs.paddingTop,
+          paddingRight: cs.paddingRight,
+          paddingBottom: cs.paddingBottom,
+          paddingLeft: cs.paddingLeft,
+          gap: cs.gap,
+          alignItems: cs.alignItems,
+          height: `${rect.height}px`,
+          width: `${Math.max(rect.width, 120)}px`,
+        };
+        if (!hadSelected) rowEl.classList.remove('nav-tree-row-selected');
+
         const clone = rowEl.cloneNode(true) as HTMLElement;
-        // Keep real .nav-tree-row paint; force selected so drag reads as “picked up.”
         clone.classList.add('bndz-tree-drag-ghost', 'nav-tree-row', 'nav-tree-row-selected');
         clone.classList.remove('nav-tree-row-dragging', 'nav-tree-row-trace', 'nav-tree-file-drop-target');
         clone.removeAttribute('data-nav-path');
@@ -706,21 +735,19 @@ export function VirtualizedNavTree({
         clone.querySelectorAll('.nav-tree-reorder-grip').forEach(el => {
           (el as HTMLElement).style.visibility = 'hidden';
         });
-        // Do NOT overwrite background with getComputedStyle().backgroundColor —
-        // that flattens the selected gradient into a muddy solid.
-        clone.style.cssText = [
-          'position:fixed',
-          'left:0',
-          'top:0',
-          `width:${Math.max(rect.width, 120)}px`,
-          `height:${rect.height}px`,
-          'z-index:9500',
-          'pointer-events:none',
-          'margin:0',
-          'box-sizing:border-box',
-          'will-change:transform',
-          'cursor:grabbing',
-        ].join(';');
+        // Additive layout — preserve indent from live paddingLeft bake.
+        Object.assign(clone.style, {
+          position: 'fixed',
+          left: '0',
+          top: '0',
+          zIndex: '9500',
+          pointerEvents: 'none',
+          margin: '0',
+          boxSizing: 'border-box',
+          willChange: 'transform',
+          cursor: 'grabbing',
+          ...paint,
+        });
         document.body.appendChild(clone);
         treeGhostEl = clone;
         placeTreeGhost(startX, startY);

@@ -16757,27 +16757,13 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   pointer-events: none !important;
   margin: 0;
   box-sizing: border-box;
-  /* Real .nav-tree-row / .nav-tree-row-selected paint — only lift */
+  /* Lift only — row paint is baked from live getComputedStyle in armTreeGhost */
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.58),
     0 0 0 1px rgba(255, 255, 255, 0.1);
   opacity: 0.98;
   will-change: transform;
   cursor: grabbing;
-  /* Keep selected gradient from .nav-tree-row-selected — never flatten to solid */
-  background-image: inherit;
-}
-.bndz-tree-drag-ghost.nav-tree-row-selected {
-  /* Ensure drag ghost always shows the picked-up accent strip */
-  background: linear-gradient(
-    90deg,
-    var(--list-selected-bg, #a855f7) 0%,
-    color-mix(in srgb, var(--list-selected-bg, #a855f7) 55%, transparent) 100%
-  ) !important;
-  box-shadow:
-    inset 2px 0 0 color-mix(in srgb, var(--list-focused-bg, #a855f7) 85%, #6db4e6),
-    0 12px 32px rgba(0, 0, 0, 0.58),
-    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 .bndz-tree-drag-ghost .nav-tree-chevron,
 .bndz-tree-drag-ghost [data-nav-expand],

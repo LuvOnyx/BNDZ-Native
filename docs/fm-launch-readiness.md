@@ -90,7 +90,7 @@ Build gate after code changes: `npm run build` → `dotnet build BNDZBackend/BND
 | 61 | Background processing doesn't swallow create result | ☐ |
 | 62 | Transfer panel shows jobs | ☐ |
 | 63 | Cancel transfer | ☐ |
-| 64 | Conflict dialog (keep both / replace) | ☐ |
+| 64 | Conflict dialog (BNDZ sheet: keep both / replace / skip — not Explorer) | ☐ |
 | 65 | Copy tags on copy (if enabled) | ☐ |
 | 66 | No flicker-back after optimistic move | ☐ |
 | 67 | Delete fast-lane not blocked by copy | ☐ |
@@ -142,6 +142,25 @@ Build gate after code changes: `npm run build` → `dotnet build BNDZBackend/BND
 | 98 | Bottom plugin panel resize | ☐ |
 | 99 | Bottom plugin panel resize + install gating (no auto-install) | ☐ |
 | 100 | Full session: 30 min mixed FM work — zero crashes | ☐ |
+
+## Wave E — Ops dialogs + elevation (E4.1–E4.12)
+
+Sign on real Windows `BNDZShell`. Code suite is landed; these rows are the live gate.
+
+| # | Check | Status |
+|---|--------|--------|
+| E4.1 | Same-name file collision → Replace / Keep both / Skip / Cancel all (+ apply to all) | ☐ |
+| E4.2 | Same-name folder collision uses BNDZ conflict sheet (not silent merge-only) | ☐ |
+| E4.3 | Disk-full modal shows need vs free; Skip / Retry; Cleanup only if Storage Cleanup installed | ☐ |
+| E4.4 | File-in-use → Skip / Retry / Open Action Log | ☐ |
+| E4.5 | Path-too-long → Open destination / Skip / Retry | ☐ |
+| E4.6 | Access denied → BNDZ confirm → Windows UAC Allow → transfer retries | ☐ |
+| E4.7 | UAC Cancel → clear status; no silent success; no corrupt shell half-state | ☐ |
+| E4.8 | Folder-into-self (list DnD + Copy/Move To + paste) → block dialog OK | ☐ |
+| E4.9 | Partial batch failure → Retry failed only / Skip rest / Open Action Log | ☐ |
+| E4.10 | Shell Integration toggle unelevated → UAC → setting sticks after refresh | ☐ |
+| E4.11 | Shell Integration toggle already elevated → applies without false admin loop | ☐ |
+| E4.12 | Shell Integration UAC Cancel → prior toggle restored; honest status | ☐ |
 
 ## Anti-fake rules
 

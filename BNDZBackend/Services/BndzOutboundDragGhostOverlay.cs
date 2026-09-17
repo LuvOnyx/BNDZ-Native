@@ -148,11 +148,15 @@ internal static class BndzOutboundDragGhostOverlay
             _copyMode = copyMode;
             EnsureWindow();
             RebuildBitmapUnlocked();
-            if (_hwnd == IntPtr.Zero || _hbm == IntPtr.Zero) return;
+            if (_hwnd == IntPtr.Zero || _hbm == IntPtr.Zero)
+            {
+                AppendLog($"outbound-ghost show aborted hwnd=0x{_hwnd.ToInt64():X} hbm=0x{_hbm.ToInt64():X}");
+                return;
+            }
             if (!GetCursorPos(out var pt)) return;
             PaintAtUnlocked(pt.x - _hotX, pt.y - _hotY, show: true);
             Interlocked.Exchange(ref _visible, 1);
-            AppendLog($"outbound-ghost show copy={copyMode} count={paths.Length} hwnd=0x{_hwnd.ToInt64():X}");
+            AppendLog($"outbound-ghost show copy={copyMode} count={paths.Length} hwnd=0x{_hwnd.ToInt64():X} size={_width}x{_height}");
         }
     }
 
@@ -300,7 +304,11 @@ internal static class BndzOutboundDragGhostOverlay
         var screenDc = GetDC(IntPtr.Zero);
         var dib = CreateDIBSection(screenDc, ref hdr, DibRgbColors, out var bits, IntPtr.Zero, 0);
         ReleaseDC(IntPtr.Zero, screenDc);
-        if (dib == IntPtr.Zero || bits == IntPtr.Zero) return IntPtr.Zero;
+        if (dib == IntPtr.Zero || bits == IntPtr.Zero)
+        {
+            AppendLog($"outbound-ghost CreateDIBSection failed err={Marshal.GetLastWin32Error()}");
+            return IntPtr.Zero;
+        }
 
         var data = bmp.LockBits(
             new Rectangle(0, 0, w, h),
@@ -314,6 +322,27 @@ internal static class BndzOutboundDragGhostOverlay
             for (var y = 0; y < h; y++)
             {
                 Marshal.Copy(data.Scan0 + y * srcStride, row, 0, srcStride);
+                // UpdateLayeredWindow + AC_SRC_ALPHA requires premultiplied BGRA.
+                for (var x = 0; x < w; x++)
+                {
+                    var i = x * 4;
+                    var b = row[i];
+                    var g = row[i + 1];
+                    var r = row[i + 2];
+                    var a = row[i + 3];
+                    if (a == 0)
+                    {
+                        row[i] = 0;
+                        row[i + 1] = 0;
+                        row[i + 2] = 0;
+                    }
+                    else if (a < 255)
+                    {
+                        row[i] = (byte)((b * a) / 255);
+                        row[i + 1] = (byte)((g * a) / 255);
+                        row[i + 2] = (byte)((r * a) / 255);
+                    }
+                }
                 Marshal.Copy(row, 0, bits + y * dstStride, dstStride);
             }
         }
@@ -350,7 +379,9 @@ internal static class BndzOutboundDragGhostOverlay
                 SourceConstantAlpha = 255,
                 AlphaFormat = AcSrcAlpha,
             };
-            UpdateLayeredWindow(_hwnd, IntPtr.Zero, ref dst, ref size, memDc, ref src, 0, ref blend, UlwAlpha);
+            var ok = UpdateLayeredWindow(_hwnd, IntPtr.Zero, ref dst, ref size, memDc, ref src, 0, ref blend, UlwAlpha);
+            if (!ok)
+                AppendLog($"outbound-ghost UpdateLayeredWindow failed err={Marshal.GetLastWin32Error()} hwnd=0x{_hwnd.ToInt64():X} size={_width}x{_height}");
             if (show)
                 SetWindowPos(_hwnd, HwndTopmost, x, y, 0, 0, SwpNosize | SwpNoactivate | SwpShowwindow);
             _lastX = x;
@@ -399,7 +430,7 @@ internal static class BndzOutboundDragGhostOverlay
             g.Clear(Color.Transparent);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
             g.CompositingMode = CompositingMode.SourceOver;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 

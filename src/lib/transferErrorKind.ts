@@ -7,6 +7,7 @@ export type TransferErrorKind =
   | 'accessDenied'
   | 'readOnly'
   | 'invalidName'
+  | 'intoSelf'
   | 'other';
 
 export type ClassifiedTransferError = {
@@ -33,6 +34,8 @@ const READ_ONLY_RE =
   /write protect|write-protected|read-?only (?:file|volume|media|filesystem|disk)|ERROR_WRITE_PROTECT|\b19\b|0x80070013|media is write protected|destination is not writable|not writable/i;
 const INVALID_NAME_RE =
   /invalid (?:file )?name|illegal characters?|filename.*incorrect|directory name.*incorrect|ERROR_INVALID_NAME|\b123\b|0x8007007b|reserved (?:device |file )?name|cannot contain|The filename, directory name, or volume label syntax is incorrect/i;
+const INTO_SELF_RE =
+  /cannot be (?:moved|copied) into itself|into itself|destination.*(is|was) (?:a )?sub(?:folder|directory)/i;
 
 /** Windows reserved device leaf names (with or without extension). */
 const RESERVED_DEVICE_RE =
@@ -183,6 +186,14 @@ export function classifyTransferError(
       detail,
     };
   }
+  if (INTO_SELF_RE.test(blob) || code === 'intoSelf') {
+    return {
+      kind: 'intoSelf',
+      title: 'Cannot move into itself',
+      summary: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+      detail,
+    };
+  }
   if (ACCESS_RE.test(blob) || code === 'accessDenied' || code === '5') {
     return {
       kind: 'accessDenied',
@@ -210,15 +221,21 @@ export type PendingElevatedTransfer = {
 
 export function stashPendingElevatedTransfer(op: PendingElevatedTransfer): void {
   try {
-    sessionStorage.setItem(PENDING_ELEVATION_TRANSFER_KEY, JSON.stringify(op));
+    localStorage.setItem(PENDING_ELEVATION_TRANSFER_KEY, JSON.stringify(op));
+  } catch { /* ignore */ }
+  try {
+    sessionStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY);
   } catch { /* ignore */ }
 }
 
 export function consumePendingElevatedTransfer(): PendingElevatedTransfer | null {
   try {
-    const raw = sessionStorage.getItem(PENDING_ELEVATION_TRANSFER_KEY);
+    const raw =
+      localStorage.getItem(PENDING_ELEVATION_TRANSFER_KEY)
+      ?? sessionStorage.getItem(PENDING_ELEVATION_TRANSFER_KEY);
     if (!raw) return null;
-    sessionStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY);
+    try { localStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY); } catch { /* ignore */ }
+    try { sessionStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY); } catch { /* ignore */ }
     const parsed = JSON.parse(raw) as PendingElevatedTransfer;
     if (!parsed?.sources?.length || !parsed.destDir) return null;
     if (Date.now() - (parsed.savedAt || 0) > 15 * 60 * 1000) return null;

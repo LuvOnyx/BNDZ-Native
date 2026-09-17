@@ -1272,7 +1272,7 @@ export function applySettingsRuntime(config: AppConfig): void {
     // Also force when launched elevated with --apply-shell (query / hash mirror from host).
     try {
       const q = typeof location !== 'undefined' ? `${location.search} ${location.hash}` : '';
-      if (/apply-shell|elevated/i.test(q)) force = true;
+      if (/apply-shell/i.test(q)) force = true;
     } catch { /* ignore */ }
     scheduleBackendSettings(config, force);
   });
