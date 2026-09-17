@@ -20418,21 +20418,40 @@ html.theme-light .bndz-xfer-toast-track {
 .bndz-batch-opsrail .bndz-plugin-toolbar-btn,
 .bndz-magnet-opsrail .bndz-plugin-toolbar-btn { flex-shrink: 0; }
 
-/* Fast Search mode strip — denser FM chips, not SaaS gradient cards */
+/* Fast Search mode strip — denser FM shapes with per-mode accent colors */
 .bndz-find-mode-chip {
   border-radius: var(--bndz-radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: color-mix(in srgb, var(--bndz-surface-raised, #1e1e22) 92%, #000 8%);
   color: rgba(255, 255, 255, 0.88);
+  --find-mode-accent: var(--accent, #99c9f0);
 }
+.bndz-find-mode-chip[data-mode='local'] { --find-mode-accent: #a78bfa; }
+.bndz-find-mode-chip[data-mode='global'] { --find-mode-accent: #38bdf8; }
+.bndz-find-mode-chip[data-mode='advanced'] { --find-mode-accent: #fbbf24; }
+.bndz-find-mode-chip[data-mode='duplicates'] { --find-mode-accent: #34d399; }
 .bndz-find-mode-chip:hover {
-  border-color: color-mix(in srgb, var(--accent, #99c9f0) 35%, transparent);
-  background: color-mix(in srgb, var(--accent, #99c9f0) 10%, #1e1e22);
+  border-color: color-mix(in srgb, var(--find-mode-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--find-mode-accent) 12%, #1e1e22);
 }
 .bndz-find-mode-chip.is-active {
-  border-color: color-mix(in srgb, var(--accent, #99c9f0) 55%, transparent);
-  background: color-mix(in srgb, var(--accent, #99c9f0) 18%, #1a1a1e);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #99c9f0) 22%, transparent);
+  border-color: color-mix(in srgb, var(--find-mode-accent) 58%, transparent);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--find-mode-accent) 22%, transparent), transparent 70%),
+    color-mix(in srgb, var(--find-mode-accent) 14%, #1a1a1e);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--find-mode-accent) 28%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--find-mode-accent) 12%, transparent);
+  color: #fff;
+}
+.bndz-find-mode-chip.is-active .bndz-find-mode-chip-label {
+  color: color-mix(in srgb, var(--find-mode-accent) 55%, #fff);
+}
+.bndz-find-mode-chip.is-active .bndz-find-mode-chip-hint {
+  color: color-mix(in srgb, var(--find-mode-accent) 35%, rgba(255, 255, 255, 0.72));
+}
+.bndz-find-mode-chip-hint {
+  color: rgba(160, 175, 195, 0.72);
 }
 html.theme-light .bndz-find-mode-chip {
   border-color: rgba(0, 0, 0, 0.12);
@@ -20441,8 +20460,15 @@ html.theme-light .bndz-find-mode-chip {
 }
 html.theme-light .bndz-find-mode-chip:hover,
 html.theme-light .bndz-find-mode-chip.is-active {
-  border-color: color-mix(in srgb, var(--accent, #0078d4) 40%, transparent);
-  background: color-mix(in srgb, var(--accent, #0078d4) 12%, #ffffff);
+  border-color: color-mix(in srgb, var(--find-mode-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--find-mode-accent) 14%, #ffffff);
+  color: rgba(0, 0, 0, 0.88);
+}
+html.theme-light .bndz-find-mode-chip.is-active .bndz-find-mode-chip-label {
+  color: color-mix(in srgb, var(--find-mode-accent) 70%, #0f172a);
+}
+html.theme-light .bndz-find-mode-chip.is-active .bndz-find-mode-chip-hint {
+  color: rgba(15, 23, 42, 0.55);
 }
 
 /* ── Omnibar Command Hub + live suggest (native FM command bar) ── */

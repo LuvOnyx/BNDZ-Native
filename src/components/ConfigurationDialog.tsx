@@ -940,7 +940,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <SectionHeader title="Context Menus" />
               <div className="ml-2 mb-4 space-y-[6px]">
                  <SettingsHint>
-                   Weave native Windows shell verbs from Shell Integration → “Include Native shell verbs in BNDZ menu.” This tab configures BNDZ menu extras only.
+                   Weave Windows actions into the BNDZ menu from Shell Integration → “Include Native shell verbs in BNDZ menu.” This tab only turns BNDZ menu extras on or off.
                  </SettingsHint>
                  <div className="ml-[0px]">
                     <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>old Ctrl to invert the above selection</span>} checked={localConfig.holdCtrlToInvertTheAboveSelection ?? false} onChange={e => updateLocalConfig({ holdCtrlToInvertTheAboveSelection: e.target.checked })} />
@@ -1911,7 +1911,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        useCustomContextMenu: true,
                      })} 
                  />
-                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. Shell verbs weave into Open / clipboard / tools sections — never a dump folder. Shift+right-click still opens the full Windows menu.</p>
+                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. Windows actions (Open, Share, and more) appear inside it when this is on. Shift+right-click still opens the full Windows menu.</p>
               </div>
 
               <SectionHeader title="Shell Succession" />

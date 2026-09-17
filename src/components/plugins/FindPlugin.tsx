@@ -362,9 +362,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             icon="find"
             iconColor="#a855f7"
             variant="embedded"
-            subtitle={mode === 'global' ? 'Everything · all drives' : mode === 'advanced' ? 'Boolean · multi-root · content' : mode === 'duplicates' ? 'Hash duplicates in scope' : `Scoped · ${formatUiPath(scopePath)}`}
+            subtitle={mode === 'global' ? 'Search all drives' : mode === 'advanced' ? 'Search several folders with AND / OR' : mode === 'duplicates' ? 'Find same files in this folder' : `This folder · ${formatUiPath(scopePath)}`}
             status={!IPC.isNative ? (
-                <span className="text-amber-300/90 text-[11px]">Native host required for indexed search</span>
+                <span className="text-amber-300/90 text-[11px]">Needs the BNDZ app for indexed search</span>
             ) : undefined}
             toolbar={
                 mode === 'duplicates' && searching ? (
@@ -376,9 +376,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 <PluginHeroStrip
                     icon={<Icons8Icon id="find" size={52} className="opacity-90" />}
                     name={query.trim() || 'Fast Search'}
-                    typeLabel={mode === 'global' ? 'Global' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
+                    typeLabel={mode === 'global' ? 'Everything' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
                     path={mode === 'local' ? scopePath : undefined}
-                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy chips · Everything global · advanced boolean')}</span>}
+                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy · Everything · Advanced')}</span>}
                     actions={
                         <PluginHeroActionButton
                             icon={searching ? 'loading' : 'play_ui'}
@@ -392,23 +392,24 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 />
                 <div className="px-4 pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
                     {([
-                        { id: 'local' as const, label: 'Easy', hint: 'This folder + chips', icon: 'find' },
+                        { id: 'local' as const, label: 'Easy', hint: 'This folder', icon: 'find' },
                         { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network' },
-                        { id: 'advanced' as const, label: 'Advanced', hint: 'Boolean · multi-root', icon: 'code_ui' },
-                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Hash groups in scope', icon: 'copy' },
+                        { id: 'advanced' as const, label: 'Advanced', hint: 'AND / OR · several folders', icon: 'code_ui' },
+                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Same files in this folder', icon: 'copy' },
                     ]).map(card => (
                         <button
                             key={card.id}
                             type="button"
                             onClick={() => setMode(card.id)}
+                            data-mode={card.id}
                             className={`bndz-find-mode-chip text-left px-2.5 py-2 transition-colors ${
                                 mode === card.id ? 'is-active' : ''
                             }`}
                         >
-                            <div className="flex items-center gap-1.5 text-[12px] font-semibold">
+                            <div className="bndz-find-mode-chip-label flex items-center gap-1.5 text-[12px] font-semibold">
                                 <Icons8Icon id={card.icon} size={13} /> {card.label}
                             </div>
-                            <p className="text-[10px] bndz-panel-muted mt-0.5 leading-snug">{card.hint}</p>
+                            <p className="bndz-find-mode-chip-hint text-[10px] mt-0.5 leading-snug">{card.hint}</p>
                         </button>
                     ))}
                 </div>
@@ -417,10 +418,10 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     <PluginSectionTitle icon="filters">Mode</PluginSectionTitle>
                     <div className="flex flex-col gap-1">
                         {([
-                            { id: 'local' as const, label: 'Easy (local)', icon: 'find' },
+                            { id: 'local' as const, label: 'Easy — this folder', icon: 'find' },
                             { id: 'global' as const, label: 'Everything', icon: 'go_network' },
-                            { id: 'advanced' as const, label: 'Advanced find', icon: 'code_ui' },
-                            { id: 'duplicates' as const, label: 'Duplicate finder', icon: 'copy' },
+                            { id: 'advanced' as const, label: 'Advanced', icon: 'code_ui' },
+                            { id: 'duplicates' as const, label: 'Duplicates', icon: 'copy' },
                         ]).map(m => (
                             <button
                                 key={m.id}
@@ -544,12 +545,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                             <div className="bndz-context-menu-sep opacity-30" />
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
                                 <input type="checkbox" checked={regexEnabled} onChange={e => setRegexEnabled(e.target.checked)} className="accent-[#0078d4]" />
-                                Regular expressions
+                                Match patterns (advanced)
                             </label>
                             {mode !== 'advanced' && (
                                 <label className="flex items-center gap-2 text-xs cursor-pointer">
                                     <input type="checkbox" checked={booleanMode} onChange={e => setBooleanMode(e.target.checked)} className="accent-[#0078d4]" />
-                                    Boolean (AND / OR / NOT)
+                                    Match with AND / OR / NOT
                                 </label>
                             )}
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
@@ -557,8 +558,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 Search file content
                             </label>
                             {mode === 'advanced' && (
-                                <div className="mt-1">
-                                    <PluginSectionTitle icon="file_ui">Extra roots (; separated)</PluginSectionTitle>
+                                  <div className="mt-1">
+                                      <PluginSectionTitle icon="file_ui">Extra folders (separate with ;)</PluginSectionTitle>
                                     <textarea
                                         value={extraRoots}
                                         onChange={e => setExtraRoots(e.target.value)}
@@ -646,7 +647,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                             setActiveResultIndex(0);
                                         }
                                     }}
-                                    placeholder={mode === 'advanced' ? 'Boolean query across multiple roots…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
+                                    placeholder={mode === 'advanced' ? 'Search several folders — try report OR invoice NOT draft…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
                                     className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm bndz-find-query-input`}
                                 />
                             </div>
@@ -701,7 +702,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 <PluginEmptyState
                                   icon="copy"
                                   title={searching ? 'Scanning…' : 'No duplicates yet'}
-                                  description={searching ? 'Hashing files in the current folder.' : 'Scan the current folder for duplicate files by content hash.'}
+                                  description={searching ? 'Comparing files in the current folder…' : 'Scan this folder for files that are exact copies of each other.'}
                                 />
                             ) : (
                                 <div

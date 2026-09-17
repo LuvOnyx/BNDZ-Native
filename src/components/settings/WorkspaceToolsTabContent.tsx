@@ -266,7 +266,7 @@ export default function WorkspaceToolsTabContent({
     <div className="flex flex-col h-full min-h-0">
       <SettingsTabHeader
         title="Workspace Tools"
-        description="Hosts, mirrors, and built-in workspaces — configure once, use from the tree, list, or bottom panel."
+        description="Remote PCs, sync rules, and built-in workspaces — set them up once, use them from the tree, list, or bottom panel."
         icon="smart_tools"
       />
 

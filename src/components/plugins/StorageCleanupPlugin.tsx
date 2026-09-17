@@ -34,7 +34,7 @@ export const StorageCleanupPluginDef = {
   id: 'storage-cleanup',
   name: 'Storage Cleanup',
   icon: 'storage_cleanup',
-  description: 'Cleanup & health — deep clean, capacity planning, duplicates, and library repair',
+  description: 'Free space, find large files, remove duplicates, and check library health',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -214,7 +214,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="One ops surface — clean · capacity · duplicates · library health"
+      subtitle="Clean up · free space · duplicates · library health"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (

@@ -354,7 +354,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
         return;
       }
       setSessionId(sid);
-      setStatus(local ? 'Local PowerShell (ConPTY)' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
+      setStatus(local ? 'Local PowerShell' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
       // Fit after paint so ConPTY gets a real size (empty pane often starts 0×0).
       const pushResize = () => {
         try {
@@ -434,7 +434,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       title="Remote"
       icon="cloud_ui"
       iconColor="#38bdf8"
-      subtitle="Hosts SSH/SFTP · Mesh Drop P2P · Mesh VPS (local temp) · mirrors · Shell Here"
+      subtitle="Remote PCs · send files · temporary cloud · sync · terminal"
       variant="embedded"
       scrollable={!terminalMode}
       density={terminalMode ? 'terminal' : 'default'}

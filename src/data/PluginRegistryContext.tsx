@@ -85,7 +85,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...ContextMenuPluginDef,
         name: 'Shell Menus',
-        description: 'Inside-BNDZ menus, Windows Explorer inject (Deploy), live shell-extension pin/hide, and Explorer verb forge.',
+        description: 'Inside BNDZ menus, Explorer install, and which Windows actions to show',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -93,7 +93,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...IconStudioPluginDef,
-        description: 'FolderIco-style icon libraries — import folders of icons, drag-drop PNGs, apply to folders and files.',
+        description: 'Icon libraries — import icons and apply them to folders and files',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -101,7 +101,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...BatchRenamePluginDef,
-        description: 'Batch rename with patterns, numbering, AI suggestions, and drop magnets (rename/tag/route on release).',
+        description: 'Rename many files at once, with optional drop rules for rename, tag, and move',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -117,7 +117,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...DropStackPluginDef,
-        description: 'Stage files from multiple directories, then batch copy or move to the active pane.',
+        description: 'Gather files from many places, then copy or move them all at once',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -135,7 +135,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...StorageCleanupPluginDef,
-        description: 'Cleanup, capacity planning, and library health repair in one ops surface.',
+        description: 'Free space, find large files, and check library health',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -143,7 +143,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...FolderSyncPluginDef,
-        description: 'Folder sync with robocopy jobs plus binary file and recursive folder diff.',
+        description: 'Keep two folders in sync, or compare them side by side',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -151,7 +151,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...CatalogPluginDef,
-        description: 'Virtual collections of paths — browse as /vf folders, add selections from any pane.',
+        description: 'Save collections of files and browse them like virtual folders',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -159,7 +159,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...ActionLogPluginDef,
-        description: 'Reversible operation history with undo and redo for copy, move, and rename.',
+        description: 'Undo and redo recent copies, moves, and renames',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',

@@ -20,7 +20,7 @@ export const ProjectSandboxPluginDef = {
   id: 'project-sandbox',
   name: 'Project Sandbox',
   icon: 'layers_ui',
-  description: 'Safe workspaces — sandbox checkpoints plus encrypted vault sessions',
+  description: 'Safe work folders with restore points and optional locked vaults',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -266,7 +266,7 @@ export default function ProjectSandboxPlugin({
       icon="layers_ui"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Safe workspaces · checkpoints · vault"
+      subtitle="Safe work folders · restore points · locked vault"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (

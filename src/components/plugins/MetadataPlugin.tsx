@@ -21,7 +21,7 @@ export const MetadataPluginDef = {
     id: 'metadata',
     name: 'Metadata',
     icon: 'metadata',
-    description: 'Facts, media tags, hashes, and image encode — one inspector',
+    description: 'Details, tags, checksums, and image convert — one place',
     isNative: true,
     targetPanel: 'bottom' as const,
 };
@@ -255,7 +255,7 @@ export default function MetadataPlugin({
                 icon="metadata"
                 iconColor="#38bdf8"
                 variant="embedded"
-                subtitle={activeTab === 'encode' ? 'Batch image encode' : 'Facts · tags · hashes · encode'}
+                subtitle={activeTab === 'encode' ? 'Convert images in bulk' : 'Details · tags · checksums · convert'}
                 toolbar={(
                     <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
                         <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>

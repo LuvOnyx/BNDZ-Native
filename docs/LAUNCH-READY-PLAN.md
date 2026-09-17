@@ -231,7 +231,7 @@ Add/sign checks for: name collision modal; disk-full modal; access-denied → UA
 
 Context menu verify · Fast Search empty/keyboard · Toolbar Designer density · transfer snappiness · terminal first paint · Visual Filters empty craft · Tag Manager / Action History spot-check · bottom panel gating · menubar hover · Config shell copy  
 
-**Code progress (this branch):** Fast Search Escape + duplicates keyboard · Config Apply → `--accent` · Ghost/RAM product-copy scrub · Terminal auto-Local + host-size wait · Tag/ActionHistory empties already crafted. Remaining D2 = Windows click-through + checklist sign.
+**Code progress (this branch):** Fast Search Escape + duplicates keyboard · Config Apply → `--accent` · Ghost/RAM product-copy scrub · Terminal auto-Local + host-size wait · Tag/ActionHistory empties already crafted · transfer failed toast time-windowed · Size Map plaque empties · bottom `!activeTab` plaque · Find mode colors restored · plain-language copy sweep (Find / Hub / plugins). Remaining D2 = Windows click-through + checklist sign.
 
 ### D3 — Sign [`docs/fm-launch-readiness.md`](fm-launch-readiness.md)
 

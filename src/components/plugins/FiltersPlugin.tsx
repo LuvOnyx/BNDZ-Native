@@ -24,7 +24,7 @@ export const FiltersPluginDef = {
     id: 'filters',
     name: 'Visual Filters',
     icon: 'filters',
-    description: 'Filters & smart groups — color rules plus semantic folder clustering',
+    description: 'Color rules and smart groups to highlight or hide files in the list',
     isNative: false,
     targetPanel: 'bottom' as const,
 };
@@ -151,7 +151,7 @@ export default function FiltersPlugin({
             iconColor="#a855f7"
             variant="embedded"
             subtitle={panelTab === 'groups'
-                ? 'Semantic groups — cluster the folder into piles'
+                ? 'Group this folder into piles by type and theme'
                 : `${activeCount} active of ${filters.length} rules · color-code the list`}
             toolbar={(
                 <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
