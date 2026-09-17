@@ -29,24 +29,34 @@ public sealed class MeshTerminalService : IDisposable
             shell.Write("\r");
         }
         var session = new TerminalSession { Id = id, HostId = hostId, Shell = shell, IsLocal = false };
-        shell.DataReceived += (_, e) =>
-        {
-            var b64 = Convert.ToBase64String(e.Data);
-            OnOutput?.Invoke(id, b64);
-        };
+        shell.DataReceived += (_, e) => EmitOrBuffer(session, Convert.ToBase64String(e.Data));
         _sessions[id] = session;
-        OnOutput?.Invoke(id, Convert.ToBase64String(Encoding.UTF8.GetBytes($"\r\nBNDZ SSH — {host.Alias ?? host.Hostname ?? hostId}\r\n\r\n")));
+        EmitOrBuffer(session, Convert.ToBase64String(Encoding.UTF8.GetBytes(
+            $"\r\nBNDZ SSH — {host.Alias ?? host.Hostname ?? hostId}\r\n\r\n")));
+        ArmAttachTimeout(session);
         return new MeshTerminalSessionInfo { Id = id, HostId = hostId, RemoteCwd = cwd, IsLocal = false, Embedded = false, ExternalOs = false };
     }
 
     /// <summary>
     /// Local PowerShell via ConPTY → same xterm.js surface as SSH.
-    /// This is the Windows Terminal model — not HWND SetParent, not a detached OS window.
+    /// Windows Terminal model — not HWND SetParent, not a detached OS window.
+    /// Early ConPTY output (including DA1 handshake) is buffered until the WebView
+    /// acknowledges the session so xterm can answer and the prompt paints immediately.
     /// </summary>
     public MeshTerminalSessionInfo OpenLocal(string? cwd, uint cols = 120, uint rows = 32)
     {
         var id = Guid.NewGuid().ToString("N")[..12];
         var workDir = ResolveLocalWorkingDirectory(cwd);
+        var session = new TerminalSession
+        {
+            Id = id,
+            HostId = "",
+            IsLocal = true,
+            PendingCwd = workDir,
+        };
+        // Register before Start so the first ConPTY bytes (DA query) hit the buffer.
+        _sessions[id] = session;
+
         BndzConPtyTerminal? pty = null;
         try
         {
@@ -56,7 +66,7 @@ public sealed class MeshTerminalService : IDisposable
                 rows,
                 onData: data =>
                 {
-                    try { OnOutput?.Invoke(id, Convert.ToBase64String(data)); }
+                    try { EmitOrBuffer(session, Convert.ToBase64String(data)); }
                     catch { /* ignore */ }
                 },
                 onExit: code =>
@@ -67,21 +77,13 @@ public sealed class MeshTerminalService : IDisposable
         }
         catch
         {
+            _sessions.TryRemove(id, out _);
             pty?.Dispose();
             throw;
         }
 
-        var session = new TerminalSession
-        {
-            Id = id,
-            HostId = "",
-            IsLocal = true,
-            PendingCwd = workDir,
-            LocalPty = pty,
-        };
-        _sessions[id] = session;
-        OnOutput?.Invoke(id, Convert.ToBase64String(Encoding.UTF8.GetBytes(
-            $"\r\nBNDZ Local PowerShell (ConPTY)\r\n{workDir}\r\n\r\n")));
+        session.LocalPty = pty;
+        ArmAttachTimeout(session);
         return new MeshTerminalSessionInfo
         {
             Id = id,
@@ -91,6 +93,16 @@ public sealed class MeshTerminalService : IDisposable
             Embedded = false,
             ExternalOs = false,
         };
+    }
+
+    /// <summary>
+    /// Client xterm is mounted and listening — flush buffered ConPTY/SSH bytes so DA
+    /// handshake completes and the shell prompt paints (Windows Terminal / VS Code model).
+    /// </summary>
+    public void Acknowledge(string sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var s)) return;
+        FlushBuffer(s);
     }
 
     /// <summary>Legacy HWND layout — permanently no-op (WebView SetParent blacks out the FM).</summary>
@@ -108,6 +120,8 @@ public sealed class MeshTerminalService : IDisposable
     public void SendInput(string sessionId, string base64)
     {
         if (!_sessions.TryGetValue(sessionId, out var s)) return;
+        // Input proves the client is attached — flush any pending handshake bytes first.
+        FlushBuffer(s);
         var bytes = Convert.FromBase64String(base64);
         if (s.LocalPty != null)
         {
@@ -121,6 +135,7 @@ public sealed class MeshTerminalService : IDisposable
     public void Resize(string sessionId, uint cols, uint rows)
     {
         if (!_sessions.TryGetValue(sessionId, out var s)) return;
+        FlushBuffer(s);
         if (s.LocalPty != null)
         {
             s.LocalPty.Resize(cols, rows);
@@ -138,6 +153,7 @@ public sealed class MeshTerminalService : IDisposable
     public void Close(string sessionId)
     {
         if (!_sessions.TryRemove(sessionId, out var s)) return;
+        try { s.AttachTimeoutCts?.Cancel(); } catch { }
         try { s.Shell?.Close(); } catch { }
         try { s.LocalPty?.Dispose(); } catch { }
     }
@@ -145,6 +161,66 @@ public sealed class MeshTerminalService : IDisposable
     public void Dispose()
     {
         foreach (var id in _sessions.Keys.ToList()) Close(id);
+    }
+
+    private void EmitOrBuffer(TerminalSession session, string b64)
+    {
+        if (string.IsNullOrEmpty(b64)) return;
+        if (session.ClientAttached)
+        {
+            OnOutput?.Invoke(session.Id, b64);
+            return;
+        }
+        lock (session.BufferGate)
+        {
+            if (session.ClientAttached)
+            {
+                OnOutput?.Invoke(session.Id, b64);
+                return;
+            }
+            session.OutputBuffer.Add(b64);
+            // Cap ~1MB of base64 (~750KB decoded) so a stuck client cannot unbounded-grow.
+            while (session.OutputBuffer.Count > 800)
+                session.OutputBuffer.RemoveAt(0);
+        }
+    }
+
+    private void FlushBuffer(TerminalSession session)
+    {
+        List<string>? pending = null;
+        lock (session.BufferGate)
+        {
+            if (session.ClientAttached && session.OutputBuffer.Count == 0) return;
+            session.ClientAttached = true;
+            if (session.OutputBuffer.Count > 0)
+            {
+                pending = new List<string>(session.OutputBuffer);
+                session.OutputBuffer.Clear();
+            }
+        }
+        try { session.AttachTimeoutCts?.Cancel(); } catch { }
+        if (pending == null) return;
+        foreach (var chunk in pending)
+        {
+            try { OnOutput?.Invoke(session.Id, chunk); }
+            catch { /* ignore */ }
+        }
+    }
+
+    private void ArmAttachTimeout(TerminalSession session)
+    {
+        session.AttachTimeoutCts = new CancellationTokenSource();
+        var token = session.AttachTimeoutCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1500, token).ConfigureAwait(false);
+                if (!token.IsCancellationRequested)
+                    FlushBuffer(session);
+            }
+            catch (OperationCanceledException) { /* expected */ }
+        }, token);
     }
 
     private static string ResolveLocalWorkingDirectory(string? cwd)
@@ -172,5 +248,9 @@ public sealed class MeshTerminalService : IDisposable
         public string? PendingCwd { get; set; }
         public ShellStream? Shell { get; set; }
         public BndzConPtyTerminal? LocalPty { get; set; }
+        public readonly object BufferGate = new();
+        public readonly List<string> OutputBuffer = new();
+        public bool ClientAttached;
+        public CancellationTokenSource? AttachTimeoutCts;
     }
 }

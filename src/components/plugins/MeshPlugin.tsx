@@ -72,6 +72,14 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
   const fitRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
+  const readyResolveRef = useRef<((term: Terminal) => void) | null>(null);
+  const readyPromiseRef = useRef<Promise<Terminal> | null>(null);
+
+  if (!readyPromiseRef.current) {
+    readyPromiseRef.current = new Promise<Terminal>(resolve => {
+      readyResolveRef.current = resolve;
+    });
+  }
 
   const writeBytes = useCallback((bytes: Uint8Array) => {
     termRef.current?.write(bytes);
@@ -122,10 +130,12 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
         cursor: '#7dd3fc',
         selectionBackground: 'rgba(56,189,248,0.28)',
       },
-      fontFamily: 'JetBrains Mono, Cascadia Mono, Consolas, monospace',
-      fontSize: 12,
+      fontFamily: 'Cascadia Mono, JetBrains Mono, Consolas, monospace',
+      fontSize: 13,
+      lineHeight: 1.2,
       cursorBlink: true,
-      convertEol: true,
+      // Leave false — ConPTY already speaks CRLF/VT; convertEol can desync the DA handshake paint.
+      convertEol: false,
       allowProposedApi: true,
     });
     const fit = new FitAddon();
@@ -134,6 +144,7 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
     termRef.current = term;
     fitRef.current = fit;
     try { fit.fit(); } catch { /* ignore */ }
+    readyResolveRef.current?.(term);
     const sid = sessionIdRef.current;
     if (sid) flushOrphans(sid);
     term.onData(data => {
@@ -157,8 +168,11 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
+      readyPromiseRef.current = new Promise<Terminal>(resolve => {
+        readyResolveRef.current = resolve;
+      });
     };
-  }, [flushOrphans, fitAndResize, scheduleFit]);
+  }, [flushOrphans, scheduleFit]);
 
   useEffect(() => {
     if (!active) return;
@@ -179,13 +193,41 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
 
   useEffect(() => {
     const term = termRef.current;
-    if (!term) return;
-    if (!sessionId) return;
-    // Do not reset — that wiped ConPTY banner / early output. Only flush + focus.
+    if (!term || !sessionId) return;
+    // Attach order (Windows Terminal / VS Code model):
+    // 1) bind sessionId so onData DA replies route to ConPTY
+    // 2) ACK host → flush buffered ConPTY handshake bytes into xterm
+    // 3) fit + resize so WINSIZE matches the visible hole
     flushOrphans(sessionId);
+    IPC.meshTerminalAck(sessionId);
     scheduleFit();
     try { term.focus(); } catch { /* ignore */ }
-  }, [sessionId, flushOrphans, scheduleFit]);
+    // Second ACK after fit settles — covers any bytes that arrived between flush and resize.
+    const t = window.setTimeout(() => {
+      IPC.meshTerminalAck(sessionId);
+      fitAndResize();
+    }, 32);
+    return () => window.clearTimeout(t);
+  }, [sessionId, flushOrphans, scheduleFit, fitAndResize]);
+
+  // Expose geometry helper for openTerminal (real FitAddon cols/rows, not CSS guesses).
+  useEffect(() => {
+    (window as any).__bndzMeshTermReady = async () => {
+      const term = termRef.current ?? await readyPromiseRef.current;
+      const fit = fitRef.current;
+      const el = containerRef.current;
+      if (fit && el && el.clientWidth > 8) {
+        try { fit.fit(); } catch { /* ignore */ }
+      }
+      return {
+        cols: Math.max(40, term?.cols || 120),
+        rows: Math.max(12, term?.rows || 30),
+      };
+    };
+    return () => {
+      delete (window as any).__bndzMeshTermReady;
+    };
+  }, []);
 
   return (
     <div
@@ -304,7 +346,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   const openTerminal = useCallback(async (hostId?: string, local = false) => {
     setBusy(true);
-    // Mount xterm before OpenLocal so early ConPTY/banner chunks can attach (or orphan cleanly).
+    // Mount xterm before OpenLocal so FitAddon can measure a real hole.
     setTab('terminal');
     try {
       let cwd: string | undefined;
@@ -324,25 +366,27 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           return;
         }
       }
-      // Wait until the xterm host has a real layout box (first open often races 0×0 flex).
-      let hostEl: HTMLElement | null = null;
-      for (let i = 0; i < 16; i++) {
+      // Wait for xterm + FitAddon geometry (never guess from CSS font metrics).
+      let cols = 120;
+      let rows = 30;
+      for (let i = 0; i < 24; i++) {
         await new Promise<void>(r => requestAnimationFrame(() => r()));
-        hostEl = document.querySelector('.bndz-mesh-terminal') as HTMLElement | null;
-        if (hostEl && hostEl.clientWidth > 8 && hostEl.clientHeight > 8) break;
+        const ready = (window as any).__bndzMeshTermReady as undefined | (() => Promise<{ cols: number; rows: number }>);
+        if (ready) {
+          try {
+            const geo = await ready();
+            cols = geo.cols;
+            rows = geo.rows;
+            break;
+          } catch { /* keep trying */ }
+        }
       }
-      const approxCols = hostEl && hostEl.clientWidth > 8
-        ? Math.max(40, Math.floor(hostEl.clientWidth / 7.2))
-        : 120;
-      const approxRows = hostEl && hostEl.clientHeight > 8
-        ? Math.max(12, Math.floor(hostEl.clientHeight / 16))
-        : 32;
       const session = await IPC.meshTerminalOpen({
         hostId,
         local,
         cwd,
-        cols: approxCols,
-        rows: approxRows,
+        cols,
+        rows,
       });
       if (session?.error) {
         setStatus(session.error);
@@ -355,19 +399,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       }
       setSessionId(sid);
       setStatus(local ? 'Local PowerShell' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
-      // Fit after paint so ConPTY gets a real size (empty pane often starts 0×0).
-      const pushResize = () => {
-        try {
-          const el = document.querySelector('.bndz-mesh-terminal') as HTMLElement | null;
-          if (!el || el.clientWidth < 8) return;
-          const cols = Math.max(40, Math.floor(el.clientWidth / 7.2));
-          const rows = Math.max(12, Math.floor(el.clientHeight / 16));
-          IPC.meshTerminalResize(sid, cols, rows);
-        } catch { /* ignore */ }
-      };
-      window.setTimeout(pushResize, 48);
-      window.setTimeout(pushResize, 160);
-      window.setTimeout(pushResize, 320);
+      // ACK + fit run in MeshSshTerminalPanel when sessionId lands.
     } catch (e: any) {
       setStatus(e?.message || 'Terminal failed to open');
     } finally { setBusy(false); }
@@ -551,7 +583,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
               />
               {!sessionId && terminalMode && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-gray-500 p-6 text-center z-[1]">
-                  Open Local or SSH above. Browse a /mesh folder and use Shell Here to land in that remote path.
+                  Opening Local PowerShell… Or pick SSH / Shell Here above.
                 </div>
               )}
             </div>

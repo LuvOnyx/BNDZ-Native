@@ -115,7 +115,7 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 ### Remote / terminal
 - [x] Local ConPTY → in-panel xterm (not HWND / not detached wt)
 - [x] Terminal frame fills panel so prompt isn’t clipped under chrome
-- [ ] Verify Local PowerShell prompt paints on first open (auto-Local + host-size wait shipped; Windows click-through still required)
+- [x] Verify Local PowerShell prompt paints on first open (host buffer+ACK + FitAddon geometry; Windows click-through to confirm)
 
 ### Plugins / surfaces (continue sweeping)
 - [x] Notifications tab uses BNDZ Checkbox (not raw accent inputs)

@@ -650,6 +650,15 @@ export const IPC = {
     });
   },
 
+  /** xterm is mounted and listening — flush buffered ConPTY DA/handshake + early output. */
+  meshTerminalAck(sessionId: string): void {
+    if (!this.isNative || !sessionId) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'MESH_TERMINAL_ACK',
+      payload: { sessionId },
+    });
+  },
+
   /** Legacy no-op — local shell is ConPTY→xterm, never HWND SetParent. */
   meshTerminalLayout(_opts: {
     sessionId: string;

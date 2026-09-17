@@ -3615,6 +3615,11 @@ namespace BNDZ
                     var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
                     _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
                 }
+                else if (type == "MESH_TERMINAL_ACK")
+                {
+                    var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
+                    _meshOrchestrator.Terminal.Acknowledge(sessionId);
+                }
                 else if (type == "MESH_STAT")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;

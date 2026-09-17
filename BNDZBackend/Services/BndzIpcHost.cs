@@ -1806,6 +1806,7 @@ namespace BNDZ.Services
             "MESH_TERMINAL_INPUT",
             "MESH_TERMINAL_CLOSE",
             "MESH_TERMINAL_RESIZE",
+            "MESH_TERMINAL_ACK",
             "MESH_TERMINAL_LAYOUT",
             "MESH_DROP_SET_CONFIG",
             "MESH_DROP_CANCEL",
@@ -5249,6 +5250,11 @@ namespace BNDZ.Services
                     var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
                     var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
                     _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_TERMINAL_ACK")
+                {
+                    var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
+                    _meshOrchestrator.Terminal.Acknowledge(sessionId);
                 }
                 else if (type == "MESH_TERMINAL_LAYOUT")
                 {
