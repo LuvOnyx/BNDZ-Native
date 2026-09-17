@@ -112,10 +112,8 @@ public static class SkiaThumbnailService
           if (surface == null) return "";
           var canvas = surface.Canvas;
           canvas.Clear(SKColors.Transparent);
-          // Svg.Skia pictures can paint mirrored vs Chromium/WebView2 for some SVGs.
-          // Flip Y so list/Properties thumbs match Quick Look / inline SVG orientation.
-          canvas.Translate(0, th);
-          canvas.Scale(scale, -scale);
+          // Svg.Skia already paints in Skia Y-down space — do not Flip-Y (that inverted list thumbs).
+          canvas.Scale(scale);
           canvas.Translate(-cull.Left, -cull.Top);
           canvas.DrawPicture(picture);
           canvas.Flush();

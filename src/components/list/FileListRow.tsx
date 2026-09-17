@@ -279,6 +279,7 @@ function FileListRow(props: FileListRowProps) {
         ${isDragTarget && isDir ? 'ring-2 ring-inset ring-[color:var(--list-selected-bg,#a855f7)] bg-[color-mix(in_srgb,var(--list-selected-bg,#a855f7)_22%,transparent)]' : ''}
         ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
         ${config.coloredLines && clipboardMark ? 'fs-item-clipboard-colored-line' : ''}
+        ${entity?.__recentPaste ? 'fs-item-recent-paste' : ''}
         ${colorFilterResult?.className || ''}
         ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[color:var(--list-selected-bg,#a855f7)]/50' : ''}
         ${syncOpacity ? 'opacity-50' : ''}

@@ -10,10 +10,14 @@ namespace BNDZ.Services;
 /// <summary>
 /// Shell HBITMAP / HICON → PNG base64 with Format32bppArgb alpha preserved.
 /// Avoids Icon.ToBitmap + MakeTransparent (color-key / white-plate destroy alpha).
-/// HBITMAP path mirrors Files scan0 style: GetObject BITMAP bits → flip → 32bpp ARGB PNG.
+/// Pixels are extracted top-down via GetDIBits (biHeight &lt; 0) so both shell icons
+/// and IShellItemImageFactory content thumbs stay right-side-up — never blind scanline flip.
 /// </summary>
 internal static class ShellArgbPngEncoder
 {
+    private const uint DIB_RGB_COLORS = 0;
+    private const int BI_RGB = 0;
+
     [StructLayout(LayoutKind.Sequential)]
     private struct BITMAP
     {
@@ -24,6 +28,22 @@ internal static class ShellArgbPngEncoder
         public short bmPlanes;
         public short bmBitsPixel;
         public IntPtr bmBits;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BITMAPINFOHEADER
+    {
+        public int biSize;
+        public int biWidth;
+        public int biHeight;
+        public short biPlanes;
+        public short biBitCount;
+        public int biCompression;
+        public int biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public int biClrUsed;
+        public int biClrImportant;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -41,6 +61,22 @@ internal static class ShellArgbPngEncoder
 
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteDC(IntPtr hdc);
+
+    [DllImport("gdi32.dll")]
+    private static extern int GetDIBits(IntPtr hdc, IntPtr hbmp, uint uStartScan, uint cScanLines,
+        IntPtr lpvBits, ref BITMAPINFOHEADER lpbi, uint uUsage);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetIconInfo(IntPtr hIcon, out ICONINFO piconinfo);
@@ -61,42 +97,60 @@ internal static class ShellArgbPngEncoder
             if (width <= 0 || height <= 0)
                 return "";
 
-            // 32bpp DIBSECTION with bits pointer — Files always flips scanlines for GDI+.
-            // Do not gate on bmHeight sign: Vanara/shell HBITMAPs often report positive height
-            // even when bits are already top-down (or the opposite), which inverted every
-            // list/grid shell glyph after the conditional-flip change.
-            if (bm.bmBitsPixel == 32 && bm.bmBits != IntPtr.Zero && bm.bmWidthBytes > 0)
-            {
-                int stride = bm.bmWidthBytes;
-                int byteCount = checked(stride * height);
-                IntPtr pixels = Marshal.AllocHGlobal(byteCount);
-                try
-                {
-                    var row = new byte[stride];
-                    for (int y = 0; y < height; y++)
-                    {
-                        IntPtr src = IntPtr.Add(bm.bmBits, y * stride);
-                        IntPtr dst = IntPtr.Add(pixels, (height - y - 1) * stride);
-                        Marshal.Copy(src, row, 0, stride);
-                        Marshal.Copy(row, 0, dst, stride);
-                    }
-
-                    using var wrapped = new Bitmap(width, height, stride, PixelFormat.Format32bppArgb, pixels);
-                    // Clone so we can free the temporary buffer before PNG encode returns.
-                    using var clone = new Bitmap(wrapped);
-                    return SavePngBase64(clone);
-                }
-                finally
-                {
-                    Marshal.FreeHGlobal(pixels);
-                }
-            }
+            // Prefer GetDIBits top-down (negative biHeight) — orientation-correct for icons AND image thumbs.
+            var viaDiBits = EncodeViaGetDiBitsTopDown(hBitmap, width, height);
+            if (!string.IsNullOrEmpty(viaDiBits))
+                return viaDiBits;
 
             return EncodeViaFromHbitmapFallback(hBitmap);
         }
         catch
         {
             return "";
+        }
+    }
+
+    private static string EncodeViaGetDiBitsTopDown(IntPtr hBitmap, int width, int height)
+    {
+        IntPtr screenDc = GetDC(IntPtr.Zero);
+        if (screenDc == IntPtr.Zero) return "";
+        IntPtr memDc = CreateCompatibleDC(screenDc);
+        if (memDc == IntPtr.Zero)
+        {
+            ReleaseDC(IntPtr.Zero, screenDc);
+            return "";
+        }
+
+        // 32bpp top-down DIB: biHeight negative → scanlines already top→bottom for GDI+.
+        int stride = ((width * 32 + 31) / 32) * 4;
+        int byteCount = checked(stride * height);
+        IntPtr pixels = Marshal.AllocHGlobal(byteCount);
+        try
+        {
+            var bi = new BITMAPINFOHEADER
+            {
+                biSize = Marshal.SizeOf<BITMAPINFOHEADER>(),
+                biWidth = width,
+                biHeight = -height,
+                biPlanes = 1,
+                biBitCount = 32,
+                biCompression = BI_RGB,
+                biSizeImage = byteCount,
+            };
+
+            int got = GetDIBits(memDc, hBitmap, 0, (uint)height, pixels, ref bi, DIB_RGB_COLORS);
+            if (got == 0)
+                return "";
+
+            using var wrapped = new Bitmap(width, height, stride, PixelFormat.Format32bppArgb, pixels);
+            using var clone = new Bitmap(wrapped);
+            return SavePngBase64(clone);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(pixels);
+            DeleteDC(memDc);
+            ReleaseDC(IntPtr.Zero, screenDc);
         }
     }
 
@@ -126,7 +180,6 @@ internal static class ShellArgbPngEncoder
                 }
             }
 
-            // GDI+ DrawIcon onto Format32bppArgb — do not use Icon.ToBitmap (kills Vista+ alpha).
             using var icon = (Icon)Icon.FromHandle(hIcon).Clone();
             int w = Math.Max(1, icon.Width);
             int h = Math.Max(1, icon.Height);
@@ -174,12 +227,9 @@ internal static class ShellArgbPngEncoder
 
     private static string EncodeViaFromHbitmapFallback(IntPtr hBitmap)
     {
-        // Image.FromHbitmap often flattens alpha into an opaque plate.
-        // Prefer soft-fail (empty) over shipping glowing white rectangles.
         try
         {
             using var gdi = Image.FromHbitmap(hBitmap);
-            // If source reports no alpha channel, skip — caller should use icon extract instead.
             if (gdi.PixelFormat != PixelFormat.Format32bppArgb && gdi.PixelFormat != PixelFormat.Format32bppPArgb)
                 return "";
             using var argb = new Bitmap(gdi.Width, gdi.Height, PixelFormat.Format32bppArgb);

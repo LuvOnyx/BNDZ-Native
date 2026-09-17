@@ -199,7 +199,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     }
     // Bust stale empty SVG/HEIC thumbnail CAS after Svg.Skia + stream-fallback removal.
     // 21: alpha-preserving shell PNG encode (no MakeTransparent white plates).
-    if ((merged.iconCacheBuster ?? 0) < 22) merged.iconCacheBuster = 22;
+    if ((merged.iconCacheBuster ?? 0) < 24) merged.iconCacheBuster = 24;
     if (merged.showLensStage === undefined) merged.showLensStage = true;
     if (merged.lensCollapsedByDefault === undefined) merged.lensCollapsedByDefault = false;
     if (merged.permanentHomeTab === undefined) merged.permanentHomeTab = false;

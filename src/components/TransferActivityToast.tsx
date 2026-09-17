@@ -48,9 +48,11 @@ export default function TransferActivityToast() {
     }, 2000);
 
     const onOptimistic = (e: Event) => {
-      const d = (e as CustomEvent<{ label?: string }>).detail;
+      const d = (e as CustomEvent<{ label?: string; op?: string }>).detail;
+      const verb = d?.op === 'move' ? 'Moving' : d?.op === 'copy' ? 'Copying' : d?.op === 'delete' ? 'Deleting' : '';
+      const label = d?.label || 'Transfer';
       setOptimistic({
-        label: d?.label || 'Transfer',
+        label: verb ? `${verb} ${label}` : label,
         until: Date.now() + 4_000,
       });
       pull();

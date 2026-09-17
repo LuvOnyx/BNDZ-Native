@@ -358,6 +358,13 @@ import {
 } from '../lib/permanentVariables';
 import { formatTabCaption } from '../lib/tabCaption';
 import { resolvePasteDestination } from '../lib/pasteDestination';
+import {
+  buildPasteProvisionalRows,
+  resolvePasteSelectionIds,
+  type PasteCompletedDetail,
+  type PasteFailedDetail,
+  type PasteStartedDetail,
+} from '../lib/pasteCompletion';
 import { resolvePaneTab } from '../lib/paneTabGuards';
 import { matchesShortcut, matchesTypeAhead, typeAheadEntityName } from '../lib/keyboardShortcuts';
 import { advanceTypeAheadPrefix, pickTypeAheadMatch, typeAheadCharFromEvent, scrollListToEntity } from '../lib/typeAheadFind';
@@ -1823,8 +1830,21 @@ export default function BNDZUI() {
   const lastLocalTransferRef = useRef<{ action: 'copy' | 'move'; sources: string[]; destDir: string; operationId?: string } | null>(null);
   /** Per-operation stash so queue Retry can replay the matching copy/move, not only the latest. */
   const localTransferByOpRef = useRef(new Map<string, { action: 'copy' | 'move'; sources: string[]; destDir: string }>());
-  const xferMetaRef = useRef(new Map<string, { op: 'copy' | 'move' | 'delete'; label: string; selectParentPath?: string }>());
+  const xferMetaRef = useRef(new Map<string, {
+    op: 'copy' | 'move' | 'delete';
+    label: string;
+    selectParentPath?: string;
+    /** Dest pane to select into after paste/copy settles. */
+    selectDestPath?: string;
+    /** Basenames to select after refresh (Explorer selects pasted items). */
+    selectNames?: string[];
+  }>());
+  /** Brief pulse on status-bar clipboard chip after Ctrl+C / Cut. */
+  const [clipboardPulse, setClipboardPulse] = useState(false);
+  const clipboardPulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transferActiveCountRef = useRef(0);
+  /** Dest-relative paste flash: `normalizePanePath::nameLower` → expiresAt ms (green tint until age filter catches up). */
+  const recentPasteUntilRef = useRef(new Map<string, number>());
   /** Pending FS ops — keep tombstoned names filtered from cache until the queue job finishes. */
   const pendingFsOpsRef = useRef(new Map<string, {
     opId: string;
@@ -2090,22 +2110,37 @@ export default function BNDZUI() {
       // Keep inbound/outbound optimistic rows until the server listing catches up —
       // early soft-refresh used to wipe them and leave a blank until manual F5.
       const mergeOptimistic = (server: any[]): any[] => {
-        if (!existing?.length) return server;
+        const now = Date.now();
+        const stampRecent = (rows: any[]): any[] => rows.map((e: any) => {
+          const key = `${normalizePanePath(path)}::${String(e?.name || '').toLowerCase()}`;
+          const until = recentPasteUntilRef.current.get(key);
+          if (until && until > now) {
+            return { ...e, __recentPaste: true };
+          }
+          if (until && until <= now) recentPasteUntilRef.current.delete(key);
+          // Preserve flash flag from optimistic row when server catches up.
+          const prior = existing?.find((x: any) =>
+            String(x?.name || '').toLowerCase() === String(e?.name || '').toLowerCase()
+            && (x?.__recentPaste || x?.__optimisticDrop),
+          );
+          if (prior?.__recentPaste) return { ...e, __recentPaste: true };
+          if (!e?.__optimisticDrop && !e?.__provisionalFs) return e;
+          const { __optimisticDrop, __provisionalFs, ...rest } = e;
+          return rest;
+        });
+        if (!existing?.length) return stampRecent(server);
         const serverNames = new Set(server.map((e: any) => String(e.name || '').toLowerCase()));
         const pending = existing.filter((e: any) =>
           (e?.__optimisticDrop || e?.__provisionalFs)
           && !serverNames.has(String(e.name || '').toLowerCase()),
         );
         if (!pending.length) {
-          return server.map((e: any) => {
-            if (!e?.__optimisticDrop && !e?.__provisionalFs) return e;
-            const { __optimisticDrop, __provisionalFs, ...rest } = e;
-            return rest;
-          });
+          return stampRecent(server);
         }
-        return config.addNewItemsAtTheEndOfTheList
+        const merged = config.addNewItemsAtTheEndOfTheList
           ? [...server, ...pending]
           : [...pending, ...server];
+        return stampRecent(merged);
       };
       // Progressive first-page RESULT must not shrink a fuller warm/streamed listing —
       // but MUST drop tombstoned / gone names (OLE MOVE soft-refresh used to re-merge them).
@@ -2227,6 +2262,7 @@ export default function BNDZUI() {
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [streamingPaths, setStreamingPaths] = useState<Set<string>>(new Set());
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
+  const refetchAgainRef = useRef(new Set<string>());
   const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => Promise<void> | undefined>(() => undefined);
   /** Always-current navigate — sidebar modules must not close over a stale setCurrentPath. */
   const setCurrentPathRef = useRef<(path: string, paneId?: string, updateHistory?: boolean) => void>(() => {});
@@ -2862,7 +2898,16 @@ export default function BNDZUI() {
     const path = normalizePanePath(rawPath);
     if (!path) return;
     const inFlight = refetchInFlightRef.current[path];
-    if (inFlight) return inFlight;
+    if (inFlight) {
+      // Coalesce: another paste/refresh landed while listing — run once more after settle.
+      refetchAgainRef.current.add(path);
+      await inFlight;
+      if (refetchAgainRef.current.has(path)) {
+        refetchAgainRef.current.delete(path);
+        return refetchPath(path);
+      }
+      return;
+    }
 
     const loadPromise = beginDirFetch(path, { force: true }) ?? Promise.resolve();
     refetchInFlightRef.current[path] = loadPromise;
@@ -2874,6 +2919,10 @@ export default function BNDZUI() {
       } catch { /* optional */ }
     } finally {
       delete refetchInFlightRef.current[path];
+      if (refetchAgainRef.current.has(path)) {
+        refetchAgainRef.current.delete(path);
+        void refetchPath(path);
+      }
     }
     return loadPromise;
   }, [beginDirFetch]);
@@ -4010,6 +4059,7 @@ export default function BNDZUI() {
       // Cut / Copy intercept (rebindable)
       const isCutShortcut = matchesShortcut(e, keyboardMap.cut);
       if (!isInput && (matchesShortcut(e, keyboardMap.copy) || isCutShortcut)) {
+          e.preventDefault();
           const activePane = panes.find(p => p.id === activePaneId);
           const tab = resolvePaneTab(activePane);
           if (tab && tab.selectedItems.length > 0) {
@@ -4026,14 +4076,25 @@ export default function BNDZUI() {
                        selectedEntities.map((ent: any) => joinPanePath(tab.path, ent)),
                        isCutShortcut ? 'cut' : 'copy'
                      );
+                     // Status-bar clipboard chip is the primary cue (Explorer-quiet) — pulse it.
+                     if (clipboardPulseTimerRef.current) clearTimeout(clipboardPulseTimerRef.current);
+                     setClipboardPulse(true);
+                     clipboardPulseTimerRef.current = setTimeout(() => setClipboardPulse(false), 1400);
                  }
               }
       }
 
       if (!isInput && matchesShortcut(e, keyboardMap.paste)) {
+          e.preventDefault();
           const activePane = panes.find(p => p.id === activePaneId);
           const tab = resolvePaneTab(activePane);
-          if (tab) executePaste(tab.path);
+          if (tab) {
+            const norm = normalizePanePath(tab.path);
+            const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || [];
+            const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+            const dest = resolvePasteDestination(config, tab.path, selectedEntities);
+            void executePaste(dest);
+          }
       }
 
       // Paste Special shortcuts (XYplorer-style)
@@ -4745,6 +4806,112 @@ export default function BNDZUI() {
     return () => window.removeEventListener('bndz-optimistic-fs-op', onOptimistic as EventListener);
   }, [registerFsTombstone]);
 
+  // Paste: Explorer-parity dest inject + select + recent-green tint (ageM color filter).
+  useEffect(() => {
+    const pulseSelect = (destPane: string, names: string[], idsHint?: string[]) => {
+      const norm = normalizePanePath(destPane);
+      const listing = pathContentsCacheRef.current[norm]
+        || pathContentsCacheRef.current[destPane]
+        || [];
+      const ids = (idsHint?.length ? idsHint : null)
+        || resolvePasteSelectionIds(listing, names, norm);
+      if (!ids.length) return;
+      const paneId = (() => {
+        const open = panesRef.current.find(p =>
+          p.tabs.some(t => panePathsEqual(normalizePanePath(t.path), norm)),
+        );
+        return open?.id || activePaneIdRef.current;
+      })();
+      marqueeOpsRef.current.setSelectedItems(ids, paneId);
+      scheduleSelectionChrome(ids, true);
+      setFocusedItemId(ids[0]);
+      requestAnimationFrame(() => {
+        try {
+          document.getElementById(`fs-item-${ids[0]}`)?.scrollIntoView({ block: 'nearest' });
+        } catch { /* ignore */ }
+      });
+    };
+
+    const onPasteStarted = (ev: Event) => {
+      const detail = (ev as CustomEvent<PasteStartedDetail>).detail;
+      if (!detail?.opId || !detail.destPanePath || !detail.sourceWinPaths?.length) return;
+      const destPane = normalizePanePath(detail.destPanePath);
+      if (!destPane || !isFsDropTargetPath(destPane)) return;
+
+      const metaFromCache = detail.sourceWinPaths.map((win) => {
+        const name = (win.split(/[/\\]/).pop() || '').toLowerCase();
+        for (const listing of Object.values(pathContentsCacheRef.current)) {
+          if (!Array.isArray(listing)) continue;
+          const hit = listing.find((e: any) => String(e?.name || '').toLowerCase() === name);
+          if (hit) return hit;
+        }
+        return null;
+      });
+
+      const provisional = buildPasteProvisionalRows(destPane, detail.sourceWinPaths, metaFromCache);
+      const until = Date.now() + 30 * 60_000;
+      for (const row of provisional) {
+        recentPasteUntilRef.current.set(`${destPane}::${String(row.name).toLowerCase()}`, until);
+      }
+      xferMetaRef.current.set(detail.opId, {
+        op: detail.op === 'move' ? 'move' : 'copy',
+        label: detail.label || provisional[0]?.name || 'items',
+        selectDestPath: destPane,
+        selectNames: provisional.map(p => p.name),
+      });
+
+      setPathContentsCache(prev => {
+        const existing = prev[destPane] || [];
+        const names = new Set(provisional.map(p => String(p.name).toLowerCase()));
+        const kept = existing.filter((e: any) => !names.has(String(e.name || '').toLowerCase()));
+        const merged = configRef.current.addNewItemsAtTheEndOfTheList
+          ? [...kept, ...provisional]
+          : [...provisional, ...kept];
+        return setPathCacheEntry(prev, destPane, merged);
+      });
+
+      pulseSelect(destPane, provisional.map(p => p.name), provisional.map(p => p.id));
+    };
+
+    const onPasteCompleted = (ev: Event) => {
+      const detail = (ev as CustomEvent<PasteCompletedDetail>).detail;
+      if (!detail?.destPanePath) return;
+      const destPane = normalizePanePath(detail.destPanePath);
+      const names = detail.sourceNames || xferMetaRef.current.get(detail.opId || '')?.selectNames || [];
+      void refetchPath(destPane).then(() => {
+        pulseSelect(destPane, names);
+      });
+    };
+
+    const onPasteFailed = (ev: Event) => {
+      const detail = (ev as CustomEvent<PasteFailedDetail>).detail;
+      if (!detail?.opId) return;
+      xferMetaRef.current.delete(detail.opId);
+      const destPane = normalizePanePath(detail.destPanePath || '');
+      if (destPane) {
+        setPathContentsCache(prev => {
+          const existing = prev[destPane];
+          if (!existing?.length) return prev;
+          return setPathCacheEntry(
+            prev,
+            destPane,
+            existing.filter((e: any) => !e?.__optimisticDrop && !e?.__recentPaste),
+          );
+        });
+        void refetchPath(destPane);
+      }
+    };
+
+    window.addEventListener('bndz-paste-started', onPasteStarted as EventListener);
+    window.addEventListener('bndz-paste-completed', onPasteCompleted as EventListener);
+    window.addEventListener('bndz-paste-failed', onPasteFailed as EventListener);
+    return () => {
+      window.removeEventListener('bndz-paste-started', onPasteStarted as EventListener);
+      window.removeEventListener('bndz-paste-completed', onPasteCompleted as EventListener);
+      window.removeEventListener('bndz-paste-failed', onPasteFailed as EventListener);
+    };
+  }, [refetchPath, scheduleSelectionChrome]);
+
   // Refresh lists when background transfer jobs finish (copy/move/archive/sync/etc.)
   // Job terminal status is the single source of truth for success/failure toasts.
   useEffect(() => {
@@ -4982,6 +5149,25 @@ ${classified.detail}`,
               }
               if (meta?.op === 'move' && meta.selectParentPath && config.selectParentOfMovedFolder) {
                 setCurrentPath(meta.selectParentPath);
+              }
+              // Paste/copy: keep destination selection after queue settle (Explorer parity).
+              if ((isCopy || isMove) && meta?.selectNames?.length && meta.selectDestPath) {
+                const destPane = normalizePanePath(meta.selectDestPath);
+                const names = meta.selectNames.slice();
+                window.setTimeout(() => {
+                  const listing = pathContentsCacheRef.current[destPane] || [];
+                  const ids = resolvePasteSelectionIds(listing, names, destPane);
+                  if (!ids.length) return;
+                  const paneId = panesRef.current.find(p =>
+                    p.tabs.some(t => panePathsEqual(normalizePanePath(t.path), destPane)),
+                  )?.id || activePaneIdRef.current;
+                  marqueeOpsRef.current.setSelectedItems(ids, paneId);
+                  marqueeOpsRef.current.scheduleSelectionChrome(ids, true);
+                  setFocusedItemId(ids[0]);
+                  try {
+                    document.getElementById(`fs-item-${ids[0]}`)?.scrollIntoView({ block: 'nearest' });
+                  } catch { /* ignore */ }
+                }, 80);
               }
             }
           }
@@ -7360,8 +7546,10 @@ ${classified.detail}`,
             type: looksDir ? 'directory' : 'file',
             isDirectory: looksDir,
             size: 0,
+            modified: new Date().toISOString(),
             dateModified: Date.now(),
             __optimisticDrop: true,
+            __recentPaste: true,
           };
         });
         setPathContentsCache(prev => {
@@ -7372,6 +7560,25 @@ ${classified.detail}`,
             ? [...kept, ...provisional]
             : [...provisional, ...kept];
           return setPathCacheEntry(prev, destPane, merged);
+        });
+        // Select dropped/pasted rows immediately (Explorer parity).
+        const dropIds = provisional.map(p => p.id);
+        const destPaneId = panesRef.current.find(p =>
+          p.tabs.some(t => panePathsEqual(normalizePanePath(t.path), destPane)),
+        )?.id || activePaneIdRef.current;
+        marqueeOpsRef.current.setSelectedItems(dropIds, destPaneId);
+        marqueeOpsRef.current.scheduleSelectionChrome(dropIds, true);
+        setFocusedItemId(dropIds[0]);
+        const until = Date.now() + 30 * 60_000;
+        for (const row of provisional) {
+          recentPasteUntilRef.current.set(`${destPane}::${String(row.name).toLowerCase()}`, until);
+        }
+        xferMetaRef.current.set(opId, {
+          ...(xferMetaRef.current.get(opId) || { op, label }),
+          op,
+          label,
+          selectDestPath: destPane,
+          selectNames: provisional.map(p => p.name),
         });
         // Refresh after disk settle — mid-flight 350ms wipe was racing optimistic rows.
         window.setTimeout(() => {
@@ -13948,7 +14155,7 @@ ${classified.detail}`,
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       setClipboardState(getSelectedEntityPaths(), 'copy');
                     })}><Icons8Icon id="copy" size={14} /> Copy</div>
-                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void executePaste(currentTab.path))}><Icons8Icon id="clipboard" size={14} /> Paste</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void pasteIntoActivePane())}><Icons8Icon id="clipboard" size={14} /> Paste</div>
                     <MenubarSubmenu label="To Clipboard" iconId="clipboard">
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const paths = getSelectedEntityPaths();
@@ -14185,13 +14392,23 @@ ${classified.detail}`,
                       })}>New Shortcut</div>
                     </MenubarSubmenu>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setClipboardState(getSelectedEntityPaths(), 'cut'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      setClipboardState(getSelectedEntityPaths(), 'cut');
+                      if (clipboardPulseTimerRef.current) clearTimeout(clipboardPulseTimerRef.current);
+                      setClipboardPulse(true);
+                      clipboardPulseTimerRef.current = setTimeout(() => setClipboardPulse(false), 1400);
+                    })}>
                       <Icons8Icon id="cut" size={14} /> Cut
                     </div>
-                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setClipboardState(getSelectedEntityPaths(), 'copy'))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      setClipboardState(getSelectedEntityPaths(), 'copy');
+                      if (clipboardPulseTimerRef.current) clearTimeout(clipboardPulseTimerRef.current);
+                      setClipboardPulse(true);
+                      clipboardPulseTimerRef.current = setTimeout(() => setClipboardPulse(false), 1400);
+                    })}>
                       <Icons8Icon id="copy" size={14} /> Copy
                     </div>
-                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void executePaste(currentTab.path))}>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void pasteIntoActivePane())}>
                       <Icons8Icon id="clipboard" size={14} /> Paste
                     </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
@@ -14226,14 +14443,14 @@ ${classified.detail}`,
                           <>
                             {fileRow('Paste Here to New Subfolder…', () => { void pasteIntoNewSubfolder(); }, 'Ctrl+Shift+V')}
                             {fileRow('Paste Here with Path…', () => {
-                              void executePaste(currentTab.path, { recreateSourceStructure: true });
+                              void pasteIntoActivePane({ recreateSourceStructure: true });
                             })}
                             {fileRow('Paste Here As…', () => { void pasteHereAs(); })}
                             <div className="h-[1px] bg-[#444] my-1" />
-                            {fileRow('Paste (Move)', () => { void executePaste(currentTab.path, { forceAction: 'cut' }); })}
-                            {fileRow('Paste (Copy)', () => { void executePaste(currentTab.path, { forceAction: 'copy' }); })}
+                            {fileRow('Paste (Move)', () => { void pasteIntoActivePane({ forceAction: 'cut' }); })}
+                            {fileRow('Paste (Copy)', () => { void pasteIntoActivePane({ forceAction: 'copy' }); })}
                             {fileRow('Paste (Backup)', () => {
-                              void executePaste(currentTab.path, { forceAction: 'copy' });
+                              void pasteIntoActivePane({ forceAction: 'copy' });
                               setToastMessage('Backup paste (copy) started.');
                             })}
                             <div className="h-[1px] bg-[#444] my-1" />
@@ -15263,14 +15480,15 @@ ${classified.detail}`,
                                          selectedEntities.map((ent: any) => joinPanePath(tab.path, ent)),
                                          item.id as 'copy' | 'cut'
                                        );
+                                       if (clipboardPulseTimerRef.current) clearTimeout(clipboardPulseTimerRef.current);
+                                       setClipboardPulse(true);
+                                       clipboardPulseTimerRef.current = setTimeout(() => setClipboardPulse(false), 1400);
                                    }
                                }
                                break;
                            }
                            case 'paste': {
-                               const ap = panes.find(p => p.id === activePaneId);
-                               const tab = resolvePaneTab(ap);
-                               if (tab) executePaste(tab.path);
+                               void pasteIntoActivePane();
                                break;
                            }
                            case 'delete':
@@ -16376,10 +16594,13 @@ ${classified.detail}`,
            )}
          </div>
          <div className="flex items-center gap-4 shrink-0">
-            {describeClipboardState(clipboard) && (
-              <span className={`bndz-status-clipboard ${clipboard.action === 'cut' ? 'bndz-status-clipboard--cut' : ''}`} title="Internal clipboard">
+            {statusBarClipboardLabel && (
+              <span
+                className={`bndz-status-clipboard ${clipboard.action === 'cut' ? 'bndz-status-clipboard--cut' : ''} ${clipboardPulse ? 'bndz-status-clipboard--pulse' : ''}`}
+                title="Clipboard"
+              >
                 <Icons8Icon id={clipboard.action === 'cut' ? 'cut' : 'copy'} size={11} />
-                <span className="bndz-status-clipboard-label">{describeClipboardState(clipboard)}</span>
+                <span className="bndz-status-clipboard-label">{statusBarClipboardLabel}</span>
               </span>
             )}
             {getHoverPending() && config.showFileInfoTips !== false && config.listHoverTooltipsEnabled !== false && (

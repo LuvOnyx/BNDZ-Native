@@ -590,7 +590,9 @@ export function evaluateColorFilter(
   const ext = (entity.extension || '').toLowerCase();
   const attrs: string[] = entity.attributes || [];
   const size = entity.size ?? 0;
-  const modified = entity.modified ? new Date(entity.modified) : null;
+  const modified = entity.modified
+    ? new Date(entity.modified)
+    : (entity.dateModified ? new Date(entity.dateModified) : null);
 
   for (const row of filters) {
     if (!row.c || !row.t) continue;

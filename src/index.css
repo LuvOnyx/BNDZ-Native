@@ -7279,16 +7279,43 @@ html[data-marquee-active] .bndz-list-col-gutter {
   font-weight: 500;
   max-width: 220px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
 .bndz-status-clipboard--cut {
   color: #fde68a;
 }
 
+.bndz-status-clipboard--pulse {
+  border-color: rgba(130, 224, 91, 0.55);
+  background: linear-gradient(180deg, rgba(130, 224, 91, 0.22) 0%, rgba(130, 224, 91, 0.08) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(130, 224, 91, 0.25),
+    0 0 14px rgba(130, 224, 91, 0.28);
+  animation: bndz-clipboard-pulse 1.35s ease-out 1;
+}
+
+@keyframes bndz-clipboard-pulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
 .bndz-status-clipboard-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Just-pasted / just-dropped rows — green flash until age color-filter / settle. */
+.fs-item-recent-paste:not(.fs-item-selected) {
+  background: linear-gradient(90deg, rgba(130, 224, 91, 0.22) 0%, rgba(130, 224, 91, 0.06) 48%, transparent 100%) !important;
+  box-shadow: inset 3px 0 0 #82e05b;
+}
+.fs-item-recent-paste:not(.fs-item-selected) .bndz-list-name,
+.fs-item-recent-paste:not(.fs-item-selected) [data-col-id="name"] {
+  color: #d8ffc4 !important;
 }
 
 /* Density */
