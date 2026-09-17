@@ -125,7 +125,7 @@ export default function AboutDialog({
 
         <div className="pt-1 border-t border-white/5 space-y-2">
           <p className="text-[12px] bndz-native-dialog-muted leading-relaxed">
-            Dual-pane browsing, native shell integration, staging, sync, cleanup, and deep preview —
+            Dual-pane browsing, native shell integration, sync, cleanup, and deep preview —
             engineered as a real Windows host, not a thin web shell.
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">

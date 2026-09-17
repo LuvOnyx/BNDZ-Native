@@ -247,12 +247,24 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     };
 
     const onResultsKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            setActiveResultIndex(-1);
+            (document.querySelector('.bndz-find-query-input') as HTMLInputElement | null)?.focus();
+            return;
+        }
         if (!results.length) return;
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             setActiveResultIndex(i => Math.min(results.length - 1, (i < 0 ? 0 : i) + 1));
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
+            if (activeResultIndex <= 0) {
+                setActiveResultIndex(-1);
+                (document.querySelector('.bndz-find-query-input') as HTMLInputElement | null)?.focus();
+                return;
+            }
             setActiveResultIndex(i => Math.max(0, (i < 0 ? 0 : i) - 1));
         } else if (e.key === 'Enter') {
             e.preventDefault();
@@ -617,6 +629,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     value={query}
                                     onChange={e => setQuery(e.target.value)}
                                     onKeyDown={e => {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            if (query) setQuery('');
+                                            else (e.currentTarget as HTMLInputElement).blur();
+                                            return;
+                                        }
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
                                             void doSearch().then(() => {
@@ -629,7 +647,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                         }
                                     }}
                                     placeholder={mode === 'advanced' ? 'Boolean query across multiple roots…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
-                                    className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm`}
+                                    className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm bndz-find-query-input`}
                                 />
                             </div>
                             <div className="flex flex-wrap gap-1.5 items-center">
@@ -686,17 +704,44 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                   description={searching ? 'Hashing files in the current folder.' : 'Scan the current folder for duplicate files by content hash.'}
                                 />
                             ) : (
-                                <div className="p-2 space-y-3">
+                                <div
+                                  className="p-2 space-y-3 outline-none"
+                                  tabIndex={0}
+                                  role="listbox"
+                                  aria-label="Duplicate groups"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      (document.querySelector('.bndz-find-query-input') as HTMLInputElement | null)?.focus();
+                                      return;
+                                    }
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      const first = duplicateGroups[0]?.paths?.[0];
+                                      if (!first) return;
+                                      e.preventDefault();
+                                      navigateTo(first.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'));
+                                    }
+                                  }}
+                                >
                                     {duplicateGroups.map(g => (
-                                        <div key={g.hash} className="bndz-plugin-card overflow-hidden !p-0">
+                                        <div key={g.hash} className="bndz-plugin-card overflow-hidden !p-0" role="group">
                                             <div className="px-3 py-2 border-b border-white/[0.06] text-xs bndz-panel-muted bndz-mono">
                                                 {g.paths.length} copies · {g.size} bytes
                                             </div>
                                             {g.paths.map(p => (
                                                 <div
                                                     key={p}
-                                                    className="px-3 py-2 text-[11px] text-gray-300 hover:bg-white/[0.04] cursor-pointer truncate font-mono"
+                                                    role="option"
+                                                    tabIndex={0}
+                                                    className="px-3 py-2 text-[11px] text-gray-300 hover:bg-white/[0.04] cursor-pointer truncate font-mono outline-none focus:bg-white/[0.08]"
+                                                    onClick={() => navigateTo(p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'))}
                                                     onDoubleClick={() => navigateTo(p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'))}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        navigateTo(p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'));
+                                                      }
+                                                    }}
                                                     title={p}
                                                 >
                                                     {p}

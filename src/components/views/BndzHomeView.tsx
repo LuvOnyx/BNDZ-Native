@@ -285,7 +285,7 @@ export default function BndzHomeView({
     }
     for (const g of ghost) {
       if (g.name.toLowerCase().includes(q) || g.path.toLowerCase().includes(q)) {
-        out.push({ id: `g-${g.path}`, label: g.name, sub: 'Ghost trail', path: g.path, kind: 'ghost' });
+        out.push({ id: `g-${g.path}`, label: g.name, sub: 'Session trail', path: g.path, kind: 'ghost' });
       }
     }
     return out.slice(0, 8);
@@ -532,7 +532,7 @@ export default function BndzHomeView({
           <div className="bndz-ws-launch-grid">
             <WorkspaceLaunchCard
               title="Pillar Board"
-              desc="Open Spatial with Sandbox, Health, Inbound, RAM, Capacity, and Automation pinned — live pillars in under 30 seconds."
+              desc="Open Spatial with Sandbox, Health, Inbound, Capacity, Sync, and Automation pinned — live pillars in under 30 seconds."
               icon="view_grid"
               accent="#34d399"
               badge="Selling pillars"
@@ -813,9 +813,9 @@ export default function BndzHomeView({
         </section>
 
         {ghost.length > 0 && (
-          <section className="bndz-home-ghost" aria-label="Ghost trail">
+          <section className="bndz-home-ghost" aria-label="Session trail">
             <div className="bndz-home-section-label">
-              <span>Ghost trail</span>
+              <span>Session trail</span>
               <span className="bndz-home-muted">This session · fades with time</span>
             </div>
             <div className="bndz-home-ghost-row">

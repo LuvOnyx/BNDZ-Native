@@ -37,9 +37,9 @@ export const LIST_COLUMN_DEFS: ListColumnDef[] = [
   { id: 'path', label: 'Path', widthClass: 'shrink-0', widthPx: 240 },
   { id: 'originalLocation', label: 'Original location', widthClass: 'shrink-0', widthPx: 220 },
   { id: 'originalPath', label: 'Original path', widthClass: 'shrink-0', widthPx: 280 },
-  { id: 'ghostState', label: 'Ghost', widthClass: 'shrink-0', widthPx: 90, sortable: true },
-  { id: 'coldTarget', label: 'Cold target', widthClass: 'shrink-0', widthPx: 180 },
-  { id: 'ramZone', label: 'RAM zone', widthClass: 'shrink-0', widthPx: 120, sortable: true },
+  { id: 'ghostState', label: 'Link state', widthClass: 'shrink-0', widthPx: 90, sortable: true },
+  { id: 'coldTarget', label: 'Archive path', widthClass: 'shrink-0', widthPx: 180 },
+  { id: 'ramZone', label: 'Virtual zone', widthClass: 'shrink-0', widthPx: 120, sortable: true },
 ];
 
 export const DEFAULT_LIST_COLUMN_PX: Record<BuiltinListColumnId, number> = {

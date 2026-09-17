@@ -45,7 +45,7 @@ Build gate after code changes: `npm run build` → `dotnet build BNDZBackend/BND
 | 31 | Multi-select delete | ☐ |
 | 32 | Undo last delete (action log) | ☐ |
 | 33 | Redo after undo | ☐ |
-| 34 | Create on Drop Stack staging zone (intake) | ☐ |
+| 34 | Create into Drop Stack intake / stage folder | ☐ |
 | 35 | Create on mesh remote path | ☐ |
 
 ## Context menus (36–45)

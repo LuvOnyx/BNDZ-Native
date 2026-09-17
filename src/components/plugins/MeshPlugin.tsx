@@ -302,7 +302,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     } finally { setBusy(false); }
   };
 
-  const openTerminal = async (hostId?: string, local = false) => {
+  const openTerminal = useCallback(async (hostId?: string, local = false) => {
     setBusy(true);
     // Mount xterm before OpenLocal so early ConPTY/banner chunks can attach (or orphan cleanly).
     setTab('terminal');
@@ -324,9 +324,13 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           return;
         }
       }
-      // Prefer live xterm geometry so ConPTY matches the visible hole.
-      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-      const hostEl = document.querySelector('.bndz-mesh-terminal') as HTMLElement | null;
+      // Wait until the xterm host has a real layout box (first open often races 0×0 flex).
+      let hostEl: HTMLElement | null = null;
+      for (let i = 0; i < 16; i++) {
+        await new Promise<void>(r => requestAnimationFrame(() => r()));
+        hostEl = document.querySelector('.bndz-mesh-terminal') as HTMLElement | null;
+        if (hostEl && hostEl.clientWidth > 8 && hostEl.clientHeight > 8) break;
+      }
       const approxCols = hostEl && hostEl.clientWidth > 8
         ? Math.max(40, Math.floor(hostEl.clientWidth / 7.2))
         : 120;
@@ -352,7 +356,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       setSessionId(sid);
       setStatus(local ? 'Local PowerShell (ConPTY)' : `SSH — ${hostId}${cwd ? ` @ ${cwd}` : ''}`);
       // Fit after paint so ConPTY gets a real size (empty pane often starts 0×0).
-      window.setTimeout(() => {
+      const pushResize = () => {
         try {
           const el = document.querySelector('.bndz-mesh-terminal') as HTMLElement | null;
           if (!el || el.clientWidth < 8) return;
@@ -360,11 +364,27 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           const rows = Math.max(12, Math.floor(el.clientHeight / 16));
           IPC.meshTerminalResize(sid, cols, rows);
         } catch { /* ignore */ }
-      }, 80);
+      };
+      window.setTimeout(pushResize, 48);
+      window.setTimeout(pushResize, 160);
+      window.setTimeout(pushResize, 320);
     } catch (e: any) {
       setStatus(e?.message || 'Terminal failed to open');
     } finally { setBusy(false); }
-  };
+  }, [currentPath]);
+
+  // First visit to Terminal tab → open Local ConPTY so the prompt paints without an extra click.
+  const autoLocalOpenedRef = useRef(false);
+  useEffect(() => {
+    if (tab !== 'terminal' || sessionId || busy) return;
+    if (autoLocalOpenedRef.current) return;
+    if (pluginLaunch?.sessionId) {
+      autoLocalOpenedRef.current = true;
+      return;
+    }
+    autoLocalOpenedRef.current = true;
+    void openTerminal(undefined, true);
+  }, [tab, sessionId, busy, pluginLaunch?.sessionId, openTerminal]);
 
   const addRule = () => {
     const hostId = selectedHostId || hosts[0]?.id || '';

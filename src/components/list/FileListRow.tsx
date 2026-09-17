@@ -642,7 +642,7 @@ function FileListRow(props: FileListRowProps) {
                 <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
               )}
               {(entity as any).isGhostLink && (
-                <span className="bndz-ghostlink-emblem inline-flex items-center mr-1 shrink-0" title={(entity as any).linkTarget || 'Ghost link'}>
+                <span className="bndz-ghostlink-emblem inline-flex items-center mr-1 shrink-0" title={(entity as any).linkTarget || 'Symbolic link'}>
                   <EmblemIcon id="emblem-symbolic-link" size={12} />
                 </span>
               )}

@@ -378,7 +378,7 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
         />
       )}
       {isGhostLink && size >= 14 && (
-        <span className="bndz-ghostlink-emblem absolute -right-0.5 -bottom-0.5 leading-none pointer-events-none" title="Ghost link">
+        <span className="bndz-ghostlink-emblem absolute -right-0.5 -bottom-0.5 leading-none pointer-events-none" title="Symbolic link">
           <EmblemIcon id="emblem-symbolic-link" size={Math.max(10, Math.round(size * 0.35))} />
         </span>
       )}

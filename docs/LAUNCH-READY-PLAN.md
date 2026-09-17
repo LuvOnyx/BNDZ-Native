@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1–A3 hosts crafted; E1 ops suite (into-self, disk need/free, Skip/Retry/Open log, path-too-long UX) landed; Wave C code verified (virtualization threshold 1); code-side E1 unify + failedPaths + Wave F defer landed; Windows UAC·DnD live matrix still requires a Windows shell for click-through sign-off  
+**Status:** Execution in progress — A1 Hub drop + Ghost/RAM product-copy scrub continued; A3 hosts crafted; E1 ops suite landed; Wave C virtualization threshold 1; Windows UAC·DnD live matrix still requires shell click-through sign-off  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -230,6 +230,8 @@ Add/sign checks for: name collision modal; disk-full modal; access-denied → UA
 ### D2 — Close open [`to-do.md`](../to-do.md) Launch-ready polish rows
 
 Context menu verify · Fast Search empty/keyboard · Toolbar Designer density · transfer snappiness · terminal first paint · Visual Filters empty craft · Tag Manager / Action History spot-check · bottom panel gating · menubar hover · Config shell copy  
+
+**Code progress (this branch):** Fast Search Escape + duplicates keyboard · Config Apply → `--accent` · Ghost/RAM product-copy scrub · Terminal auto-Local + host-size wait · Tag/ActionHistory empties already crafted. Remaining D2 = Windows click-through + checklist sign.
 
 ### D3 — Sign [`docs/fm-launch-readiness.md`](fm-launch-readiness.md)
 

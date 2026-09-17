@@ -61,7 +61,7 @@ const VIEWS = [
     path: BNDZ_INBOUND,
     icon: 'download_ui',
     accent: '#60a5fa',
-    desc: 'Clipboard captures and inbound file staging',
+    desc: 'Clipboard captures and inbound Drop Stack intake',
   },
 ] as const;
 

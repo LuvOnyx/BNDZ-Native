@@ -60,8 +60,8 @@ const SORT_BY_OPTIONS: Array<{ value: SortColumnId; label: string }> = [
   { value: 'modified', label: 'Date modified' },
   { value: 'created', label: 'Date created' },
   { value: 'tags', label: 'Tags' },
-  { value: 'ghostState', label: 'Ghost' },
-  { value: 'ramZone', label: 'RAM zone' },
+  { value: 'ghostState', label: 'Link state' },
+  { value: 'ramZone', label: 'Virtual zone' },
 ];
 
 interface ContextMenuViewProps {

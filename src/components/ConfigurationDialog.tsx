@@ -3263,7 +3263,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                applyFeedback === 'applied'
                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.45)]'
                  : hasChanges
-                   ? 'bg-[#007acc] border-[#007acc] text-white hover:bg-[#006bb3] shadow-[0_0_10px_rgba(0,122,204,0.35)]'
+                   ? 'bg-[color:var(--accent,#0078d4)] border-[color:var(--accent,#0078d4)] text-white hover:brightness-110 shadow-[0_0_10px_color-mix(in_srgb,var(--accent,#0078d4)_35%,transparent)]'
                    : 'bg-[#333] border-[#666] text-gray-500'
              }`}
              onClick={applyChanges}

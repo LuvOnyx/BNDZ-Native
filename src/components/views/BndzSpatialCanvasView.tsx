@@ -858,7 +858,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     setShowBoardPicker(false);
     await refreshBoards();
     requestAnimationFrame(() => fitBoard());
-    setStatus('Pillar Board live — Sandbox · Health · Inbound · RAM · Capacity · Automation');
+    setStatus('Pillar Board live — Sandbox · Health · Inbound · Capacity · Automation');
   }, [engine, flushAutosave, seedAutosave, refreshBoards, fitBoard]);
 
   useEffect(() => {

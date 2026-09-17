@@ -2683,7 +2683,7 @@ export default function BNDZUI() {
                 type: 'directory',
                 path: bndzRamVirtualPath(z.id),
                 size: z.usedBytes ?? 0,
-                typeDescription: z.kind === 'ramdisk' ? 'RAM staging zone' : 'Fast staging zone',
+                typeDescription: z.kind === 'ramdisk' ? 'Virtual zone' : 'Fast zone',
                 tags: z.isDirty ? ['dirty'] : [],
               }));
               cachePathContents(path, entries);
@@ -11450,11 +11450,11 @@ ${classified.detail}`,
         case 'ghostState': {
           const ghost = !!(entity as any).isGhostLink;
           return (
-            <div key={colId} className={metaColClass} title={ghost ? ((entity as any).linkTarget || 'Ghost link') : ''}>
+            <div key={colId} className={metaColClass} title={ghost ? ((entity as any).linkTarget || 'Symbolic link') : ''}>
               {ghost ? (
                 <span className="inline-flex items-center gap-1 text-violet-300/90 text-[11px] font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-400/90" />
-                  Ghost
+                  Link
                 </span>
               ) : (
                 <span className="text-gray-600 text-[11px]">—</span>
