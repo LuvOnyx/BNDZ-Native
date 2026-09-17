@@ -359,8 +359,11 @@ import {
 import { formatTabCaption } from '../lib/tabCaption';
 import { resolvePasteDestination } from '../lib/pasteDestination';
 import {
+  basenameFromWinPath,
   buildPasteProvisionalRows,
+  dispatchTransferDestStarted,
   resolvePasteSelectionIds,
+  scrollListRowIntoView,
   type PasteCompletedDetail,
   type PasteFailedDetail,
   type PasteStartedDetail,
@@ -2981,18 +2984,40 @@ export default function BNDZUI() {
     const renameLabel = `Rename: ${entity.name} → ${displayTarget}`;
     const { IPC } = await import('../lib/ipcBridge');
     const renameOpId = `rename-${Date.now()}`;
+    const normPane = normalizePanePath(panePath);
+    const newId = normalizePanePath(targetPath);
     registerFsTombstone(renameOpId, 'rename', panePath, [entity.name], [winSource], [entity]);
+    try {
+      window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
+        detail: { opId: renameOpId, op: 'move', label: renameLabel },
+      }));
+    } catch { /* ignore */ }
+    recentPasteUntilRef.current.set(`${normPane}::${targetName.toLowerCase()}`, Date.now() + 30 * 60_000);
     setPathContentsCache(prev => {
-      const existing = prev[normalizePanePath(panePath)];
+      const existing = prev[normPane];
       if (!existing) return prev;
       return setPathCacheEntry(
         prev,
-        normalizePanePath(panePath),
+        normPane,
         existing.map((e: any) => (e.name === entity.name || e.id === entity.id
-          ? { ...e, name: targetName, id: e.id }
+          ? {
+              ...e,
+              name: targetName,
+              id: newId,
+              path: newId,
+              modified: new Date().toISOString(),
+              dateModified: Date.now(),
+              __recentPaste: true,
+            }
           : e)),
       );
     });
+    // Keep selection on the renamed row (Explorer keeps focus on the item).
+    marqueeOpsRef.current.setSelectedItems([newId], activePaneIdRef.current);
+    marqueeOpsRef.current.scheduleSelectionChrome([newId], true);
+    setFocusedItemId(newId);
+    scrollListRowIntoView(newId);
+
     const res = await IPC.executeFsOperation(
       renameOpId,
       'move',
@@ -3010,7 +3035,12 @@ export default function BNDZUI() {
       }
       clearFsTombstone(renameOpId);
       if (settingsRt.rename.resortAfterRename || !!config.resortListImmediatelyAfterRename) {
-        void refetchPath(panePath);
+        void refetchPath(panePath).then(() => {
+          marqueeOpsRef.current.setSelectedItems([newId], activePaneIdRef.current);
+          marqueeOpsRef.current.scheduleSelectionChrome([newId], true);
+          setFocusedItemId(newId);
+          scrollListRowIntoView(newId);
+        });
       }
       return true;
     }
@@ -4529,6 +4559,7 @@ export default function BNDZUI() {
             queueMicrotask(() => {
               setSelectedItems([nextItem.id], activePaneId);
               setFocusedItemId(nextItem.id);
+              scrollListRowIntoView(nextItem.id);
             });
           }
         } else if (isFromTree && config.selectParentOfDeletedFolder) {
@@ -4612,6 +4643,11 @@ export default function BNDZUI() {
       message: r.finalName || name,
       category: 'filesystem',
     });
+    const createdName = r.finalName || name;
+    recentPasteUntilRef.current.set(
+      `${normalizePanePath(cPath)}::${String(createdName).toLowerCase()}`,
+      Date.now() + 30 * 60_000,
+    );
     await finishCreateAndRename({
       paneId: activePaneId,
       panePath: cPath,
@@ -4619,7 +4655,13 @@ export default function BNDZUI() {
       finalWinPath: r.fullPath,
       finalName: r.finalName,
       refetchPath,
-      getListing: (path) => pathContentsCacheRef.current[path] || [],
+      getListing: (path) => {
+        const listing = pathContentsCacheRef.current[path] || [];
+        // Stamp green tint onto the freshly created row.
+        return listing.map((e: any) =>
+          e?.name === createdName ? { ...e, __recentPaste: true, modified: new Date().toISOString() } : e,
+        );
+      },
       setSelectedItems: (ids, paneId) => marqueeOpsRef.current.setSelectedItems(ids, paneId),
       setFocusedItemId,
       beginInlineRename,
@@ -4825,11 +4867,7 @@ export default function BNDZUI() {
       marqueeOpsRef.current.setSelectedItems(ids, paneId);
       scheduleSelectionChrome(ids, true);
       setFocusedItemId(ids[0]);
-      requestAnimationFrame(() => {
-        try {
-          document.getElementById(`fs-item-${ids[0]}`)?.scrollIntoView({ block: 'nearest' });
-        } catch { /* ignore */ }
-      });
+      scrollListRowIntoView(ids[0]);
     };
 
     const onPasteStarted = (ev: Event) => {
@@ -4853,9 +4891,11 @@ export default function BNDZUI() {
       for (const row of provisional) {
         recentPasteUntilRef.current.set(`${destPane}::${String(row.name).toLowerCase()}`, until);
       }
+      const prevMeta = xferMetaRef.current.get(detail.opId);
       xferMetaRef.current.set(detail.opId, {
+        ...prevMeta,
         op: detail.op === 'move' ? 'move' : 'copy',
-        label: detail.label || provisional[0]?.name || 'items',
+        label: detail.label || provisional[0]?.name || prevMeta?.label || 'items',
         selectDestPath: destPane,
         selectNames: provisional.map(p => p.name),
       });
@@ -5147,7 +5187,7 @@ ${classified.detail}`,
               if (isDelete || isMove || isCopy) {
                 refreshUndoRedoState();
               }
-              if (meta?.op === 'move' && meta.selectParentPath && config.selectParentOfMovedFolder) {
+              if (meta?.op === 'move' && meta.selectParentPath && config.selectParentOfMovedFolder && !meta.selectDestPath) {
                 setCurrentPath(meta.selectParentPath);
               }
               // Paste/copy: keep destination selection after queue settle (Explorer parity).
@@ -5164,9 +5204,7 @@ ${classified.detail}`,
                   marqueeOpsRef.current.setSelectedItems(ids, paneId);
                   marqueeOpsRef.current.scheduleSelectionChrome(ids, true);
                   setFocusedItemId(ids[0]);
-                  try {
-                    document.getElementById(`fs-item-${ids[0]}`)?.scrollIntoView({ block: 'nearest' });
-                  } catch { /* ignore */ }
+                  scrollListRowIntoView(ids[0]);
                 }, 80);
               }
             }
@@ -7208,7 +7246,12 @@ ${classified.detail}`,
     return executePaste(dest, opts);
   };
 
-  const copyOrMoveToTarget = async (mode: 'copy' | 'move', targetDir?: string, sourcesOverride?: string[]) => {
+  const copyOrMoveToTarget = async (
+    mode: 'copy' | 'move',
+    targetDir?: string,
+    sourcesOverride?: string[],
+    opts?: { skipConfirm?: boolean },
+  ) => {
     const sources = sourcesOverride?.length ? sourcesOverride : getSelectedEntityPaths();
     if (!sources.length) {
       setToastMessage('Select items first.');
@@ -7229,7 +7272,7 @@ ${classified.detail}`,
       return;
     }
     const rt = buildSettingsRuntime(config);
-    if (rt.shell.confirmMove || !!config.confirmCopyAndMoveOperations) {
+    if (!opts?.skipConfirm && (rt.shell.confirmMove || !!config.confirmCopyAndMoveOperations)) {
       const label = sources.length === 1
         ? (sources[0].split(/[/\\]/).pop() || 'item')
         : `${sources.length} items`;
@@ -7250,9 +7293,8 @@ ${classified.detail}`,
     xferMetaRef.current.set(opId, {
       op: mode,
       label,
-      selectParentPath: mode === 'move' && config.selectParentOfMovedFolder
-        ? normalizePanePath(sources[0].replace(/[/\\][^/\\]+$/, '') || '/')
-        : undefined,
+      // Copy/Move To always shows the destination with items selected (Explorer).
+      selectParentPath: undefined,
     });
     const winSources = await Promise.all(sources.map(async s => {
       if (isBndzRamPath(s)) return (await resolvePanePathForFs(s)) || toWindowsPath(s);
@@ -7280,6 +7322,26 @@ ${classified.detail}`,
       });
     }
     const winDest = (await resolvePanePathForFs(dest)).replace(/\\$/, '');
+    const destPane = normalizePanePath(dest);
+    // Show the destination list so Copy/Move To feels like Explorer (items appear + selected).
+    if (destPane && isFsDropTargetPath(destPane)) {
+      const activePath = normalizePanePath(
+        panesRef.current.find(p => p.id === activePaneIdRef.current)?.tabs[
+          panesRef.current.find(p => p.id === activePaneIdRef.current)?.activeTabIndex ?? 0
+        ]?.path || '',
+      );
+      if (activePath && !panePathsEqual(activePath, destPane)) {
+        setCurrentPath(destPane);
+      }
+      dispatchTransferDestStarted({
+        opId,
+        op: mode,
+        label,
+        destPanePath: destPane,
+        sourceWinPaths: winSources,
+        sourceNames: winSources.map(basenameFromWinPath),
+      });
+    }
     try {
       window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
         detail: { opId, op: mode, label, dest },
@@ -7290,8 +7352,25 @@ ${classified.detail}`,
         reinjectFsTombstone(opId);
         clearFsTombstone(opId);
         pushToast({ kind: 'error', title: 'Move failed', message: res.error || label });
+        try {
+          window.dispatchEvent(new CustomEvent('bndz-paste-failed', {
+            detail: { opId, destPanePath: destPane },
+          }));
+        } catch { /* ignore */ }
       }
-      if (!isQueuedIpcResult(res)) refreshWorkspace();
+      if (!isQueuedIpcResult(res) && res.ok) {
+        try {
+          window.dispatchEvent(new CustomEvent('bndz-paste-completed', {
+            detail: {
+              opId,
+              destPanePath: destPane,
+              sourceNames: winSources.map(basenameFromWinPath),
+            },
+          }));
+        } catch { /* ignore */ }
+      } else if (!isQueuedIpcResult(res) && !res.ok && mode === 'copy') {
+        pushToast({ kind: 'error', title: 'Copy failed', message: res.error || label });
+      }
     });
   };
 
@@ -7530,57 +7609,17 @@ ${classified.detail}`,
         return toWindowsPath(s);
       }));
       const destPane = normalizePanePath(destCanon);
-      // Optimistic dest rows — wallpaper→list must show items before FS notify/ soft-refresh.
+      // Optimistic dest rows via shared paste/transfer dest path (select + green tint + coalesce).
       if (destPane && isFsDropTargetPath(destPane)) {
-        const provisional = resolvedSources.map((win, i) => {
-          const name = (win.split(/[/\\]/).pop() || canonSources[i]?.split(/[/\\]/).pop() || 'item');
-          const paneChild = normalizePanePath(`${destPane.replace(/\/$/, '')}/${name}`);
-          const looksDir = !/\.[^./\\]+$/.test(name) && (
-            !!findEntityInCache(pathContentsCacheRef.current, normalizePanePath(canonSources[i] || ''))?.isDirectory
-            || findEntityInCache(pathContentsCacheRef.current, normalizePanePath(canonSources[i] || ''))?.type === 'directory'
-          );
-          return {
-            id: paneChild,
-            name,
-            path: paneChild,
-            type: looksDir ? 'directory' : 'file',
-            isDirectory: looksDir,
-            size: 0,
-            modified: new Date().toISOString(),
-            dateModified: Date.now(),
-            __optimisticDrop: true,
-            __recentPaste: true,
-          };
-        });
-        setPathContentsCache(prev => {
-          const existing = prev[destPane] || [];
-          const names = new Set(provisional.map(p => String(p.name).toLowerCase()));
-          const kept = existing.filter((e: any) => !names.has(String(e.name || '').toLowerCase()));
-          const merged = config.addNewItemsAtTheEndOfTheList
-            ? [...kept, ...provisional]
-            : [...provisional, ...kept];
-          return setPathCacheEntry(prev, destPane, merged);
-        });
-        // Select dropped/pasted rows immediately (Explorer parity).
-        const dropIds = provisional.map(p => p.id);
-        const destPaneId = panesRef.current.find(p =>
-          p.tabs.some(t => panePathsEqual(normalizePanePath(t.path), destPane)),
-        )?.id || activePaneIdRef.current;
-        marqueeOpsRef.current.setSelectedItems(dropIds, destPaneId);
-        marqueeOpsRef.current.scheduleSelectionChrome(dropIds, true);
-        setFocusedItemId(dropIds[0]);
-        const until = Date.now() + 30 * 60_000;
-        for (const row of provisional) {
-          recentPasteUntilRef.current.set(`${destPane}::${String(row.name).toLowerCase()}`, until);
-        }
-        xferMetaRef.current.set(opId, {
-          ...(xferMetaRef.current.get(opId) || { op, label }),
+        dispatchTransferDestStarted({
+          opId,
           op,
           label,
-          selectDestPath: destPane,
-          selectNames: provisional.map(p => p.name),
+          destPanePath: destPane,
+          sourceWinPaths: resolvedSources,
+          sourceNames: resolvedSources.map(basenameFromWinPath),
         });
-        // Refresh after disk settle — mid-flight 350ms wipe was racing optimistic rows.
+        // Soft invalidate after paint — paste listener already owns optimism.
         window.setTimeout(() => {
           try {
             window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: destPane } }));
@@ -7867,9 +7906,8 @@ ${classified.detail}`,
       setToastMessage('Select item(s) to duplicate.');
       return;
     }
-    setClipboardState(paths, 'copy');
-    await executePaste(currentTab.path);
-    setToastMessage(paths.length === 1 ? 'Duplicated item.' : `Duplicated ${paths.length} items.`);
+    // Same-folder copy via Copy To path — dest optimism + select + green tint (host collision rename).
+    await copyOrMoveToTarget('copy', currentTab.path, paths, { skipConfirm: true });
   };
 
   const hasFileClipboard = () => clipboard.items.length > 0 && !!clipboard.action;
@@ -7895,8 +7933,10 @@ ${classified.detail}`,
       sourcePaths = shellClip.paths;
     }
     const dest = toWindowsPath(currentTab.path);
+    const destPane = normalizePanePath(currentTab.path);
     let ok = 0;
     let err = '';
+    const createdWin: string[] = [];
     for (const target of sourcePaths) {
       const base = target.split(/[/\\]/).pop() || 'item';
       const stem = formatCopyNameFromTemplates(config, base.replace(/\.lnk$/i, ''), false);
@@ -7908,11 +7948,35 @@ ${classified.detail}`,
             ? `${dest}\\${stem} - Symlink`
             : `${dest}\\${stem} - Junction`;
       const res = await IPC.createLink(linkPath, toWindowsPath(target), linkType);
-      if (res.success || isQueuedIpcResult(res)) ok += 1;
-      else err = res.error || 'Failed';
+      if (res.success || isQueuedIpcResult(res)) {
+        ok += 1;
+        createdWin.push(linkPath);
+      } else {
+        err = res.error || 'Failed';
+      }
     }
-    setToastMessage(ok ? `Created ${ok} ${linkType} link(s).` : (err || 'Link creation failed.'));
-    if (ok) refreshWorkspace();
+    if (ok && createdWin.length) {
+      const opId = `link-${Date.now()}`;
+      const label = createdWin.length === 1
+        ? (basenameFromWinPath(createdWin[0]) || 'link')
+        : `${createdWin.length} links`;
+      dispatchTransferDestStarted({
+        opId,
+        op: 'copy',
+        label,
+        destPanePath: destPane,
+        sourceWinPaths: createdWin,
+        sourceNames: createdWin.map(basenameFromWinPath),
+      });
+      try {
+        window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
+          detail: { opId, op: 'copy', label, dest: destPane },
+        }));
+      } catch { /* ignore */ }
+      void refetchPath(destPane);
+    } else {
+      setToastMessage(err || 'Link creation failed.', 'error');
+    }
   };
 
   const pasteIntoNewSubfolder = async () => {
@@ -9299,37 +9363,33 @@ ${classified.detail}`,
     });
   }, [applyFileDragHoverAtPoint, addTab, bottomPluginTab]);
 
-  // Host-side inbound commit fallback — paint dest rows + hard refresh (no manual F5).
+  // Host-side inbound commit fallback — paint dest rows + select + tint (same as paste/drop).
   useEffect(() => {
     const onHostCommitted = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       const destPane = normalizePanePath(String(detail.dest || ''));
       const paths = (detail.paths as string[] | undefined)?.filter(Boolean) || [];
-      if (!destPane || !paths.length) return;
-      const provisional = paths.map((win) => {
-        const name = win.split(/[/\\]/).pop() || 'item';
-        const paneChild = normalizePanePath(`${destPane.replace(/\/$/, '')}/${name}`);
-        const looksFile = /\.[^./\\]+$/.test(name);
-        return {
-          id: paneChild,
-          name,
-          path: paneChild,
-          type: looksFile ? 'file' : 'directory',
-          isDirectory: !looksFile,
-          size: 0,
-          dateModified: Date.now(),
-          __optimisticDrop: true,
-        };
+      if (!destPane || !paths.length || !isFsDropTargetPath(destPane)) return;
+      const winPaths = paths.map(p => toWindowsPath(p));
+      const opId = `host-in-${Date.now()}`;
+      const label = winPaths.length === 1
+        ? (basenameFromWinPath(winPaths[0]) || 'item')
+        : `${winPaths.length} items`;
+      const effect = String(detail.effect || 'copy').toLowerCase();
+      const op: 'copy' | 'move' = effect.includes('move') ? 'move' : 'copy';
+      dispatchTransferDestStarted({
+        opId,
+        op,
+        label,
+        destPanePath: destPane,
+        sourceWinPaths: winPaths,
+        sourceNames: winPaths.map(basenameFromWinPath),
       });
-      setPathContentsCache(prev => {
-        const existing = prev[destPane] || [];
-        const names = new Set(provisional.map(p => String(p.name).toLowerCase()));
-        const kept = existing.filter((e: any) => !names.has(String(e.name || '').toLowerCase()));
-        const merged = config.addNewItemsAtTheEndOfTheList
-          ? [...kept, ...provisional]
-          : [...provisional, ...kept];
-        return setPathCacheEntry(prev, destPane, merged);
-      });
+      try {
+        window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
+          detail: { opId, op, label, dest: destPane },
+        }));
+      } catch { /* ignore */ }
       try {
         window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: destPane } }));
       } catch { /* ignore */ }
@@ -9344,7 +9404,7 @@ ${classified.detail}`,
     };
     window.addEventListener('bndz-inbound-host-committed', onHostCommitted);
     return () => window.removeEventListener('bndz-inbound-host-committed', onHostCommitted);
-  }, [config.addNewItemsAtTheEndOfTheList]);
+  }, []);
 
   // Host: AllowExternalDrop=true (except BNDZ OLE) — Path A file: nav + Path B WPF PreviewDrop + forceCommit.
   useEffect(() => {

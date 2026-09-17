@@ -91,3 +91,22 @@ export function resolvePasteSelectionIds(
   }
   return ids;
 }
+
+/**
+ * Fire dest optimism for paste / Copy To / Move To / drop / host inbound.
+ * BNDZUI listens on `bndz-paste-started` and injects rows + select + green tint.
+ */
+export function dispatchTransferDestStarted(detail: PasteStartedDetail): void {
+  try {
+    window.dispatchEvent(new CustomEvent('bndz-paste-started', { detail }));
+  } catch { /* ignore */ }
+}
+
+export function scrollListRowIntoView(entityId: string): void {
+  if (!entityId) return;
+  requestAnimationFrame(() => {
+    try {
+      document.getElementById(`fs-item-${entityId}`)?.scrollIntoView({ block: 'nearest' });
+    } catch { /* ignore */ }
+  });
+}
