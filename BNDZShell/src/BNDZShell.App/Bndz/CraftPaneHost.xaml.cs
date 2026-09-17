@@ -218,7 +218,7 @@ public sealed partial class CraftPaneHost : UserControl
 			_webEnv = await AwaitWithTimeout(
 				GetSharedPaneEnvironmentAsync(),
 				TimeSpan.FromSeconds(20),
-				"WebView2 profile create timed out (another BNDZShell/WebView may be locking the profile). Close other instances and relaunch.").ConfigureAwait(true);
+				"WebView2 profile create timed out (another BNDZ/WebView may be locking the profile). Close other instances and relaunch.").ConfigureAwait(true);
 			try
 			{
 				await AwaitWithTimeout(
@@ -897,7 +897,7 @@ public sealed partial class CraftPaneHost : UserControl
 			return;
 		}
 
-		ShowPaneStatus($"WebView navigation failed ({args.WebErrorStatus}). Close other BNDZShell windows and relaunch.");
+		ShowPaneStatus($"WebView navigation failed ({args.WebErrorStatus}). Close other BNDZ windows and relaunch.");
 		Debug.WriteLine($"[CraftPaneHost] NavigationCompleted failed: {args.WebErrorStatus}");
 		AppendShellLog($"NavigationCompleted failed: {args.WebErrorStatus}");
 	}

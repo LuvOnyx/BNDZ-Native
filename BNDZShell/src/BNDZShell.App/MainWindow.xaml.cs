@@ -1073,14 +1073,14 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            ChromeHost.ShowPaneStatus($"BNDZ shell error — see shell-crash.log\n{message}");
+            ChromeHost.ShowPaneStatus($"BNDZ error — see shell-crash.log\n{message}");
         }
         catch { /* ignore */ }
         try
         {
             var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
             {
-                Title = "BNDZ shell error",
+                Title = "BNDZ error",
                 Content = message + "\n\nDetails were written to %LocalAppData%\\BNDZ\\shell-crash.log",
                 CloseButtonText = "Close",
                 XamlRoot = Content?.XamlRoot,

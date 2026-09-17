@@ -173,7 +173,7 @@ Sync-UiAssetsToShellOutput
 # Stage a fresh copy for convenience paths — run-bndz-native prefers bin, but keep artifacts current.
 Write-Host "==> Stage artifacts\bndzshell-debug from x64 Debug" -ForegroundColor Cyan
 $x64Out = Get-ChildItem -Path (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\x64\Debug") -Directory -Recurse -Filter "net*-windows*" -EA SilentlyContinue |
-    Where-Object { Test-Path (Join-Path $_.FullName "BNDZShell.exe") } |
+    Where-Object { (Test-Path (Join-Path $_.FullName "BNDZ.exe")) -or (Test-Path (Join-Path $_.FullName "BNDZShell.exe")) } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 if ($null -eq $x64Out) {
@@ -189,6 +189,6 @@ if ($null -eq $x64Out) {
 Write-Host ""
 Write-Host "Ready - launch:" -ForegroundColor Green
 Write-Host "  scripts\run-bndz-native.cmd  (prefers bin\x64\Debug, then artifacts)"
-Write-Host "  or double-click BNDZShell.exe under bin\x64\Debug\net*-windows*\"
+Write-Host "  or double-click BNDZ.exe under bin\x64\Debug\net*-windows*\"
 Write-Host "  ARM64: bin\ARM64\Debug\net*-windows*\ (when built)"
 Write-Host "(Unpackaged self-contained WinAppSDK - MSIX register no longer required.)"

@@ -11,8 +11,14 @@
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Keep AssemblyName distinct from BNDZBackend/BNDZ.csproj (NuGet ambiguous name).
+         Product metadata + post-build BNDZ.exe alias = user-facing "BNDZ". -->
     <AssemblyName>BNDZShell</AssemblyName>
-    <!-- Unpackaged self-contained: double-click BNDZShell.exe works (no MSIX register required). -->
+    <Product>BNDZ</Product>
+    <AssemblyTitle>BNDZ</AssemblyTitle>
+    <AssemblyProduct>BNDZ</AssemblyProduct>
+    <Description>BNDZ</Description>
+    <!-- Unpackaged self-contained: launch via BNDZ.exe alias (or BNDZShell.exe). -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <RootNamespace>BNDZShell</RootNamespace>
@@ -84,5 +90,11 @@
   <!-- Embedded backend is a DLL only — drop WPF WebView2 + stray host exe from output. -->
   <Target Name="StripEmbeddedBackendArtifacts" AfterTargets="CopyFilesToOutputDirectory">
     <Delete Files="$(OutputPath)BNDZCore.exe;$(OutputPath)BNDZCore.runtimeconfig.json;$(OutputPath)Microsoft.Web.WebView2.Wpf.dll;$(OutputPath)Microsoft.Web.WebView2.Wpf.xml" ContinueOnError="true" />
+  </Target>
+
+  <!-- User-facing exe name is BNDZ.exe (AssemblyName stays BNDZShell to avoid NuGet clash with BNDZ.csproj). -->
+  <Target Name="AliasProductExeAsBndz" AfterTargets="CopyFilesToOutputDirectory">
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)BNDZ.exe" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetPath)')" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFiles="$(TargetDir)BNDZ.pdb" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
   </Target>
 </Project>
