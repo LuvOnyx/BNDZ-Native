@@ -181,8 +181,8 @@ Big-company FMs never fail silently on transfer collisions or permission walls. 
 | **Access denied / needs admin** | Explain + offer elevate | Cancel; **Run as administrator** / retry elevated (Windows UAC) |
 | **File in use** (sharing violation) | Locked-file message | Skip, Retry, Cancel |
 | **Path too long** | MAX_PATH / long-path messaging | Skip, Cancel; rename hint if applicable |
-| **Read-only / destination not writable** | Permission/read-only sheet | Skip, Cancel; elevate if policy allows |
-| **Invalid name / reserved device names** | Validation toast/modal | Fix name / Cancel |
+| **Read-only / destination not writable** | Permission/read-only sheet | Skip, Cancel; elevate if policy allows — **code: `readOnly` kind** |
+| **Invalid name / reserved device names** | Validation toast/modal | Fix name / Cancel — **code: `invalidName` + rename guard** |
 | **Copy/move folder into itself** (or descendant) | Block with clear reason | OK |
 | **Partial failure** mid-batch | Summary of failed items | Retry failed, Skip rest, Open log |
 

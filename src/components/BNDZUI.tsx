@@ -57,6 +57,7 @@ import {
   consumePendingElevatedTransfer,
   freeBytesForDestination,
   buildCapacityLine,
+  isInvalidWindowsFileName,
 } from '../lib/transferErrorKind';
 import { isCopyDragModifier } from '../lib/listDragModifiers';
 import ListDragGhost, { type ListDragGhostMeta } from './ListDragGhost';
@@ -2947,8 +2948,8 @@ export default function BNDZUI() {
       setToastMessage('Name cannot be empty.', 'warning');
       return false;
     }
-    if (/[<>:"/\\|?*\x00-\x1F]/.test(targetName)) {
-      setToastMessage('Name contains characters Windows does not allow.', 'warning');
+    if (isInvalidWindowsFileName(targetName)) {
+      setToastMessage('That name is not allowed on Windows (illegal characters or reserved names like CON / PRN).', 'warning');
       return false;
     }
     if (targetName === entity.name) return true;
@@ -5158,6 +5159,17 @@ Restart BNDZ as administrator to retry?` },
                     { label: 'Open Storage Cleanup', style: 'secondary', action: () => openStorageCleanup() },
                     { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
                     { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
+                  ];
+                } else if (classified.kind === 'readOnly') {
+                  actions = [
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Retry', style: 'secondary', action: () => retryThisTransfer() },
+                    { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
+                  ];
+                } else if (classified.kind === 'invalidName') {
+                  actions = [
+                    { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
                     { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
                 } else {

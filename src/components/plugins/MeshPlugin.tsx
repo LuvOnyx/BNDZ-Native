@@ -475,7 +475,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
             </PluginToolbarButton>
           )}
           <PluginToolbarButton onClick={() => setTab('drop')}>
-            <Icons8Icon id="cloud_ui" size={12} /> Mesh Drop
+            <Icons8Icon id="cloud_ui" size={12} /> Send files
           </PluginToolbarButton>
           <PluginToolbarButton onClick={() => {
             window.dispatchEvent(new CustomEvent('bndz-open-configuration', { detail: { tab: 'Workspace Tools' } }));
@@ -488,13 +488,30 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     >
       <div className={`flex flex-col flex-1 min-h-0 h-full bndz-mesh-surface ${terminalMode ? 'bndz-mesh-surface--terminal' : ''}`}>
         {!terminalMode && (
-          <div className="bndz-mesh-tabrail flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
+          <>
+            <div className="bndz-mesh-opsrail">
+              <div className="bndz-mesh-opsrail-copy">
+                <strong>{hosts.length}</strong> host{hosts.length === 1 ? '' : 's'}
+                <em>·</em>
+                <span>{rules.length} sync rule{rules.length === 1 ? '' : 's'}</span>
+                {sessionId ? <><em>·</em><span>terminal open</span></> : null}
+              </div>
+              <div className="bndz-mesh-opsrail-actions">
+                <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
+                  Local shell
+                </PluginToolbarButton>
+                <PluginToolbarButton onClick={() => setTab('drop')}>
+                  Send files
+                </PluginToolbarButton>
+              </div>
+            </div>
+            <div className="bndz-mesh-tabrail flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
             {([
               ['hosts', 'Hosts'],
-              ['drop', 'Mesh Drop'],
-              ['ephemeral', 'Mesh VPS'],
-              ['buckets', 'Buckets & Shares'],
-              ['mirror', 'Mirror'],
+              ['drop', 'Send files'],
+              ['ephemeral', 'Temp cloud'],
+              ['buckets', 'Shares'],
+              ['mirror', 'Sync'],
               ['terminal', 'Terminal'],
               ['liveshare', 'Live Share'],
             ] as const).map(([id, label]) => (
@@ -508,6 +525,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
               </button>
             ))}
           </div>
+          </>
         )}
 
         <div

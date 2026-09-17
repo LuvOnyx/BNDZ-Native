@@ -20172,6 +20172,43 @@ html.theme-light .bndz-xfer-toast-track {
     radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #38bdf8 12%, transparent), transparent 55%),
     linear-gradient(180deg, #10161c, #0e1216);
 }
+.bndz-mesh-opsrail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #38bdf8 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #38bdf8 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #10161c, #0e1216);
+  flex-shrink: 0;
+}
+.bndz-mesh-opsrail-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  min-width: 0;
+}
+.bndz-mesh-opsrail-copy strong {
+  color: #e0f2fe;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.bndz-mesh-opsrail-copy em {
+  font-style: normal;
+  color: #64748b;
+}
+.bndz-mesh-opsrail-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .bndz-dropstack-opsrail-title,
 .bndz-capture-opsrail-title,
 .bndz-policy-opsrail-title,

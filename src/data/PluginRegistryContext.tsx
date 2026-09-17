@@ -168,7 +168,7 @@ const ALL_PLUGINS: PluginManifest[] = [
 
     {
         ...MeshPluginDef,
-        description: 'Zero-config SSH/SFTP mesh — remote browsing, live deploy mirrors, and integrated terminal. Power-user optional plugin.',
+        description: 'Connect to other PCs over SSH, send files nearby, and use a built-in terminal',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -177,7 +177,7 @@ const ALL_PLUGINS: PluginManifest[] = [
 
     {
         ...ProjectSandboxPluginDef,
-        description: 'Safe workspaces — sandbox sessions, checkpoints, and encrypted vaults.',
+        description: 'Safe work folders with restore points and optional locked vaults',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -186,7 +186,7 @@ const ALL_PLUGINS: PluginManifest[] = [
 
     {
         ...BranchingTimePluginDef,
-        description: 'Content-addressed folder snapshots — create, peek tip, restore. Git for folders without git.',
+        description: 'Save folder snapshots you can preview and restore later',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',

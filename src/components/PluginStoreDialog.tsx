@@ -90,20 +90,20 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Browse and restore past file operations',
     ],
     'remote-mesh': [
-      'SSH/SFTP browse, terminal, sync, and LAN drop',
-      'Mesh VPS launch, import, start/stop, and Mesh bridge',
-      'Ephemeral and persistent instances with cloud-init SSH',
+      'Browse remote PCs over SSH, sync folders, and send files nearby',
+      'Temporary cloud instances you can start and stop',
+      'Built-in terminal for local and remote shells',
     ],
 
     'project-sandbox': [
-      'Isolated sandbox sessions with checkpoint/commit/discard',
-      'Encrypted vault unlock/browse beside sandbox work',
+      'Isolated work folders with checkpoint / discard',
+      'Optional locked vaults beside sandbox work',
       'Safe experimentation on live trees',
     ],
     'branching-time': [
-      'Content branches and VSS shadows',
-      'Compare and restore timeline paths',
-      'Non-destructive experimentation',
+      'Folder snapshots you can preview and restore',
+      'Compare timeline paths without losing the live folder',
+      'Windows Previous Versions when available',
     ],
   };
   return byId[plugin.id] || [

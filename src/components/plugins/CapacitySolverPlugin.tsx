@@ -11,7 +11,6 @@ import {
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
-  PluginStatCard,
   PluginSectionTitle,
   PLUGIN_INPUT_CLASS,
   PluginTabStrip,
@@ -22,7 +21,7 @@ export const CapacitySolverPluginDef = {
   id: 'capacity-solver',
   name: 'Capacity Solver',
   icon: 'hard_drive_ui',
-  description: 'What-if capacity planner with scrubbers, projected outcomes, and budget governor.',
+  description: 'Plan free space — see what you can reclaim before you delete anything',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -609,27 +608,23 @@ export default function CapacitySolverPlugin({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <PluginStatCard
-                  label="Free now"
-                  value={formatBytes(projection.currentFreeBytes)}
-                  sub={`${currentPct ?? 0}% of ${formatBytes(projection.totalBytes)}`}
-                  iconId="hard_drive_ui"
-                />
-                <PluginStatCard
-                  label="Projected free"
-                  value={formatBytes(liveProjected)}
-                  sub={projection.meetsTarget || liveProjected >= projection.targetFreeBytes
-                    ? 'Target met'
-                    : `Need ${formatBytes(Math.max(0, projection.targetFreeBytes - liveProjected))} more`}
-                  iconId="zap_ui"
-                />
-                <PluginStatCard
-                  label="Selected reclaim"
-                  value={formatBytes(selectedReclaimable)}
-                  sub={`${selectedIds.size} of ${projection.actions.length} action(s)`}
-                  iconId="check"
-                />
+              <div className="bndz-cleanup-meter">
+                <div className="bndz-cleanup-meter-row">
+                  <strong>{formatBytes(projection.currentFreeBytes)}</strong>
+                  <span>free now</span>
+                  <em>·</em>
+                  <strong>{formatBytes(liveProjected)}</strong>
+                  <span>projected</span>
+                  <em>·</em>
+                  <strong>{formatBytes(selectedReclaimable)}</strong>
+                  <span>selected reclaim</span>
+                </div>
+                <div className="bndz-cleanup-meter-links">
+                  <span className="bndz-cleanup-quiet-link" style={{ pointerEvents: 'none', border: 'none' }}>
+                    {selectedIds.size} of {projection.actions.length} action(s)
+                    {projection.meetsTarget || liveProjected >= projection.targetFreeBytes ? ' · target met' : ''}
+                  </span>
+                </div>
               </div>
 
               {projection.totalBytes > 0 && (
