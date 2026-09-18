@@ -122,3 +122,13 @@ AI keepers → `candidates/superseded-ai-gen/`. Raw extracts → `candidates/flu
 | Question / access | `fm-question-*.png` | Fluent Prohibited |
 
 Gravity SVGs → `candidates/superseded-gravity-empties/`.
+
+### Follow-up (2026-09-18) — subject disambiguation
+
+| Tone | Keeper subject | Notes |
+|------|----------------|-------|
+| panel | Fluent Framed picture | Preview idle — **not** a loupe |
+| search | Fluent Magnifier | Search empty only |
+| question | Fluent Red question mark | Help/conflict — **not** prohibited/deny |
+| warn | Wastebasket + Warning **side-by-side** | Trash fully readable; warning is companion badge |
+| error | Warning alone | Permanent delete — no trash |
