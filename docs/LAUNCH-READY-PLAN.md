@@ -83,13 +83,14 @@ Hub catalog no longer installs Staging / Design Board — **but residue remains 
 | FilesMerge `BndzPluginPageFactory` | **Done** — ghost-link / ram-staging ctors removed |
 | Ghost→RAM “must-move” rows in `PLUGINS-TODO-BEFORE-LAUNCH.MD` | Strike — superseded by 1.A remove (do not professionalize Staging) |
 | Nested absorb children using `PluginStatCard` SaaS strips | **Partial** — RealityCheck / SemanticDesk → `PluginOpsMeter`; Ram/Ghost quarantined |
-| **Preview idle + System Properties idle plaques** | Current `fm-panel-*` / `fm-idle-*` too thin or wrong — **pick/replace** from `public/plaques/candidates/` (review → QUALITY → wire). Tracked in `to-do.md` Native plaques. |
+| **Preview idle + System Properties idle plaques** | **Wired** — panel=`unable-to-display-*`, idle=`disk-*`; thin customs superseded; Native visual QC ☐ |
 
 - [x] FilesMerge catalog no longer resurrects Staging / Ghost Link
 - [x] Nested absorb embeds (RealityCheck / SemanticDesk) off `PluginStatCard`
 - [x] Plugin `.tsx` quarantined under `_a1_quarantine/`
 - [x] BNDZUI RAM/Ghost tree expand chrome scrubbed; Workspace Tools dead Ghost/RAM refresh removed
-- [ ] Preview + System Properties idle plaques replaced / QC'd
+- [x] Preview + System Properties idle plaques replaced (code)
+- [ ] Preview + System Properties idle plaques Native visual QC
 - [ ] A1 residue scrub complete (final Windows confirm no resurrect)
 
 | Leftover **Ghost-*** user-facing strings | Scrub product copy (menus, Deck, automation labels, transfer queue names) even where code embeds remain. |
@@ -377,8 +378,8 @@ DONE   A1 residue quarantine (plugin .tsx + FilesMerge factory + BNDZUI tree chr
 DONE   A3 host craft / E1 ops suite / F boot+index (code)
 DONE   Tabs / Home rename / About de-AI / ops elevation QC
 DONE   C4  Outside OLE ghost craft + inbound list FluidDrag ghost (code)
-NEXT   Idle plaque pick/replace (Preview panel + System Properties)
-THEN   Post-C4 DnD matrix 46–58 + ole-dnd.log proof (Windows)
+DONE   Idle plaque pick/replace (Preview panel + System Properties)
+NEXT   Post-C4 DnD matrix 46–58 + idle plaque Native visual QC
 THEN   A2 Windows absorb smoke (each host tab once)
 THEN   E4.1–E4.14 live UAC / collision / Shell Integration
 THEN   D2 leftovers (Shift+RMB, terminal, ICO, cold-boot LMB)
@@ -455,11 +456,11 @@ All of the following must be true — **none optional**:
 
 ## Immediate next execution slice (when you say go)
 
-1. **Idle plaque pick/replace** — Preview Inspector idle (`fm-panel-*`) + System Properties no-selection (`fm-idle-*`); review board → QUALITY → wire  
-2. **Windows** — Post-C4 DnD matrix **46–58** + `ole-dnd.log`; then A2 / E4 / D2–D3  
+1. **Windows** — Post-C4 DnD matrix **46–58** + `ole-dnd.log`; Preview/System Properties idle plaque visual QC  
+2. **A2** absorb smoke + **E4** live UAC/collision + **D2/D3** sign-off  
 3. Final A1 Windows confirm — no Staging/Design Board resurrect  
 
-Do **not** restart A1 Hub removal, E1 gap audit, or C4 craft from scratch — those are done; plaques + Windows verify remain.
+Do **not** restart A1 Hub removal, E1 gap audit, C4 craft, or idle plaque pick — those are done; Windows verify remains.
 
 ---
 

@@ -29,9 +29,9 @@ Gather → review board → checklist pass → wire. Keepers only.
 | Search empty | `search-empty-*.svg` (Gravity UI) |
 | Access / question | `access-denied-*.svg` (Gravity UI) |
 | Panel idle | `unable-display-*.svg` (Gravity UI) |
-| Idle / empty tray | `fm-idle-dark.svg` / `fm-idle-light.svg` (custom FM object scene) |
+| Idle / empty tray | `disk-dark.svg` / `disk-light.svg` (Gravity UI) — System Properties idle |
 | Warn | `warning.svg` ← `document-warning.svg` (object only; people `warning`/`void` quarantined) |
-| Panel host | `fm-panel-dark.svg` / `fm-panel-light.svg` (custom FM window chrome) |
+| Panel host / Preview idle | `unable-to-display-dark.svg` / `unable-to-display-light.svg` (Gravity UI) |
 | Transfer | `fm-transfer-dark.svg` / `fm-transfer-light.svg` (custom dual-tray transfer) |
 | Tabs empty | `tab-empty.svg` (custom FM chips) |
 | Tab chrome | instrument chips `tab-active*.svg`, `tab-inactive*.svg`, `tab-strip*.svg` (bottom slit in CSS) |
@@ -59,10 +59,19 @@ Board: `public/plaques/qc.html`
 - Quarantined people art in `warning.svg` / `void.svg` → `candidates/undraw-with-people/`.
 - Replaced wired warn keeper with object-only `document-warning.svg` published as `warning.svg`.
 
-### Follow-up (2026-09-18) — idle plaques need pick/replace
-| Surface | Wired today | Issue | Next |
-|---------|-------------|-------|------|
-| Preview Inspector idle | `fm-panel-dark/light.svg` via `BndzPlaque tone="panel"` | Thin custom scene — user reports missing / wrong art | Pick from `candidates/gravity-ui/unable-to-display-*.svg` or richer FM panel; review board → QUALITY → wire |
-| System Properties idle (bottom panel) | `fm-idle-dark/light.svg` via `PluginEmptyState` → `tone="idle"` | Same — replace/pick | Review board → QUALITY → wire; QC dark+light on Native |
+### Follow-up (2026-09-18) — idle plaques **PASS + wired**
 
-Do **not** re-wire until keepers pass QUALITY checklist (no people, readable at `lg`/`sm`, `<img>`-safe).
+| Surface | Keeper | Result |
+|---------|--------|--------|
+| Preview Inspector idle | `unable-to-display-dark/light.svg` (Gravity UI) via `tone="panel"` | **PASS** — object/chrome only; no people/`currentColor`; richer than thin `fm-panel-*` |
+| System Properties idle | `disk-dark/light.svg` (Gravity UI) via `tone="idle"` | **PASS** — disk/volume object art fits properties empty |
+
+Thin customs quarantined → `candidates/superseded-thin/`.
+
+| Check | Result |
+|-------|--------|
+| Origin | Gravity UI MIT (already attributed) |
+| No people | PASS |
+| `<img>` safe | PASS (baked fills) |
+| Path resolve public + Assets (post-build) | required after `npm run build` |
+| Native visual QC | ☐ Windows click-through |

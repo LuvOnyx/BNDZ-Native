@@ -282,7 +282,9 @@ function toneFromPluginIcon(icon: string): BndzPlaqueTone {
   if (/tab|window/.test(id)) return 'tabs';
   if (/warn|alert|shield|policy/.test(id)) return 'warn';
   if (/error|fail|missing|delete/.test(id)) return 'error';
-  if (/panel|plugin|hub|rack|tool/.test(id)) return 'panel';
+  // System Properties / volume / attributes → disk idle keeper
+  if (/sys_properties|properties|disk|drive|volume|hash|acl|attribute/.test(id)) return 'idle';
+  if (/panel|plugin|hub|rack|tool|preview|inspector/.test(id)) return 'panel';
   if (/idle|empty|layers/.test(id)) return 'idle';
   return 'idle';
 }
