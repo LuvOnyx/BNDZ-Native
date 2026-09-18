@@ -59,19 +59,23 @@ Board: `public/plaques/qc.html`
 - Quarantined people art in `warning.svg` / `void.svg` → `candidates/undraw-with-people/`.
 - Replaced wired warn keeper with object-only `document-warning.svg` published as `warning.svg`.
 
-### Follow-up (2026-09-18) — idle plaques **PASS + wired**
+### Follow-up (2026-09-18) — Gravity idle/panel **superseded** by glass craft
+
+Art direction: dope-FM glass refs (`ref-fm-idle-properties.png`, `ref-fm-panel-preview-idle.png`) → original SVG keepers. Midnight glass + `#0078D4` + soft magenta edge. No people, no vendor dumps.
 
 | Surface | Keeper | Result |
 |---------|--------|--------|
-| Preview Inspector idle | `unable-to-display-dark/light.svg` (Gravity UI) via `tone="panel"` | **PASS** — object/chrome only; no people/`currentColor`; richer than thin `fm-panel-*` |
-| System Properties idle | `disk-dark/light.svg` (Gravity UI) via `tone="idle"` | **PASS** — disk/volume object art fits properties empty |
+| Preview Inspector idle | `fm-glass-panel-dark/light.svg` via `tone="panel"` | **PASS** — loupe + dashed well + waveform; object/chrome only |
+| System Properties idle | `fm-glass-idle-dark/light.svg` via `tone="idle"` | **PASS** — glass folder + platter + props chip |
 
-Thin customs quarantined → `candidates/superseded-thin/`.
+Gravity idle/panel → `candidates/superseded-gravity-idle/`. Thin customs remain in `candidates/superseded-thin/`.
 
 | Check | Result |
 |-------|--------|
-| Origin | Gravity UI MIT (already attributed) |
+| Origin | Purpose-made BNDZ glass craft (refs inspirational only) |
 | No people | PASS |
-| `<img>` safe | PASS (baked fills) |
+| `<img>` safe | PASS (baked fills/gradients; no `currentColor`) |
 | Path resolve public + Assets (post-build) | required after `npm run build` |
 | Native visual QC | ☐ Windows click-through |
+
+Board: `public/plaques/idle-qc-2026-09-18.html`

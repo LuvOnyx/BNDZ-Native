@@ -29,14 +29,14 @@ export const PLAQUE_CONTEXT_MENU_ENABLED = false;
 type ThemePair = { dark: string; light?: string };
 
 const PLAQUE_SRC: Record<BndzPlaqueTone, ThemePair> = {
-  // System Properties / generic empty tray — Gravity UI disk (object, readable at lg/sm)
-  idle: { dark: '/plaques/disk-dark.svg', light: '/plaques/disk-light.svg' },
+  // System Properties / generic empty tray — original glass folder + platter (dope-FM ref craft)
+  idle: { dark: '/plaques/fm-glass-idle-dark.svg', light: '/plaques/fm-glass-idle-light.svg' },
   warn: { dark: '/plaques/warning.svg', light: '/plaques/warning.svg' },
   error: { dark: '/plaques/error-dark.svg', light: '/plaques/error-light.svg' },
   brand: { dark: '/plaques/brand-mark.png', light: '/plaques/brand-mark.png' },
   question: { dark: '/plaques/access-denied-dark.svg', light: '/plaques/access-denied-light.svg' },
-  // Preview Inspector idle — Gravity UI unable-to-display (was thin fm-panel-*)
-  panel: { dark: '/plaques/unable-to-display-dark.svg', light: '/plaques/unable-to-display-light.svg' },
+  // Preview Inspector idle — original glass loupe well (dope-FM ref craft)
+  panel: { dark: '/plaques/fm-glass-panel-dark.svg', light: '/plaques/fm-glass-panel-light.svg' },
   folder: { dark: '/plaques/folder-empty-dark.svg', light: '/plaques/folder-empty-light.svg' },
   search: { dark: '/plaques/search-empty-dark.svg', light: '/plaques/search-empty-light.svg' },
   tabs: { dark: '/plaques/tab-empty.svg', light: '/plaques/tab-empty.svg' },

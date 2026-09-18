@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240" fill="none">
+  <!-- BNDZ glass panel (light) - Preview Inspector idle. Object only. -->
+  <defs>
+    <linearGradient id="gPanelGlassL" x1="36" y1="28" x2="204" y2="212">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#E8EEF6" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#D0DBE8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="gPanelWellL" x1="56" y1="64" x2="184" y2="176">
+      <stop offset="0%" stop-color="#F4F7FB" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#DDE6F0" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="gPanelLoupeL" x1="88" y1="78" x2="148" y2="138">
+      <stop offset="0%" stop-color="#2A3548" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#5A6A80" stop-opacity="0.75"/>
+    </linearGradient>
+    <radialGradient id="gPanelGlowL" cx="50%" cy="48%" r="40%">
+      <stop offset="0%" stop-color="#0078D4" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#0078D4" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="gPanelGridL" width="12" height="12" patternUnits="userSpaceOnUse">
+      <path d="M12 0H0V12" fill="none" stroke="#7A8AA0" stroke-opacity="0.22" stroke-width="0.6"/>
+    </pattern>
+  </defs>
+
+  <rect x="28" y="28" width="184" height="184" rx="22" fill="url(#gPanelGlassL)" stroke="#0078D4" stroke-opacity="0.4" stroke-width="1.75"/>
+  <path d="M48 36h144" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" stroke-linecap="round"/>
+
+  <ellipse cx="120" cy="118" rx="62" ry="52" fill="url(#gPanelGlowL)"/>
+
+  <rect x="52" y="58" width="136" height="112" rx="16" fill="url(#gPanelWellL)" stroke="#5A6A80" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="56" y="62" width="128" height="104" rx="14" fill="url(#gPanelGridL)" opacity="0.45"/>
+
+  <path d="M68 118 C76 102, 84 134, 92 118 S108 102, 116 118 S132 134, 140 118 S156 102, 164 118 S172 130, 176 118"
+        fill="none" stroke="#0078D4" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M72 124 C80 112, 88 136, 96 124 S112 112, 120 124 S136 136, 144 124 S160 112, 168 124"
+        fill="none" stroke="#A855F7" stroke-opacity="0.22" stroke-width="1.5" stroke-linecap="round"/>
+
+  <g transform="translate(120 112)">
+    <circle r="28" fill="#FFFFFF" fill-opacity="0.35" stroke="url(#gPanelLoupeL)" stroke-width="3.5"/>
+    <circle r="22" fill="none" stroke="#2A3548" stroke-opacity="0.1" stroke-width="1.25"/>
+    <path d="M-12 -16 A22 22 0 0 1 8 -20" fill="none" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M18 18 L34 34" stroke="#4A5A70" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M18 18 L34 34" stroke="#6A7A90" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="34" cy="34" r="4.5" fill="#0078D4"/>
+    <circle cx="34" cy="34" r="2" fill="#7EC8F8"/>
+  </g>
+
+  <rect x="98" y="186" width="44" height="4" rx="2" fill="#0078D4"/>
+  <circle cx="48" cy="196" r="4" fill="#0078D4"/>
+  <rect x="58" y="193.5" width="22" height="5" rx="2.5" fill="#7A8AA0" fill-opacity="0.5"/>
+</svg>
