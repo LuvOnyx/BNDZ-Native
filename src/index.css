@@ -11465,9 +11465,9 @@ html.theme-light .bndz-plaque--hex-well {
     0 8px 22px rgba(160, 30, 30, 0.3);
 }
 
-/* List tab strip rail — Classic Explorer + Soft Modern only (other Visual styles keep their CSS) */
-html[data-tab-style="explorer"] .bndz-chrome-tabstrip,
-html[data-tab-style="soft"] .bndz-chrome-tabstrip {
+/* List tab strip rail — Classic Explorer + Soft Modern only (classic shell; not native/files) */
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip {
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.1)),
     url('/plaques/tab-strip.svg');
@@ -11476,41 +11476,46 @@ html[data-tab-style="soft"] .bndz-chrome-tabstrip {
   background-blend-mode: normal, soft-light;
   align-items: flex-end;
 }
-html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip,
-html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip {
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip {
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(236, 239, 244, 0.92)),
     url('/plaques/tab-strip-light.svg');
   background-blend-mode: normal, multiply;
 }
 
-/* Soft Explorer / Soft Modern instrument chips — plaque body + CSS color slit */
-html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item,
-html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item {
+/*
+ * Soft Explorer / Soft Modern — plaque SVG chips (classic shell only).
+ * Native/files host MUST NOT get these: plaque specificity beat the solid-fill
+ * overrides, so uncolored tabs stayed on the stubby SVG while colored (accent)
+ * tabs looked like proper solid chips.
+ */
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item,
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item {
   border-radius: 8px 8px 0 0 !important;
   border-bottom: none !important;
 }
-html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
-html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
   background-image: url('/plaques/tab-inactive.svg') !important;
   background-size: 100% 100% !important;
   background-repeat: no-repeat !important;
   background-color: transparent !important;
 }
-html[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
-html[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
   background-image: url('/plaques/tab-active.svg') !important;
   background-size: 100% 100% !important;
   background-repeat: no-repeat !important;
   background-color: transparent !important;
   box-shadow: none !important;
 }
-html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
-html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
   background-image: url('/plaques/tab-inactive-light.svg') !important;
 }
-html.theme-light[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
-html.theme-light[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
   background-image: url('/plaques/tab-active-light.svg') !important;
 }
 
@@ -18428,18 +18433,20 @@ html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {
   background:
     linear-gradient(180deg, rgba(40, 44, 52, 0.55) 0%, rgba(22, 24, 28, 0.92) 100%) !important;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item,
-html[data-bndz-shell="native-host"] .bndz-tab-item {
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item,
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item {
   border-radius: 10px 10px 0 0 !important;
-  /* Match explorer/soft plaque padding — stubby 4px made default tabs look tiny vs colored. */
   min-height: calc(var(--bndz-tab-bar-height, 44px) - 2px) !important;
   padding: 7px 14px 8px !important;
   margin-right: 2px !important;
   font-size: 12.5px !important;
+  /* Hard-kill plaque SVGs — solid CSS chips only on native/files host */
+  background-image: none !important;
+  background-blend-mode: normal !important;
 }
 /* Same full-bleed chip for colored + uncolored — accent only retints the fill + slit */
-html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active,
-html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active {
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
   background: var(--bndz-surface-raised, #252830) !important;
   background-image: none !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -18447,8 +18454,8 @@ html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   font-weight: 600;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
-html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent] {
   background: color-mix(
     in srgb,
     var(--bndz-surface-raised, #252830) 72%,
@@ -18457,16 +18464,16 @@ html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-acce
   background-image: none !important;
 }
 /* Inactive: same hit box; soft chip body so defaults aren't "slit-only" stubs */
-html[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active),
-html[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active) {
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
   background: color-mix(in srgb, var(--bndz-surface-chrome, #1a1c22) 82%, #ffffff 18%) !important;
   background-image: none !important;
   border: 1px solid rgba(255, 255, 255, 0.06) !important;
   border-bottom-color: transparent !important;
 }
 /* Inactive colored tabs: same hit box; soft tint fill, not plaque chip */
-html[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
-html[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
   background: color-mix(
     in srgb,
     var(--bndz-surface-chrome, #1a1c22) 55%,
@@ -19135,7 +19142,7 @@ html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
   color: rgba(15, 23, 42, 0.78) !important;
 }
 
-html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-tab-item:not(.bndz-tab-active) {
   color: rgba(15, 23, 42, 0.55) !important;
   background-color: transparent !important;
   background-image: url('/plaques/tab-inactive-light.svg') !important;
@@ -19143,8 +19150,8 @@ html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
   background-repeat: no-repeat !important;
 }
 
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):hover,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):hover {
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):hover,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):hover {
   color: rgba(15, 23, 42, 0.92) !important;
   background-color: transparent !important;
   background-image: url('/plaques/tab-inactive-light.svg') !important;
@@ -19152,8 +19159,8 @@ html.theme-light .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):hover {
   filter: brightness(0.97);
 }
 
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active {
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active {
   background-color: transparent !important;
   background-image: url('/plaques/tab-active-light.svg') !important;
   background-size: 100% 100% !important;
@@ -19164,8 +19171,8 @@ html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active {
 }
 
 /* Light native/files host: same full-bleed solid for accent + non-accent */
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active,
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active {
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
   background: color-mix(in srgb, #ffffff 88%, var(--accent, #0078d4) 12%) !important;
   background-image: none !important;
   border: 1px solid rgba(15, 23, 42, 0.10) !important;
@@ -19173,8 +19180,8 @@ html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   color: rgba(15, 23, 42, 0.95) !important;
 }
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent] {
   background: color-mix(
     in srgb,
     #ffffff 78%,
@@ -19183,16 +19190,16 @@ html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[da
   background-image: none !important;
 }
 
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active),
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active) {
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
   background: color-mix(in srgb, #e8ecf2 70%, #ffffff 30%) !important;
   background-image: none !important;
   border: 1px solid rgba(15, 23, 42, 0.08) !important;
   border-bottom-color: transparent !important;
   color: rgba(15, 23, 42, 0.55) !important;
 }
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
   color: rgba(15, 23, 42, 0.78) !important;
   background: color-mix(
     in srgb,

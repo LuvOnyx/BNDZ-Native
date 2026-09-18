@@ -94,17 +94,23 @@
 
   <!--
     User-facing exe is BNDZ.exe. AssemblyName stays BNDZShell (NuGet clash with BNDZ.csproj).
-    CRITICAL: copy the apphost .exe, never $(TargetPath) — on WinUI SDK builds TargetPath is often
-    the managed .dll, which produced a non-booting BNDZ.exe identical to BNDZShell.dll.
+    CRITICAL:
+      1) Copy the apphost .exe, never $(TargetPath) — TargetPath is often the managed .dll.
+      2) Also alias {AssemblyName}.pri → BNDZ.pri. WinUI MRT resolves resources by exe basename;
+         without BNDZ.pri, BNDZ.exe crashes in Microsoft.UI.Xaml.dll (0xc000027b) while
+         BNDZShell.exe boots fine from the same folder.
   -->
   <Target Name="AliasProductExeAsBndz" AfterTargets="Build">
     <PropertyGroup>
       <_BndzShellAppHost>$(TargetDir)$(AssemblyName).exe</_BndzShellAppHost>
       <_BndzProductExe>$(TargetDir)BNDZ.exe</_BndzProductExe>
       <_BndzShellPdb>$(TargetDir)$(AssemblyName).pdb</_BndzShellPdb>
+      <_BndzShellPri>$(TargetDir)$(AssemblyName).pri</_BndzShellPri>
     </PropertyGroup>
     <Error Text="BNDZShell apphost missing: $(_BndzShellAppHost)" Condition="!Exists('$(_BndzShellAppHost)')" />
+    <Error Text="BNDZShell.pri missing (WinUI resources): $(_BndzShellPri)" Condition="!Exists('$(_BndzShellPri)')" />
     <Copy SourceFiles="$(_BndzShellAppHost)" DestinationFiles="$(_BndzProductExe)" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" />
+    <Copy SourceFiles="$(_BndzShellPri)" DestinationFiles="$(TargetDir)BNDZ.pri" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" />
     <Copy SourceFiles="$(_BndzShellPdb)" DestinationFiles="$(TargetDir)BNDZ.pdb" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" Condition="Exists('$(_BndzShellPdb)')" />
   </Target>
 </Project>
