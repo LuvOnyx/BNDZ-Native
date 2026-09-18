@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1 Hub drop + Ghost/RAM product-copy scrub continued; A3 hosts crafted; E1 ops suite landed; Wave C virtualization threshold 1; Windows UAC·DnD live matrix still requires shell click-through sign-off  
+**Status:** Execution in progress — tabs/Home/About/ops QC green; **next code pass = Wave C4 drag-ghost craft** (inbound list FluidDrag + outside OLE design upgrade); Windows UAC·DnD live matrix still requires shell click-through sign-off  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 
@@ -149,7 +149,8 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 - Small copy/move: toast + list refresh feel instant  
 - Fast Search: keyboard nav + Enter snappy; empty / no-Everything messaging  
 - Terminal: Local PowerShell prompt paints on first open  
-- Outbound drag ghost outside border + tree drag ghosts — **verify-first**; fix only with DnD protect rules  
+- Outbound ghost mechanics (RegisterClassExW + single premultiply) + tree drag bake — **code landed**; Windows wallpaper follow still verify  
+- **Next (C4):** inbound list ghost + outside OLE ghost **design upgrade** — see below  
 
 ### C3 — DnD protect (non-negotiable) — CRITICAL
 
@@ -157,11 +158,52 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 
 | Allowed | Forbidden |
 |---------|-----------|
-| Polish **outside** drag ghosts (cursor-outside-border ghost, tree-row ghost craft) | Rewriting CraftPaneHost OLE, WebView2 drop target, FE handoff / `bndz-ole-drag-handoff`, FluidDrag multi fan, dual-path dedupe |
+| Polish **outside** drag ghosts (cursor-outside-border GDI craft, tree-row ghost craft) | Rewriting CraftPaneHost OLE, Drop / self-refuse / effect resolve, FE handoff / `bndz-ole-drag-handoff`, FluidDrag multi fan, dual-path dedupe |
+| **Inbound list ghost** via existing `FluidDragStack` + read-only hover path sample | Second Win32 inbound overlay fighting Explorer; changing Drop commit |
 | Surgical CSS / ghost clone paint after matrix still green | “Cleanup” refactors of drop delivery, escalate, or commit bus |
 | Re-verify readiness **46–58** after any touch near DnD | Shipping DnD changes without Windows matrix proof |
 
 Files treated as protect zones (surgical only): `BNDZUI.tsx`, `dragController.ts`, FluidDrag stack, `fileDragSession` / cleanup / drop dest, `fileDropBus`, host `WebView2DropTargetService` / OLE deliver path.
+
+### C4 — Next pass: drag ghost craft (inbound list + outside design) — LOCKED
+
+**Priority after tabs/Home/About/ops QC.** Paint + hover enrichment only; spine protected.
+
+#### C4.1 — Outside OLE ghost design upgrade
+
+[`BndzOutboundDragGhostOverlay.cs`](../BNDZBackend/Services/BndzOutboundDragGhostOverlay.cs) `BuildCardBitmap` is mechanically OK; craft is still a thin GDI card.
+
+| Do | Notes |
+|----|--------|
+| Soft squircle + **drop shadow** (expand bitmap ~20px) | Match FluidDrag lift |
+| Instrument rim (top highlight / darker bottom) | No AI-blue glow |
+| Richer Midnight surface gradient | Soft squircle r≈14–16 |
+| Move badge magenta/violet (`#a855f7` / `#c084fc`); copy emerald | Sync FE `.bndz-drag-ghost-op-move` off `#3b82f6` |
+| Shell jumbo / large icon (not upscaled 16px) | Prefer `SHGetFileInfo` / host icon path |
+| Multi-select stack offset or count chip | Still one HWND |
+| Re-tune `_hotX/_hotY` after shadow padding | Single `PremultiplyAlpha` only |
+
+**Verify:** `%LocalAppData%/BNDZ/ole-dnd.log` → `outbound-ghost show`; Ctrl Copy/Move badge swap without size jump.
+
+#### C4.2 — Inbound list drag ghost (new)
+
+Desktop → BNDZ list today: hover chrome only — **no BNDZ cursor card**.
+
+| Step | Change |
+|------|--------|
+| Host | On `DragEnter`, cache `ExtractPathsFromComDataObject` once (sample ≤10 + total count). Extend `EXTERNAL_FILES_DRAG_HOVER` with `{ paths?, count?, copy? }` from key state. **Drop / self-refuse / effect unchanged.** |
+| FE | On `bndz-external-drag-hover`: if outbound BNDZ OLE / file-drag session active → skip; else `armFluidDrag` + follow pointer. Disarm on leave / drop / fail / magnet. |
+| Reuse | Existing [`fluidDragBridge.ts`](../src/workstation/drag/fluidDragBridge.ts) + [`FluidDragStack.tsx`](../src/workstation/drag/FluidDragStack.tsx) — no second ghost component |
+| Parity | Mirror hover payload in classic `MainWindow.xaml.cs` if that path still posts the same event |
+
+**Do not** invent a Win32 inbound overlay that fights Explorer’s OLE image.
+
+#### C4.3 — After C4 code lands
+
+- Tick Active rows in [`to-do.md`](../to-do.md)  
+- Re-note DnD matrix **46–58**  
+- Fresh `npm run build` + Debug `dotnet`  
+- Then resume Windows-gated A2 / E4 / D2–D3 sign-off  
 
 ---
 
@@ -259,11 +301,12 @@ Wave A2  Absorb smoke on remaining hosts                      ├─ early (unbl
 Wave A3  Professionalize hosts (Uiverse + assets)            ─┘
 Wave B   Native chrome + icons/assets + menus                 ── parallel with A3 where files differ
 Wave C   List/scroll perf + reliability; DnD protect          ── parallel; serialize on BNDZUI / drag stack
+Wave C4  **NEXT** Outside OLE ghost craft + inbound list FluidDrag ghost ── serialize under DnD protect
 Wave E   Collision modals + UAC + Shell Integration verify    ── parallel with B/C on dialog/settings files
 Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windows required for ☐→☑
 ```
 
-**Parallelism rule:** A1 first (Staging removal), then A2/A3 ∥ B ∥ C ∥ E on non-overlapping files; anything touching `BNDZUI.tsx` / drag stack serializes under **DnD protect** (ghost polish OK; spine rewrite forbidden); D signs only after A–C–E evidence.
+**Parallelism rule:** A1 first (Staging removal), then A2/A3 ∥ B ∥ C ∥ E on non-overlapping files; anything touching `BNDZUI.tsx` / drag stack serializes under **DnD protect** (ghost polish OK; spine rewrite forbidden); **C4 is the next code pass** after tabs/Home/About/ops QC; D signs only after A–C–E evidence.
 
 ---
 
@@ -368,13 +411,16 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 
 ### C progress (this pass)
 - [x] VirtualizedFileList default threshold = 1 (always virtualize) — code audit
-- [x] Outside-app OLE ghost — premultiplied BGRA for UpdateLayeredWindow + failure logging
+- [x] Outside-app OLE ghost — premultiplied BGRA for UpdateLayeredWindow + failure logging (QC: single premultiply)
 - [x] Tree drag ghost — bake live `.nav-tree-row` computed paint
+- [ ] **C4.1** Outside OLE ghost **design upgrade** (shadow, rim, shell icon, magenta move; FE badge sync)
+- [ ] **C4.2** Inbound list FluidDrag ghost (DragEnter path sample → `armFluidDrag`; Drop untouched)
 - [ ] Windows scroll FPS ≈ display Hz with warm icons (live measure)
 - [ ] Windows confirm outbound ghost follows on wallpaper (`ole-dnd.log`)
+- [ ] Windows confirm inbound list ghost arms over list without double-ghost / commit regression
 
 ### D progress (this pass)
 - [x] Build gate recipe still `npm run build` + Debug `dotnet` after product turns
 - [ ] Sign `fm-launch-readiness.md` 100-check on real Windows `BNDZShell`
 
-**DnD protect:** A1/E do not touch OLE spine; only removed RAM-zone product drop interception and Hub/Deck/menu chrome.
+**DnD protect:** A1/E do not touch OLE spine; **C4** is paint + read-only hover enrichment only (no Drop/effect/handoff rewrite).
