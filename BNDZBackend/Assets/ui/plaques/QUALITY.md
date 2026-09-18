@@ -132,3 +132,8 @@ Gravity SVGs → `candidates/superseded-gravity-empties/`.
 | question | Fluent Red question mark | Help/conflict — **not** prohibited/deny |
 | warn | Wastebasket + Warning **side-by-side** | Trash fully readable; warning is companion badge |
 | error | Warning alone | Permanent delete — no trash |
+
+### Follow-up (2026-09-18) — blue question + pin gather
+
+- `fm-question-*.png` tinted to BNDZ `#0078D4` blue.
+- Further plaque art **PINNED** — see `project-notes.md` (user gathering PC assets). Do not grind more AI/Fluent swaps until resume cue.

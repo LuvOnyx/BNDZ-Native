@@ -163,8 +163,9 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] **Preview panel idle plaque** — Fluent magnifier PNG (`fm-glass-panel-*`); Gravity/AI superseded
 - [x] **System Properties idle plaque** — Fluent Information PNG (`fm-glass-idle-*`)
 - [x] **Modal warn/error heroes** — Fluent Warning (+ Wastebasket for recycle warn); true alpha; CSS wash
-- [x] **Folder / search / question empties** — Fluent Open folder / Magnifier right / Prohibited PNGs
+- [x] **Folder / search / question empties** — Fluent Open folder / Magnifier / blue `?` (question tinted `#0078D4`)
 - [ ] Preview + bottom-plugin empty surfaces re-QC on Native after plaque swap (dark+light click-through)
+- [ ] **PINNED** — user gathering better PC plaque/empty/modal cutouts; resume via `project-notes.md` → Plaque art section (do not grind AI/Fluent swaps until then)
 
 **Modals / dialogs / panels / tabs**
 - [x] Re-wire only after keeper promotion (current UI still on legacy paths — treat as temporary)
