@@ -63,11 +63,7 @@ function Stop-BndzLockingProcesses {
 Stop-BndzLockingProcesses
 
 function Clear-CorruptDotnetIntermediates {
-    <#
-    Windows often leaves null-padded BNDZ.AssemblyInfo.cs under obj\ after an interrupted
-    build, OneDrive/AV lock, or crashed MSBuild — C# then dies with CS1056 Unexpected '\0'.
-    Drop those generated files (and the whole obj tree if any hit) so the next build regenerates.
-    #>
+    # Wipe obj trees that contain null-padded or empty generated AssemblyInfo.cs (CS1056).
     $roots = @(
         (Join-Path $root "BNDZBackend"),
         (Join-Path $root "BNDZCore"),
@@ -78,21 +74,25 @@ function Clear-CorruptDotnetIntermediates {
     foreach ($projRoot in $roots) {
         $obj = Join-Path $projRoot "obj"
         if (-not (Test-Path $obj)) { continue }
-        $bad = @()
-        Get-ChildItem -Path $obj -Recurse -File -Filter "*AssemblyInfo.cs" -EA SilentlyContinue | ForEach-Object {
+        $hit = $false
+        Get-ChildItem -Path $obj -Recurse -File -Filter "*AssemblyInfo.cs" -ErrorAction SilentlyContinue | ForEach-Object {
             try {
                 $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
-                if ($bytes.Length -eq 0 -or ($bytes -contains 0)) { $bad += $_.FullName }
+                if ($bytes.Length -eq 0) { $hit = $true; return }
+                foreach ($b in $bytes) {
+                    if ($b -eq 0) { $hit = $true; return }
+                }
             } catch {
-                $bad += $_.FullName
+                $hit = $true
             }
         }
-        # Also catch zero-length / garbage .cs in obj that break Compile
-        Get-ChildItem -Path $obj -Recurse -File -Filter "*.cs" -EA SilentlyContinue | ForEach-Object {
-            if ($_.Length -eq 0) { $bad += $_.FullName }
+        if (-not $hit) {
+            Get-ChildItem -Path $obj -Recurse -File -Filter "*.cs" -ErrorAction SilentlyContinue | ForEach-Object {
+                if ($_.Length -eq 0) { $hit = $true }
+            }
         }
-        if ($bad.Count -eq 0) { continue }
-        Write-Host "  corrupt intermediates under $obj ($($bad.Count) file(s)) — wiping obj" -ForegroundColor DarkYellow
+        if (-not $hit) { continue }
+        Write-Host "  corrupt intermediates under $obj - wiping obj" -ForegroundColor DarkYellow
         Remove-Item -LiteralPath $obj -Recurse -Force -ErrorAction SilentlyContinue
         $scrubbed++
     }
@@ -194,7 +194,7 @@ Sync-UiAssetsToShellOutput
 Write-Host "==> BNDZBackend (services + embedded host)" -ForegroundColor Cyan
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  BNDZBackend failed — force-clean obj/bin and retry once (CS1056 / stale intermediates)" -ForegroundColor DarkYellow
+    Write-Host "  BNDZBackend failed - force-clean obj/bin and retry once (CS1056 / stale intermediates)" -ForegroundColor DarkYellow
     Remove-Item -Recurse -Force (Join-Path $root "BNDZBackend\obj") -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force (Join-Path $root "BNDZBackend\bin") -ErrorAction SilentlyContinue
     Clear-CorruptDotnetIntermediates
