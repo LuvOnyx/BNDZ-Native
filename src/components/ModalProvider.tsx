@@ -208,7 +208,7 @@ function FileConflictModal({
     >
       <div className="space-y-3 -mt-0.5">
         <div className="bndz-conflict-plaque-row">
-          <BndzPlaque tone="warn" size="sm" className="bndz-plaque--hex-well" animate={false} />
+          <BndzPlaque tone="warn" size="md" className="bndz-plaque--hex-well" animate={false} />
           <p className="text-[11px] text-gray-400 leading-relaxed m-0">
             Same name on disk — compare Incoming vs Existing, then Replace, Keep both, or Skip.
           </p>

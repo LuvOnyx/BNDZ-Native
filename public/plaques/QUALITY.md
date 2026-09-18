@@ -24,13 +24,13 @@ Gather → review board → checklist pass → wire. Keepers only.
 | Role | Keeper |
 |------|--------|
 | Folder empty | `folder-empty-dark.svg` / `folder-empty-light.svg` (Gravity UI) |
-| Error | `error-dark.svg` / `error-light.svg` (Gravity UI) |
+| Error | `fm-modal-error-*.png` (modal hero; Gravity error SVG retained as legacy) |
 | Not found | `not-found-*.svg` (Gravity UI) |
 | Search empty | `search-empty-*.svg` (Gravity UI) |
 | Access / question | `access-denied-*.svg` (Gravity UI) |
 | Panel idle | `unable-display-*.svg` (Gravity UI) |
 | Idle / empty tray | `disk-dark.svg` / `disk-light.svg` (Gravity UI) — System Properties idle |
-| Warn | `warning.svg` ← `document-warning.svg` (object only; people `warning`/`void` quarantined) |
+| Warn | `fm-modal-warn-*.png` (modal hero; SVG `warning.svg` retained as legacy) |
 | Panel host / Preview idle | `unable-to-display-dark.svg` / `unable-to-display-light.svg` (Gravity UI) |
 | Transfer | `fm-transfer-dark.svg` / `fm-transfer-light.svg` (custom dual-tray transfer) |
 | Tabs empty | `tab-empty.svg` (custom FM chips) |
@@ -59,23 +59,26 @@ Board: `public/plaques/qc.html`
 - Quarantined people art in `warning.svg` / `void.svg` → `candidates/undraw-with-people/`.
 - Replaced wired warn keeper with object-only `document-warning.svg` published as `warning.svg`.
 
-### Follow-up (2026-09-18) — Gravity idle/panel **superseded** by glass craft
+### Follow-up (2026-09-18) — PNG glass keepers + modal dress-up
 
-Art direction: dope-FM glass refs (`ref-fm-idle-properties.png`, `ref-fm-panel-preview-idle.png`) → original SVG keepers. Midnight glass + `#0078D4` + soft magenta edge. No people, no vendor dumps.
+Agreed: most-seen empties + modal heroes ship as **PNG** (SVG glass quarantined — fidelity bar too high for hand SVG).
 
 | Surface | Keeper | Result |
 |---------|--------|--------|
-| Preview Inspector idle | `fm-glass-panel-dark/light.svg` via `tone="panel"` | **PASS** — loupe + dashed well + waveform; object/chrome only |
-| System Properties idle | `fm-glass-idle-dark/light.svg` via `tone="idle"` | **PASS** — glass folder + platter + props chip |
+| Preview Inspector idle | `fm-glass-panel-dark/light.png` via `tone="panel"` | **PASS** |
+| System Properties idle | `fm-glass-idle-dark/light.png` via `tone="idle"` | **PASS** |
+| Warning / recycle confirm | `fm-modal-warn-*.png` via `tone="warn"` | **PASS** |
+| Destructive / permanent delete | `fm-modal-error-*.png` via `tone="error"` | **PASS** |
+| Modal atmospheric wash | `fm-modal-wash-{info,warn,destructive}.png` in `NativeDialogShell` | **PASS** — soft opacity overlay |
 
-Gravity idle/panel → `candidates/superseded-gravity-idle/`. Thin customs remain in `candidates/superseded-thin/`.
+SVG glass idle/panel → `candidates/superseded-glass-svg/`. Gravity idle/panel remain in `candidates/superseded-gravity-idle/`.
 
 | Check | Result |
 |-------|--------|
-| Origin | Purpose-made BNDZ glass craft (refs inspirational only) |
-| No people | PASS |
-| `<img>` safe | PASS (baked fills/gradients; no `currentColor`) |
-| Path resolve public + Assets (post-build) | required after `npm run build` |
-| Native visual QC | ☐ Windows click-through |
+| Origin | Purpose-made BNDZ PNG craft (refs inspirational only) |
+| No people | PASS (object/chrome) |
+| `<img>` safe | PASS |
+| NativeDialogShell wash + md plaque hero | wired for alert tones |
+| Native visual QC | ☐ Windows click-through (delete confirm + empties) |
 
 Board: `public/plaques/idle-qc-2026-09-18.html`

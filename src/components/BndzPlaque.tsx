@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
  *
  * Assets are keepers promoted from public/plaques/ after QUALITY pass —
  * object/chrome art only (no people illustrations).
+ * High-visibility empties + modal heroes prefer PNG for glass depth.
  */
 
 export type BndzPlaqueTone =
@@ -29,14 +30,16 @@ export const PLAQUE_CONTEXT_MENU_ENABLED = false;
 type ThemePair = { dark: string; light?: string };
 
 const PLAQUE_SRC: Record<BndzPlaqueTone, ThemePair> = {
-  // System Properties / generic empty tray — original glass folder + platter (dope-FM ref craft)
-  idle: { dark: '/plaques/fm-glass-idle-dark.svg', light: '/plaques/fm-glass-idle-light.svg' },
-  warn: { dark: '/plaques/warning.svg', light: '/plaques/warning.svg' },
-  error: { dark: '/plaques/error-dark.svg', light: '/plaques/error-light.svg' },
+  // System Properties / generic empty tray — PNG glass folder + platter
+  idle: { dark: '/plaques/fm-glass-idle-dark.png', light: '/plaques/fm-glass-idle-light.png' },
+  // Delete / warning modals — PNG glass warning shield
+  warn: { dark: '/plaques/fm-modal-warn-dark.png', light: '/plaques/fm-modal-warn-light.png' },
+  // Destructive / permanent-delete modals — PNG glass alert
+  error: { dark: '/plaques/fm-modal-error-dark.png', light: '/plaques/fm-modal-error-light.png' },
   brand: { dark: '/plaques/brand-mark.png', light: '/plaques/brand-mark.png' },
   question: { dark: '/plaques/access-denied-dark.svg', light: '/plaques/access-denied-light.svg' },
-  // Preview Inspector idle — original glass loupe well (dope-FM ref craft)
-  panel: { dark: '/plaques/fm-glass-panel-dark.svg', light: '/plaques/fm-glass-panel-light.svg' },
+  // Preview Inspector idle — PNG glass loupe well
+  panel: { dark: '/plaques/fm-glass-panel-dark.png', light: '/plaques/fm-glass-panel-light.png' },
   folder: { dark: '/plaques/folder-empty-dark.svg', light: '/plaques/folder-empty-light.svg' },
   search: { dark: '/plaques/search-empty-dark.svg', light: '/plaques/search-empty-light.svg' },
   tabs: { dark: '/plaques/tab-empty.svg', light: '/plaques/tab-empty.svg' },

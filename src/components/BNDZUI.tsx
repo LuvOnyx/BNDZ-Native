@@ -4631,7 +4631,7 @@ export default function BNDZUI() {
     }
 
     showModal({
-      type: 'destructive',
+      type: 'warning',
       title: items.length === 1 ? 'Delete Item' : `Delete ${items.length} Items`,
       message: confirmMsg,
       neverShowAgain: {

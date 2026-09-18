@@ -8578,11 +8578,13 @@ html.bndz-panel-resizing .bndz-resize-handle {
 }
 
 .bndz-native-dialog {
+  position: relative;
+  isolation: isolate;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, transparent 28%),
     linear-gradient(165deg, #2a2d34 0%, #1c1e24 55%, #17191e 100%);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(0, 0, 0, 0.45),
@@ -8591,8 +8593,48 @@ html.bndz-panel-resizing .bndz-resize-handle {
   overflow: hidden;
 }
 
+.bndz-native-dialog-wash {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0.16;
+  mix-blend-mode: soft-light;
+}
+
+.bndz-native-dialog--tone-warning .bndz-native-dialog-wash {
+  opacity: 0.22;
+  mix-blend-mode: soft-light;
+}
+
+.bndz-native-dialog--tone-destructive .bndz-native-dialog-wash {
+  opacity: 0.2;
+  mix-blend-mode: soft-light;
+}
+
+.bndz-native-dialog--tone-info .bndz-native-dialog-wash,
+.bndz-native-dialog--tone-conflict .bndz-native-dialog-wash {
+  opacity: 0.14;
+}
+
+html.theme-light .bndz-native-dialog-wash {
+  opacity: 0.1;
+  mix-blend-mode: multiply;
+}
+
+.bndz-native-dialog-titlebar,
+.bndz-native-alert-body,
+.bndz-native-sheet-body,
+.bndz-native-dialog-commandbar {
+  position: relative;
+  z-index: 1;
+}
+
 .bndz-native-dialog--alert {
-  max-width: 400px;
+  max-width: 440px;
 }
 
 .bndz-native-dialog-titlebar {
@@ -8645,8 +8687,8 @@ html.bndz-panel-resizing .bndz-resize-handle {
 .bndz-native-alert-body {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 18px 18px 14px;
+  gap: 16px;
+  padding: 20px 18px 16px;
 }
 
 .bndz-native-alert-glyph {
@@ -11386,13 +11428,19 @@ html.theme-light .bndz-plaque--hex-well {
     0 6px 16px rgba(26, 29, 35, 0.12);
 }
 
-/* Alert glyph wells that host Hexigon plaques */
+/* Alert glyph wells that host plaque PNGs / SVGs */
 .bndz-native-alert-glyph--plaque {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  padding: 4px;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  padding: 2px;
   overflow: hidden;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.28)),
+    rgba(12, 14, 20, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 20px rgba(0, 0, 0, 0.28);
 }
 .bndz-native-alert-glyph--plaque .bndz-plaque {
   width: 100%;
@@ -11400,6 +11448,17 @@ html.theme-light .bndz-plaque--hex-well {
 }
 .bndz-native-alert-glyph--plaque .bndz-plaque-img {
   object-fit: cover;
+  border-radius: 12px;
+}
+.bndz-native-alert-glyph--warning.bndz-native-alert-glyph--plaque {
+  box-shadow:
+    inset 0 0 0 1px rgba(234, 179, 8, 0.35),
+    0 8px 22px rgba(180, 90, 20, 0.28);
+}
+.bndz-native-alert-glyph--destructive.bndz-native-alert-glyph--plaque {
+  box-shadow:
+    inset 0 0 0 1px rgba(196, 43, 28, 0.4),
+    0 8px 22px rgba(160, 30, 30, 0.3);
 }
 
 /* List tab strip rail — Classic Explorer + Soft Modern only (other Visual styles keep their CSS) */

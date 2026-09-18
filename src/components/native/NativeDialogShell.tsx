@@ -45,10 +45,19 @@ const TONE_ICON: Record<NativeDialogTone, string> = {
   conflict: 'copy',
 };
 
-const TONE_PLAQUE: Partial<Record<NativeDialogTone, BndzPlaqueTone>> = {
+/** Prefer PNG plaques for alert heroes — Icons8 only when iconId is forced. */
+const TONE_PLAQUE: Record<NativeDialogTone, BndzPlaqueTone> = {
+  info: 'idle',
   warning: 'warn',
   destructive: 'error',
   conflict: 'question',
+};
+
+const TONE_WASH: Record<NativeDialogTone, string> = {
+  info: '/plaques/fm-modal-wash-info.png',
+  warning: '/plaques/fm-modal-wash-warn.png',
+  destructive: '/plaques/fm-modal-wash-destructive.png',
+  conflict: '/plaques/fm-modal-wash-warn.png',
 };
 
 export function NativeDialogCheckbox({
@@ -91,11 +100,13 @@ export function NativeDialogShell({
 }: NativeDialogShellProps) {
   if (!open) return null;
 
-  const resolvedIcon = iconId !== undefined ? iconId : TONE_ICON[tone];
-  const plaqueTone = iconId === undefined ? TONE_PLAQUE[tone] : undefined;
+  const forceIcon = iconId !== undefined;
+  const resolvedIcon = forceIcon ? iconId : TONE_ICON[tone];
+  const plaqueTone = forceIcon ? undefined : TONE_PLAQUE[tone];
   const showGlyph = Boolean(resolvedIcon) || Boolean(plaqueTone);
   const showFooter = footer != null || (footerButtons && footerButtons.length > 0);
   const isAlert = variant === 'alert';
+  const washSrc = TONE_WASH[tone];
 
   return createPortal(
     <div
@@ -103,12 +114,17 @@ export function NativeDialogShell({
       onMouseDown={e => { if (e.target === e.currentTarget) onClose?.(); }}
     >
       <div
-        className={`bndz-native-dialog bndz-native-dialog--${variant} relative w-full ${SIZE_CLASS[size]} ${maxHeightClass} flex flex-col ${panelClassName}`}
+        className={`bndz-native-dialog bndz-native-dialog--${variant} bndz-native-dialog--tone-${tone} relative w-full ${SIZE_CLASS[size]} ${maxHeightClass} flex flex-col ${panelClassName}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="bndz-native-dialog-title"
         onMouseDown={e => e.stopPropagation()}
       >
+        <div
+          className="bndz-native-dialog-wash"
+          style={{ backgroundImage: `url('${washSrc}')` }}
+          aria-hidden
+        />
         <div className="bndz-native-dialog-titlebar">
           <h2 id="bndz-native-dialog-title" className="bndz-native-dialog-title">{title}</h2>
           {showCloseButton && onClose && (
@@ -126,9 +142,9 @@ export function NativeDialogShell({
                 aria-hidden
               >
                 {plaqueTone ? (
-                  <BndzPlaque tone={plaqueTone} size="sm" animate={false} />
+                  <BndzPlaque tone={plaqueTone} size="md" animate={false} />
                 ) : (
-                  <Icons8Icon id={resolvedIcon} size={32} />
+                  <Icons8Icon id={resolvedIcon!} size={32} />
                 )}
               </div>
             )}
