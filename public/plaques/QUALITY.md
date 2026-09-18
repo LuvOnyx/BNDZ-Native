@@ -82,3 +82,23 @@ SVG glass idle/panel → `candidates/superseded-glass-svg/`. Gravity idle/panel 
 | Native visual QC | ☐ Windows click-through (delete confirm + empties) |
 
 Board: `public/plaques/idle-qc-2026-09-18.html`
+
+### Follow-up (2026-09-18) — extract Fluent Emoji 3D (stop AI regen)
+
+AI generation kept baking plates / wrong props. Switched to **extracted** Microsoft Fluent Emoji 3D (MIT) cutouts with real alpha.
+
+| Surface | Keeper | Source |
+|---------|--------|--------|
+| Idle (Properties) | `fm-glass-idle-*.png` | Fluent `Information` |
+| Panel (Preview) | `fm-glass-panel-*.png` | Fluent `Magnifying glass tilted left` |
+| Warn (Recycle delete) | `fm-modal-warn-*.png` | Composite: Wastebasket + Warning |
+| Error (Permanent delete) | `fm-modal-error-*.png` | Fluent `Warning` alone (no trash) |
+| Modal wash | CSS radial gradients in `NativeDialogShell` | no PNG plate |
+
+AI keepers → `candidates/superseded-ai-gen/`. Raw extracts → `candidates/fluent-emoji-3d/`.
+
+| Check | Result |
+|-------|--------|
+| True alpha (corner 0) | PASS |
+| No people | PASS |
+| License | MIT (Fluent Emoji) + attribution in ATTRIBUTION.md |

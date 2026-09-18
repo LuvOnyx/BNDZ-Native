@@ -8598,31 +8598,34 @@ html.bndz-panel-resizing .bndz-resize-handle {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  opacity: 0.16;
-  mix-blend-mode: soft-light;
+  /* CSS wash only — no baked PNG plate behind heroes */
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(0, 120, 212, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 75%, rgba(168, 85, 247, 0.12), transparent 50%);
+  opacity: 0.85;
 }
 
 .bndz-native-dialog--tone-warning .bndz-native-dialog-wash {
-  opacity: 0.22;
-  mix-blend-mode: soft-light;
+  background:
+    radial-gradient(ellipse 85% 65% at 18% 28%, rgba(245, 158, 11, 0.28), transparent 55%),
+    radial-gradient(ellipse 70% 55% at 88% 78%, rgba(239, 68, 68, 0.12), transparent 50%);
 }
 
 .bndz-native-dialog--tone-destructive .bndz-native-dialog-wash {
-  opacity: 0.2;
-  mix-blend-mode: soft-light;
+  background:
+    radial-gradient(ellipse 85% 65% at 18% 28%, rgba(220, 38, 38, 0.3), transparent 55%),
+    radial-gradient(ellipse 70% 55% at 88% 78%, rgba(168, 85, 247, 0.14), transparent 50%);
 }
 
 .bndz-native-dialog--tone-info .bndz-native-dialog-wash,
 .bndz-native-dialog--tone-conflict .bndz-native-dialog-wash {
-  opacity: 0.14;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(0, 120, 212, 0.2), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 75%, rgba(56, 189, 248, 0.1), transparent 50%);
 }
 
 html.theme-light .bndz-native-dialog-wash {
-  opacity: 0.1;
-  mix-blend-mode: multiply;
+  opacity: 0.55;
 }
 
 .bndz-native-dialog-titlebar,
@@ -11447,8 +11450,9 @@ html.theme-light .bndz-plaque--hex-well {
   height: 100%;
 }
 .bndz-native-alert-glyph--plaque .bndz-plaque-img {
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 12px;
+  background: transparent;
 }
 .bndz-native-alert-glyph--warning.bndz-native-alert-glyph--plaque {
   box-shadow:

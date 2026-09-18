@@ -11,3 +11,5 @@
 ## Rejected / legacy (do not ship as “new plaques”)
 - `rejected/*` — prior handmade SVGs (not professional grade)
 - `candidates/legacy-hexigon/*` — reused existing Hexigon/brand bitmaps (not newly made/extracted for this wave)
+
+| Microsoft Fluent Emoji 3D | `candidates/fluent-emoji-3d/` + wired `fm-glass-*` / `fm-modal-*` keepers | MIT | Extracted transparent 3D PNGs (Warning, Wastebasket, Information, Magnifying glass). Composites: warn = wastebasket+warning; error = warning alone; idle = information; panel = magnifier |
