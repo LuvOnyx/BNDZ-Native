@@ -367,9 +367,9 @@ Plus native shell build when Shell surfaces change (`scripts/build-bndz-native.p
 
 Not required to flip every readiness row, but required before public “ship”:
 
-- [ ] Installer / unpackaged distribute path documented for Native  
-- [ ] Authenticode / SmartScreen plan (or explicit “unsigned beta” disclaimer)  
-- [ ] Clean VM: WebView2 runtime present; first-run trial/About honest  
+- [x] Installer / unpackaged distribute path documented for Native (`BNDZ_NATIVE.md` § Distribute + playbook)
+- [x] Authenticode / SmartScreen plan (explicit **unsigned Native beta** until OV/EV)
+- [ ] Clean VM: WebView2 runtime present; first-run trial/About honest (Windows)  
 
 ---
 
@@ -382,12 +382,9 @@ DONE   A3 host craft / E1 ops suite / F boot+index (code)
 DONE   Tabs / Home rename / About de-AI / ops elevation QC
 DONE   C4  Outside OLE ghost craft + inbound list FluidDrag ghost (code)
 DONE   Idle plaque pick/replace (Preview panel + System Properties)
-NEXT   Post-C4 DnD matrix 46–58 + idle plaque Native visual QC
-THEN   A2 Windows absorb smoke (each host tab once)
-THEN   E4.1–E4.14 live UAC / collision / Shell Integration
-THEN   D2 leftovers (Shift+RMB, terminal, ICO, cold-boot LMB)
+NEXT   Windows PC: [`docs/WINDOWS-TEST-PLAYBOOK.md`](WINDOWS-TEST-PLAYBOOK.md) (DnD 46–58, E4, D2, plaques, A2)
 THEN   D3 sign full readiness on BNDZ-Native
-THEN   D6 packaging / Authenticode (public ship)
+THEN   D6 Authenticode / public installer (beyond unsigned beta docs)
 ```
 
 **Parallelism rule:** Anything touching `BNDZUI.tsx` / drag stack / OLE serializes under **DnD protect**. C4 before claiming DnD green. D3 only after C4 + E live evidence.
@@ -511,9 +508,10 @@ Do **not** restart A1 Hub removal, E1 gap audit, C4 craft, or idle plaque pick �
 ### D progress (this pass)
 - [x] Build gate recipe still `npm run build` + Debug `dotnet` after product turns
 - [x] D0 Native-only ship binary lock documented + followed
+- [x] D6 unpackaged Native + unsigned-beta documented (`BNDZ_NATIVE.md`, playbook)
 - [ ] D2 Windows: Shift+RMB / terminal / ICO / cold-boot LMB / About QC
 - [ ] D3 Sign `fm-launch-readiness.md` on real Windows **BNDZ-Native**
 - [ ] D5 Sign-off protocol followed (logs + Allow/Cancel evidence)
-- [ ] D6 Packaging / Authenticode (or unsigned-beta label)
+- [ ] D6 Clean-VM first-run + Authenticode (public ship beyond unsigned beta)
 
 **DnD protect:** A1/E do not touch OLE spine; **C4** is paint + read-only hover enrichment only (no Drop/effect/handoff rewrite).

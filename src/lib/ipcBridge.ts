@@ -70,6 +70,8 @@ export interface FileTransferJobDto {
   progress: number;
   currentFile?: string;
   error?: string;
+  /** Host-classified ops kind (diskFull | sharingViolation | …) — preferred over regex. */
+  errorKind?: string;
   queuedUtc?: string;
   startedUtc?: string;
   completedUtc?: string;
@@ -103,6 +105,8 @@ export interface ConflictPayload {
   sourceModifiedUtc?: number;
   destSize?: number;
   destModifiedUtc?: number;
+  /** True when either side is a directory (folder-vs-folder conflict). */
+  isFolder?: boolean;
 }
 
 function _parseWebViewMessage(raw: unknown): any {
@@ -1872,6 +1876,26 @@ export const IPC = {
     workingDir?: string,
     shell?: { useCustom?: boolean; interpreter?: string; args?: string },
   ) {
+    // BNDZ-Native: Open Terminal → in-app WinUI TermControl (Mesh Local), not external cmd.exe.
+    // D2 gate is Native first paint — routing here keeps toolbar/context/menubar on one path.
+    if (action === 'openTerminal') {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        if (sp.get('nativeShell') === '1') {
+          const raw = Array.isArray(path) ? path[0] : path;
+          const cwd = (workingDir || raw || '').toString().trim();
+          window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+            detail: {
+              id: 'remote-mesh',
+              tab: 'terminal',
+              ...(cwd ? { cwd } : {}),
+            },
+          }));
+          return;
+        }
+      } catch { /* fall through to classic host verb */ }
+    }
+
     const resolvedPath = action === 'copyPath'
       ? (() => {
           const text = formatPathsForClipboard(clipboardPathConfigFromDom(), path);

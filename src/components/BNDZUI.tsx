@@ -1711,7 +1711,11 @@ export default function BNDZUI() {
       ? { ...launch, tab: absorb.tab, currentPath: launch?.currentPath || (launch as any)?.path || (launch as any)?.rootPath }
       : launch;
     // Never auto-install — only open plugins the user already has installed.
-    if (!installedPluginIdSet.has(resolvedId)) {
+    // Exception: Open Terminal (remote-mesh + tab=terminal) is core FM on Native —
+    // BottomPluginPanel will surface Mesh for the terminal hole without Hub install.
+    const allowSystemTerminal =
+      resolvedId === 'remote-mesh' && (launchMerged?.tab === 'terminal' || launch?.tab === 'terminal');
+    if (!installedPluginIdSet.has(resolvedId) && !allowSystemTerminal) {
       const label = (pluginRegistry || []).find((p: { id: string }) => p.id === resolvedId)?.name || resolvedId;
       setToastMessage(`“${label}” isn’t installed. Add it from Extension Hub.`, 'warning');
       return;
@@ -5061,7 +5065,7 @@ export default function BNDZUI() {
               const neededFromJob = typeof job.totalBytes === 'number' && job.totalBytes > 0
                 ? job.totalBytes
                 : undefined;
-              const classified = classifyTransferError(job.error || label, undefined, {
+              const classified = classifyTransferError(job.error || label, job.errorKind, {
                 neededBytes: neededFromJob,
                 freeBytes: freeFromDrives,
               });
@@ -5077,7 +5081,12 @@ export default function BNDZUI() {
               const isPartialBatch = failedPaths.length > 0;
               // Partial batch always gets an ops sheet (Retry failed / Skip rest) even when
               // the summary message does not match a known error regex.
-              if ((classified.kind !== 'other' || isPartialBatch) && !isDelete && !isRename) {
+              // Rename invalidName also gets a dedicated sheet (Fix name) — E4.14.
+              const showOpsSheet =
+                (classified.kind !== 'other' || isPartialBatch)
+                && (!isDelete)
+                && (!isRename || classified.kind === 'invalidName');
+              if (showOpsSheet) {
                 if (isPartialBatch && classified.kind === 'other') {
                   classified.title = 'Transfer partially failed';
                   classified.summary = `${failedPaths.length} item(s) failed. Retry only those paths, skip the rest, or open the Action Log.`;
@@ -5193,8 +5202,45 @@ Restart BNDZ as administrator to retry?` },
                     { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
                 } else if (classified.kind === 'invalidName') {
+                  const fixInvalidName = async () => {
+                    const pending = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
+                    const sourceHint = (failedPaths[0] || pending?.sources?.[0] || '').replace(/\\/g, '/');
+                    const baseName = sourceHint.split('/').filter(Boolean).pop() || 'New name';
+                    const { requestNativePrompt } = await import('../lib/nativeDialog');
+                    const next = await requestNativePrompt({
+                      title: 'Fix name',
+                      message: 'Enter a valid Windows file or folder name (no \\ / : * ? " < > |, no reserved names).',
+                      defaultValue: baseName,
+                      confirmLabel: 'Retry with name',
+                    });
+                    if (!next || !next.trim()) {
+                      pushToast({ kind: 'warning', title: 'Name not changed', message: 'Transfer was not retried.' });
+                      return;
+                    }
+                    if (isInvalidWindowsFileName(next.trim())) {
+                      pushToast({ kind: 'error', title: 'Still invalid', message: 'That name is not allowed on Windows.' });
+                      return;
+                    }
+                    // Rename failures: navigate parent + inline rename with the fixed name as start.
+                    if (isRename && sourceHint) {
+                      const parent = sourceHint.includes('/') ? sourceHint.slice(0, sourceHint.lastIndexOf('/')) || '/' : '/';
+                      try { setCurrentPath(parent); } catch { /* ignore */ }
+                      const entityId = sourceHint;
+                      setInlineRename({ path: parent, entityId, currentName: next.trim() });
+                      return;
+                    }
+                    // Copy/move: retry after user picks a legal leaf — host still owns dest naming;
+                    // surface toast so they can rename the source first if needed.
+                    pushToast({
+                      kind: 'info',
+                      title: 'Rename the source',
+                      message: `Use a valid name like “${next.trim()}”, then Retry the transfer.`,
+                    });
+                    retryThisTransfer();
+                  };
                   actions = [
                     { label: 'Skip', style: 'secondary', action: () => skipFailedTransfer() },
+                    { label: 'Fix name', style: 'secondary', action: () => { void fixInvalidName(); } },
                     { label: 'Open Action Log', style: 'primary', action: () => openActionLog() },
                   ];
                 } else if (isPartialBatch) {
@@ -6146,7 +6192,7 @@ ${classified.detail}`,
         }
          showModal({
            type: 'conflict',
-           title: 'File already exists',
+           title: conflictDetails.isFolder ? 'Folder already exists' : 'File already exists',
            message: '',
            actions: [],
            conflict: {
@@ -6158,6 +6204,7 @@ ${classified.detail}`,
              sourceModifiedUtc: conflictDetails.sourceModifiedUtc,
              destSize: conflictDetails.destSize,
              destModifiedUtc: conflictDetails.destModifiedUtc,
+             isFolder: !!conflictDetails.isFolder,
            },
            onConflictResolve: (resolution, applyToAll) => {
              void IPC.resolveConflict(
@@ -9193,6 +9240,7 @@ ${classified.detail}`,
           tab: d.tab,
           sessionId: d.sessionId,
           hostId: d.hostId,
+          cwd: d.cwd,
         });
       }
     };

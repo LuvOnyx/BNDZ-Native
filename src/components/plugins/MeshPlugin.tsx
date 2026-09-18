@@ -464,7 +464,10 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       let label = 'Local';
 
       if (local) {
-        cwd = currentPath && !isMeshPath(currentPath) ? toWindowsPath(currentPath) : undefined;
+        const launchCwd = pluginLaunch?.cwd ? String(pluginLaunch.cwd).trim() : '';
+        cwd = launchCwd
+          ? toWindowsPath(launchCwd)
+          : (currentPath && !isMeshPath(currentPath) ? toWindowsPath(currentPath) : undefined);
         label = cwd ? `Local · ${cwd}` : 'Local';
       } else if (currentPath && isMeshPath(currentPath)) {
         const parsed = parseMeshPath(currentPath);

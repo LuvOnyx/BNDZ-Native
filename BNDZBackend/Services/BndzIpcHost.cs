@@ -12287,21 +12287,40 @@ namespace BNDZ.Services
                                 if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
                                     return batchResolution;
 
-                                // Collect file metadata for the conflict dialog (size, modified date).
+                                // Collect metadata for the conflict dialog (size, modified, folder vs file).
                                 long srcSize = 0, srcModUtc = 0, destSize = 0, destModUtc = 0;
+                                var isFolder = false;
                                 try
                                 {
-                                    if (!string.IsNullOrEmpty(srcPath) && File.Exists(srcPath))
+                                    if (!string.IsNullOrEmpty(srcPath))
                                     {
-                                        var si = new System.IO.FileInfo(srcPath);
-                                        srcSize = si.Length;
-                                        srcModUtc = new DateTimeOffset(si.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        if (Directory.Exists(srcPath))
+                                        {
+                                            isFolder = true;
+                                            var di = new DirectoryInfo(srcPath);
+                                            srcModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(srcPath))
+                                        {
+                                            var si = new System.IO.FileInfo(srcPath);
+                                            srcSize = si.Length;
+                                            srcModUtc = new DateTimeOffset(si.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
                                     }
-                                    if (!string.IsNullOrEmpty(destPath) && File.Exists(destPath))
+                                    if (!string.IsNullOrEmpty(destPath))
                                     {
-                                        var di = new System.IO.FileInfo(destPath);
-                                        destSize = di.Length;
-                                        destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        if (Directory.Exists(destPath))
+                                        {
+                                            isFolder = true;
+                                            var di = new DirectoryInfo(destPath);
+                                            destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(destPath))
+                                        {
+                                            var di = new System.IO.FileInfo(destPath);
+                                            destSize = di.Length;
+                                            destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
                                     }
                                 }
                                 catch { /* metadata collection is best-effort */ }
@@ -12319,6 +12338,7 @@ namespace BNDZ.Services
                                         sourceModifiedUtc = srcModUtc,
                                         destSize,
                                         destModifiedUtc = destModUtc,
+                                        isFolder,
                                     }
                                 };
                                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);

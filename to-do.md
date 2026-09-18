@@ -142,10 +142,11 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] A1 residue scrub — plugin `.tsx` quarantined; Wave3 Ghost/RAM pages deleted; ContextMenuView stage props removed; **Windows confirm** no resurrect
 - [x] **Missing idle art:** Preview Inspector + System Properties plaques picked/wired (Native visual QC still ☐)
 - [x] D0 ship binary = BNDZ-Native only (docs/scripts lock; readiness signed on Native, not FilesMerge)
-- [ ] D2/D3 Windows sign-off: Shift+RMB no dupes; Native terminal first paint; E4.1–E4.14; DnD 46–58; full `fm-launch-readiness.md`
+- [ ] D2/D3 Windows sign-off: Shift+RMB no dupes; Native terminal first paint; E4.1–E4.14; DnD 46–58; full `fm-launch-readiness.md` — use [`docs/WINDOWS-TEST-PLAYBOOK.md`](docs/WINDOWS-TEST-PLAYBOOK.md)
 - [ ] D2 taskbar ICO crisp at 16/32/48; About/Register visual QC; sidebar cold-boot LMB re-verify
 - [ ] D5 Sign-off protocol (ole-dnd.log + UAC Allow/Cancel evidence)
-- [ ] D6 Packaging / Authenticode (or explicit unsigned-beta label)
+- [x] D6 Unpackaged Native distribute + unsigned-beta label documented (`BNDZ_NATIVE.md`)
+- [ ] D6 Clean VM + Authenticode (public ship)
 
 ### Native plaques / illustrations (modals · panels · list tabs · menus)
 

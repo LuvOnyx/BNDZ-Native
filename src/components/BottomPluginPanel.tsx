@@ -76,6 +76,8 @@ export type BottomPluginLaunchContext = {
   tab?: string;
   sessionId?: string;
   hostId?: string;
+  /** Working directory for Local terminal (Native TermControl / ConPTY). */
+  cwd?: string;
 };
 
 export default function BottomPluginPanel(props: any & {
@@ -117,14 +119,23 @@ export default function BottomPluginPanel(props: any & {
 
   const orderedPlugins = useMemo(() => {
     const installed = pluginRegistry.filter((p: any) => p.isInstalled === true);
+    // Core FM Open Terminal needs the Remote Mesh surface for the Native TermControl hole
+    // even when the marketplace plugin is Uninstalled (does not change install state).
+    let base = installed as any[];
+    const needTerminalSurface =
+      requestedTab === 'remote-mesh' || launchContext?.tab === 'terminal';
+    if (needTerminalSurface && !base.some((p: any) => p.id === 'remote-mesh')) {
+      const mesh = pluginRegistry.find((p: any) => p.id === 'remote-mesh');
+      if (mesh) base = [...base, mesh];
+    }
     const order: string[] = (config.bottomPluginTabOrder || []).filter(
-      (id: string) => installed.some((p: any) => p.id === id),
+      (id: string) => base.some((p: any) => p.id === id),
     );
-    if (!order.length) return installed;
-    const ordered = order.map(id => installed.find((p: any) => p.id === id)).filter(Boolean) as any[];
-    const rest = installed.filter((p: any) => !order.includes(p.id));
+    if (!order.length) return base;
+    const ordered = order.map(id => base.find((p: any) => p.id === id)).filter(Boolean) as any[];
+    const rest = base.filter((p: any) => !order.includes(p.id));
     return [...ordered, ...rest];
-  }, [pluginRegistry, config.bottomPluginTabOrder]);
+  }, [pluginRegistry, config.bottomPluginTabOrder, requestedTab, launchContext?.tab]);
 
   // Persist scrub: drop uninstalled IDs from saved tab order so they cannot resurrect.
   useEffect(() => {

@@ -10284,7 +10284,58 @@ namespace BNDZ
                                 if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
                                     return batchResolution;
 
-                                var evt = new { type = "CONFLICT_DETECTED", payload = new { operationId = opId, fileName, sourcePath = srcPath, destPath } };
+                                // Collect metadata for conflict dialog (file + folder).
+                                long srcSize = 0, srcModUtc = 0, destSize = 0, destModUtc = 0;
+                                var isFolder = false;
+                                try
+                                {
+                                    if (!string.IsNullOrEmpty(srcPath))
+                                    {
+                                        if (Directory.Exists(srcPath))
+                                        {
+                                            isFolder = true;
+                                            srcModUtc = new DateTimeOffset(new DirectoryInfo(srcPath).LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(srcPath))
+                                        {
+                                            var si = new FileInfo(srcPath);
+                                            srcSize = si.Length;
+                                            srcModUtc = new DateTimeOffset(si.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                    }
+                                    if (!string.IsNullOrEmpty(destPath))
+                                    {
+                                        if (Directory.Exists(destPath))
+                                        {
+                                            isFolder = true;
+                                            destModUtc = new DateTimeOffset(new DirectoryInfo(destPath).LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(destPath))
+                                        {
+                                            var di = new FileInfo(destPath);
+                                            destSize = di.Length;
+                                            destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                    }
+                                }
+                                catch { /* best-effort */ }
+
+                                var evt = new
+                                {
+                                    type = "CONFLICT_DETECTED",
+                                    payload = new
+                                    {
+                                        operationId = opId,
+                                        fileName,
+                                        sourcePath = srcPath,
+                                        destPath,
+                                        sourceSize = srcSize,
+                                        sourceModifiedUtc = srcModUtc,
+                                        destSize,
+                                        destModifiedUtc = destModUtc,
+                                        isFolder,
+                                    }
+                                };
                                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                                 string conflictKey = $"{opId}:{fileName}";
                                 _conflictResolvers[conflictKey] = tcs;

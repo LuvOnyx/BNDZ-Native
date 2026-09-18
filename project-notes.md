@@ -27,3 +27,7 @@
 **Refs / quarantine already in repo:** `public/plaques/QUALITY.md`, `ATTRIBUTION.md`, `candidates/fluent-emoji-3d/`, `candidates/superseded-ai-gen/`, `candidates/superseded-gravity-*`.
 
 **Resume cue for agents:** “User plaque gather ready” / check `candidates/user-gather/` — then QUALITY → wire → builds. Until then, prioritize Launch Ready Windows-gated work and other FM polish, not more plaque regen.
+
+## Windows PC testing (ready)
+
+Use [`docs/WINDOWS-TEST-PLAYBOOK.md`](docs/WINDOWS-TEST-PLAYBOOK.md) on `BNDZShell` after `scripts/build-bndz-native.ps1`. Code for E4 sheets / Share dedupe / Open Terminal → TermControl / D6 unsigned-beta is landed — remaining work is click-through sign-off.
