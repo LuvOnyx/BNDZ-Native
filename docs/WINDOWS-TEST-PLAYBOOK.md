@@ -10,6 +10,13 @@ powershell -File scripts/build-bndz-native.ps1
 scripts\run-bndz-native.cmd
 ```
 
+If `BNDZ.AssemblyInfo.cs` / CS1056 `\0` errors appear, the script auto-scrubs `obj`; or manually:
+
+```powershell
+Remove-Item -Recurse -Force BNDZBackend\obj, BNDZBackend\bin -ErrorAction SilentlyContinue
+powershell -File scripts/build-bndz-native.ps1
+```
+
 Flip ☐→☑ in [`fm-launch-readiness.md`](fm-launch-readiness.md) only after user-visible proof. Paste evidence (ole-dnd.log snippets, UAC Allow/Cancel notes) into the PR or `project-notes.md`.
 
 ---
