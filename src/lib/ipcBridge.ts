@@ -204,6 +204,8 @@ export const IPC = {
           window.dispatchEvent(new CustomEvent('bndz-ole-drag-ended', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DRAG_HOVER') {
           window.dispatchEvent(new CustomEvent('bndz-external-drag-hover', { detail: data.payload }));
+        } else if (data.type === 'EXTERNAL_FILES_DRAG_LEAVE') {
+          window.dispatchEvent(new CustomEvent('bndz-external-drag-leave', { detail: data.payload }));
         } else if (data.type === 'FOLDER_SIZE_PROGRESS') {
           this._folderSizeListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'DUPLICATE_SCAN_PROGRESS') {

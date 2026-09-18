@@ -14,7 +14,6 @@ import {
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
-  PluginStatCard,
   PluginSectionTitle,
 } from './PluginPanelPrimitives';
 

@@ -4602,6 +4602,44 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
     0 0 24px rgba(196, 163, 90, 0.08),
     0 1px 0 rgba(255, 255, 255, 0.1) inset;
 }
+
+/* Absorb-embed ops meter — replaces PluginStatCard SaaS farms */
+.bndz-plugin-ops-meter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.18) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.bndz-plugin-ops-meter-cell {
+  flex: 1 1 72px;
+  min-width: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+.bndz-plugin-ops-meter-cell.is-ok .bndz-plugin-ops-meter-value { color: #86efac; }
+.bndz-plugin-ops-meter-cell.is-warn .bndz-plugin-ops-meter-value { color: #fbbf24; }
+.bndz-plugin-ops-meter-value {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: rgba(248, 250, 252, 0.95);
+  line-height: 1.1;
+}
+.bndz-plugin-ops-meter-label {
+  font-size: 9px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(148, 163, 184, 0.72);
+}
 .bndz-plugin-card.is-selected,
 .bndz-plugin-card[data-selected='true'] {
   border-color: rgba(232, 196, 110, 0.72);
@@ -14864,7 +14902,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   position: absolute;
   inset: -20%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(126,184,232,0.18), transparent 65%);
+  background: radial-gradient(circle, rgba(168,85,247,0.12), transparent 65%);
   pointer-events: none;
   z-index: 0;
 }
@@ -14902,8 +14940,8 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   color: #0a150f;
 }
 .bndz-drag-ghost-op-move {
-  background: #3b82f6;
-  color: #e8f0ff;
+  background: #a855f7;
+  color: #f8f0ff;
 }
 .bndz-drag-ghost-text {
   display: flex;
@@ -17149,6 +17187,23 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.bndz-fluid-drag-move-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: #a855f7;
+  color: #f8f0ff;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
 }
 .bndz-fluid-drag-card-inner {
   width: 44px;

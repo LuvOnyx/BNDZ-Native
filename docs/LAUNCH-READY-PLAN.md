@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** **NOT launch-ready** — mid-execution. Tabs/Home/About/ops QC green; Wave F code done; E ops suite coded; **C4 drag-ghost craft still open**; `fm-launch-readiness.md` is **0 signed rows**. Next code pass = **Wave C4**, then Windows click-through of the full gate.  
+**Status:** **NOT launch-ready** — mid-execution. Tabs/Home/About/ops QC green; Wave F code done; E ops suite coded; **C4 drag-ghost craft code landed** (Windows click-through still ☐); `fm-launch-readiness.md` is **0 signed rows**. Next = Windows DnD matrix 46–58 after C4, then A2 / E4 / D2–D3.  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 **Ship binary:** **BNDZ-Native only** — `BNDZShell` via `scripts/run-bndz-native.cmd` / `BNDZShell.exe`. FilesMerge and classic WPF `MainWindow` are reference/archive — not the launch gate target.
@@ -9,17 +9,17 @@
 
 ## Audit verdict (2026-09-18) — did we finish?
 
-**No.** Strong code progress on Waves A / E / F and chrome polish, but launch cannot be claimed until:
+**No.** Strong code progress on Waves A / E / F / **C4** and chrome polish, but launch cannot be claimed until:
 
 | Blocker | State |
 |---------|--------|
-| **C4** inbound list FluidDrag + outside OLE ghost craft | Code **not** landed |
+| **C4** inbound list FluidDrag + outside OLE ghost craft | **Code landed** — Windows verify ☐ |
 | **`fm-launch-readiness.md`** | **~112 ☐ / 0 ☑** on real Windows |
 | **DnD matrix 46–58** | Unsigned; must re-run after C4 |
 | **E4.1–E4.14** UAC / collisions / Shell Integration | Code suite ≠ live verify |
 | **A2 absorb smoke** | Remaps coded; Windows host-tab open still ☐ |
 | **D2** Shift+RMB / terminal first paint / menu dupes | Windows ☐ |
-| **A1 residue** | Hub clean; dead RAM/Design Board wiring still in tree |
+| **A1 residue** | Hub clean; FilesMerge catalog scrubbed; absorb embeds off PluginStatCard; plugin `.tsx` files still in tree (quarantine/delete later) |
 
 **Parked correctly (do not start):** [`to-do-future-upgrades.md`](../to-do-future-upgrades.md), external npm/zip plugins, selling pillars.
 
@@ -79,12 +79,14 @@ Hub catalog no longer installs Staging / Design Board — **but residue remains 
 |---------|--------|
 | `RamStagingPlugin.tsx` / `GhostLinkPlugin.tsx` / `DesignBoardPlugin.tsx` | Quarantine or delete; must not reappear via Hub / Deck / menus |
 | `BNDZUI` RAM zone list / `ramStaging*` IPC / path remaps | Scrub user-visible chrome; keep dead IPC only if harmless and unreachable |
-| FilesMerge `BndzPluginCatalog` still listing `ram-staging` | Remove (archive shell must not resurrect Staging) |
+| FilesMerge `BndzPluginCatalog` still listing `ram-staging` | **Done** — ghost-link / ram-staging removed from DefaultInstalled + Marketplace + Deck map |
 | Ghost→RAM “must-move” rows in `PLUGINS-TODO-BEFORE-LAUNCH.MD` | Strike — superseded by 1.A remove (do not professionalize Staging) |
-| Nested absorb children using `PluginStatCard` SaaS strips | Strip or replace with host ops language (RealityCheck / SemanticDesk embeds) |
+| Nested absorb children using `PluginStatCard` SaaS strips | **Partial** — RealityCheck / SemanticDesk → `PluginOpsMeter`; Ram/Ghost still quarantined |
 
-- [ ] A1 residue scrub complete (no Hub/Deck/menu/Workspace Tools resurrect path)
-- [ ] No `PluginStatCard` farm in embedded absorb children
+- [x] FilesMerge catalog no longer resurrects Staging / Ghost Link
+- [x] Nested absorb embeds (RealityCheck / SemanticDesk) off `PluginStatCard`
+- [ ] A1 residue scrub complete (plugin `.tsx` quarantine/delete + BNDZUI RAM chrome)
+- [x] No `PluginStatCard` farm in RealityCheck / SemanticDesk absorb children
 
 | Leftover **Ghost-*** user-facing strings | Scrub product copy (menus, Deck, automation labels, transfer queue names) even where code embeds remain. |
 
@@ -200,7 +202,7 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 - Fast Search: keyboard nav + Enter snappy; empty / no-Everything messaging  
 - Terminal: **Native** Local PowerShell first paint — WinUI `NativeTerminalHost` / TermControl overlay over plugin hole (not detached `wt`); geometry fills hole; ConPTY buffer+ACK  
 - Outbound ghost mechanics (RegisterClassExW + single premultiply) + tree drag bake — **code landed**; Windows wallpaper follow still verify  
-- **Next (C4):** inbound list ghost + outside OLE ghost **design upgrade** — see below  
+- **C4 code landed:** inbound list FluidDrag + outside OLE ghost craft — Windows matrix 46–58 next  
 - Sidebar cold-boot LMB (Caption/NC) — code fix landed; **re-verify** on Native cold start  
 - `CraftPaneHost` IDropTarget reclaim after Chromium first paint — known OLE fragility; include in matrix 46–58 notes (do not rewrite spine) 
 
@@ -217,38 +219,22 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 
 Files treated as protect zones (surgical only): `BNDZUI.tsx`, `dragController.ts`, FluidDrag stack, `fileDragSession` / cleanup / drop dest, `fileDropBus`, host `WebView2DropTargetService` / OLE deliver path.
 
-### C4 — Next pass: drag ghost craft (inbound list + outside design) — LOCKED
+### C4 — Drag ghost craft (inbound list + outside design) — CODE LANDED
 
-**Priority after tabs/Home/About/ops QC.** Paint + hover enrichment only; spine protected.
+**Paint + hover enrichment only; spine protected.** Windows click-through still required.
 
-#### C4.1 — Outside OLE ghost design upgrade
+#### C4.1 — Outside OLE ghost design upgrade — **done (code)**
 
-[`BndzOutboundDragGhostOverlay.cs`](../BNDZBackend/Services/BndzOutboundDragGhostOverlay.cs) `BuildCardBitmap` is mechanically OK; craft is still a thin GDI card.
+[`BndzOutboundDragGhostOverlay.cs`](../BNDZBackend/Services/BndzOutboundDragGhostOverlay.cs) `BuildCardBitmap`: soft shadow pad, rim, Midnight gradient, shell LARGEICON, magenta move / emerald copy, multi stack + count chip; FE `.bndz-drag-ghost-op-move` → `#a855f7`.
 
-| Do | Notes |
-|----|--------|
-| Soft squircle + **drop shadow** (expand bitmap ~20px) | Match FluidDrag lift |
-| Instrument rim (top highlight / darker bottom) | No AI-blue glow |
-| Richer Midnight surface gradient | Soft squircle r≈14–16 |
-| Move badge magenta/violet (`#a855f7` / `#c084fc`); copy emerald | Sync FE `.bndz-drag-ghost-op-move` off `#3b82f6` |
-| Shell jumbo / large icon (not upscaled 16px) | Prefer `SHGetFileInfo` / host icon path |
-| Multi-select stack offset or count chip | Still one HWND |
-| Re-tune `_hotX/_hotY` after shadow padding | Single `PremultiplyAlpha` only |
-
-**Verify:** `%LocalAppData%/BNDZ/ole-dnd.log` → `outbound-ghost show`; Ctrl Copy/Move badge swap without size jump.
-
-#### C4.2 — Inbound list drag ghost (new)
-
-Desktop → BNDZ list today: hover chrome only — **no BNDZ cursor card**.
+#### C4.2 — Inbound list drag ghost — **done (code)**
 
 | Step | Change |
 |------|--------|
-| Host | On `DragEnter`, cache `ExtractPathsFromComDataObject` once (sample ≤10 + total count). Extend `EXTERNAL_FILES_DRAG_HOVER` with `{ paths?, count?, copy? }` from key state. **Drop / self-refuse / effect unchanged.** |
-| FE | On `bndz-external-drag-hover`: if outbound BNDZ OLE / file-drag session active → skip; else `armFluidDrag` + follow pointer. Disarm on leave / drop / fail / magnet. |
-| Reuse | Existing [`fluidDragBridge.ts`](../src/workstation/drag/fluidDragBridge.ts) + [`FluidDragStack.tsx`](../src/workstation/drag/FluidDragStack.tsx) — no second ghost component |
-| Parity | **Native `BndzIpcHost` only** for C4 (ship binary). Classic `MainWindow.xaml.cs` hover parity is archive — do not sprawl C4 into WPF unless a shared helper already exists. |
-
-**Do not** invent a Win32 inbound overlay that fights Explorer’s OLE image.
+| Host | DragEnter caches CF_HDROP sample ≤10 + count; `EXTERNAL_FILES_DRAG_HOVER` carries `{ paths, count, copy }`; `EXTERNAL_FILES_DRAG_LEAVE` on leave. Drop / self-refuse / effect unchanged. |
+| FE | `bndz-external-drag-hover` → `armFluidDrag` when no outbound session; disarm on leave / drop / fail / magnet. |
+| Reuse | `fluidDragBridge` + `FluidDragStack` — no second ghost |
+| Parity | Native `BndzIpcHost` enriched; classic MainWindow coords-only (archive) |
 
 #### C4.3 — After C4 code lands
 
@@ -385,9 +371,9 @@ Not required to flip every readiness row, but required before public “ship”:
 DONE   A1 Hub drop Staging/Design Board (residue scrub still open)
 DONE   A3 host craft / E1 ops suite / F boot+index (code)
 DONE   Tabs / Home rename / About de-AI / ops elevation QC
-NEXT   C4  Outside OLE ghost craft + inbound list FluidDrag ghost
-THEN   A1 residue scrub + nested PluginStatCard ban
-THEN   Post-C4 DnD matrix 46–58 + ole-dnd.log proof
+DONE   C4  Outside OLE ghost craft + inbound list FluidDrag ghost (code)
+NEXT   Post-C4 DnD matrix 46–58 + ole-dnd.log proof (Windows)
+THEN   Finish A1 residue (quarantine plugin .tsx + BNDZUI RAM chrome)
 THEN   A2 Windows absorb smoke (each host tab once)
 THEN   E4.1–E4.14 live UAC / collision / Shell Integration
 THEN   D2 leftovers (Shift+RMB, terminal, ICO, cold-boot LMB)
@@ -464,12 +450,11 @@ All of the following must be true — **none optional**:
 
 ## Immediate next execution slice (when you say go)
 
-1. **C4.1** — Outside OLE ghost design upgrade (`BuildCardBitmap` craft + FE move badge off AI blue)  
-2. **C4.2** — Inbound list FluidDrag ghost (DragEnter path sample → `armFluidDrag`; Drop untouched; Native host only)  
-3. **A1 residue** — scrub RAM/Design Board resurrect paths + nested `PluginStatCard`  
-4. Builds green → then Windows: DnD 46–58 + A2 smoke + E4 + D2/D3 sign-off  
+1. **Windows** — Post-C4 DnD matrix **46–58** + `ole-dnd.log` (outbound-ghost show; inbound FluidDrag arm; no commit regression)  
+2. **A1 residue finish** — quarantine/delete RamStaging / GhostLink / DesignBoard `.tsx` + scrub BNDZUI RAM chrome  
+3. **A2** Windows absorb smoke + **E4** live UAC/collision + **D2/D3** sign-off  
 
-Do **not** restart A1 Hub removal or E1 gap audit from scratch — those are done; residue + verify remain.
+Do **not** restart A1 Hub removal, E1 gap audit, or C4 craft from scratch — those are done; residue + Windows verify remain.
 
 ---
 
@@ -506,9 +491,9 @@ Do **not** restart A1 Hub removal or E1 gap audit from scratch — those are don
 - [x] VirtualizedFileList default threshold = 1 (always virtualize) — code audit
 - [x] Outside-app OLE ghost — premultiplied BGRA for UpdateLayeredWindow + failure logging (QC: single premultiply)
 - [x] Tree drag ghost — bake live `.nav-tree-row` computed paint
-- [ ] **C4.1** Outside OLE ghost **design upgrade** (shadow, rim, shell icon, magenta move; FE badge sync)
-- [ ] **C4.2** Inbound list FluidDrag ghost (DragEnter path sample → `armFluidDrag`; Drop untouched)
-- [ ] A1 residue scrub + nested PluginStatCard ban
+- [x] **C4.1** Outside OLE ghost **design upgrade** (shadow, rim, shell icon, magenta move; FE badge sync)
+- [x] **C4.2** Inbound list FluidDrag ghost (DragEnter path sample → `armFluidDrag`; Drop untouched)
+- [x] A1 FilesMerge catalog + RealityCheck/SemanticDesk PluginStatCard scrub (plugin `.tsx` quarantine still open)
 - [ ] Windows scroll FPS ≈ display Hz with warm icons (Perf HUD when available)
 - [ ] Windows confirm outbound ghost follows on wallpaper (`ole-dnd.log`)
 - [ ] Windows confirm inbound list ghost arms over list without double-ghost / commit regression

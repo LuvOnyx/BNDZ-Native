@@ -308,6 +308,27 @@ export function PluginStatCard({
   );
 }
 
+/** Compact host-ops meter row — prefer over PluginStatCard SaaS farms in absorb embeds. */
+export function PluginOpsMeter({
+  items,
+}: {
+  items: Array<{ label: string; value: string; tone?: 'ok' | 'warn' | 'neutral' }>;
+}) {
+  return (
+    <div className="bndz-plugin-ops-meter" role="group">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className={`bndz-plugin-ops-meter-cell${item.tone ? ` is-${item.tone}` : ''}`}
+        >
+          <span className="bndz-plugin-ops-meter-value">{item.value}</span>
+          <span className="bndz-plugin-ops-meter-label">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PluginSidebar({
   children,
   className = '',

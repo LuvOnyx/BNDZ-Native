@@ -341,7 +341,8 @@ internal static class WebView2DropTargetService
     /// <para>Callbacks run on the UI (STA) thread — direct WPF access is safe.</para>
     /// <para>
     ///   <paramref name="onDrop"/>: (paths, screenX, screenY, grfKeyState, fromBndzOle).<br/>
-    ///   <paramref name="onHover"/>: (screenX, screenY) — caller throttles.
+    ///   <paramref name="onHover"/>: (screenX, screenY, samplePaths≤10, totalCount, copyMode) — caller throttles.<br/>
+    ///   <paramref name="onLeave"/>: optional DragLeave (inbound ghost disarm) — Drop / effect unchanged.
     /// </para>
     /// Call after <c>EnsureCoreWebView2Async</c> completes and every time WebView2 restarts.
     /// Never treats the top-level host HWND as success — OLE hits the Chromium child.
@@ -349,8 +350,9 @@ internal static class WebView2DropTargetService
     public static bool Register(
         IntPtr windowHwnd,
         Action<string[], double, double, uint, bool> onDrop,
-        Action<double, double> onHover,
-        Func<bool>? isBndzOleDragActive)
+        Action<double, double, string[]?, int, bool> onHover,
+        Func<bool>? isBndzOleDragActive,
+        Action? onLeave = null)
     {
         if (windowHwnd == IntPtr.Zero)
         {
@@ -391,7 +393,7 @@ internal static class WebView2DropTargetService
 
         RevokeAllRegistered();
 
-        var target = new BndzDropTarget(wv2Hwnd, onDrop, onHover, oleDragActive);
+        var target = new BndzDropTarget(wv2Hwnd, onDrop, onHover, oleDragActive, onLeave);
         // Revoke every Chromium/InputSite leaf under the host, then register BNDZ on each —
         // OLE delivers to the live cursor HWND, not only the center-probe primary.
         var claimHwnds = CollectAndRevokeChromiumTargetsUnder(windowHwnd, wv2Hwnd);
@@ -2638,23 +2640,32 @@ internal static class WebView2DropTargetService
 
     private sealed class BndzDropTarget : IRawDropTarget
     {
+        private const int HoverSampleMax = 10;
+
         private readonly IntPtr _wv2Hwnd;
         private readonly Action<string[], double, double, uint, bool> _onDrop;
-        private readonly Action<double, double> _onHover;
+        private readonly Action<double, double, string[]?, int, bool> _onHover;
         private readonly Func<bool> _isBndzOleDragActive;
+        private readonly Action? _onLeave;
         private bool _hasFiles;
         private bool _loggedSelfRefuseEnter;
+        /// <summary>DragEnter CF_HDROP sample (≤10) for inbound FluidDrag — Drop still re-extracts full set.</summary>
+        private string[]? _hoverSample;
+        private int _hoverCount;
+        private uint _lastProposedEffect = DROPEFFECT_COPY | DROPEFFECT_MOVE;
 
         internal BndzDropTarget(
             IntPtr wv2Hwnd,
             Action<string[], double, double, uint, bool> onDrop,
-            Action<double, double> onHover,
-            Func<bool> isBndzOleDragActive)
+            Action<double, double, string[]?, int, bool> onHover,
+            Func<bool> isBndzOleDragActive,
+            Action? onLeave)
         {
             _wv2Hwnd = wv2Hwnd;
             _onDrop = onDrop;
             _onHover = onHover;
             _isBndzOleDragActive = isBndzOleDragActive;
+            _onLeave = onLeave;
         }
 
         private uint ResolveEffect(uint grfKeyState, uint proposedEffect)
@@ -2674,6 +2685,27 @@ internal static class WebView2DropTargetService
             return DROPEFFECT_COPY;
         }
 
+        private static string[] SamplePaths(string[] paths)
+        {
+            if (paths.Length <= HoverSampleMax) return paths;
+            var sample = new string[HoverSampleMax];
+            Array.Copy(paths, sample, HoverSampleMax);
+            return sample;
+        }
+
+        private void ClearHoverSample()
+        {
+            _hoverSample = null;
+            _hoverCount = 0;
+        }
+
+        private void EmitHover(NativePoint pt, uint grfKeyState, uint proposedEffect)
+        {
+            var effect = ResolveEffect(grfKeyState, proposedEffect);
+            var copy = effect == DROPEFFECT_COPY;
+            _onHover(pt.x, pt.y, _hoverSample, _hoverCount, copy);
+        }
+
         public int DragEnter(ComIDataObject pDataObj, uint grfKeyState, NativePoint pt, ref uint pdwEffect)
         {
             // Outbound OLE must never accept itself — false MOVE in GiveFeedback then
@@ -2689,14 +2721,35 @@ internal static class WebView2DropTargetService
                     AppendOleDndLog($"DropTarget DragEnter SELF-REFUSE proposed=0x{proposed:X} {DescribeCursorHit(pt.x, pt.y)}");
                 }
                 _hasFiles = false;
+                ClearHoverSample();
                 return S_OK;
             }
             _loggedSelfRefuseEnter = false;
             _hasFiles = HasFileDrop(pDataObj);
-            if (!_hasFiles) { pdwEffect = DROPEFFECT_NONE; return S_OK; }
+            if (!_hasFiles)
+            {
+                pdwEffect = DROPEFFECT_NONE;
+                ClearHoverSample();
+                return S_OK;
+            }
+
+            // Read-only path sample for inbound list ghost — Drop / effect resolve unchanged.
+            try
+            {
+                var all = ExtractPathsFromComDataObject(pDataObj);
+                _hoverCount = all.Length;
+                _hoverSample = all.Length > 0 ? SamplePaths(all) : Array.Empty<string>();
+            }
+            catch
+            {
+                ClearHoverSample();
+            }
+
+            _lastProposedEffect = pdwEffect;
             pdwEffect = ResolveEffect(grfKeyState, pdwEffect);
-            AppendOleDndLog($"DropTarget DragEnter effect={pdwEffect} {DescribeCursorHit(pt.x, pt.y)}");
-            _onHover(pt.x, pt.y);
+            AppendOleDndLog(
+                $"DropTarget DragEnter effect={pdwEffect} count={_hoverCount} sample={_hoverSample?.Length ?? 0} {DescribeCursorHit(pt.x, pt.y)}");
+            EmitHover(pt, grfKeyState, _lastProposedEffect);
             return S_OK;
         }
 
@@ -2708,8 +2761,9 @@ internal static class WebView2DropTargetService
                 return S_OK;
             }
             if (!_hasFiles) { pdwEffect = DROPEFFECT_NONE; return S_OK; }
+            _lastProposedEffect = pdwEffect;
             pdwEffect = ResolveEffect(grfKeyState, pdwEffect);
-            _onHover(pt.x, pt.y);
+            EmitHover(pt, grfKeyState, _lastProposedEffect);
             return S_OK;
         }
 
@@ -2718,13 +2772,18 @@ internal static class WebView2DropTargetService
             _loggedSelfRefuseEnter = false;
             if (_isBndzOleDragActive())
                 AppendOleDndLog("DropTarget DragLeave (outbound)");
+            else if (_hasFiles)
+                AppendOleDndLog($"DropTarget DragLeave inbound count={_hoverCount}");
             _hasFiles = false;
+            ClearHoverSample();
+            try { _onLeave?.Invoke(); } catch { /* never break OLE */ }
             return S_OK;
         }
 
         public int Drop(ComIDataObject pDataObj, uint grfKeyState, NativePoint pt, ref uint pdwEffect)
         {
             _hasFiles = false;
+            ClearHoverSample();
             if (_isBndzOleDragActive())
             {
                 Interlocked.Increment(ref _outboundSelfDropCount);

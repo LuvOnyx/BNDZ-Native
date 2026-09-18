@@ -81,8 +81,8 @@ Reported after wallpaper OLE verify. Fix in this pass; re-verify before claiming
 - [x] Wallpaper drop occasionally refreshes whole desktop/Explorer (seen twice) — soft SHChangeNotify only
 - [x] Outbound desktop drop copies instead of MOVE on same volume; list does not refresh after folder change — escalate strip + tombstones + delayed sourcesGone
 - [x] No drag ghost outside app border (only finger cursor) — **RegisterClassExW + premultiplied BGRA for UpdateLayeredWindow**; Windows click-through to confirm `ole-dnd.log` `outbound-ghost show`
-- [ ] Outside OLE ghost **design upgrade** (C4.1) — soft squircle shadow/rim, shell jumbo icon, magenta move badge; FE move badge off AI blue
-- [ ] Inbound **list** drag ghost (C4.2) — DragEnter path sample → `armFluidDrag` / FluidDragStack; disarm on leave/drop; Drop/effect untouched
+- [x] Outside OLE ghost **design upgrade** (C4.1) — soft squircle shadow/rim, shell jumbo icon, magenta move badge; FE move badge off AI blue
+- [x] Inbound **list** drag ghost (C4.2) — DragEnter path sample → `armFluidDrag` / FluidDragStack; disarm on leave/drop; Drop/effect untouched
 - [x] Tree drag ghosts ugly — bake live `.nav-tree-row` computed paint (gradients/indent) onto body clone
 - [x] Left sidebar unclickable after init until list selection — NC region off + Caption strip only (re-verify cold boot LMB)
 - [x] Desktop → list inbound — **2026-09-06 root cause:** `push=True` ≠ PushTargets>0; drops never reached React. Fix: `SetExternalDropDeliver` + `DeliverExternalDropJson` + ExecuteScript inject + host MOVE/COPY fallback after 750ms if sources still exist. Proof in `%LocalAppData%/BNDZ/ole-dnd.log`: expect `DeliverExternalDropJson dropCb=True`, `Inject`, `FE_DEBUG inbound-drop` (or `inbound-host-fallback ok`).

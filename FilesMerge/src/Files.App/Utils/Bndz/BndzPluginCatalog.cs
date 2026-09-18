@@ -25,8 +25,6 @@ internal static class BndzPluginCatalog
 			new("catalog", "Catalog", "Virtual collections as /vf folders."),
 			new("action-log", "Action Log", "Reversible ops history."),
 			new("compare", "Compare", "Side-by-side folder/file compare."),
-			new("ghost-link", "Ghost Link", "Placeholder links into deep trees."),
-			new("ram-staging", "RAM Staging", "ImDisk / AIM scratch volumes."),
 		];
 
 	public static readonly BndzPluginDescriptor[] Marketplace =
@@ -43,8 +41,6 @@ internal static class BndzPluginCatalog
 		new("catalog", "Catalog", "Virtual collections as /vf folders."),
 		new("action-log", "Action Log", "Reversible ops history."),
 		new("compare", "Compare", "Side-by-side folder/file compare."),
-		new("ghost-link", "Ghost Link", "Placeholder links into deep trees."),
-		new("ram-staging", "RAM Staging", "ImDisk / AIM scratch volumes."),
 		new("icon-studio", "Icon Studio", "FolderIco-style icon libraries."),
 		new("remote-mesh", "Remote Mesh", "SSH/SFTP mesh."),
 		new("project-sandbox", "Project Sandbox", "Isolated sandbox sessions."),
@@ -71,8 +67,6 @@ internal static class BndzPluginCatalog
 		"compare" => "compare",
 		"mesh-drop" => "remote-mesh",
 		"storage-cleanup" => "storage-cleanup",
-		"ghost-link" => "ghost-link",
-		"ram-staging" or "flush-ram-zone" => "ram-staging",
 		"dropstack" => "dropstack",
 		"catalog" => "catalog",
 		"folder-sync" => "folder-sync",

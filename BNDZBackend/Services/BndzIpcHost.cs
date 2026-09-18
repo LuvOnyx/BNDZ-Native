@@ -2344,6 +2344,10 @@ namespace BNDZ.Services
         private double? _lastExternalDragWebViewY;
         /// <summary>Environment.TickCount64 at the last PostExternalFileDragHover call — throttle guard.</summary>
         private long _lastHoverTickMs;
+        /// <summary>C4.2 inbound hover enrichment cached across throttled posts.</summary>
+        private string[]? _inboundHoverSample;
+        private int _inboundHoverCount;
+        private bool _inboundHoverCopy;
 
         // AllowExternalDrop stays true so WebView2 does not install a blocking target
         // before we call RegisterDragDrop on its HWND (see SetupNativeFileDrop /
@@ -2513,7 +2517,12 @@ namespace BNDZ.Services
             }
         }
 
-        private void PostExternalFileDragHover(double webViewX, double webViewY)
+        private void PostExternalFileDragHover(
+            double webViewX,
+            double webViewY,
+            string[]? samplePaths = null,
+            int totalCount = 0,
+            bool copyMode = false)
         {
             // Throttle: at most one hover message per ~16 ms (~60 fps). Without this guard,
             // rapid DragOver floods the JS side with hundreds of messages per second.
@@ -2521,11 +2530,41 @@ namespace BNDZ.Services
             if (now - _lastHoverTickMs < 16) return;
             _lastHoverTickMs = now;
 
+            // Keep last enrichment for coords-only callers (WPF AcceptFileDrag) that don't re-pass sample.
+            if (samplePaths != null)
+            {
+                _inboundHoverSample = samplePaths;
+                _inboundHoverCount = totalCount > 0 ? totalCount : samplePaths.Length;
+            }
+            if (samplePaths != null || totalCount > 0)
+                _inboundHoverCopy = copyMode;
+
+            var paths = _inboundHoverSample;
+            var count = _inboundHoverCount;
+            var copy = _inboundHoverCopy;
+
             var msg = new
             {
                 type = "EXTERNAL_FILES_DRAG_HOVER",
-                payload = new { webViewX, webViewY },
+                payload = new
+                {
+                    webViewX,
+                    webViewY,
+                    paths,
+                    count,
+                    copy,
+                },
             };
+            var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => DeliverIpcJson(json));
+        }
+
+        private void PostExternalFileDragLeave()
+        {
+            _inboundHoverSample = null;
+            _inboundHoverCount = 0;
+            _inboundHoverCopy = false;
+            var msg = new { type = "EXTERNAL_FILES_DRAG_LEAVE", payload = new { } };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             PostToUi(() => DeliverIpcJson(json));
         }
@@ -2545,6 +2584,9 @@ namespace BNDZ.Services
         private void PostExternalFileDrop(string[] paths, double? webViewX = null, double? webViewY = null, string preferredEffect = "copy", string coordSource = "drop")
         {
             if (paths == null || paths.Length == 0) return;
+            _inboundHoverSample = null;
+            _inboundHoverCount = 0;
+            _inboundHoverCopy = false;
             var fingerprint = string.Join('|', paths);
             var now = DateTime.UtcNow;
             if (fingerprint == _lastExternalDropFingerprint && (now - _lastExternalDropUtc).TotalMilliseconds < 400)
@@ -2893,17 +2935,18 @@ namespace BNDZ.Services
                 return wvPt;
             }
 
-            // onHover: throttled, dispatched to UI thread (already on UI thread via STA OLE).
-            void OleHover(double screenX, double screenY)
+            // onHover: C4.2 enrichment (sample/count/copy) + coords. PostExternalFileDragHover throttles.
+            void OleHover(double screenX, double screenY, string[]? samplePaths, int totalCount, bool copyMode)
             {
-                var now = Environment.TickCount64;
-                if (now - _lastHoverTickMs < 16) return;
-                _lastHoverTickMs = now;
-
                 var pt = OleScreenToWebViewClient(screenX, screenY);
                 _lastExternalDragWebViewX = pt.X;
                 _lastExternalDragWebViewY = pt.Y;
-                PostExternalFileDragHover(pt.X, pt.Y);
+                PostExternalFileDragHover(pt.X, pt.Y, samplePaths, totalCount, copyMode);
+            }
+
+            void OleLeave()
+            {
+                PostExternalFileDragLeave();
             }
 
             // onDrop: convert coords, apply dedup guard, post EXTERNAL_FILES_DROPPED.
@@ -2936,7 +2979,8 @@ namespace BNDZ.Services
                 windowHwnd,
                 OleDrop,
                 OleHover,
-                () => _bndzOleDragActive);
+                () => _bndzOleDragActive,
+                OleLeave);
         }
 
         private void PostIconResult(string? id, string? payload)

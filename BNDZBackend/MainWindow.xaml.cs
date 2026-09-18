@@ -1421,8 +1421,8 @@ namespace BNDZ
                 return wvPt;
             }
 
-            // onHover: throttled, dispatched to UI thread (already on UI thread via STA OLE).
-            void OleHover(double screenX, double screenY)
+            // onHover: signature matches Native C4.2 enrichment; classic WPF posts coords only (archive).
+            void OleHover(double screenX, double screenY, string[]? samplePaths, int totalCount, bool copyMode)
             {
                 var now = Environment.TickCount64;
                 if (now - _lastHoverTickMs < 16) return;

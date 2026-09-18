@@ -69,6 +69,7 @@ import {
   disarmFluidDrag,
   fluidDragBridgeSetPointer,
   updateFluidDragMeta,
+  getFluidDragState,
   setFluidDragSnapTension,
 } from '../workstation/drag/fluidDragBridge';
 import { setSnapZone, clearSnapZones, computeSnapTension } from '../workstation/drag/snapField';
@@ -9339,7 +9340,17 @@ ${classified.detail}`,
   }, []);
 
   // Native OLE drag-hover: warm drop targets (list / tree / breadcrumb / tabs) — no HTML5.
+  // C4.2: arm FluidDragStack for inbound desktop→list when host sends path sample.
   useEffect(() => {
+    const leafName = (p: string) => {
+      const parts = String(p || '').replace(/\\/g, '/').split('/').filter(Boolean);
+      return parts[parts.length - 1] || p || 'Item';
+    };
+    const isDirPath = (p: string) => {
+      const s = String(p || '');
+      return s.endsWith('\\') || s.endsWith('/') || !/\.[^./\\]+$/.test(s);
+    };
+
     const onExternalDragHover = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : null;
@@ -9348,17 +9359,63 @@ ${classified.detail}`,
       setExternalDragActive(true);
       setExternalDragHover(clientX, clientY);
       applyFileDragHoverAtPoint(clientX, clientY);
+
+      // Outbound BNDZ OLE / in-app file-drag owns FluidDrag — never double-arm inbound.
+      if (getFileDragSession() || isOleDragHandoffActive() || pointerFileDragActiveRef.current) return;
+      if (configRef.current?.fluidDragStacks === false) return;
+
+      const rawPaths = Array.isArray(detail.paths)
+        ? (detail.paths as unknown[]).filter((p): p is string => typeof p === 'string' && !!p)
+        : [];
+      const count = typeof detail.count === 'number' && detail.count > 0
+        ? detail.count
+        : rawPaths.length;
+      if (count <= 0 && rawPaths.length === 0) {
+        // Coords-only hover (legacy / WPF): keep pointer glued if already armed.
+        if (getFluidDragState().visible) {
+          fluidDragBridgeSetPointer(null, clientX, clientY);
+        }
+        return;
+      }
+
+      const copy = !!detail.copy;
+      const lead = rawPaths[0] || '';
+      const label = lead ? leafName(lead) : (count > 1 ? `${count} items` : 'Item');
+      const meta = {
+        label,
+        count: Math.max(1, count),
+        copy,
+        isDirectory: lead ? isDirPath(lead) : false,
+        dropHint: copy ? 'Drop to copy' : 'Drop to move',
+        paths: rawPaths,
+      };
+
+      const armed = getFluidDragState().visible;
+      if (!armed) {
+        armFluidDrag(meta, { x: clientX, y: clientY });
+      } else {
+        fluidDragBridgeSetPointer(null, clientX, clientY);
+        updateFluidDragMeta(meta);
+      }
     };
-    const onExternalDragEnd = () => {
+
+    const disarmInboundGhost = () => {
       setExternalDragActive(false);
       setExternalDragPaths([]);
       clearExternalDragHover();
+      // Only disarm if this was an inbound ghost (no outbound session).
+      if (!getFileDragSession() && !isOleDragHandoffActive() && !pointerFileDragActiveRef.current) {
+        disarmFluidDrag();
+      }
     };
+
     window.addEventListener('bndz-external-drag-hover', onExternalDragHover);
-    window.addEventListener('bndz-external-drop-failed', onExternalDragEnd);
+    window.addEventListener('bndz-external-drag-leave', disarmInboundGhost);
+    window.addEventListener('bndz-external-drop-failed', disarmInboundGhost);
     return () => {
       window.removeEventListener('bndz-external-drag-hover', onExternalDragHover);
-      window.removeEventListener('bndz-external-drop-failed', onExternalDragEnd);
+      window.removeEventListener('bndz-external-drag-leave', disarmInboundGhost);
+      window.removeEventListener('bndz-external-drop-failed', disarmInboundGhost);
     };
   }, [applyFileDragHoverAtPoint]);
 
@@ -9366,6 +9423,9 @@ ${classified.detail}`,
     const onMagnetApplied = () => {
       setExternalDragActive(false);
       setExternalDragPaths([]);
+      if (!getFileDragSession() && !isOleDragHandoffActive() && !pointerFileDragActiveRef.current) {
+        disarmFluidDrag();
+      }
     };
     window.addEventListener('bndz-magnet-applied', onMagnetApplied);
     return () => window.removeEventListener('bndz-magnet-applied', onMagnetApplied);
@@ -9511,6 +9571,9 @@ ${classified.detail}`,
         setExternalDragActive(false);
         setExternalDragPaths([]);
         clearExternalDragHover();
+        if (!getFileDragSession() && !isOleDragHandoffActive() && !pointerFileDragActiveRef.current) {
+          disarmFluidDrag();
+        }
       });
     };
 

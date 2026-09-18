@@ -15,7 +15,7 @@ import {
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
-  PluginStatCard,
+  PluginOpsMeter,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
@@ -221,10 +221,14 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2 px-3 pb-2">
-        <PluginStatCard label="Overlay" value={active ? 'On' : 'Off'} />
-        <PluginStatCard label="Items" value={String(itemCount)} />
-        <PluginStatCard label="Piles" value={String(piles.length)} />
+      <div className="px-3 pb-2">
+        <PluginOpsMeter
+          items={[
+            { label: 'Overlay', value: active ? 'On' : 'Off', tone: active ? 'ok' : 'neutral' },
+            { label: 'Items', value: String(itemCount), tone: 'neutral' },
+            { label: 'Piles', value: String(piles.length), tone: piles.length ? 'ok' : 'neutral' },
+          ]}
+        />
       </div>
 
       <div className="px-3 pb-2">
