@@ -143,7 +143,9 @@ Build gate after code changes: `npm run build` → `dotnet build BNDZBackend/BND
 | 99 | Bottom plugin panel resize + install gating (no auto-install) | ☐ |
 | 100 | Full session: 30 min mixed FM work — zero crashes | ☐ |
 
-## Wave E — Ops dialogs + elevation (E4.1–E4.12)
+**Gate target:** BNDZ-Native (`BNDZShell`). See [`LAUNCH-READY-PLAN.md`](LAUNCH-READY-PLAN.md) D0 / D5.
+
+## Wave E — Ops dialogs + elevation (E4.1–E4.14)
 
 Sign on real Windows `BNDZShell`. Code suite is landed; these rows are the live gate.
 
@@ -161,9 +163,12 @@ Sign on real Windows `BNDZShell`. Code suite is landed; these rows are the live 
 | E4.10 | Shell Integration toggle unelevated → UAC → setting sticks after refresh | ☐ |
 | E4.11 | Shell Integration toggle already elevated → applies without false admin loop | ☐ |
 | E4.12 | Shell Integration UAC Cancel → prior toggle restored; honest status | ☐ |
+| E4.13 | Read-only / write-protected destination → dedicated sheet (Skip / Retry / Open log) | ☐ |
+| E4.14 | Invalid / reserved name → dedicated sheet (not silent fail) | ☐ |
 
 ## Anti-fake rules
 
 - Partial IPC wiring = **fail** until user-visible behavior works.
 - "Build succeeded" alone ≠ pass — run the check in the UI.
 - Regressions in list interaction (drag/marquee) block launch regardless of other passes.
+- Sign on **BNDZ-Native** only (`scripts/run-bndz-native.cmd`) — FilesMerge / classic WPF do not count.

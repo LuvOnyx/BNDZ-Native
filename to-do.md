@@ -139,7 +139,12 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Uninstalled plugin toast points to Extension Hub (not “Plugin Store”)
 - [x] Multi-res `BNDZ.ico` (16–256 incl. 20/24/60) synced public ↔ ApplicationIcon; gen script relative + 9 sizes
 - [x] Wave A2 absorb remaps + host tabs in code (Magnets/Encode/Intake/Policies/Capacity/Health/Diff/Vault/Groups) — **Windows smoke still required**
-- [ ] D2/D3 Windows sign-off: Shift+RMB no dupes; terminal first paint; E4.1–E4.12; DnD 46–58; full `fm-launch-readiness.md`
+- [ ] A1 residue scrub — no RAM/Design Board resurrect via Hub/Deck/menus/FilesMerge catalog; nested PluginStatCard ban
+- [ ] D0 ship binary = BNDZ-Native only (readiness signed on Native, not FilesMerge)
+- [ ] D2/D3 Windows sign-off: Shift+RMB no dupes; Native terminal first paint; E4.1–E4.14; DnD 46–58; full `fm-launch-readiness.md`
+- [ ] D2 taskbar ICO crisp at 16/32/48; About/Register visual QC; sidebar cold-boot LMB re-verify
+- [ ] D5 Sign-off protocol (ole-dnd.log + UAC Allow/Cancel evidence)
+- [ ] D6 Packaging / Authenticode (or explicit unsigned-beta label)
 
 ### Native plaques / illustrations (modals · panels · list tabs · menus)
 
