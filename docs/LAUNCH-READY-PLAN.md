@@ -19,7 +19,7 @@
 | **E4.1–E4.14** UAC / collisions / Shell Integration | Code suite ≠ live verify |
 | **A2 absorb smoke** | Remaps coded; Windows host-tab open still ☐ |
 | **D2** Shift+RMB / terminal first paint / menu dupes | Windows ☐ |
-| **A1 residue** | Hub clean; FilesMerge catalog scrubbed; absorb embeds off PluginStatCard; plugin `.tsx` files still in tree (quarantine/delete later) |
+| **A1 residue** | Hub clean; FilesMerge catalog scrubbed; Ghost/RAM Wave3 pages deleted; dead ContextMenuView props removed; plugin `.tsx` quarantined |
 
 **Parked correctly (do not start):** [`to-do-future-upgrades.md`](../to-do-future-upgrades.md), external npm/zip plugins, selling pillars.
 
@@ -89,6 +89,8 @@ Hub catalog no longer installs Staging / Design Board — **but residue remains 
 - [x] Nested absorb embeds (RealityCheck / SemanticDesk) off `PluginStatCard`
 - [x] Plugin `.tsx` quarantined under `_a1_quarantine/`
 - [x] BNDZUI RAM/Ghost tree expand chrome scrubbed; Workspace Tools dead Ghost/RAM refresh removed
+- [x] FilesMerge Wave3 `BndzGhostLinkPage` / `BndzRamStagingPage` deleted (not merely unregistered)
+- [x] Dead `ContextMenuView` Ghost/RAM stage props removed
 - [x] Preview + System Properties idle plaques replaced (code)
 - [ ] Preview + System Properties idle plaques Native visual QC
 - [ ] A1 residue scrub complete (final Windows confirm no resurrect)
@@ -184,7 +186,7 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 | B2 multi-res taskbar ICO (16–256) present | [x] | ☐ crisp at 16/32/48 on Native |
 | B2 About/Register brand plaque (not missing PNG) | [x] craft pass | ☐ visual QC on Native |
 | B2 list icons warm / no pop-in on revisit | Partial | ☐ folder+file warm proof |
-| B3 Shift+RMB + no duplicate Open/Properties/Share | Weave coded | ☐ |
+| B3 Shift+RMB + no duplicate Open/Properties/Share | Weave + share/grantaccess host/FE align + unit test | ☐ Windows |
 | B3 menubar/context hover consistency | [x] | ☐ |
 | Context-menu plaques | Parked (`PLAQUE_CONTEXT_MENU_ENABLED=false`) — **not** launch blocker |
 
@@ -309,9 +311,10 @@ Rows **E4.1–E4.14** in [`docs/fm-launch-readiness.md`](fm-launch-readiness.md)
 
 ### D0 — Ship binary lock
 
-- [ ] Gate runs only on **BNDZ-Native** (`scripts/run-bndz-native.cmd` / `BNDZShell.exe`)
-- [ ] Do not treat FilesMerge or classic WPF as launch proof
-- [ ] Readiness header / D3 wording matches Native-only
+- [x] Gate runs only on **BNDZ-Native** (`scripts/run-bndz-native.cmd` / `BNDZShell.exe`)
+- [x] Do not treat FilesMerge or classic WPF as launch proof
+- [x] Readiness header / D3 wording matches Native-only
+- [x] Root `README.md`, `docs/native-shell/`, `FilesMerge/README_BNDZ.md`, archived build/run scripts all point at BNDZShell
 
 ### D1 — Defaults / chrome already expected at launch
 
@@ -326,7 +329,7 @@ Rows **E4.1–E4.14** in [`docs/fm-launch-readiness.md`](fm-launch-readiness.md)
 
 | Row | Code | Windows |
 |-----|------|---------|
-| Shift+RMB full OS menu; no duplicate Open/Properties/Share | Weave coded | ☐ |
+| Shift+RMB full OS menu; no duplicate Open/Properties/Share | Weave + share/grantaccess dedupe harden | ☐ |
 | Terminal Native TermControl first-open paint + geometry | Code landed | ☐ |
 | Fast Search empty/keyboard | [x] | spot-check ☐ |
 | Transfer toast / list refresh snappiness | [x] | spot-check ☐ |
@@ -507,7 +510,7 @@ Do **not** restart A1 Hub removal, E1 gap audit, C4 craft, or idle plaque pick �
 
 ### D progress (this pass)
 - [x] Build gate recipe still `npm run build` + Debug `dotnet` after product turns
-- [ ] D0 Native-only ship binary lock documented + followed
+- [x] D0 Native-only ship binary lock documented + followed
 - [ ] D2 Windows: Shift+RMB / terminal / ICO / cold-boot LMB / About QC
 - [ ] D3 Sign `fm-launch-readiness.md` on real Windows **BNDZ-Native**
 - [ ] D5 Sign-off protocol followed (logs + Allow/Cancel evidence)

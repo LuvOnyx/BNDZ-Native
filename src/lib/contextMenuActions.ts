@@ -96,20 +96,47 @@ export function resolveSingleTargetPath(menu: ContextMenuState): string {
   return resolveShellPropertiesPath(raw) || toWindowsPath(raw);
 }
 
-/** Native shell verbs already rendered in the custom BNDZ menu — skip duplicates */
+/** Native shell verbs already rendered in the custom BNDZ menu — skip duplicates.
+ *  Keep aligned with ShellContextMenuEnumerator.IsBuiltinVerb (C#). */
 export const BUILT_IN_CONTEXT_VERBS = new Set([
   'open', 'edit', 'openas', 'openwith', 'cut', 'copy', 'paste', 'delete', 'trash',
-  'rename', 'properties', 'settings', 'share', 'grantaccess', 'sendto',
+  'rename', 'properties', 'settings', 'share', 'modernshare', 'grantaccess', 'sendto',
   'copyaspath', 'copypath', 'pintohome', 'pintostartscreen', 'pintotaskbar',
+  // WinRT / namespaced shell32 spellings (Windows.ModernShare → modernshare after bare)
+  'windows.modernshare', 'windows.share',
 ]);
 
 /** Labels BNDZ already paints — skip shell duplicates by display name too. */
 const BUILT_IN_CONTEXT_LABELS = new Set([
   'open', 'open with', 'open with...', 'edit', 'cut', 'copy', 'paste', 'delete',
-  'rename', 'properties', 'share', 'share with', 'give access to', 'give access to...',
-  'send to', 'copy path', 'copy as path', 'copy as path', 'open in new tab',
+  'rename', 'properties', 'share', 'share…', 'share with', 'share with…',
+  'give access to', 'give access to…', 'give access to...',
+  'send to', 'send to…', 'copy path', 'copy as path', 'copy as path…',
+  'open in new tab', 'pin to quick access', 'pin to start', 'pin to taskbar',
   'run as administrator', 'extract', 'extract…', 'quick extract',
 ]);
+
+/** Strip Shell32/WinRT namespace prefixes so Windows.ModernShare matches modernshare. */
+export function bareShellVerb(verb: string | undefined | null): string {
+  const v = (verb || '').trim().toLowerCase();
+  if (!v) return '';
+  const dot = v.lastIndexOf('.');
+  return dot >= 0 ? v.slice(dot + 1) : v;
+}
+
+/** Canonical key for FE↔host builtin dedupe (aliases collapse). */
+export function canonicalBuiltinVerb(verb: string | undefined | null): string | null {
+  const bare = bareShellVerb(verb);
+  if (!bare) return null;
+  if (bare === 'openas' || bare === 'openwith') return 'openwith';
+  if (bare === 'share' || bare === 'modernshare') return 'share';
+  if (bare === 'copyaspath' || bare === 'copypath') return 'copypath';
+  if (bare === 'delete' || bare === 'trash') return 'delete';
+  if (BUILT_IN_CONTEXT_VERBS.has(bare) || BUILT_IN_CONTEXT_VERBS.has((verb || '').trim().toLowerCase())) {
+    return bare;
+  }
+  return null;
+}
 
 export type NativeContextMenuItem = {
   id?: string;
@@ -125,7 +152,7 @@ export type NativeContextMenuItem = {
 };
 
 function nativeItemKey(item: NativeContextMenuItem): string {
-  return (item.id || item.verb || item.label || '').toLowerCase();
+  return bareShellVerb(item.id || item.verb || '') || (item.label || '').toLowerCase();
 }
 
 function nativeItemLabelKey(item: NativeContextMenuItem): string {
@@ -134,6 +161,13 @@ function nativeItemLabelKey(item: NativeContextMenuItem): string {
 
 function isShellCascade(item: NativeContextMenuItem): boolean {
   return Array.isArray(item.children) && item.children.length > 0;
+}
+
+function isBuiltInNativeLeaf(item: NativeContextMenuItem): boolean {
+  const canon = canonicalBuiltinVerb(item.verb) || canonicalBuiltinVerb(item.id);
+  if (canon) return true;
+  const label = nativeItemLabelKey(item);
+  return !!(label && BUILT_IN_CONTEXT_LABELS.has(label));
 }
 
 function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem | null {
@@ -145,18 +179,14 @@ function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem
     if (!kids.length) return null;
     return { ...item, children: kids };
   }
-  // Live IContextMenu extensions — always keep (even without classic verbs).
+  // Live IContextMenu extensions — keep unless they collide with a BNDZ-painted builtin.
   if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId >= 0)) {
-    const v = nativeItemKey(item);
-    const label = nativeItemLabelKey(item);
-    if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return null;
-    if (label && BUILT_IN_CONTEXT_LABELS.has(label)) return null;
+    if (isBuiltInNativeLeaf(item)) return null;
     return item;
   }
+  if (isBuiltInNativeLeaf(item)) return null;
   const v = nativeItemKey(item);
-  const label = nativeItemLabelKey(item);
-  if (!v || BUILT_IN_CONTEXT_VERBS.has(v)) return null;
-  if (label && BUILT_IN_CONTEXT_LABELS.has(label)) return null;
+  if (!v) return null;
   return item;
 }
 

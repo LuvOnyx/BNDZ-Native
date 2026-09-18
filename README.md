@@ -3,60 +3,55 @@
 **Repo:** [LuvOnyx/BNDZ-Native](https://github.com/LuvOnyx/BNDZ-Native)  
 **Classic / official product:** [LuvOnyx/BNDZ-1.0](https://github.com/LuvOnyx/BNDZ-1.0) — leave that line alone.
 
-This repo is the **native + full BNDZ** product: a Files-derived WinUI shell, full `BNDZBackend`, and BNDZ React surfaces hosted as panes — not a nested classic WebView2 FM inside Files.
+**Ship binary:** **`BNDZShell`** only — WinUI greenfield hosting one full BNDZUI WebView2 face with in-process backend. See [BNDZ_NATIVE.md](BNDZ_NATIVE.md).
 
-See [BNDZ_NATIVE.md](BNDZ_NATIVE.md) for the locked architecture.
+`FilesMerge/` (Files WinUI hybrid + `--backend-host` sidecar) is **archived reference** — not the launch gate, not the primary run target.
 
-## Architecture (locked #3)
+## Architecture (locked)
 
 | Layer | Owns |
 |-------|------|
-| **FilesMerge** (WinUI / Files) | Title bar, tabs, sidebar, omnibar, file list |
-| **BNDZBackend** | All services, IPC, plugins brain — no stubs |
-| **React (`src/`)** | Hosted panes only: Automation, Spatial, plugins, Command Deck, preview tools |
+| **BNDZShell** (WinUI) | Caption, tray, single `CraftPaneHost` (`?nativeShell=1`) |
+| **BNDZCore / BndzIpcHost** | In-process services + IPC (no WPF `MainWindow` UI, no `--backend-host` sidecar) |
+| **React (`src/`)** | Full BNDZUI — list, preview, plugins dock, Automation, Spatial, Config |
 
-**Rejected as product:** full-window HWND embed of classic `BNDZ.exe` (`BndzEmbedHost`). Keep for reference only.
+**Rejected as product:** FilesMerge hybrid as ship surface; HWND embed of classic `BNDZ.exe`; multi-WebView chrome islands.
 
 ## Build & run (Windows)
 
-Requires **.NET 10 SDK** + **Windows App SDK** for the WinUI shell. Linux cannot compile Files XAML.
+Requires **.NET 10 SDK** + **Windows App SDK**. Linux cannot compile WinUI XAML.
 
 ```powershell
-# Primary: BNDZ-Native shell + warm backend assets
-powershell -File scripts/build-files-bndz-merge.ps1
-scripts\run-files-merge.cmd
+# Primary: BNDZ-Native
+powershell -File scripts/build-bndz-native.ps1
+scripts\run-bndz-native.cmd
 ```
 
-Backend / React only:
+Backend / React assets only (every product turn):
 
 ```powershell
 npm run build
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 ```
 
-Classic `BNDZ.exe` on this machine (reference): `scripts\run-classic.cmd`
-
-## Phase 1–4 (current)
-
-- FilesMerge is the primary host, branded **BNDZ-Native**
-- Default UX = native Files chrome + file list (no nested classic FM)
-- Shell starts `BNDZ.exe --backend-host` and shows a status chip when the full brain is connected
-- Omnibar toggles host React panes: **Plugins**, **Smart Tools**, **Automation**, **Spatial**, **Hub**, **Config**, **Preview**
-- Plugins dock + BNDZ Preview open by default; pane→shell navigate / Command Deck tools are live
-- Pane UI uses BNDZ craft (soft squircles, aurora chrome) — not nested classic layout
+| Launcher | Role |
+|----------|------|
+| `scripts\run-bndz-native.cmd` | **Product** — `BNDZShell.exe` |
+| `scripts\run-classic.cmd` | Classic WPF reference |
+| `scripts\run-files-merge.cmd` | **Archived** FilesMerge hybrid |
 
 ## Requirements
 
 | Component | Notes |
 |-----------|--------|
 | Windows 10/11 x64 | WinUI shell + backend |
-| .NET 10 + WASDK | FilesMerge |
-| .NET 8 (Windows targeting) | BNDZBackend |
-| Node / npm | React asset build → `BNDZBackend/Assets/ui` |
-| WebView2 | Hosted panes (Phase 3) and classic reference exe |
+| .NET 10 + WASDK | BNDZShell |
+| .NET 8 (Windows targeting) | BNDZBackend / BNDZCore |
+| Node / npm | React asset build → `BNDZBackend/Assets/ui` (+ shell Assets) |
+| WebView2 | Full BNDZUI face |
 
 ## License
 
-Files under `FilesMerge/` — MIT (files-community/Files). BNDZ product code outside that tree — BNDZ license/structure.
+Files under `FilesMerge/` — MIT (files-community/Files), archived reference. BNDZ product code outside that tree — BNDZ license/structure.
 
 © BNDZ. All rights reserved.

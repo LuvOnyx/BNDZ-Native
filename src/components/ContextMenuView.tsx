@@ -73,9 +73,6 @@ interface ContextMenuViewProps {
   addTab: (paneId: string, path: string) => void;
   onOpenBatchRename?: () => void;
   onOpenMeshDrop?: (paths: string[]) => void;
-  onGhostLinkOffload?: (paths: string[]) => void | Promise<void>;
-  onGhostLinkRestore?: (path: string) => void | Promise<void>;
-  onStageToRam?: (paths: string[]) => void | Promise<void>;
   setIsSmartToolsOpen: (v: boolean) => void;
   setToastMessage: (msg: string) => void;
   setInlineRename: (v: { path: string; entityId: string; currentName: string } | null) => void;
@@ -121,7 +118,7 @@ interface ContextMenuViewProps {
 
 function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
-  onOpenBatchRename, onOpenMeshDrop, onGhostLinkOffload, onGhostLinkRestore, onStageToRam, setIsSmartToolsOpen, setToastMessage, setInlineRename,
+  onOpenBatchRename, onOpenMeshDrop, setIsSmartToolsOpen, setToastMessage, setInlineRename,
   setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,

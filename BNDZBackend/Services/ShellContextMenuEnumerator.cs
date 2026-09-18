@@ -428,12 +428,25 @@ internal static class ShellContextMenuEnumerator
         return null;
     }
 
+    /// <summary>
+    /// Verbs BNDZ already paints in the custom menu (must stay aligned with
+    /// <c>BUILT_IN_CONTEXT_VERBS</c> in <c>src/lib/contextMenuActions.ts</c>).
+    /// Share / Give access / Send to / Copy path / Pin were missing and caused
+    /// Shift+RMB weave duplicates when shell extensions re-registered them.
+    /// </summary>
     private static bool IsBuiltinVerb(string? verb)
     {
         if (string.IsNullOrWhiteSpace(verb)) return false;
-        return verb.ToLowerInvariant() is
+        var v = verb.Trim().ToLowerInvariant();
+        // Drop shell32 namespace prefixes (Windows.ModernShare → modernshare, etc.)
+        var bare = v.Contains('.') ? v[(v.LastIndexOf('.') + 1)..] : v;
+        return bare is
             "open" or "edit" or "openas" or "openwith" or "cut" or "copy" or "paste"
-            or "delete" or "rename" or "properties" or "link" or "print" or "runas";
+            or "delete" or "trash" or "rename" or "properties" or "settings"
+            or "link" or "print" or "runas"
+            or "share" or "modernshare" or "grantaccess" or "sendto"
+            or "copyaspath" or "copypath"
+            or "pintohome" or "pintostartscreen" or "pintotaskbar";
     }
 
     /// <summary>
@@ -447,9 +460,15 @@ internal static class ShellContextMenuEnumerator
     {
         if (string.IsNullOrWhiteSpace(verb)) return null;
         var v = verb.Trim().ToLowerInvariant();
-        // "openas"/"openwith" are the same command under different Shell32 verb spellings.
-        if (v is "openas" or "openwith") return "openwith";
-        return IsBuiltinVerb(v) ? v : null;
+        var bare = v.Contains('.') ? v[(v.LastIndexOf('.') + 1)..] : v;
+        // Alias families that Shell32/WinRT spell differently for the same UI command.
+        if (bare is "openas" or "openwith") return "openwith";
+        if (bare is "share" or "modernshare") return "share";
+        if (bare is "copyaspath" or "copypath") return "copypath";
+        if (bare is "delete" or "trash") return "delete";
+        if (bare is "grantaccess") return "grantaccess";
+        if (bare is "sendto") return "sendto";
+        return IsBuiltinVerb(bare) ? bare : null;
     }
 
     /// <summary>
