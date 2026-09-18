@@ -1158,6 +1158,13 @@ export default function BNDZUI() {
         patches.tabBarHeight = 40;
       }
     }
+    // Native-host solid chips need the taller instrument bar; 40px left uncolored tabs stubby vs colored.
+    if ((config.productDefaultsVersion ?? 0) < 4) {
+      patches.productDefaultsVersion = 4;
+      if ((config.tabBarHeight ?? 40) <= 40) {
+        patches.tabBarHeight = 44;
+      }
+    }
     if ((config.productDefaultsVersion ?? 0) < 2) {
       patches.productDefaultsVersion = Math.max(Number(patches.productDefaultsVersion) || 0, 2);
       patches.branchViewStrip = false;
@@ -1740,7 +1747,7 @@ export default function BNDZUI() {
       commandDeck: false,
       appearanceTabStyle: 'explorer',
       visualStyleTabs: 'Classic Explorer',
-      tabBarHeight: 40,
+      tabBarHeight: 44,
       makeSelectedTabBold: true,
     } as any);
   }, [installedPluginIdSet, openBottomPlugin, updateConfig]);

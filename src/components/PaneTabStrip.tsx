@@ -395,7 +395,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
       style={{
         /* Configuration → Tabs → Tab bar height (24–36px) */
         minHeight: tabBarHeight ?? undefined,
-        height: tabBarHeight ? `${tabBarHeight}px` : 'var(--bndz-tab-bar-height, 36px)',
+        height: tabBarHeight ? `${tabBarHeight}px` : 'var(--bndz-tab-bar-height, 44px)',
         background: 'var(--bndz-surface-chrome)',
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',
@@ -488,7 +488,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
 
       {showNewTabButton !== false && (
         <div
-          className={`ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-default text-gray-400 font-bold transition-colors ${
+          className={`ml-1 px-2.5 self-stretch min-h-[calc(var(--bndz-tab-bar-height,44px)-6px)] hover:bg-[#333] rounded-t-[10px] flex items-center justify-center cursor-default text-gray-400 font-bold transition-colors ${
             newTabDropActive ? 'ring-1 ring-inset ring-[#38bdf8]/60 bg-[#333]' : ''
           }`}
           data-new-tab-zone={paneId}
@@ -498,11 +498,11 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
             onAddTab();
           }}
         >
-          <span className="text-[14px] leading-tight">+</span>
+          <span className="text-[16px] leading-none">+</span>
         </div>
       )}
       {showTabListButton && (
-        <div className="ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-default text-gray-400">
+        <div className="ml-1 px-2.5 self-stretch min-h-[calc(var(--bndz-tab-bar-height,44px)-6px)] hover:bg-[#333] rounded-t-[10px] flex items-center justify-center cursor-default text-gray-400">
           <Icons8Icon id="layers_ui" size={12} />
         </div>
       )}

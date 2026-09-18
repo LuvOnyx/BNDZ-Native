@@ -7749,7 +7749,7 @@ html[data-density="spacious"] .nav-tree-row {
   min-width: var(--bndz-tab-min-width, 100px);
   max-width: var(--bndz-tab-max-width, 320px);
   width: max-content;
-  min-height: calc(var(--bndz-tab-bar-height, 40px) - 4px);
+  min-height: calc(var(--bndz-tab-bar-height, 44px) - 2px);
   padding-left: 14px !important;
   padding-right: 12px !important;
   --bndz-tab-slit: var(--accent, #0078d4);
@@ -18419,8 +18419,8 @@ html[data-bndz-shell="native-host"] .bndz-view-mode-btn {
 }
 html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip,
 html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {
-  min-height: var(--bndz-tab-bar-height, 40px) !important;
-  height: var(--bndz-tab-bar-height, 40px);
+  min-height: var(--bndz-tab-bar-height, 44px) !important;
+  height: var(--bndz-tab-bar-height, 44px);
   padding-top: 4px !important;
   padding-left: 6px !important;
   padding-right: 4px !important;
@@ -18431,37 +18431,46 @@ html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {
 html[data-bndz-shell="files-host"] .bndz-tab-item,
 html[data-bndz-shell="native-host"] .bndz-tab-item {
   border-radius: 10px 10px 0 0 !important;
-  min-height: calc(var(--bndz-tab-bar-height, 40px) - 4px) !important;
-  padding: 4px 14px !important;
+  /* Match explorer/soft plaque padding — stubby 4px made default tabs look tiny vs colored. */
+  min-height: calc(var(--bndz-tab-bar-height, 44px) - 2px) !important;
+  padding: 7px 14px 8px !important;
   margin-right: 2px !important;
   font-size: 12.5px !important;
 }
-/* Same full-bleed solid for colored + uncolored — accent only retints the fill + slit */
+/* Same full-bleed chip for colored + uncolored — accent only retints the fill + slit */
 html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active,
 html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active {
-  background: color-mix(in srgb, var(--bndz-surface-raised, #1e222a) 92%, var(--accent, #0078d4) 8%) !important;
+  background: var(--bndz-surface-raised, #252830) !important;
   background-image: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-bottom-color: transparent !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   font-weight: 600;
 }
 html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
 html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
   background: color-mix(
     in srgb,
-    var(--bndz-surface-raised, #1e222a) 78%,
-    var(--bndz-tab-slit, var(--accent, #0078d4)) 22%
+    var(--bndz-surface-raised, #252830) 72%,
+    var(--bndz-tab-slit, var(--accent, #0078d4)) 28%
   ) !important;
   background-image: none !important;
+}
+/* Inactive: same hit box; soft chip body so defaults aren't "slit-only" stubs */
+html[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active),
+html[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active) {
+  background: color-mix(in srgb, var(--bndz-surface-chrome, #1a1c22) 82%, #ffffff 18%) !important;
+  background-image: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-bottom-color: transparent !important;
 }
 /* Inactive colored tabs: same hit box; soft tint fill, not plaque chip */
 html[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
 html[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
   background: color-mix(
     in srgb,
-    transparent 72%,
-    var(--bndz-tab-slit, var(--accent, #0078d4)) 28%
+    var(--bndz-surface-chrome, #1a1c22) 55%,
+    var(--bndz-tab-slit, var(--accent, #0078d4)) 45%
   ) !important;
   background-image: none !important;
 }
@@ -19176,7 +19185,10 @@ html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[da
 
 html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active),
 html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active) {
-  background: transparent !important;
+  background: color-mix(in srgb, #e8ecf2 70%, #ffffff 30%) !important;
+  background-image: none !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-bottom-color: transparent !important;
   color: rgba(15, 23, 42, 0.55) !important;
 }
 html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],

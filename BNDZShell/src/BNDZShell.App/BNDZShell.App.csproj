@@ -92,9 +92,19 @@
     <Delete Files="$(OutputPath)BNDZCore.exe;$(OutputPath)BNDZCore.runtimeconfig.json;$(OutputPath)Microsoft.Web.WebView2.Wpf.dll;$(OutputPath)Microsoft.Web.WebView2.Wpf.xml" ContinueOnError="true" />
   </Target>
 
-  <!-- User-facing exe name is BNDZ.exe (AssemblyName stays BNDZShell to avoid NuGet clash with BNDZ.csproj). -->
-  <Target Name="AliasProductExeAsBndz" AfterTargets="CopyFilesToOutputDirectory">
-    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)BNDZ.exe" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetPath)')" />
-    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFiles="$(TargetDir)BNDZ.pdb" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+  <!--
+    User-facing exe is BNDZ.exe. AssemblyName stays BNDZShell (NuGet clash with BNDZ.csproj).
+    CRITICAL: copy the apphost .exe, never $(TargetPath) — on WinUI SDK builds TargetPath is often
+    the managed .dll, which produced a non-booting BNDZ.exe identical to BNDZShell.dll.
+  -->
+  <Target Name="AliasProductExeAsBndz" AfterTargets="Build">
+    <PropertyGroup>
+      <_BndzShellAppHost>$(TargetDir)$(AssemblyName).exe</_BndzShellAppHost>
+      <_BndzProductExe>$(TargetDir)BNDZ.exe</_BndzProductExe>
+      <_BndzShellPdb>$(TargetDir)$(AssemblyName).pdb</_BndzShellPdb>
+    </PropertyGroup>
+    <Error Text="BNDZShell apphost missing: $(_BndzShellAppHost)" Condition="!Exists('$(_BndzShellAppHost)')" />
+    <Copy SourceFiles="$(_BndzShellAppHost)" DestinationFiles="$(_BndzProductExe)" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" />
+    <Copy SourceFiles="$(_BndzShellPdb)" DestinationFiles="$(TargetDir)BNDZ.pdb" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" Condition="Exists('$(_BndzShellPdb)')" />
   </Target>
 </Project>

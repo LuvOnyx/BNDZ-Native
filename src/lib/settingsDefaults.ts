@@ -670,7 +670,7 @@ export const SETTINGS_VALUE_PATCHES: Record<string, string | number | boolean> =
   maximumNumberOfTabs: 50,
   maximumTabWidthInPixels: 320,
   minimumTabWidthInPixels: 100,
-  tabBarHeight: 40,
+  tabBarHeight: 44,
   allowedNumberOfEntriesInTheActionLog: 100,
   allowedNumberOfItemsPerLoggedAction: 50,
   defaultViewMode: 'details',
