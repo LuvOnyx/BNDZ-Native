@@ -37,11 +37,11 @@ const PLAQUE_SRC: Record<BndzPlaqueTone, ThemePair> = {
   // Destructive / permanent-delete modals — PNG glass alert
   error: { dark: '/plaques/fm-modal-error-dark.png', light: '/plaques/fm-modal-error-light.png' },
   brand: { dark: '/plaques/brand-mark.png', light: '/plaques/brand-mark.png' },
-  question: { dark: '/plaques/access-denied-dark.svg', light: '/plaques/access-denied-light.svg' },
-  // Preview Inspector idle — PNG glass loupe well
+  question: { dark: '/plaques/fm-question-dark.png', light: '/plaques/fm-question-light.png' },
+  // Preview Inspector idle — Fluent magnifier (true alpha)
   panel: { dark: '/plaques/fm-glass-panel-dark.png', light: '/plaques/fm-glass-panel-light.png' },
-  folder: { dark: '/plaques/folder-empty-dark.svg', light: '/plaques/folder-empty-light.svg' },
-  search: { dark: '/plaques/search-empty-dark.svg', light: '/plaques/search-empty-light.svg' },
+  folder: { dark: '/plaques/fm-folder-empty-dark.png', light: '/plaques/fm-folder-empty-light.png' },
+  search: { dark: '/plaques/fm-search-empty-dark.png', light: '/plaques/fm-search-empty-light.png' },
   tabs: { dark: '/plaques/tab-empty.svg', light: '/plaques/tab-empty.svg' },
   transfer: { dark: '/plaques/fm-transfer-dark.svg', light: '/plaques/fm-transfer-light.svg' },
   history: { dark: '/plaques/history-dark.svg', light: '/plaques/history-dark.svg' },

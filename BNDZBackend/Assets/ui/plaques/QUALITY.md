@@ -79,7 +79,17 @@ SVG glass idle/panel → `candidates/superseded-glass-svg/`. Gravity idle/panel 
 | No people | PASS (object/chrome) |
 | `<img>` safe | PASS |
 | NativeDialogShell wash + md plaque hero | wired for alert tones |
-| Native visual QC | ☐ Windows click-through (delete confirm + empties) |
+### Pre-check session (2026-09-18) — Fluent extract wave
+
+| Check | Result |
+|-------|--------|
+| Wired `BndzPlaque` paths resolve (`public/plaques`) | **PASS** |
+| PNG keepers true alpha (corner α=0) | **PASS** idle/panel/warn/error |
+| `public` ↔ `Assets/ui/plaques` sync | **PASS** |
+| Wash = CSS only (no PNG plate behind heroes) | **PASS** |
+| People / skin heuristic | **PASS** — yellow warning triangles trip flesh heuristic (~88%); visual review = object only |
+| `npm run build` + Debug `dotnet` | **PASS** |
+| Native visual QC (delete confirm + empties click-through) | ☐ Windows |
 
 Board: `public/plaques/idle-qc-2026-09-18.html`
 
@@ -102,3 +112,13 @@ AI keepers → `candidates/superseded-ai-gen/`. Raw extracts → `candidates/flu
 | True alpha (corner 0) | PASS |
 | No people | PASS |
 | License | MIT (Fluent Emoji) + attribution in ATTRIBUTION.md |
+
+### Follow-up (2026-09-18) — more Fluent empties
+
+| Surface | Keeper | Source |
+|---------|--------|--------|
+| Folder empty | `fm-folder-empty-*.png` | Fluent Open file folder |
+| Search empty | `fm-search-empty-*.png` | Fluent Magnifying glass tilted right |
+| Question / access | `fm-question-*.png` | Fluent Prohibited |
+
+Gravity SVGs → `candidates/superseded-gravity-empties/`.

@@ -160,8 +160,10 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Wave-2 FM object plaques: `fm-idle-*`, `fm-panel-*`, `fm-transfer-*`; quarantine web/office dumps to `candidates/web-office/`
 - [x] `PluginEmptyState` tone-from-icon (stop blanket `unable-display` reuse)
 - [x] Only after pass: re-point `BndzPlaque` / surfaces; keep `PLAQUE_CONTEXT_MENU_ENABLED=false` until menu density pass
-- [x] **Preview panel idle plaque** — wired to Gravity `unable-to-display-*` (thin `fm-panel-*` → `candidates/superseded-thin/`)
-- [x] **System Properties idle plaque** — wired to Gravity `disk-*` via `tone="idle"` (thin `fm-idle-*` superseded)
+- [x] **Preview panel idle plaque** — Fluent magnifier PNG (`fm-glass-panel-*`); Gravity/AI superseded
+- [x] **System Properties idle plaque** — Fluent Information PNG (`fm-glass-idle-*`)
+- [x] **Modal warn/error heroes** — Fluent Warning (+ Wastebasket for recycle warn); true alpha; CSS wash
+- [x] **Folder / search / question empties** — Fluent Open folder / Magnifier right / Prohibited PNGs
 - [ ] Preview + bottom-plugin empty surfaces re-QC on Native after plaque swap (dark+light click-through)
 
 **Modals / dialogs / panels / tabs**
