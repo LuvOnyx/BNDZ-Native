@@ -297,6 +297,9 @@ public sealed partial class MainWindow : Window
                     return;
                 }
                 args.Cancel = true;
+                // Tear down TermControl/ConPTY overlay BEFORE quit-dialog paint — leftover
+                // EasyTerminalControl + WebView2 on close is the End-Task freeze.
+                try { NativeTerminal.Close(notify: false); } catch { /* ignore */ }
                 try
                 {
                     ChromeHost.PostHostMessage(new
@@ -728,8 +731,6 @@ public sealed partial class MainWindow : Window
     private void HandleNativeTerminalMessage(string? type, JsonElement root)
     {
         if (_launch.IsPlugin) return;
-        JsonElement payload = default;
-        var hasPayload = root.TryGetProperty("payload", out payload);
 
         if (type is "NATIVE_TERMINAL_CLOSE")
         {
@@ -737,69 +738,29 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (type is "NATIVE_TERMINAL_LAYOUT" && hasPayload)
+        if (type is "NATIVE_TERMINAL_LAYOUT")
         {
-            var x = payload.TryGetProperty("x", out var xEl) && xEl.TryGetDouble(out var xd) ? xd : 0;
-            var y = payload.TryGetProperty("y", out var yEl) && yEl.TryGetDouble(out var yd) ? yd : 0;
-            var w = payload.TryGetProperty("width", out var wEl) && wEl.TryGetDouble(out var wd) ? wd : 0;
-            var h = payload.TryGetProperty("height", out var hEl) && hEl.TryGetDouble(out var hd) ? hd : 0;
-            var visible = !payload.TryGetProperty("visible", out var vEl) || vEl.ValueKind != JsonValueKind.False;
-            // Keep hole aligned even before Open — Open will show the control.
-            if (NativeTerminal.HasSession || visible)
-                NativeTerminal.ApplyBounds(x, y, w, h, visible && NativeTerminal.HasSession);
-            else
-                NativeTerminal.ApplyBounds(0, 0, 0, 0, visible: false);
+            // Overlay path retired — keep any leftover control collapsed.
+            NativeTerminal.ApplyBounds(0, 0, 0, 0, visible: false);
             return;
         }
 
-        if (type is "NATIVE_TERMINAL_OPEN" && hasPayload)
+        if (type is "NATIVE_TERMINAL_OPEN")
         {
-            var sessionId = payload.TryGetProperty("sessionId", out var sidEl) && sidEl.ValueKind == JsonValueKind.String
-                ? sidEl.GetString()
-                : $"term-{Guid.NewGuid():N}";
-            var cmd = payload.TryGetProperty("commandLine", out var cmdEl) && cmdEl.ValueKind == JsonValueKind.String
-                ? cmdEl.GetString()
-                : null;
-            var cwd = payload.TryGetProperty("cwd", out var cwdEl) && cwdEl.ValueKind == JsonValueKind.String
-                ? cwdEl.GetString()
-                : null;
-            var label = payload.TryGetProperty("label", out var labEl) && labEl.ValueKind == JsonValueKind.String
-                ? labEl.GetString()
-                : "Local";
-            var x = payload.TryGetProperty("x", out var xEl) && xEl.TryGetDouble(out var xd) ? xd : 0;
-            var y = payload.TryGetProperty("y", out var yEl) && yEl.TryGetDouble(out var yd) ? yd : 0;
-            var w = payload.TryGetProperty("width", out var wEl) && wEl.TryGetDouble(out var wd) ? wd : 0;
-            var h = payload.TryGetProperty("height", out var hEl) && hEl.TryGetDouble(out var hd) ? hd : 0;
-
-            try
+            // Refuse EasyTerminalControl HWND overlay over WebView2 (UI-thread ConPTY freeze).
+            // FE must use MESH_TERMINAL_OPEN → ConPTY → xterm.js.
+            try { NativeTerminal.Close(notify: false); } catch { /* ignore */ }
+            var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+            ChromeHost.PostHostMessage(new
             {
-                NativeTerminal.Open(sessionId!, cmd, cwd, label ?? "Local");
-                if (w >= 24 && h >= 24)
-                    NativeTerminal.ApplyBounds(x, y, w, h, visible: true);
-
-                var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                ChromeHost.PostHostMessage(new
+                type = "NATIVE_TERMINAL_OPEN_RESULT",
+                id,
+                payload = new
                 {
-                    type = "NATIVE_TERMINAL_OPEN_RESULT",
-                    id,
-                    payload = new
-                    {
-                        ok = true,
-                        sessionId,
-                        label = NativeTerminal.Label,
-                    },
-                });
-            }
-            catch (Exception ex)
-            {
-                var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                ChromeHost.PostHostMessage(new
-                {
-                    type = "NATIVE_TERMINAL_OPEN_RESULT",
-                    id,
-                    payload = new { ok = false, error = ex.Message },
-                });
-            }
+                    ok = false,
+                    error = "WinUI TermControl overlay disabled — use ConPTY→xterm (meshTerminalOpen).",
+                },
+            });
         }
     }
 

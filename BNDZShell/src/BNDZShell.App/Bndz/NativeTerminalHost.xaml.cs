@@ -2,13 +2,14 @@ using System.Diagnostics;
 using EasyWindowsTerminalControl;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 
 namespace BNDZShell.Bndz;
 
 /// <summary>
-/// WinUI overlay that hosts a real Windows Terminal TermControl (via EasyTerminalControl)
-/// over the React bottom-plugin hole. Never parented into WebView2.
+/// Legacy WinUI TermControl overlay slot. Creation is disabled — EasyTerminalControl
+/// HWND + ConPTY over WebView2 freezes the UI thread and deadlocks caption Close.
+/// Local shell is ConPTY → xterm.js via MESH_TERMINAL_OPEN. This control only tears down
+/// leftover overlays from older builds.
 /// </summary>
 public sealed partial class NativeTerminalHost : UserControl
 {
@@ -30,6 +31,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// <summary>Position over the React terminal hole (CSS/DIP coords from WebView).</summary>
 	public void ApplyBounds(double x, double y, double width, double height, bool visible)
 	{
+		_ = (x, y);
 		if (!visible || width < 24 || height < 24)
 		{
 			Visibility = Visibility.Collapsed;
@@ -37,53 +39,25 @@ public sealed partial class NativeTerminalHost : UserControl
 			return;
 		}
 
-		Margin = new Thickness(Math.Max(0, x), Math.Max(0, y), 0, 0);
-		Width = width;
-		Height = height;
-		Visibility = Visibility.Visible;
-		IsHitTestVisible = true;
+		// Never show — overlay path is retired.
+		Visibility = Visibility.Collapsed;
+		IsHitTestVisible = false;
 	}
 
+	/// <summary>
+	/// Retired: EasyTerminalControl HWND + ConPTY over WebView2 freezes the UI thread
+	/// and deadlocks caption Close. Local shell is ConPTY → xterm via MESH_TERMINAL_OPEN.
+	/// </summary>
 	public void Open(
 		string sessionId,
 		string? commandLine,
 		string? workingDirectory,
 		string label)
 	{
-		if (string.IsNullOrWhiteSpace(sessionId))
-			throw new ArgumentException("sessionId required", nameof(sessionId));
-		if (string.IsNullOrWhiteSpace(commandLine))
-			commandLine = BuildLocalCommandLine(workingDirectory);
-		else if (!string.IsNullOrWhiteSpace(workingDirectory)
-			&& Directory.Exists(workingDirectory)
-			&& !LooksLikeSsh(commandLine))
-		{
-			// Packaged EasyTerminalControl lacks WorkingDirectory DP — bake cwd into shell args.
-			commandLine = BuildLocalCommandLine(workingDirectory, commandLine);
-		}
-
+		_ = (sessionId, commandLine, workingDirectory, label);
 		Close(notify: false);
-
-		_sessionId = sessionId;
-		_label = string.IsNullOrWhiteSpace(label) ? "Local" : label.Trim();
-
-		var term = new EasyTerminalControl
-		{
-			StartupCommandLine = commandLine,
-			Win32InputMode = true,
-			FontFamilyWhenSettingTheme = new FontFamily("Cascadia Mono"),
-			FontSizeWhenSettingTheme = 13,
-			InputCapture = EasyTerminalControl.INPUT_CAPTURE.TabKey | EasyTerminalControl.INPUT_CAPTURE.DirectionKeys,
-			HorizontalAlignment = HorizontalAlignment.Stretch,
-			VerticalAlignment = VerticalAlignment.Stretch,
-		};
-
-		TermSlot.Children.Clear();
-		TermSlot.Children.Add(term);
-		_term = term;
-
-		Visibility = Visibility.Visible;
-		IsHitTestVisible = true;
+		throw new InvalidOperationException(
+			"WinUI TermControl overlay disabled — use ConPTY→xterm (meshTerminalOpen).");
 	}
 
 	public void Close(bool notify = true)
@@ -140,9 +114,6 @@ public sealed partial class NativeTerminalHost : UserControl
 		var escaped = cwd.Replace("'", "''", StringComparison.Ordinal);
 		return $"{shell} -NoLogo -NoExit -Command \"Set-Location -LiteralPath '{escaped}'\"";
 	}
-
-	private static bool LooksLikeSsh(string commandLine) =>
-		commandLine.TrimStart().StartsWith("ssh", StringComparison.OrdinalIgnoreCase);
 
 	private static string? FindOnPath(string fileName)
 	{

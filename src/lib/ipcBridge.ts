@@ -666,8 +666,8 @@ export const IPC = {
   },
 
   /**
-   * BNDZShell: open a real WinUI TermControl overlay over the plugin hole.
-   * Classic WPF host keeps meshTerminalOpen → xterm.
+   * @deprecated WinUI EasyTerminalControl overlay over WebView2 freezes the host.
+   * Local shell uses meshTerminalOpen → ConPTY → xterm.js. These no-op safely.
    */
   nativeTerminalOpen(opts: {
     sessionId?: string;
@@ -679,23 +679,11 @@ export const IPC = {
     width?: number;
     height?: number;
   }): Promise<{ ok: boolean; sessionId?: string; label?: string; error?: string }> {
-    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
-    const id = `${Date.now()}_nativeTerm`;
-    return _nativeCall<any>('NATIVE_TERMINAL_OPEN', 'NATIVE_TERMINAL_OPEN_RESULT', id, {
-      sessionId: opts.sessionId || `term-${Date.now().toString(36)}`,
-      commandLine: opts.commandLine,
-      cwd: opts.cwd,
-      label: opts.label,
-      x: opts.x ?? 0,
-      y: opts.y ?? 0,
-      width: opts.width ?? 0,
-      height: opts.height ?? 0,
-    }, 60000).then((r) => ({
-      ok: r?.ok !== false && !r?.error,
-      sessionId: r?.sessionId,
-      label: r?.label,
-      error: r?.error ? String(r.error) : undefined,
-    }));
+    void opts;
+    return Promise.resolve({
+      ok: false,
+      error: 'WinUI TermControl overlay disabled — use ConPTY→xterm (meshTerminalOpen).',
+    });
   },
 
   nativeTerminalLayout(opts: {
@@ -705,16 +693,11 @@ export const IPC = {
     height: number;
     visible: boolean;
   }): void {
-    if (!this.isNative) return;
-    try {
-      (window as any).chrome.webview.postMessage({
-        type: 'NATIVE_TERMINAL_LAYOUT',
-        payload: opts,
-      });
-    } catch { /* ignore */ }
+    void opts;
   },
 
   nativeTerminalClose(): void {
+    // Host may still hold a leftover TermControl from older builds — ask it to tear down.
     if (!this.isNative) return;
     try {
       (window as any).chrome.webview.postMessage({ type: 'NATIVE_TERMINAL_CLOSE', payload: {} });
@@ -1876,8 +1859,8 @@ export const IPC = {
     workingDir?: string,
     shell?: { useCustom?: boolean; interpreter?: string; args?: string },
   ) {
-    // BNDZ-Native: Open Terminal → in-app WinUI TermControl (Mesh Local), not external cmd.exe.
-    // D2 gate is Native first paint — routing here keeps toolbar/context/menubar on one path.
+    // BNDZ-Native: Open Terminal → bottom Remote Local hole (ConPTY → xterm.js).
+    // Never EasyTerminalControl HWND overlay — that freezes WebView2 + caption Close.
     if (action === 'openTerminal') {
       try {
         const sp = new URLSearchParams(window.location.search);
