@@ -62,6 +62,48 @@ function Stop-BndzLockingProcesses {
 
 Stop-BndzLockingProcesses
 
+function Clear-CorruptDotnetIntermediates {
+    <#
+    Windows often leaves null-padded BNDZ.AssemblyInfo.cs under obj\ after an interrupted
+    build, OneDrive/AV lock, or crashed MSBuild — C# then dies with CS1056 Unexpected '\0'.
+    Drop those generated files (and the whole obj tree if any hit) so the next build regenerates.
+    #>
+    $roots = @(
+        (Join-Path $root "BNDZBackend"),
+        (Join-Path $root "BNDZCore"),
+        (Join-Path $root "BNDZShell\src\BNDZShell.App"),
+        (Join-Path $root "BNDZShell\src\BNDZCore")
+    )
+    $scrubbed = 0
+    foreach ($projRoot in $roots) {
+        $obj = Join-Path $projRoot "obj"
+        if (-not (Test-Path $obj)) { continue }
+        $bad = @()
+        Get-ChildItem -Path $obj -Recurse -File -Filter "*AssemblyInfo.cs" -EA SilentlyContinue | ForEach-Object {
+            try {
+                $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+                if ($bytes.Length -eq 0 -or ($bytes -contains 0)) { $bad += $_.FullName }
+            } catch {
+                $bad += $_.FullName
+            }
+        }
+        # Also catch zero-length / garbage .cs in obj that break Compile
+        Get-ChildItem -Path $obj -Recurse -File -Filter "*.cs" -EA SilentlyContinue | ForEach-Object {
+            if ($_.Length -eq 0) { $bad += $_.FullName }
+        }
+        if ($bad.Count -eq 0) { continue }
+        Write-Host "  corrupt intermediates under $obj ($($bad.Count) file(s)) — wiping obj" -ForegroundColor DarkYellow
+        Remove-Item -LiteralPath $obj -Recurse -Force -ErrorAction SilentlyContinue
+        $scrubbed++
+    }
+    if ($scrubbed -eq 0) {
+        Write-Host "  intermediates clean" -ForegroundColor DarkGreen
+    }
+}
+
+Write-Host "==> Scrub corrupt obj intermediates (CS1056 null AssemblyInfo)" -ForegroundColor Cyan
+Clear-CorruptDotnetIntermediates
+
 function Ensure-BndzShellMsixAssets {
     $assetsDir = Join-Path $root "BNDZShell\src\BNDZShell.App\Assets"
     $iconPath = Join-Path $root "BNDZBackend\Assets\BNDZ.ico"
@@ -151,7 +193,14 @@ Sync-UiAssetsToShellOutput
 
 Write-Host "==> BNDZBackend (services + embedded host)" -ForegroundColor Cyan
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
-if ($LASTEXITCODE -ne 0) { throw "BNDZBackend build failed" }
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  BNDZBackend failed — force-clean obj/bin and retry once (CS1056 / stale intermediates)" -ForegroundColor DarkYellow
+    Remove-Item -Recurse -Force (Join-Path $root "BNDZBackend\obj") -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force (Join-Path $root "BNDZBackend\bin") -ErrorAction SilentlyContinue
+    Clear-CorruptDotnetIntermediates
+    dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true --no-incremental
+    if ($LASTEXITCODE -ne 0) { throw "BNDZBackend build failed" }
+}
 
 Write-Host "==> BNDZShell WinUI x64" -ForegroundColor Cyan
 dotnet build BNDZShell/src/BNDZShell.App/BNDZShell.App.csproj -c Debug -p:Platform=x64
