@@ -139,7 +139,8 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Uninstalled plugin toast points to Extension Hub (not “Plugin Store”)
 - [x] Multi-res `BNDZ.ico` (16–256 incl. 20/24/60) synced public ↔ ApplicationIcon; gen script relative + 9 sizes
 - [x] Wave A2 absorb remaps + host tabs in code (Magnets/Encode/Intake/Policies/Capacity/Health/Diff/Vault/Groups) — **Windows smoke still required**
-- [ ] A1 residue scrub — no RAM/Design Board resurrect via Hub/Deck/menus/FilesMerge catalog; nested PluginStatCard ban
+- [ ] A1 residue scrub — plugin `.tsx` quarantined; BNDZUI RAM tree chrome scrubbed; **Windows confirm** no resurrect; idle plaques still open
+- [ ] **Missing idle art:** Preview Inspector idle + System Properties (bottom panel) empty plaques — pick/replace keepers (see Native plaques section)
 - [ ] D0 ship binary = BNDZ-Native only (readiness signed on Native, not FilesMerge)
 - [ ] D2/D3 Windows sign-off: Shift+RMB no dupes; Native terminal first paint; E4.1–E4.14; DnD 46–58; full `fm-launch-readiness.md`
 - [ ] D2 taskbar ICO crisp at 16/32/48; About/Register visual QC; sidebar cold-boot LMB re-verify
@@ -159,6 +160,9 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [x] Wave-2 FM object plaques: `fm-idle-*`, `fm-panel-*`, `fm-transfer-*`; quarantine web/office dumps to `candidates/web-office/`
 - [x] `PluginEmptyState` tone-from-icon (stop blanket `unable-display` reuse)
 - [x] Only after pass: re-point `BndzPlaque` / surfaces; keep `PLAQUE_CONTEXT_MENU_ENABLED=false` until menu density pass
+- [ ] **Preview panel idle plaque** (`RightPreviewPanel` → `tone="panel"` / `fm-panel-*`) — current art thin or wrong; **pick/replace** from `candidates/` via review board → QUALITY → wire
+- [ ] **System Properties idle plaque** (bottom plugin `PluginEmptyState` → `tone="idle"` / `fm-idle-*`) — same: **pick/replace** keeper for no-selection empty
+- [ ] Preview + bottom-plugin empty surfaces re-QC on Native after plaque swap (no broken `<img>`, dark+light)
 
 **Modals / dialogs / panels / tabs**
 - [x] Re-wire only after keeper promotion (current UI still on legacy paths — treat as temporary)
@@ -166,6 +170,7 @@ Goal: every UI surface, plugin, menu, and feature feels shippable — keep expan
 - [ ] Context menus: wire **iff** density pass; else Icons8 + CSS
 
 **Done when:** keepers pass QUALITY; tabs included; builds green; no DnD/list regression.
+- Preview idle + System Properties idle plaques specifically signed after replace/pick.
 
 
 Shipped earlier:

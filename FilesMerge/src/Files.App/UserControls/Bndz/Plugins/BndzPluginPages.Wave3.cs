@@ -304,8 +304,7 @@ internal static class BndzPluginPageFactory
 		["catalog"] = () => new BndzCatalogPage(),
 		["action-log"] = () => new BndzActionLogPage(),
 		["compare"] = () => new BndzComparePage(),
-		["ghost-link"] = () => new BndzGhostLinkPage(),
-		["ram-staging"] = () => new BndzRamStagingPage(),
+		// Launch Ready A1: ghost-link / ram-staging removed from catalog — do not re-register.
 		["icon-studio"] = () => new BndzMarketplacePluginPage("icon-studio", "Icon Studio", "FolderIco-style icon libraries.", "ICON_STUDIO_LIST_LIBRARIES", "ICON_STUDIO_APPLY"),
 		["remote-mesh"] = () => new BndzMarketplacePluginPage("remote-mesh", "Remote Mesh", "SSH/SFTP mesh browsing and deploy.", "MESH_LIST_HOSTS", "MESH_CONNECT"),
 		["project-sandbox"] = () => new BndzMarketplacePluginPage("project-sandbox", "Project Sandbox", "Isolated sandbox sessions.", "PROJECT_SANDBOX_LIST", "PROJECT_SANDBOX_CREATE"),

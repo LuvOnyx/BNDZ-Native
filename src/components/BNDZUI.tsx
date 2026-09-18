@@ -830,8 +830,7 @@ export default function BNDZUI() {
   const [workspaceToolsExpanded, setWorkspaceToolsExpanded] = useState(true);
   const [externalDragActive, setExternalDragActive] = useState(false);
   const [externalDragPaths, setExternalDragPaths] = useState<string[]>([]);
-  const [ramStagingExpanded, setRamStagingExpanded] = useState(true);
-  const [ghostColdExpanded, setGhostColdExpanded] = useState(false);
+  // Launch Ready A1: no sidebar RAM/Ghost tree chrome — zones only used to hide mount letters from This PC.
   const [sidebarRamZones, setSidebarRamZones] = useState<{ id: string; name: string; isDirty?: boolean; driveLetter?: string }[]>([]);
   const lastFolderIntentRef = useRef<string>('');
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
@@ -6248,7 +6247,6 @@ ${classified.detail}`,
       if (typeof parsed.libraries === 'boolean') setLibrariesExpanded(parsed.libraries);
       if (typeof parsed.smartViews === 'boolean') setSmartViewsExpanded(parsed.smartViews);
       if (typeof parsed.workspaceTools === 'boolean') setWorkspaceToolsExpanded(parsed.workspaceTools);
-      if (typeof parsed.ramStaging === 'boolean') setRamStagingExpanded(parsed.ramStaging);
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.rememberStateOfTree]);
@@ -6260,10 +6258,9 @@ ${classified.detail}`,
         libraries: librariesExpanded,
         smartViews: smartViewsExpanded,
         workspaceTools: workspaceToolsExpanded,
-        ramStaging: ramStagingExpanded,
       }));
     } catch { /* ignore */ }
-  }, [librariesExpanded, smartViewsExpanded, workspaceToolsExpanded, ramStagingExpanded, config.rememberStateOfTree]);
+  }, [librariesExpanded, smartViewsExpanded, workspaceToolsExpanded, config.rememberStateOfTree]);
 
   const [destinationPicker, setDestinationPicker] = useState<{ mode: 'copy' | 'move'; sources: string[] } | null>(null);
   const [tabFileDropTarget, setTabFileDropTarget] = useState<{ paneId: string; tabIndex: number } | null>(null);
@@ -6915,7 +6912,6 @@ ${classified.detail}`,
     wslRootNode, wslDistroNodes,
     linuxExpanded, librariesExpanded, smartViewsExpanded, workspaceToolsExpanded, config.navTreeOrder,
     config.meshShowInNavTree, meshHosts, meshExpanded, refreshNetworkLocations,
-    ramStagingExpanded, ghostColdExpanded, sidebarRamZones, config.ghostLinkColdStorageRoot,
     installedPluginIdSet,
   ]);
 

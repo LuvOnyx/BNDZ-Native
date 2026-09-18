@@ -34,8 +34,6 @@ type WorkspaceConfig = {
   meshDropLanDiscovery?: boolean;
   meshDropWebLinkBase?: string;
   meshDropSignalingRelayUrl?: string;
-  ghostLinkColdStorageRoot?: string;
-  ramStagingPreferImDisk?: boolean;
   spatialCanvasAutoSave?: boolean;
   spatialCanvasAutoSaveDelayMs?: number;
   spatialCanvasWheelZoom?: boolean;
@@ -53,16 +51,6 @@ type WorkspaceConfig = {
   automationZoomOnScroll?: boolean;
 };
 
-type GhostStats = { ruleCount: number; ghostCount: number; bytesReclaimed: number };
-type RamZone = {
-  id: string;
-  name: string;
-  kind: string;
-  sizeBudgetMb: number;
-  usedBytes: number;
-  stagedFileCount: number;
-  isDirty: boolean;
-};
 type SyncJob = {
   id: string;
   name: string;
@@ -105,10 +93,6 @@ export default function WorkspaceToolsTabContent({
   const [busy, setBusy] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [ghostStats, setGhostStats] = useState<GhostStats>({ ruleCount: 0, ghostCount: 0, bytesReclaimed: 0 });
-  const [ghostRecent, setGhostRecent] = useState<Array<{ path: string; bytesSaved: number }>>([]);
-  const [ramZones, setRamZones] = useState<RamZone[]>([]);
-  const [ramStatus, setRamStatus] = useState<{ imDiskAvailable?: boolean }>({});
   const [syncJobs, setSyncJobs] = useState<SyncJob[]>([]);
   const [toolLoading, setToolLoading] = useState(false);
   const [recentBoards, setRecentBoards] = useState<Array<{ id: string; name: string; pinCount: number; active: boolean }>>([]);
@@ -128,37 +112,6 @@ export default function WorkspaceToolsTabContent({
     const [r, h] = await Promise.all([IPC.meshGetSyncRules(), IPC.meshListHosts()]);
     setRules(r as MeshSyncRule[]);
     setHosts((h as Record<string, unknown>[]).map(normalizeMeshHost));
-  }, []);
-
-  const refreshGhost = useCallback(async () => {
-    const s = await IPC.ghostLinkGetStats();
-    const raw = (s.stats || {}) as Record<string, unknown>;
-    setGhostStats({
-      ruleCount: Number(raw.ruleCount ?? raw.RuleCount ?? 0),
-      ghostCount: Number(raw.ghostCount ?? raw.GhostCount ?? 0),
-      bytesReclaimed: Number(raw.bytesReclaimed ?? raw.BytesReclaimed ?? 0),
-    });
-    const ghosts = (s.ghosts || []) as Array<Record<string, unknown>>;
-    setGhostRecent(ghosts.slice(0, 5).map(g => ({
-      path: String(g.path ?? g.Path ?? g.originalPath ?? ''),
-      bytesSaved: Number(g.bytesSaved ?? g.BytesSaved ?? 0),
-    })).filter(g => g.path));
-  }, []);
-
-  const refreshRam = useCallback(async () => {
-    const res = await IPC.ramStagingListZones();
-    const zones = (res.zones || []) as Array<Record<string, unknown>>;
-    setRamZones(zones.map(z => ({
-      id: String(z.id ?? z.Id ?? ''),
-      name: String(z.name ?? z.Name ?? 'Zone'),
-      kind: String(z.kind ?? z.Kind ?? 'folder'),
-      sizeBudgetMb: Number(z.sizeBudgetMb ?? z.SizeBudgetMb ?? 0),
-      usedBytes: Number(z.usedBytes ?? z.UsedBytes ?? 0),
-      stagedFileCount: Number(z.stagedFileCount ?? z.StagedFileCount ?? 0),
-      isDirty: !!(z.isDirty ?? z.IsDirty),
-    })).filter(z => z.id));
-    const st = (res.status || {}) as Record<string, unknown>;
-    setRamStatus({ imDiskAvailable: !!(st.imDiskAvailable ?? st.ImDiskAvailable) });
   }, []);
 
   const refreshSync = useCallback(async () => {
@@ -247,11 +200,6 @@ export default function WorkspaceToolsTabContent({
 
   const removeRule = (id: string) => {
     setRules(prev => prev.filter(r => r.id !== id));
-  };
-
-  const pickColdRoot = async () => {
-    const dest = await IPC.openFolderDialog('Choose cold storage root');
-    if (dest) updateLocalConfig({ ghostLinkColdStorageRoot: toWindowsPath(dest) });
   };
 
   const pickMirrorLocal = async (index: number) => {

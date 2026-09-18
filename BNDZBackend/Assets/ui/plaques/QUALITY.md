@@ -58,3 +58,11 @@ Board: `public/plaques/qc.html`
 ### Follow-up (2026-09-15)
 - Quarantined people art in `warning.svg` / `void.svg` → `candidates/undraw-with-people/`.
 - Replaced wired warn keeper with object-only `document-warning.svg` published as `warning.svg`.
+
+### Follow-up (2026-09-18) — idle plaques need pick/replace
+| Surface | Wired today | Issue | Next |
+|---------|-------------|-------|------|
+| Preview Inspector idle | `fm-panel-dark/light.svg` via `BndzPlaque tone="panel"` | Thin custom scene — user reports missing / wrong art | Pick from `candidates/gravity-ui/unable-to-display-*.svg` or richer FM panel; review board → QUALITY → wire |
+| System Properties idle (bottom panel) | `fm-idle-dark/light.svg` via `PluginEmptyState` → `tone="idle"` | Same — replace/pick | Review board → QUALITY → wire; QC dark+light on Native |
+
+Do **not** re-wire until keepers pass QUALITY checklist (no people, readable at `lg`/`sm`, `<img>`-safe).

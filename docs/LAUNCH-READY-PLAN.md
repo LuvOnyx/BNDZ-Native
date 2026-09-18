@@ -77,16 +77,20 @@ Hub catalog no longer installs Staging / Design Board — **but residue remains 
 
 | Residue | Action |
 |---------|--------|
-| `RamStagingPlugin.tsx` / `GhostLinkPlugin.tsx` / `DesignBoardPlugin.tsx` | Quarantine or delete; must not reappear via Hub / Deck / menus |
-| `BNDZUI` RAM zone list / `ramStaging*` IPC / path remaps | Scrub user-visible chrome; keep dead IPC only if harmless and unreachable |
+| `RamStagingPlugin.tsx` / `GhostLinkPlugin.tsx` / `DesignBoardPlugin.tsx` | **Quarantined** → `src/components/plugins/_a1_quarantine/` |
+| `BNDZUI` RAM zone list / `ramStaging*` IPC / path remaps | Tree expand chrome scrubbed; zones still filter mount letters from This PC; path remaps kept for leftover tabs |
 | FilesMerge `BndzPluginCatalog` still listing `ram-staging` | **Done** — ghost-link / ram-staging removed from DefaultInstalled + Marketplace + Deck map |
+| FilesMerge `BndzPluginPageFactory` | **Done** — ghost-link / ram-staging ctors removed |
 | Ghost→RAM “must-move” rows in `PLUGINS-TODO-BEFORE-LAUNCH.MD` | Strike — superseded by 1.A remove (do not professionalize Staging) |
-| Nested absorb children using `PluginStatCard` SaaS strips | **Partial** — RealityCheck / SemanticDesk → `PluginOpsMeter`; Ram/Ghost still quarantined |
+| Nested absorb children using `PluginStatCard` SaaS strips | **Partial** — RealityCheck / SemanticDesk → `PluginOpsMeter`; Ram/Ghost quarantined |
+| **Preview idle + System Properties idle plaques** | Current `fm-panel-*` / `fm-idle-*` too thin or wrong — **pick/replace** from `public/plaques/candidates/` (review → QUALITY → wire). Tracked in `to-do.md` Native plaques. |
 
 - [x] FilesMerge catalog no longer resurrects Staging / Ghost Link
 - [x] Nested absorb embeds (RealityCheck / SemanticDesk) off `PluginStatCard`
-- [ ] A1 residue scrub complete (plugin `.tsx` quarantine/delete + BNDZUI RAM chrome)
-- [x] No `PluginStatCard` farm in RealityCheck / SemanticDesk absorb children
+- [x] Plugin `.tsx` quarantined under `_a1_quarantine/`
+- [x] BNDZUI RAM/Ghost tree expand chrome scrubbed; Workspace Tools dead Ghost/RAM refresh removed
+- [ ] Preview + System Properties idle plaques replaced / QC'd
+- [ ] A1 residue scrub complete (final Windows confirm no resurrect)
 
 | Leftover **Ghost-*** user-facing strings | Scrub product copy (menus, Deck, automation labels, transfer queue names) even where code embeds remain. |
 
@@ -368,12 +372,13 @@ Not required to flip every readiness row, but required before public “ship”:
 ## Execution order (all tracks — how we run it)
 
 ```text
-DONE   A1 Hub drop Staging/Design Board (residue scrub still open)
+DONE   A1 Hub drop Staging/Design Board
+DONE   A1 residue quarantine (plugin .tsx + FilesMerge factory + BNDZUI tree chrome)
 DONE   A3 host craft / E1 ops suite / F boot+index (code)
 DONE   Tabs / Home rename / About de-AI / ops elevation QC
 DONE   C4  Outside OLE ghost craft + inbound list FluidDrag ghost (code)
-NEXT   Post-C4 DnD matrix 46–58 + ole-dnd.log proof (Windows)
-THEN   Finish A1 residue (quarantine plugin .tsx + BNDZUI RAM chrome)
+NEXT   Idle plaque pick/replace (Preview panel + System Properties)
+THEN   Post-C4 DnD matrix 46–58 + ole-dnd.log proof (Windows)
 THEN   A2 Windows absorb smoke (each host tab once)
 THEN   E4.1–E4.14 live UAC / collision / Shell Integration
 THEN   D2 leftovers (Shift+RMB, terminal, ICO, cold-boot LMB)
@@ -450,11 +455,11 @@ All of the following must be true — **none optional**:
 
 ## Immediate next execution slice (when you say go)
 
-1. **Windows** — Post-C4 DnD matrix **46–58** + `ole-dnd.log` (outbound-ghost show; inbound FluidDrag arm; no commit regression)  
-2. **A1 residue finish** — quarantine/delete RamStaging / GhostLink / DesignBoard `.tsx` + scrub BNDZUI RAM chrome  
-3. **A2** Windows absorb smoke + **E4** live UAC/collision + **D2/D3** sign-off  
+1. **Idle plaque pick/replace** — Preview Inspector idle (`fm-panel-*`) + System Properties no-selection (`fm-idle-*`); review board → QUALITY → wire  
+2. **Windows** — Post-C4 DnD matrix **46–58** + `ole-dnd.log`; then A2 / E4 / D2–D3  
+3. Final A1 Windows confirm — no Staging/Design Board resurrect  
 
-Do **not** restart A1 Hub removal, E1 gap audit, or C4 craft from scratch — those are done; residue + Windows verify remain.
+Do **not** restart A1 Hub removal, E1 gap audit, or C4 craft from scratch — those are done; plaques + Windows verify remain.
 
 ---
 
