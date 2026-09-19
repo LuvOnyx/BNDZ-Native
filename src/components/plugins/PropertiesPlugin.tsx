@@ -451,7 +451,6 @@ export default function PropertiesPlugin({
         <div className="flex-1 w-full flex flex-col overflow-hidden min-h-0">
             <PluginHeroStrip
                 icon={
-                    // Settings → Show embedded icons on Properties tab
                     config?.showEmbeddedIconsOnPropertiesTab !== false ? (
                     <PreviewHeroIcon
                         path={heroIconPath}

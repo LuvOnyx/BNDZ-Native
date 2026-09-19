@@ -226,6 +226,14 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
 
   const usableThumb = useThumbnail && thumbSrc && !thumbBroken ? thumbSrc : null;
   const usableShell = shellSrc && !shellBroken ? shellSrc : null;
+
+  // Folder thumb null/miss → re-boost shell so the row never stays on IconPlaceholder.
+  useEffect(() => {
+    if (!isVisible || !path || !dirFlag || !folderThumbs) return;
+    if (usableThumb || !shellFetchEnabled) return;
+    void requestNativeIcon(path, dirFlag, 'shell', requestPx, 1000);
+  }, [isVisible, path, dirFlag, folderThumbs, usableThumb, shellFetchEnabled, requestPx]);
+
   const isSvgFile = ext === 'svg' || ext === 'svgz';
   // Shell-first paint; upgrade to CAS thumb when ready — except SVG, which stays
   // on inline vector so we never show upside-down Skia PNGs in the list.

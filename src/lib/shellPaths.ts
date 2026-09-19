@@ -25,6 +25,8 @@ export const SHELL_CLSID = {
   portableDevices: '::{35786D3C-B076-497C-A057-7DCC04A3D85}',
   /** Personal OneDrive shell folder — FS path alone yields a generic yellow folder. */
   oneDrive: '::{018D5C66-4533-4307-9B53-224DE2ED1FE6}',
+  /** User profile — parsing name shell:Profile (FOLDERID_Profile CLSID fails SHParseDisplayName). */
+  profile: 'shell:Profile',
 } as const;
 
 /** Canonical virtual pane path for Control Panel */
@@ -210,6 +212,7 @@ export function resolveShellIconPath(path: string | null | undefined): string {
       if (token.toLowerCase() === 'shell:libraries') return SHELL_CLSID.libraries;
       if (token.toLowerCase() === 'shell:controlpanel') return SHELL_CLSID.controlPanel;
       if (token.toLowerCase() === 'shell:portabledevices') return SHELL_CLSID.portableDevices;
+      if (token.toLowerCase() === 'shell:profile' || token.toLowerCase() === 'shell:home') return SHELL_CLSID.profile;
       return token;
     }
     const folderToken = `shell:${rest.slice(0, slash)}`;

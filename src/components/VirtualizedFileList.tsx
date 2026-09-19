@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { packGridTracks } from '../lib/viewModeMetrics';
 
 /** Trailing empty canvas so deselect / marquee / folder context stay reachable when the list is full. */
-export const LIST_FOLDER_CONTEXT_PAD_PX = 140;
+export const LIST_FOLDER_CONTEXT_PAD_PX = 280;
 
 interface VirtualizedFileListProps<T> {
   items: T[];
@@ -164,8 +164,23 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
 
   if (!items.length) {
     return (
-      <div ref={hostRef} className="w-full min-h-0" style={scrollMinHeight ? { minHeight: scrollMinHeight } : undefined}>
+      <div
+        ref={hostRef}
+        className="w-full min-h-0 relative"
+        style={scrollMinHeight ? { minHeight: scrollMinHeight } : undefined}
+      >
         {emptyState ?? null}
+        {/* Full-pane hit target so New Folder context works on empty folders */}
+        <div
+          className="bndz-list-empty-canvas"
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            minHeight: Math.max(scrollMinHeight || 0, LIST_FOLDER_CONTEXT_PAD_PX),
+            width: '100%',
+          }}
+        />
       </div>
     );
   }
@@ -220,7 +235,12 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
           <div
             className="bndz-list-empty-canvas"
             aria-hidden
-            style={{ flex: '1 1 auto', minHeight: LIST_FOLDER_CONTEXT_PAD_PX, width: '100%' }}
+            data-bndz-list-bg-hit="1"
+            style={{
+              flex: '1 1 auto',
+              minHeight: Math.max(LIST_FOLDER_CONTEXT_PAD_PX, (scrollMinHeight || 0) - items.length * rowHeight),
+              width: '100%',
+            }}
           />
         </div>
       );

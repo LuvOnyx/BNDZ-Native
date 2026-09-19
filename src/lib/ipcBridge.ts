@@ -761,6 +761,67 @@ export const IPC = {
     };
   },
 
+  nativeTerminalHandoffDeposit(): Promise<{ ok: boolean; sessionId?: string; label?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_termHandoffDep`;
+    return _nativeCall<any>('NATIVE_TERMINAL_HANDOFF_DEPOSIT', 'NATIVE_TERMINAL_HANDOFF_DEPOSIT_RESULT', id, {}, 10000).then((r) => ({
+      ok: r?.ok === true,
+      sessionId: r?.sessionId ? String(r.sessionId) : undefined,
+      label: r?.label ? String(r.label) : undefined,
+      error: r?.error ? String(r.error) : undefined,
+    }));
+  },
+
+  nativeTerminalHandoffAdopt(): Promise<{ ok: boolean; sessionId?: string; label?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_termHandoffAd`;
+    return _nativeCall<any>('NATIVE_TERMINAL_HANDOFF_ADOPT', 'NATIVE_TERMINAL_HANDOFF_ADOPT_RESULT', id, {}, 10000).then((r) => ({
+      ok: r?.ok === true,
+      sessionId: r?.sessionId ? String(r.sessionId) : undefined,
+      label: r?.label ? String(r.label) : undefined,
+      error: r?.error ? String(r.error) : undefined,
+    }));
+  },
+
+  onNativeTerminalLeaveView(cb: (info: { sessionId?: string; label?: string }) => void): () => void {
+    const handler = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data?.type !== 'NATIVE_TERMINAL_LEAVE_VIEW') return;
+        const p = data?.payload || {};
+        cb({
+          sessionId: p.sessionId || p.SessionId,
+          label: p.label || p.Label,
+        });
+      } catch { /* ignore */ }
+    };
+    try { (window as any).chrome?.webview?.addEventListener('message', handler); } catch { /* ignore */ }
+    return () => {
+      try { (window as any).chrome?.webview?.removeEventListener('message', handler); } catch { /* ignore */ }
+    };
+  },
+
+  onRemoteMeshPopoutClosed(cb: (info: { ok?: boolean; sessionId?: string; label?: string; handedOff?: boolean }) => void): () => void {
+    const handler = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data?.type !== 'REMOTE_MESH_POPOUT_CLOSED') return;
+        const p = data?.payload || {};
+        cb({
+          ok: p.ok,
+          sessionId: p.sessionId || p.SessionId,
+          label: p.label || p.Label,
+          handedOff: p.handedOff,
+        });
+      } catch { /* ignore */ }
+    };
+    try { (window as any).chrome?.webview?.addEventListener('message', handler); } catch { /* ignore */ }
+    return () => {
+      try { (window as any).chrome?.webview?.removeEventListener('message', handler); } catch { /* ignore */ }
+    };
+  },
+
+
   /** Prefer nativeTerminalLayout on BNDZShell. */
   meshTerminalLayout(_opts: {
     sessionId: string;

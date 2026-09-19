@@ -1013,7 +1013,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                       }}
                       draggable={false}
                     />
-                 ) : path && isDir && !isDrive && (entity as any)?.isVirtual ? (
+                 ) : path && isDir && !isDrive && (entity as any)?.isVirtual && !heroPath ? (
                     <Icons8Icon
                       id={
                         normalizePanePath(path) === '/' || normalizePanePath(path) === '/this-pc'

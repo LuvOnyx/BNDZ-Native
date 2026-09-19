@@ -1,7 +1,7 @@
 import { FSEntity } from '../types';
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH } from './pathUtils';
 import { getPaneTabLabel } from './paneLabels';
-import { KNOWN_FOLDER_SHELL, resolveShellIconPath } from './shellPaths';
+import { resolveShellIconPath } from './shellPaths';
 import { BNDZ_HOME, isBndzHomePath, isBndzVirtualPath } from './bndzVirtualViews';
 
 export const NETWORK_PATH = '//';
@@ -103,9 +103,9 @@ export function getLocationEntityFromPath(path: string | null | undefined): FSEn
 export function getLocationIconPath(path: string | null | undefined): string {
   if (!path) return '';
   const p = normalizePanePath(path);
-  // Continuum Home is virtual — use the Windows Profile glyph (same as tree Home).
+  // Continuum Home uses native Profile shell glyph (shell:Profile), not Icons8 launch house.
   if (isBndzHomePath(p) || p === BNDZ_HOME) {
-    return KNOWN_FOLDER_SHELL.Home;
+    return 'shell:Profile';
   }
   return resolveShellIconPath(path) || path;
 }

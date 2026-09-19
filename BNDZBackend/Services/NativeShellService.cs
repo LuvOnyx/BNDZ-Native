@@ -167,6 +167,21 @@ namespace BNDZ.Services
             if (string.IsNullOrEmpty(filePath))
                 return "";
 
+            // Raw UserProfile directory SHGFI often returns Documents-like glyph — use shell:Profile.
+            try
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrEmpty(userProfile)
+                    && string.Equals(
+                        filePath.TrimEnd('\\', '/'),
+                        userProfile.TrimEnd('\\', '/'),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    filePath = "shell:Profile";
+                }
+            }
+            catch { /* keep resolved path */ }
+
             int size = Math.Clamp(pixelSize <= 0 ? 48 : pixelSize, 16, 512);
 
             bool isVirtual = ShellPathResolver.IsShellVirtualPath(filePath)

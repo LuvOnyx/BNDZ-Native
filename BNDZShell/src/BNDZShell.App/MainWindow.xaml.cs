@@ -11,7 +11,9 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
+using Windows.System;
 using WinRT.Interop;
 
 namespace BNDZShell;
@@ -89,8 +91,7 @@ public sealed partial class MainWindow : Window
                 });
             }
             catch { /* ignore */ }
-        };
-            ChromeHost.WebViewInitialized += (_, _) =>
+        };            ChromeHost.WebViewInitialized += (_, _) =>
         {
             WireHostLifecycle();
             // Plugin pop-outs must not overwrite the main FM host HWND (OLE / drag use it).
@@ -108,7 +109,7 @@ public sealed partial class MainWindow : Window
             DisposeTray();
             try
             {
-                CollapseTerminalStrip();
+                DepositTerminalHandoffOnPluginClose();
             }
             catch { /* ignore */ }
             try
@@ -290,14 +291,19 @@ public sealed partial class MainWindow : Window
                 catch { /* ignore */ }
             }
 
-            // Caption X / Alt+F4 / taskbar close → same Ask/Tray/Quit flow as File→Exit.
+            // Caption X / Alt+F4 / taskbar close -> same Ask/Tray/Quit flow as File->Exit.
             // Plugin pop-outs are slim tear-offs — close immediately (no FM quit dialog).
             _appWindow.Closing += (_, args) =>
             {
                 if (_closeConfirmed || _launch.IsPlugin)
                 {
                     if (_launch.IsPlugin)
+                    {
+                        // Deposit warm ConPTY BEFORE Closed tears down DispatcherQueue —
+                        // HwndHost.Dispose must run on a live queue or Finalize kills the process.
+                        try { DepositTerminalHandoffOnPluginClose(); } catch { /* ignore */ }
                         _closeConfirmed = true;
+                    }
                     return;
                 }
                 args.Cancel = true;
@@ -353,7 +359,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// WinUI caption covers the top band by default. Passthrough almost the full menubar width
-    /// so every menu trigger (Scripting → Help) reaches WebView2; reserve only the trailing
+    /// so every menu trigger (Scripting -> Help) reaches WebView2; reserve only the trailing
     /// drag strip + WinUI min/max/close overlay on the right.
     /// </summary>
     private void ApplyMenubarInputRegions()
@@ -717,7 +723,7 @@ public sealed partial class MainWindow : Window
         if (type is "BNDZ_NATIVE_LIST_BOUNDS" or "BNDZ_PANE_NAVIGATE" or "BNDZ_REQUEST_DIR_LISTING")
             return;
 
-        if (type is "NATIVE_TERMINAL_OPEN" or "NATIVE_TERMINAL_LAYOUT" or "NATIVE_TERMINAL_CLOSE" or "NATIVE_TERMINAL_THEME")
+        if (type is "NATIVE_TERMINAL_OPEN" or "NATIVE_TERMINAL_LAYOUT" or "NATIVE_TERMINAL_CLOSE" or "NATIVE_TERMINAL_THEME" or "NATIVE_TERMINAL_HANDOFF_DEPOSIT" or "NATIVE_TERMINAL_HANDOFF_ADOPT")
         {
             HandleNativeTerminalMessage(type, root);
             return;
@@ -732,7 +738,11 @@ public sealed partial class MainWindow : Window
 
     private void HandleNativeTerminalMessage(string? type, JsonElement root)
     {
-        if (_launch.IsPlugin) return;
+        // Pop-out plugin windows skip native terminal IPC — except Remote (remote-mesh),
+        // which hosts TermControl in the pop-out (otherwise stuck on "Starting terminal").
+        if (_launch.IsPlugin
+            && !string.Equals(_launch.PluginId, "remote-mesh", StringComparison.OrdinalIgnoreCase))
+            return;
         JsonElement payload = default;
         var hasPayload = root.TryGetProperty("payload", out payload);
 
@@ -842,6 +852,49 @@ public sealed partial class MainWindow : Window
                     error: ex.Message);
             }
         }
+
+        if (type is "NATIVE_TERMINAL_HANDOFF_DEPOSIT")
+        {
+            var reqId = root.TryGetProperty("id", out var idDep) ? idDep.GetString() : null;
+            var ok = false;
+            string? sid = null;
+            string? label = null;
+            try
+            {
+                sid = NativeTerminal.SessionId;
+                label = NativeTerminal.Label;
+                ok = NativeTerminal.HasSession && NativeTerminal.DepositHandoff();
+            }
+            catch (Exception ex)
+            {
+                PostNativeTerminalHandoffResult(reqId, "NATIVE_TERMINAL_HANDOFF_DEPOSIT_RESULT", false, null, null, ex.Message);
+                return;
+            }
+            PostNativeTerminalHandoffResult(reqId, "NATIVE_TERMINAL_HANDOFF_DEPOSIT_RESULT", ok, ok ? sid : null, ok ? label : null, ok ? null : "No active terminal session");
+            return;
+        }
+
+        if (type is "NATIVE_TERMINAL_HANDOFF_ADOPT")
+        {
+            var reqId = root.TryGetProperty("id", out var idAd) ? idAd.GetString() : null;
+            var ok = false;
+            try { ok = NativeTerminal.TryAdoptHandoff(); }
+            catch (Exception ex)
+            {
+                PostNativeTerminalHandoffResult(reqId, "NATIVE_TERMINAL_HANDOFF_ADOPT_RESULT", false, null, null, ex.Message);
+                return;
+            }
+            PostNativeTerminalHandoffResult(
+                reqId,
+                "NATIVE_TERMINAL_HANDOFF_ADOPT_RESULT",
+                ok,
+                ok ? NativeTerminal.SessionId : null,
+                ok ? NativeTerminal.Label : null,
+                ok ? null : "No pending terminal handoff");
+            return;
+        }
+
+
     }
 
     private void PostNativeTerminalOpenResult(
@@ -876,6 +929,73 @@ public sealed partial class MainWindow : Window
     {
         try { NativeTerminal.Close(notify: false); } catch { /* ignore */ }
     }
+
+    /// <summary>
+    /// Remote pop-out close: deposit warm ConPTY for the main window instead of killing the shell.
+    /// </summary>
+    private void DepositTerminalHandoffOnPluginClose()
+    {
+        var isRemotePopout = _launch.IsPlugin
+            && string.Equals(_launch.PluginId, "remote-mesh", StringComparison.OrdinalIgnoreCase);
+        if (isRemotePopout && NativeTerminal.HasSession)
+        {
+            string? sid = NativeTerminal.SessionId;
+            string? label = NativeTerminal.Label;
+            var ok = false;
+            try { ok = NativeTerminal.DepositHandoff(); } catch { /* ignore */ }
+            try
+            {
+                var json = JsonSerializer.Serialize(new
+                {
+                    type = "REMOTE_MESH_POPOUT_CLOSED",
+                    payload = new { ok, sessionId = sid, label, handedOff = ok },
+                });
+                BndzEmbeddedBackendHost.FanOutPush(json);
+            }
+            catch { /* ignore */ }
+            return;
+        }
+
+        if (isRemotePopout)
+        {
+            try
+            {
+                BndzEmbeddedBackendHost.FanOutPush(JsonSerializer.Serialize(new
+                {
+                    type = "REMOTE_MESH_POPOUT_CLOSED",
+                    payload = new { ok = true, handedOff = false },
+                }));
+            }
+            catch { /* ignore */ }
+            return;
+        }
+
+        CollapseTerminalStrip();
+    }
+
+    private void PostNativeTerminalHandoffResult(
+        string? id,
+        string type,
+        bool ok,
+        string? sessionId,
+        string? label,
+        string? error)
+    {
+        try
+        {
+            ChromeHost.PostHostMessage(new
+            {
+                type,
+                id,
+                payload = new { ok, sessionId, label, error },
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] {type}: {ex.Message}");
+        }
+    }
+
 
     private int _menubarRegionRefreshGen;
 

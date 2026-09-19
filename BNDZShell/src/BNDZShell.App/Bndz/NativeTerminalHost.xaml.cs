@@ -1,3 +1,5 @@
+using System;
+using System.Reflection;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using EasyWindowsTerminalControl;
@@ -16,6 +18,8 @@ namespace BNDZShell.Bndz;
 public sealed partial class NativeTerminalHost : UserControl
 {
 	private EasyTerminalControl? _term;
+	/// <summary>ConPTY kept alive while TermControl HWND is detached (tab switch away from Remote).</summary>
+	private TermPTY? _warmPty;
 	private string? _sessionId;
 	private string _label = "Terminal";
 	private string? _pendingCmd;
@@ -48,8 +52,9 @@ public sealed partial class NativeTerminalHost : UserControl
 	{
 		if (!visible || width < 24 || height < 24)
 		{
-			Visibility = Visibility.Collapsed;
-			IsHitTestVisible = false;
+			// HWND airspace: WinUI Margin/Visibility/size on this host do NOT move TermControl's
+			// HwndHost. Detach TermControl from the tree (Destroy HWND) while keeping ConPTY warm.
+			ParkTermHwnd(reason: "ApplyBounds-hide");
 			return;
 		}
 
@@ -61,22 +66,54 @@ public sealed partial class NativeTerminalHost : UserControl
 		Visibility = Visibility.Visible;
 		IsHitTestVisible = true;
 
-		// Create (or retry) only with a real hole size. Armed session + no term => ensure.
-
+		// Create / warm-remount only with a real hole size. Armed session + no term => ensure.
 		// Creating too early => blinking cursor, no PowerShell text.
-
 		if (!string.IsNullOrEmpty(_sessionId) && _term is null && Width >= 48 && Height >= 48)
-
 			EnsureTermAtSize();
 	}
 
 	public void SetStripActive(bool active)
 	{
 		if (!active)
+			ParkTermHwnd(reason: "SetStripActive");
+	}
+
+	/// <summary>
+	/// Remove TermControl HWND from the visual tree without killing ConPTY.
+	/// EasyWindowsTerminalControl documents detach/reattach of live TermPTY instances.
+	/// </summary>
+	private void ParkTermHwnd(string reason)
+	{
+		if (_term is not null)
 		{
-			Visibility = Visibility.Collapsed;
-			IsHitTestVisible = false;
+			var term = _term;
+			_term = null;
+			try
+			{
+				var pty = term.DisconnectConPTYTerm();
+				if (pty is not null)
+					_warmPty = pty;
+				TermLog($"ParkTermHwnd detach ok reason={reason} warm={_warmPty is not null}");
+			}
+			catch (Exception ex)
+			{
+				TermLog($"ParkTermHwnd detach failed reason={reason}: {ex.Message}");
+			}
+			// Dispose HwndHost on the UI thread. Children.Clear alone orphans it for GC;
+			// HwndHost.Finalize -> DestroyWindow -> DispatcherQueue throws ObjectDisposedException
+			// (CLR 0xe0434352) and kills BNDZ.exe — seen on Remote pop-out handoff.
+			DestroyTermControlUi(term, reason);
 		}
+		else
+		{
+			TermLog($"ParkTermHwnd already detached reason={reason} warm={_warmPty is not null}");
+		}
+
+		Width = 0;
+		Height = 0;
+		Margin = new Thickness(-10000, -10000, 0, 0);
+		Visibility = Visibility.Collapsed;
+		IsHitTestVisible = false;
 	}
 
 	public void Open(
@@ -148,6 +185,93 @@ public sealed partial class NativeTerminalHost : UserControl
 		}
 	}
 
+	/// <summary>
+	/// Park TermControl HWND and move warm ConPTY into <see cref="NativeTerminalHandoff"/>
+	/// for another in-process window (Remote pop-out). Does not kill the shell.
+	/// </summary>
+	public bool DepositHandoff()
+	{
+		if (string.IsNullOrEmpty(_sessionId))
+			return false;
+
+		ParkTermHwnd(reason: "DepositHandoff");
+		var pty = _warmPty;
+		if (pty is null)
+		{
+			TermLog("DepositHandoff: no warm Pty after park");
+			return false;
+		}
+
+		NativeTerminalHandoff.Deposit(
+			pty,
+			_sessionId!,
+			_label,
+			_pendingCmd,
+			_pendingCwd,
+			_fontFamily,
+			_fontSize,
+			_foreground,
+			_background,
+			_cursor);
+
+		_warmPty = null;
+		var sid = _sessionId;
+		_sessionId = null;
+		_label = "Terminal";
+		_pendingCmd = null;
+		_pendingCwd = null;
+		_awaitingSizedStart = false;
+		Interlocked.Increment(ref _createGen);
+		TermLog($"DepositHandoff ok sid={sid}");
+		return true;
+	}
+
+	/// <summary>
+	/// Adopt a warm ConPTY previously deposited by another window. Arms session; mount on next visible bounds.
+	/// </summary>
+	public bool TryAdoptHandoff()
+	{
+		if (!NativeTerminalHandoff.TryTake(
+			out var pty,
+			out var sessionId,
+			out var label,
+			out var pendingCmd,
+			out var pendingCwd,
+			out var fontFamily,
+			out var fontSize,
+			out var foreground,
+			out var background,
+			out var cursor)
+			|| pty is null
+			|| string.IsNullOrEmpty(sessionId))
+		{
+			return false;
+		}
+
+		// Drop any local UI/session without stopping the incoming Pty.
+		DisposeTerm(stopPty: false);
+		if (_warmPty is not null && !ReferenceEquals(_warmPty, pty))
+		{
+			try { _warmPty.StopExternalTermOnly(); } catch { /* ignore */ }
+		}
+
+		_warmPty = pty;
+		_sessionId = sessionId;
+		_label = label;
+		_pendingCmd = pendingCmd;
+		_pendingCwd = pendingCwd;
+		_fontFamily = fontFamily;
+		_fontSize = fontSize;
+		_foreground = foreground;
+		_background = background;
+		_cursor = cursor;
+		_awaitingSizedStart = true;
+		ParkTermHwnd(reason: "TryAdoptHandoff-armed");
+		TermLog($"TryAdoptHandoff ok sid={_sessionId} label={_label}");
+		return true;
+	}
+
+
 	public void Close(bool notify = true)
 	{
 		var sid = _sessionId;
@@ -208,6 +332,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// <summary>Synchronous UI-thread mount. Returns true if TermControl is alive.</summary>
 	public bool TryMountTermNow(int seq = -1)
 	{
+		TermPTY? warmOwned = null;
 		try
 		{
 			if (seq >= 0 && seq != Volatile.Read(ref _ensureSeq)) return _term is not null;
@@ -243,9 +368,12 @@ public sealed partial class NativeTerminalHost : UserControl
 			else if (!LooksLikeSsh(cmd) && !string.IsNullOrEmpty(cwd))
 				cmd = BuildLocalCommandLine(cwd, cmd);
 
-			TermLog($"TryMountTermNow cmd={cmd} size={Width:F0}x{Height:F0} uiThread={dq?.HasThreadAccess}");
+			TermPTY? warm = _warmPty;
+			TermLog($"TryMountTermNow cmd={cmd} size={Width:F0}x{Height:F0} warm={warm is not null} uiThread={dq?.HasThreadAccess}");
 
-			DisposeTerm();
+			// Drop any leftover UI control only — never StopExternalTermOnly while warm remounting.
+			DisposeTerm(stopPty: false);
+			warm ??= _warmPty;
 
 			var term = new EasyTerminalControl
 			{
@@ -258,11 +386,21 @@ public sealed partial class NativeTerminalHost : UserControl
 				HorizontalAlignment = HorizontalAlignment.Stretch,
 				VerticalAlignment = VerticalAlignment.Stretch,
 			};
+
+			// MUST assign warm ConPTY before visual-tree insert: constructor creates an empty TermPTY,
+			// and Loaded/StartTerm would spawn a second shell if TermProcIsStarted is still false.
+			if (warm is not null)
+			{
+				term.ConPTYTerm = warm;
+				warmOwned = warm;
+				_warmPty = null;
+			}
+
 			TermSlot.Children.Clear();
 			TermSlot.Children.Add(term);
 			_term = term;
 			_awaitingSizedStart = false;
-			TermLog($"Term mounted gen={gen} size={Width:F0}x{Height:F0} actual={ActualWidth:F0}x{ActualHeight:F0}");
+			TermLog($"Term mounted gen={gen} size={Width:F0}x{Height:F0} actual={ActualWidth:F0}x{ActualHeight:F0} reattach={warm is not null}");
 			try { term.Focus(FocusState.Programmatic); } catch { /* ignore */ }
 			TermMountFinished?.Invoke(this, true);
 			return true;
@@ -271,14 +409,20 @@ public sealed partial class NativeTerminalHost : UserControl
 		{
 			_awaitingSizedStart = true;
 			_term = null;
+			try { TermSlot.Children.Clear(); } catch { /* ignore */ }
+			if (warmOwned is not null && _warmPty is null)
+				_warmPty = warmOwned;
 			var hr = ex is COMException cex ? $" HR=0x{cex.HResult:X8}" : "";
-			TermLog($"TryMountTermNow failed: {ex.GetType().Name}: {ex.Message}{hr}");
+			TermLog($"TryMountTermNow failed: {ex.GetType().Name}: {ex.Message}{hr} warmRestored={_warmPty is not null}");
 			TermMountFinished?.Invoke(this, false);
 			return false;
 		}
 	}
 
-	private void DisposeTerm()
+	/// <param name="stopPty">
+	/// True = kill ConPTY (Close / replace session). False = detach UI only (warm park remount).
+	/// </param>
+	private void DisposeTerm(bool stopPty = true)
 	{
 		var term = _term;
 		_term = null;
@@ -287,14 +431,137 @@ public sealed partial class NativeTerminalHost : UserControl
 			try
 			{
 				var pty = term.DisconnectConPTYTerm();
-				pty?.StopExternalTermOnly();
+				if (stopPty)
+				{
+					try { pty?.StopExternalTermOnly(); } catch { /* ignore */ }
+				}
+				else if (pty is not null)
+				{
+					_warmPty = pty;
+				}
 			}
 			catch (Exception ex)
 			{
 				Debug.WriteLine($"[NativeTerminalHost] dispose: {ex.Message}");
 			}
+			DestroyTermControlUi(term, stopPty ? "DisposeTerm-stop" : "DisposeTerm-warm");
 		}
-		try { TermSlot.Children.Clear(); } catch { /* ignore */ }
+
+		if (stopPty && _warmPty is not null)
+		{
+			try { _warmPty.StopExternalTermOnly(); } catch { /* ignore */ }
+			_warmPty = null;
+		}
+	}
+
+	/// <summary>
+	/// Tear down EasyTerminalControl / TermControl HwndHost on the UI thread.
+	/// Never abandon an HwndHost to GC — its finalizer calls DestroyWindow via DispatcherQueue
+	/// and throws ObjectDisposedException (CLR 0xe0434352), killing the whole process.
+	/// Call only after DisconnectConPTYTerm so a warm ConPTY is preserved.
+	/// </summary>
+	private void DestroyTermControlUi(EasyTerminalControl term, string reason)
+	{
+		try
+		{
+			var dq = DispatcherQueue;
+			if (dq is not null && !dq.HasThreadAccess)
+			{
+				TermLog($"DestroyTermControlUi enqueue reason={reason}");
+				dq.TryEnqueue(() => DestroyTermControlUiCore(term, reason));
+				return;
+			}
+			DestroyTermControlUiCore(term, reason);
+		}
+		catch (Exception ex)
+		{
+			TermLog($"DestroyTermControlUi failed reason={reason}: {ex.Message}");
+		}
+	}
+
+	private void DestroyTermControlUiCore(EasyTerminalControl term, string reason)
+	{
+		try
+		{
+			// EasyTerminalControl is NOT IDisposable. Nested TerminalContainer (HwndHost) must be
+			// disposed on the UI thread while DispatcherQueue is alive. Children.Clear alone orphans
+			// HwndHost for GC; Finalize -> DestroyWindow -> get_DispatcherQueue throws
+			// ObjectDisposedException (CLR 0xe0434352) and kills BNDZ.exe.
+			DisposeNestedTermHwndHosts(term);
+
+			try
+			{
+				if (TermSlot.Children.Contains(term))
+					TermSlot.Children.Remove(term);
+			}
+			catch { /* ignore */ }
+			try { TermSlot.Children.Clear(); } catch { /* ignore */ }
+			try { term.Content = null; } catch { /* ignore */ }
+
+			TermLog($"DestroyTermControlUi disposed reason={reason}");
+		}
+		catch (Exception ex)
+		{
+			TermLog($"DestroyTermControlUiCore failed reason={reason}: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// Dispose WinUI TerminalContainer / HwndHost under <paramref name="term"/> before detaching.
+	/// </summary>
+	private static void DisposeNestedTermHwndHosts(EasyTerminalControl term)
+	{
+		try
+		{
+			var terminal = term.Terminal;
+			if (terminal is not null)
+			{
+				// TerminalControl.termContainer is private; reflect then Dispose (IDisposable / HwndHost).
+				var field = terminal.GetType().GetField(
+					"termContainer",
+					BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+				var container = field?.GetValue(terminal);
+				if (container is IDisposable disposable)
+				{
+					try { disposable.Dispose(); }
+					catch (Exception ex) { TermLog($"termContainer.Dispose: {ex.Message}"); }
+					try { field?.SetValue(terminal, null); } catch { /* ignore */ }
+					return;
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			TermLog($"DisposeNestedTermHwndHosts reflect: {ex.Message}");
+		}
+
+		try { WalkDisposeHwndHosts(term); }
+		catch (Exception ex) { TermLog($"WalkDisposeHwndHosts: {ex.Message}"); }
+	}
+
+	private static void WalkDisposeHwndHosts(DependencyObject root)
+	{
+		if (root is null) return;
+		var n = VisualTreeHelper.GetChildrenCount(root);
+		for (var i = 0; i < n; i++)
+		{
+			DependencyObject? child = null;
+			try { child = VisualTreeHelper.GetChild(root, i); } catch { continue; }
+			if (child is not null)
+				WalkDisposeHwndHosts(child);
+		}
+
+		// HwndHost (TerminalContainer) is the only IDisposable leaf we care about.
+		if (root is IDisposable d && root is not EasyTerminalControl)
+		{
+			var name = root.GetType().Name;
+			if (name.Contains("HwndHost", StringComparison.Ordinal) ||
+			    name.Contains("TerminalContainer", StringComparison.Ordinal))
+			{
+				try { d.Dispose(); }
+				catch (Exception ex) { TermLog($"Dispose {name}: {ex.Message}"); }
+			}
+		}
 	}
 
 	public static string ResolveDefaultShell()

@@ -70,7 +70,7 @@ function canonicalizeIconPath(path: string): string {
   if (!win) return '';
   win = win.replace(/\//g, '\\');
   // Shell / GUID paths keep case — version prefix busts poisoned white-doc CLSID cache entries.
-  if (/^shell:/i.test(win) || win.includes('::{')) return `shellns:v2:${win}`;
+  if (/^shell:/i.test(win) || win.includes('::{')) return `shellns:v4:${win}`;
   // Collapse trailing separators except drive roots (C:\).
   if (/^[A-Za-z]:\\/.test(win)) {
     const drive = win.slice(0, 2).toUpperCase();

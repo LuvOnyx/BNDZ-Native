@@ -13683,6 +13683,42 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
 .bndz-mesh-surface--terminal .bndz-mesh-terminal-frame {
   padding: 0;
 }
+/* FE chrome strip above native TermControl hole — must NOT overlap HWND airspace. */
+.bndz-mesh-term-chrome {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  min-height: 26px;
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--panel-bottom-bg, #0c0e14) 92%, #000 8%);
+}
+/* Quiet terminal strip actions — match bottom-panel chrome, not chunky plugin buttons. */
+.bndz-mesh-term-action {
+  appearance: none;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: rgba(203, 213, 225, 0.62);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+.bndz-mesh-term-action:hover:not(:disabled) {
+  color: rgba(232, 238, 246, 0.95);
+  background: rgba(255, 255, 255, 0.04);
+}
+.bndz-mesh-term-action:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.bndz-mesh-terminal-frame.flex-col > .relative.flex-1 {
+  /* Hole wrapper: TermControl HWND is laid out to this rect only. */
+  min-height: 0;
+}
 .bndz-native-term-hole {
   position: absolute;
   inset: 0;

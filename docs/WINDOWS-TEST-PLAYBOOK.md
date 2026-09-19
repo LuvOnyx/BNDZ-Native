@@ -34,6 +34,8 @@ Flip ☐→☑ in [`fm-launch-readiness.md`](fm-launch-readiness.md) only after 
 
 ## 1 — DnD matrix 46–58 (CRITICAL — after C4)
 
+**Short run sheet:** [`DND-46-58-VERIFY-CHECKLIST.md`](DND-46-58-VERIFY-CHECKLIST.md) — use this at the keyboard; sign rows in `fm-launch-readiness.md`.
+
 | # | Check | Evidence |
 |---|--------|----------|
 | 46–58 | Full matrix in `fm-launch-readiness.md` | ☐ |

@@ -12,6 +12,8 @@ public static class ShellPathResolver
     public const string LibrariesClsid = "::{031E4825-7B94-4DC3-B131-E946B44C8DD5}";
     public const string ControlPanelClsid = "::{26EE0668-A00A-44D7-9371-BEB064C98683}";
     public const string PortableDevicesClsid = PortableDeviceService.PortableDevicesClsid;
+    // FOLDERID_Profile CLSID ::{5E6C858F-...} SHParseDisplayName fails (E_INVALIDARG).
+    // Icon path must stay literal shell:Profile (see ResolveForShell).
 
     public static bool IsControlPanelPath(string? path)
     {
@@ -86,6 +88,8 @@ public static class ShellPathResolver
             if (shellLower is "shell:mycomputerfolder" or "shell:thispcfolder") return ThisPcClsid;
             if (shellLower == "shell:networkplacesfolder") return NetworkClsid;
             if (shellLower is "shell:portabledevices" or "shell:portable devices") return PortableDevicesClsid;
+            // Profile/Home: keep shell:Profile for SHParseDisplayName (CLSID fails; FS yields Documents glyph).
+            if (shellLower is "shell:profile" or "shell:home") return "shell:Profile";
 
             // Compound: shell:Desktop\file.png → real Desktop path + leaf.
             var slash = trimmed.IndexOfAny(['\\', '/']);

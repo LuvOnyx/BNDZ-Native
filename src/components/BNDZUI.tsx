@@ -2118,13 +2118,20 @@ export default function BNDZUI() {
   }, [config.resizingTheWindowDualPane, isDualPane, dualPaneLayoutLive]);
   // pathContentsCache stores backend-fetched directory contents keyed by path
   const [pathContentsCache, setPathContentsCache] = useState<Record<string, any[]>>({});
+  const pathContentsCacheRef = useRef(pathContentsCache);
+  pathContentsCacheRef.current = pathContentsCache;
   const cachePathContents = React.useCallback((path: string, data: any[], opts?: { retainLarger?: boolean }) => {
     const filtered = filterTombstonedEntries(path, data);
     setPathContentsCache(prev => {
+      const commit = (next: Record<string, any[]>) => {
+        pathContentsCacheRef.current = next;
+        return next;
+      };
+
       const existing = prev[path];
       // Never clobber a warm listing with an empty race (NativeList Push / dual-fetch).
       if (existing?.length && (!filtered || filtered.length === 0)) {
-        return prev;
+        return commit(prev);
       }
       // Keep inbound/outbound optimistic rows until the server listing catches up —
       // early soft-refresh used to wipe them and leave a blank until manual F5.
@@ -2173,10 +2180,10 @@ export default function BNDZUI() {
         // Only retain when this looks like a tiny progressive first page.
         const looksLikeFirstPage = filtered.length <= 80 && existingClean.length > filtered.length + 8;
         if (looksLikeFirstPage) {
-          return setPathCacheEntry(prev, path, mergeDirEntryChunks(existingClean, filtered));
+          return commit(setPathCacheEntry(prev, path, mergeDirEntryChunks(existingClean, filtered)));
         }
         // Full/soft refresh shrunk the folder — trust the server (deletes/moves), keep optimistic.
-        return setPathCacheEntry(prev, path, mergeOptimistic(filtered));
+        return commit(setPathCacheEntry(prev, path, mergeOptimistic(filtered)));
       }
       if (config.addNewItemsAtTheEndOfTheList && existing?.length && filtered?.length) {
         const existingIds = new Set(existing.map((e: any) => e.id || e.name));
@@ -2196,9 +2203,9 @@ export default function BNDZUI() {
         const confirmed = kept.filter((e: any) =>
           filtered.some((n: any) => (n.id && n.id === e.id) || n.name === e.name),
         );
-        return setPathCacheEntry(prev, path, [...confirmed, ...added, ...pendingOnly]);
+        return commit(setPathCacheEntry(prev, path, [...confirmed, ...added, ...pendingOnly]));
       }
-      return setPathCacheEntry(prev, path, mergeOptimistic(filtered || []));
+      return commit(setPathCacheEntry(prev, path, mergeOptimistic(filtered || [])));
     });
   }, [config.addNewItemsAtTheEndOfTheList, filterTombstonedEntries]);
 
@@ -2410,8 +2417,7 @@ export default function BNDZUI() {
     [panes],
   );
   const dirFetchInFlightRef = useRef<Set<string>>(new Set());
-  const pathContentsCacheRef = useRef(pathContentsCache);
-  pathContentsCacheRef.current = pathContentsCache;
+  // pathContentsCacheRef declared next to pathContentsCache state (kept warm in cachePathContents).
 
   useEffect(() => {
     setListKindFilter('all');
@@ -4662,6 +4668,13 @@ export default function BNDZUI() {
     const pane = panes.find(p => p.id === activePaneId);
     const cPath = pane?.tabs[pane.activeTabIndex]?.path || currentTab.path;
     if (!cPath) return;
+    // Keep create snappy: don't let folder-size sync contend with refetch / rename.
+    try {
+      folderSizeScanGen.current++;
+      folderSizeScanActiveRef.current = false;
+      setFolderSizeSync(null);
+      void import('../lib/ipcBridge').then(({ IPC }) => IPC.cancelFolderSizeScan());
+    } catch { /* ignore */ }
     const { createItemInPane } = await import('../lib/ramStagingPaths');
     const r = await createItemInPane(cPath, name, kind);
     if (!r.ok) {
@@ -4679,6 +4692,32 @@ export default function BNDZUI() {
       `${normalizePanePath(cPath)}::${String(createdName).toLowerCase()}`,
       Date.now() + 30 * 60_000,
     );
+    // Optimistic row so select/rename work even if refetch lags the FS watcher.
+    {
+      const key = normalizePanePath(cPath);
+      const stubPath = joinPanePath(key, { name: createdName });
+      const stub = {
+        id: stubPath,
+        path: stubPath,
+        name: createdName,
+        type: kind === 'dir' ? 'directory' : 'file',
+        isDirectory: kind === 'dir',
+        __recentPaste: true,
+        __provisionalFs: true,
+        modified: new Date().toISOString(),
+      };
+      setPathContentsCache(prev => {
+        const existing = prev[key] || [];
+        if (existing.some((e: any) => String(e?.name || '').toLowerCase() === createdName.toLowerCase())) {
+          pathContentsCacheRef.current = prev;
+          return prev;
+        }
+        const nextList = config.addNewItemsAtTheEndOfTheList ? [...existing, stub] : [stub, ...existing];
+        const next = setPathCacheEntry(prev, key, nextList);
+        pathContentsCacheRef.current = next;
+        return next;
+      });
+    }
     await finishCreateAndRename({
       paneId: activePaneId,
       panePath: cPath,
@@ -4687,7 +4726,9 @@ export default function BNDZUI() {
       finalName: r.finalName,
       refetchPath,
       getListing: (path) => {
-        const listing = pathContentsCacheRef.current[path] || [];
+        const listing = pathContentsCacheRef.current[path]
+          || pathContentsCacheRef.current[normalizePanePath(path)]
+          || [];
         // Stamp green tint onto the freshly created row.
         return listing.map((e: any) =>
           e?.name === createdName ? { ...e, __recentPaste: true, modified: new Date().toISOString() } : e,
@@ -4697,6 +4738,7 @@ export default function BNDZUI() {
       setFocusedItemId,
       beginInlineRename,
       invalidateRamZone: invalidateRamZoneMountCache,
+      awaitRefetch: false,
     });
   };
 
@@ -6750,9 +6792,9 @@ ${classified.detail}`,
         draggable: true,
         label: 'Home',
         path: BNDZ_HOME,
-        // Continuum Home is virtual (/bndz/home) — fetch the Windows Profile/Home shell glyph.
-        iconPath: KNOWN_FOLDER_SHELL.Home,
-        icon: 'home',
+        // Native Profile shell glyph; Icons8 home is launch house — avoid as fallback.
+        iconPath: '/shell:Profile',
+        icon: 'folder_open_ui',
         iconColor: '#7eb8e8',
         useShellIcon: true,
         onClick: () => setCurrentPath(BNDZ_HOME),
@@ -6762,8 +6804,9 @@ ${classified.detail}`,
         draggable: true,
         label: (windowsUsername && windowsUsername !== 'Public') ? windowsUsername : 'Profile',
         path: homeTreePath,
-        iconPath: homeTreePath,
-        icon: 'home',
+        // Navigate via FS; icon via shell:Profile (CLSID SHParseDisplayName fails).
+        iconPath: '/shell:Profile',
+        icon: 'folder_open_ui',
         iconColor: '#6db4e6',
         isDynamic: true,
         useShellIcon: true,
@@ -7000,13 +7043,13 @@ ${classified.detail}`,
     const items: Array<{ path: string; iconPath?: string }> = [];
     const walk = (nodes: typeof treeData) => {
       for (const n of nodes) {
-        // Virtual bndz views never use shell icons — skip their prefetch storm.
-        if (n.useShellIcon !== false && (n.iconPath || n.path) && !String(n.path || '').startsWith('/bndz/')) {
+        // Virtual bndz views skip shell prefetch unless they declare iconPath (e.g. Continuum Home → shell:Profile).
+        if (n.useShellIcon !== false && (n.iconPath || (n.path && !String(n.path).startsWith('/bndz/')))) {
           items.push({ path: n.path || '', iconPath: n.iconPath });
         }
         if (n.childrenItems?.length) {
           for (const c of n.childrenItems) {
-            if (c.useShellIcon !== false && (c.iconPath || c.path) && !String(c.path || '').startsWith('/bndz/')) {
+            if (c.useShellIcon !== false && (c.iconPath || (c.path && !String(c.path).startsWith('/bndz/')))) {
               items.push({ path: c.path || '', iconPath: c.iconPath });
             }
           }
@@ -17382,6 +17425,52 @@ ${classified.detail}`,
           onEmptyRecycleBin={handleEmptyRecycleBin}
           onRefreshList={refreshActiveList}
           onRefreshTree={refreshNavigationTree}
+          onItemCreated={(panePath, kind, result) => {
+            const createdName = result.finalName || (kind === 'dir' ? 'New folder' : 'New Text Document.txt');
+            const key = normalizePanePath(panePath);
+            const stubPath = joinPanePath(key, { name: createdName });
+            const stub = {
+              id: stubPath,
+              path: stubPath,
+              name: createdName,
+              type: kind === 'dir' ? 'directory' : 'file',
+              isDirectory: kind === 'dir',
+              __recentPaste: true,
+              __provisionalFs: true,
+              modified: new Date().toISOString(),
+            };
+            try {
+              folderSizeScanGen.current++;
+              folderSizeScanActiveRef.current = false;
+              setFolderSizeSync(null);
+              void import('../lib/ipcBridge').then(({ IPC }) => IPC.cancelFolderSizeScan());
+            } catch { /* ignore */ }
+            setPathContentsCache(prev => {
+              const existing = prev[key] || [];
+              if (existing.some((e: any) => String(e?.name || '').toLowerCase() === createdName.toLowerCase())) {
+                pathContentsCacheRef.current = prev;
+                return prev;
+              }
+              const nextList = config.addNewItemsAtTheEndOfTheList ? [...existing, stub] : [stub, ...existing];
+              const next = setPathCacheEntry(prev, key, nextList);
+              pathContentsCacheRef.current = next;
+              return next;
+            });
+            void finishCreateAndRename({
+              paneId: activePaneId,
+              panePath,
+              kind,
+              finalWinPath: result.fullPath,
+              finalName: result.finalName,
+              refetchPath,
+              getListing: (path) => pathContentsCacheRef.current[path] || pathContentsCacheRef.current[normalizePanePath(path)] || [],
+              setSelectedItems: (ids, paneId) => marqueeOpsRef.current.setSelectedItems(ids, paneId),
+              setFocusedItemId,
+              beginInlineRename,
+              invalidateRamZone: invalidateRamZoneMountCache,
+              awaitRefetch: false,
+            });
+          }}
           onCopyTo={sources => void copyOrMoveToTarget('copy', undefined, sources)}
           onMoveTo={sources => void copyOrMoveToTarget('move', undefined, sources)}
           availableTags={availableTags}

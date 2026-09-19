@@ -40,9 +40,9 @@ dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 - [ ] Files: `BNDZUI.tsx`, `MainWindow.xaml.cs`, `transferIpc.ts`
 
 ## Phase 6 — List icon reliability
-- [ ] Folder thumb null → shell icon fallback
-- [ ] `entity.type === directory` before path heuristics (folders with dots in name)
-- [ ] `iconRequestQueue`: reject promise on eviction
+- [x] Folder thumb null → shell icon fallback (ThumbnailIcon re-boost shell on miss)
+- [x] `entity.type === directory` before path heuristics (folders with dots in name)
+- [x] `iconRequestQueue`: reject promise on eviction
 - [ ] Files: `ThumbnailIcon.tsx`, `shellPaths.ts`, `iconRequestQueue.ts`, `nativeIconService.ts`
 
 ## Phase 7 — Details view layout parity

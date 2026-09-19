@@ -137,6 +137,18 @@ export default function BottomPluginPanel(props: any & {
     return [...ordered, ...rest];
   }, [pluginRegistry, config.bottomPluginTabOrder, requestedTab, launchContext?.tab]);
 
+  /** Keep Remote (native TermControl) mounted across bottom-tab switches so ConPTY/sessionId survive.
+   *  When lazyUnmount is on, only force-keep remote-mesh; when off, keep all plugins. */
+  const keepAliveIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!lazyUnmount) {
+      orderedPlugins.forEach((p: { id: string }) => ids.add(p.id));
+    } else if (orderedPlugins.some((p: { id: string }) => p.id === 'remote-mesh')) {
+      ids.add('remote-mesh');
+    }
+    return ids;
+  }, [lazyUnmount, orderedPlugins]);
+
   // Persist scrub: drop uninstalled IDs from saved tab order so they cannot resurrect.
   useEffect(() => {
     const order = config.bottomPluginTabOrder || [];
@@ -174,6 +186,15 @@ export default function BottomPluginPanel(props: any & {
   useEffect(() => {
     onActiveTabChange?.(activeTab, activePlugin?.name);
   }, [activeTab, activePlugin?.name, onActiveTabChange]);
+
+  // Belt-and-suspenders: park TermControl HWND whenever Remote is not the active tab.
+  // MeshPlugin also hides via isPluginTabActive; this covers edge cases (null tab, unmount timing).
+  useEffect(() => {
+    if (activeTab === 'remote-mesh') return;
+    try {
+      IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
+    } catch { /* ignore */ }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!requestedTab || !orderedPlugins.some((p: any) => p.id === requestedTab)) return;
@@ -426,14 +447,33 @@ export default function BottomPluginPanel(props: any & {
                   title="Pop out plugin into a separate window"
                   onClick={() => {
                     const name = activePlugin?.name;
+                    const tabId = activeTab;
                     void (async () => {
-                      const r = await IPC.openPluginWindow(activeTab, { title: name });
+                      // Remote: deposit warm ConPTY BEFORE opening pop-out so the new window can adopt mid-prompt.
+                      if (tabId === 'remote-mesh') {
+                        try {
+                          const dep = await IPC.nativeTerminalHandoffDeposit();
+                          window.dispatchEvent(new CustomEvent('bndz-remote-mesh-popout', {
+                            detail: {
+                              open: true,
+                              handedOff: !!dep?.ok,
+                              sessionId: dep?.sessionId,
+                              label: dep?.label,
+                            },
+                          }));
+                        } catch { /* ignore */ }
+                        try {
+                          IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
+                        } catch { /* ignore */ }
+                      }
+                      const r = await IPC.openPluginWindow(tabId, { title: name });
                       if (!r?.ok) {
                         pushToast({
                           kind: 'error',
                           title: 'Pop-out failed',
                           message: r?.error || 'Could not open plugin window',
                         });
+                        return;
                       }
                     })();
                   }}
@@ -468,8 +508,31 @@ export default function BottomPluginPanel(props: any & {
       </div>
 
       <div className="bndz-bottom-content flex-1 min-h-0 overflow-hidden relative flex flex-col">
+        {/* Keep-alive: stay mounted (display toggled) so Remote sessionId / ConPTY association survives tab switches.
+            Use hidden (display:none) not invisible — invisible keeps layout rects and can re-publish TermControl bounds. */}
+        {orderedPlugins.map((plugin: any) => {
+          if (!keepAliveIds.has(plugin.id)) return null;
+          const Component = plugin.component;
+          if (!Component) return null;
+          const isActive = plugin.id === activeTab;
+          return (
+            <div
+              key={`keepalive-${plugin.id}`}
+              className={
+                isActive
+                  ? 'bndz-bottom-plugin-surface relative z-[1] flex-1 min-h-0 h-full w-full flex flex-col overflow-hidden'
+                  : 'bndz-bottom-plugin-surface absolute inset-0 z-0 pointer-events-none hidden flex flex-col min-h-0 overflow-hidden'
+              }
+              aria-hidden={!isActive}
+            >
+              <BndzErrorBoundary isolate label={`Plugin:${plugin.id}`} resetKey={plugin.id}>
+                <Component {...mergedPluginProps} isPluginTabActive={isActive} immersive={immersive} />
+              </BndzErrorBoundary>
+            </div>
+          );
+        })}
         <AnimatePresence mode="wait">
-          {activePlugin?.component && activeTab && (() => {
+          {activePlugin?.component && activeTab && !keepAliveIds.has(activeTab) && (() => {
             const ActiveComponent = activePlugin.component;
             return (
             <motion.div
@@ -487,18 +550,6 @@ export default function BottomPluginPanel(props: any & {
             );
           })()}
         </AnimatePresence>
-        {!lazyUnmount && orderedPlugins.map((plugin: any) => {
-          if (plugin.id === activeTab) return null;
-          const Component = plugin.component;
-          if (!Component) return null;
-          return (
-            <div key={plugin.id} className="bndz-bottom-plugin-surface absolute inset-0 z-0 pointer-events-none invisible flex flex-col min-h-0 overflow-hidden" aria-hidden>
-              <BndzErrorBoundary isolate label={`Plugin:${plugin.id}`} resetKey={plugin.id}>
-                <Component {...mergedPluginProps} isPluginTabActive={false} immersive={immersive} />
-              </BndzErrorBoundary>
-            </div>
-          );
-        })}
         {!activeTab && (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
             <BndzPlaque tone="panel" size="md" />
