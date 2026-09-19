@@ -1,0 +1,28 @@
+# BNDZ Terminal Quality Gates
+
+Apply on **every** Open Terminal / Local terminal change on BNDZShell.
+
+## Locked architecture (2026-09-19)
+
+- Local PowerShell on BNDZShell = **WinUI `EasyTerminalControl`** in `NativeTerminalHost`, overlaid on the Remote plugin hole via `NATIVE_TERMINAL_OPEN` / `LAYOUT` / `CLOSE`.
+- React supplies the hole rect only (`NativeTerminalHole`). **No xterm.js Local paint path on BNDZShell.**
+- SSH on BNDZShell may use TermControl with an `ssh …` startup command line (same host).
+
+## Gates (G0–G5)
+
+See `docs/TERMINAL-QUALITY-GATES.md`. Before claiming terminal ready:
+
+1. Run `scripts/verify-terminal-gates.ps1`
+2. Fresh `npm run build` + native Debug build (G5)
+3. Do **not** silently pivot Local back to ConPTY→xterm-in-WebView without updating `docs/TERMINAL-QUALITY-GATES.md` + `docs/LAUNCH-READY-PLAN.md` **and** telling the user in the same turn
+
+## MUST NOT
+
+- Claim Local works via xterm-in-Remote on BNDZShell
+- Refuse `NATIVE_TERMINAL_OPEN` as “retired” while this rule is active
+- Leave EasyTerminalControl package unreferenced
+
+```text
+❌ BAD: meshTerminalOpen({ local: true }) → xterm blank pane on BNDZShell
+✅ GOOD: nativeTerminalOpen → EasyTerminalControl overlay → real PS prompt
+```

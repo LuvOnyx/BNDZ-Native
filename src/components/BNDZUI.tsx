@@ -1439,7 +1439,7 @@ export default function BNDZUI() {
   }, [bottomImmersive, innerGroupRef, updateConfig, bottomPanelRef]);
 
   const saveInnerLayout = (layout: Record<string, number>) => {
-    const bottomRaw = layout.bottom ?? innerDefaultLayout.bottom ?? 22;
+    const bottomRaw = layout.bottom ?? innerDefaultLayout.bottom ?? DEFAULT_INNER_LAYOUT.bottom!;
     if (!bottomImmersive && bottomRaw < BOTTOM_IMMERSIVE_TRIGGER) {
       lastDockedBottomPctRef.current = bottomRaw;
     }
@@ -1731,6 +1731,8 @@ export default function BNDZUI() {
     setBottomPluginTab(resolvedId);
     if (launchMerged) setBottomPluginLaunch(launchMerged);
   }, [installedPluginIdSet, pluginRegistry]);
+
+
 
   // filesHost: always open System Properties in the bottom plugins panel on launch.
   const filesHostPropsBootedRef = useRef(false);
@@ -5407,6 +5409,31 @@ ${classified.detail}`,
     id: 'fallback', path: '/', history: ['/'], historyIndex: 0, selectedItems: [],
   };
   const currentPath = activeTab.path;
+
+  /** Open Local PowerShell in the bottom Remote Mesh terminal (not external wt/conhost). */
+  const openTerminalInBottomPanel = React.useCallback((rawPath?: string | string[] | null) => {
+    const first = Array.isArray(rawPath) ? rawPath[0] : rawPath;
+    let dir = (first != null && String(first).trim()) ? String(first).trim() : String(currentPath || '');
+    if (dir) {
+      // If a file was selected, open its parent folder.
+      const looksFile = /\.[^./\\]+$/.test(dir.replace(/[\\/]+$/, '')) && !dir.endsWith('\\') && !dir.endsWith('/');
+      if (looksFile) {
+        const norm = dir.replace(/\\/g, '/');
+        const slash = norm.lastIndexOf('/');
+        dir = slash >= 0 ? dir.slice(0, dir.length - (norm.length - slash)) : dir;
+      }
+      try { dir = toWindowsPath(dir); } catch { /* keep raw */ }
+    }
+    const rawCheck = (first != null && String(first).trim()) ? String(first).trim() : String(currentPath || '');
+    const isThisPc = !dir || !rawCheck || rawCheck === '/' || rawCheck === '/this-pc'
+      || dir === '/' || dir === '/this-pc' || /^this-pc$/i.test(dir);
+    if (isThisPc) dir = 'C:\\';
+    openBottomPlugin('remote-mesh', {
+      tab: 'terminal',
+      cwd: dir,
+      currentPath: dir,
+    });
+  }, [currentPath, openBottomPlugin]);
   const sidebarActiveNorm = normalizePanePath(currentPath);
   const isSidebarDriveActive = React.useCallback((driveName: string) => {
     const d = normalizePanePath(driveName).toLowerCase().replace(/\/$/, '');
@@ -12066,6 +12093,7 @@ ${classified.detail}`,
                config,
              )}
              showImplicitSecondarySortOrderArrow={!!config.showImplicitSecondarySortOrderArrow}
+             onContextMenu={e => { e.preventDefault(); setColumnPicker({ x: e.clientX, y: e.clientY }); }}
              onToggleSort={(colId) => {
                if (columnResizeActiveRef.current) return;
                toggleSort(pane.id, colId);
@@ -15380,9 +15408,7 @@ ${classified.detail}`,
                  <MenubarPortalMenu open={openMenuId === 'User'} anchorEl={menubarAnchors.current['User']} minWidth={200}>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       const paths = getSelectedEntityPaths();
-                      void import('../lib/ipcBridge').then(({ IPC }) => {
-                        IPC.shellExecute('openTerminal', paths.length ? paths : currentTab.path, undefined, buildShellExecuteOptions(config));
-                      });
+                      openTerminalInBottomPanel(paths.length ? paths : currentTab.path);
                     })}>Open Terminal Here</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsCommandPaletteOpen(true))}>Command Palette</div>
                  </MenubarPortalMenu>
@@ -15804,11 +15830,11 @@ ${classified.detail}`,
                                break;
                            }
                            case 'terminal_here': {
-                               const ap = panes.find(p => p.id === activePaneId);
-                               const tabPath = ap?.tabs[ap.activeTabIndex]?.path;
-                               if (tabPath) IPC.shellExecute('openTerminal', toWindowsPath(tabPath), undefined, buildShellExecuteOptions(config));
-                               break;
-                           }
+                              const ap = panes.find(p => p.id === activePaneId);
+                              const tabPath = ap?.tabs[ap.activeTabIndex]?.path;
+                              if (tabPath) openTerminalInBottomPanel(toWindowsPath(tabPath));
+                              break;
+                          }
                            case 'toggle_dual_pane': toggleDualPane(); break;
                            case 'toggle_preview': togglePreviewPanel(); break;
                            case 'toggle_bottom': toggleBottomPanel(); break;
@@ -16042,7 +16068,7 @@ ${classified.detail}`,
               if (ent) IPC.shellExecute('copyPath', toWindowsPath(joinPanePath(currentPath, ent)));
             },
             onOpenTerminal: () => {
-              IPC.shellExecute('openTerminal', toWindowsPath(currentPath), undefined, buildShellExecuteOptions(config));
+              openTerminalInBottomPanel(toWindowsPath(currentPath));
             },
             onOpenExplorer: () => {
               IPC.shellExecute('openExplorer', toWindowsPath(currentPath));
@@ -17334,6 +17360,7 @@ ${classified.detail}`,
         <ContextMenuView
           menu={contextMenu}
           onClose={() => { setContextMenu(null); setShellExtensionsPending(false); }}
+          onOpenTerminal={(paths) => openTerminalInBottomPanel(paths)}
           shellExtensionsPending={shellExtensionsPending}
           config={config}
           updateConfig={updateConfig}

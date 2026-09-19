@@ -117,6 +117,7 @@ const RENAME_KEYS = new Set([
 const UI_KEYS = new Set([
   'windowTitleTemplate', 'statusBarTemplate', 'useStatusBarTemplate',
   'uiFontFamily', 'uiFontWeight', 'uiFontFamilyMono', 'fontSize', 'rowHeight',
+  'terminalFontFamily', 'terminalFontSize', 'terminalForeground', 'terminalBackground', 'terminalCursor',
   'listFontLcdAa',
   'uiCornerRadius', 'compactToolbar', 'denseMenubar', 'showPanelAccentBorders',
   'animatePanelTransitions', 'interfaceScale', 'lockBrowserZoom', 'applyColors', 'theme',

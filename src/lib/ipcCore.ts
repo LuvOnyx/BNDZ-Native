@@ -24,6 +24,9 @@ const pushHandlers = new Set<PushHandler>();
 
 export function registerIpcPushHandler(handler: PushHandler): () => void {
   pushHandlers.add(handler);
+  // Install the WebView message listener as soon as any push consumer registers —
+  // otherwise MESH_TERMINAL_OUTPUT can arrive before the first nativeCall and vanish.
+  ensureGlobalListener();
   return () => pushHandlers.delete(handler);
 }
 

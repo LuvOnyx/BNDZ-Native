@@ -33,6 +33,8 @@ type Props = {
   onReorder: (nextVisibleOrder: ListColumnId[]) => void;
   onToggleSort: (colId: SortColumnId) => void;
   onStartResize: (colId: ListColumnId, clientX: number, headerEl: HTMLElement) => void;
+  /** Right-click any header to open the Choose columns picker. */
+  onContextMenu?: (e: React.MouseEvent) => void;
 };
 
 /** Keep reorder on the header row — only X follows the pointer. */
@@ -50,6 +52,7 @@ function SortableColumnHeader({
   showSecondaryCaret,
   onToggleSort,
   onStartResize,
+  onContextMenu,
   lockedWidth,
 }: {
   col: ListColumnDef;
@@ -58,6 +61,7 @@ function SortableColumnHeader({
   showSecondaryCaret?: boolean;
   onToggleSort: (colId: SortColumnId) => void;
   onStartResize: (colId: ListColumnId, clientX: number, headerEl: HTMLElement) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
   /** Pixel width locked for the whole reorder so %/flex columns don't squash. */
   lockedWidth?: number;
 }) {
@@ -120,6 +124,12 @@ function SortableColumnHeader({
       className={`bndz-list-col-header group/col ${lockedWidth ? 'shrink-0' : (col.widthClass || 'shrink-0')} ${col.sortable ? 'bndz-list-col-header--sortable' : ''} ${isActiveSort ? 'bndz-list-col-header--active' : ''} ${col.align === 'right' ? 'bndz-list-col-header--right' : ''} ${isDragging ? 'bndz-list-col-header--dragging' : ''}`}
       data-col-id={col.id}
       {...attributes}
+      onContextMenu={e => {
+        if (!onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(e);
+      }}
       onPointerDown={e => {
         if (e.button !== 0) return;
         if (isChromeTarget(e.target)) return;
@@ -194,6 +204,7 @@ export default function ListColumnHeaderStrip({
   onReorder,
   onToggleSort,
   onStartResize,
+  onContextMenu,
 }: Props) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -255,6 +266,7 @@ export default function ListColumnHeaderStrip({
                 }
                 onToggleSort={onToggleSort}
                 onStartResize={onStartResize}
+                onContextMenu={onContextMenu}
                 lockedWidth={lockedWidths?.[col.id]}
               />
             </React.Fragment>

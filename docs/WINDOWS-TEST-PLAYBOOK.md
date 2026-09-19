@@ -48,8 +48,10 @@ Flip ☐→☑ in [`fm-launch-readiness.md`](fm-launch-readiness.md) only after 
 |---|--------|---|
 | 2.1 | Normal RMB: BNDZ weave; **no duplicate** Open / Properties / Share | ☐ |
 | 2.2 | Shift+RMB: full OS menu still works | ☐ |
-| 2.3 | Open Terminal (toolbar / context) → bottom panel Local PowerShell TermControl first paint (no external `cmd` flash on Native) | ☐ |
-| 2.4 | Sidebar cold-boot LMB still works | ☐ |
+| 2.3 | Open Terminal → Local PowerShell prompt in Remote panel (ConPTY→xterm; no TermControl strip; no external `cmd`/`wt`) — G1 | ☐ |
+| 2.4 | xterm fills the Remote terminal frame; resize bottom dock still usable — G2 | ☐ |
+| 2.5 | Close session + caption X with live terminal → quit dialog; UI stays responsive — G3 | ☐ |
+| 2.6 | Sidebar cold-boot LMB still works | ☐ |
 
 ---
 

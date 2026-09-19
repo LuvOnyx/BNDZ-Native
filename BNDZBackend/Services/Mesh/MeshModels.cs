@@ -105,4 +105,9 @@ public sealed class MeshTerminalSessionInfo
     public bool Embedded { get; set; }
     /// <summary>Always false — local stays inside BNDZ via ConPTY.</summary>
     public bool ExternalOs { get; set; }
+    /// <summary>
+    /// First ConPTY frame (banner + DA + prompt) returned on the OPEN_RESULT channel.
+    /// Native shell push can drop background-thread posts; the request/response path does not.
+    /// </summary>
+    public string? BootstrapOutputBase64 { get; set; }
 }

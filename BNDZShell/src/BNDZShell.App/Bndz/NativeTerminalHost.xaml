@@ -11,6 +11,6 @@
     VerticalAlignment="Top"
     Background="#07090E">
 
-    <!-- Slot filled at runtime with EasyTerminalControl (TermControl + ConPTY). -->
+    <!-- Filled at runtime with EasyTerminalControl (Windows Terminal TermControl + ConPTY). -->
     <Grid x:Name="TermSlot" Background="#07090E" />
 </UserControl>

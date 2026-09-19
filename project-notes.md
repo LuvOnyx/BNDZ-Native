@@ -30,4 +30,4 @@
 
 ## Windows PC testing (ready)
 
-Use [`docs/WINDOWS-TEST-PLAYBOOK.md`](docs/WINDOWS-TEST-PLAYBOOK.md) on `BNDZShell` after `scripts/build-bndz-native.ps1`. Code for E4 sheets / Share dedupe / Open Terminal → TermControl / D6 unsigned-beta is landed — remaining work is click-through sign-off.
+Use [`docs/WINDOWS-TEST-PLAYBOOK.md`](docs/WINDOWS-TEST-PLAYBOOK.md) on `BNDZShell` after `scripts/build-bndz-native.ps1`. Terminal: WebView-yields TermControl strip + [`docs/TERMINAL-QUALITY-GATES.md`](docs/TERMINAL-QUALITY-GATES.md) (G0–G5) — not overlay-over-WebView. E4 sheets / Share dedupe / D6 unsigned-beta code landed; remaining work is click-through sign-off.

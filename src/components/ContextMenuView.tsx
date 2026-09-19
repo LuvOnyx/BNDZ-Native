@@ -60,6 +60,10 @@ const SORT_BY_OPTIONS: Array<{ value: SortColumnId; label: string }> = [
   { value: 'modified', label: 'Date modified' },
   { value: 'created', label: 'Date created' },
   { value: 'tags', label: 'Tags' },
+  { value: 'path', label: 'Path' },
+  { value: 'attributes', label: 'Attributes' },
+  { value: 'label', label: 'Label' },
+  { value: 'comment', label: 'Comment' },
   { value: 'ghostState', label: 'Link state' },
   { value: 'ramZone', label: 'Virtual zone' },
 ];
@@ -79,6 +83,8 @@ interface ContextMenuViewProps {
   setClipboardState: (items: string[], action: ClipboardAction) => void;
   executePaste: (targetDir: string) => Promise<void>;
   onDeletePaths: (paths: string[]) => void;
+  /** Prefer bottom-panel Mesh terminal over external wt/conhost. */
+  onOpenTerminal?: (paths: string[]) => void;
   onEmptyRecycleBin?: () => void;
   onRefreshList?: () => void;
   onRefreshTree?: () => void;
@@ -119,7 +125,7 @@ interface ContextMenuViewProps {
 function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
   onOpenBatchRename, onOpenMeshDrop, setIsSmartToolsOpen, setToastMessage, setInlineRename,
-  setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
+  setClipboardState, executePaste, onDeletePaths, onOpenTerminal, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
   onRestoreRecycleItems, onPurgeRecycleItems, onSelectAll, onInvertSelection,
@@ -1513,7 +1519,10 @@ function ContextMenuView({
               // Shell Menus plugin command-based actions
               else if (cmd === 'refresh') runRefresh();
               else if (cmd === 'copyPath') IPC.shellExecute('copyPath', targetPaths);
-              else if (cmd === 'openTerminal') IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
+              else if (cmd === 'openTerminal') {
+                if (onOpenTerminal) onOpenTerminal(targetPaths);
+                else IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
+              }
               else if (cmd === 'openExplorer') IPC.shellExecute('openExplorer', targetPaths);
               else if (cmd) {
                 // Arbitrary command: expand %1 with first target and run via shell
@@ -1538,9 +1547,9 @@ function ContextMenuView({
         <ContextMenuItem
           label="Open in Terminal"
           iconVerb="terminal"
-          onClick={async () => {
-            const IPC = await runIpc();
-            IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
+          onClick={() => {
+            if (onOpenTerminal) onOpenTerminal(targetPaths);
+            else void runIpc().then((IPC) => IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config)));
             onClose();
           }}
         />

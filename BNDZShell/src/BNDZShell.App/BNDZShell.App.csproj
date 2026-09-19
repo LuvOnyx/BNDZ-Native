@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>$(WindowsTargetFramework)</TargetFramework>
@@ -26,7 +26,7 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <EnableMsixTooling>true</EnableMsixTooling>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
-    <!-- BNDZCore may carry a WebView2.Core.dll copy; WinUI package also brings one — allow publish. -->
+    <!-- BNDZCore may carry a WebView2.Core.dll copy; WinUI package also brings one â€” allow publish. -->
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <!-- Prefer Segoe UI Variable / Fluent type ramp in generated XAML. -->
     <WinUISDKReferences>true</WinUISDKReferences>
@@ -87,7 +87,7 @@
     </Content>
   </ItemGroup>
 
-  <!-- Embedded backend is a DLL only — drop WPF WebView2 + stray host exe from output. -->
+  <!-- Embedded backend is a DLL only â€” drop WPF WebView2 + stray host exe from output. -->
   <Target Name="StripEmbeddedBackendArtifacts" AfterTargets="CopyFilesToOutputDirectory">
     <Delete Files="$(OutputPath)BNDZCore.exe;$(OutputPath)BNDZCore.runtimeconfig.json;$(OutputPath)Microsoft.Web.WebView2.Wpf.dll;$(OutputPath)Microsoft.Web.WebView2.Wpf.xml" ContinueOnError="true" />
   </Target>
@@ -95,8 +95,8 @@
   <!--
     User-facing exe is BNDZ.exe. AssemblyName stays BNDZShell (NuGet clash with BNDZ.csproj).
     CRITICAL:
-      1) Copy the apphost .exe, never $(TargetPath) — TargetPath is often the managed .dll.
-      2) Also alias {AssemblyName}.pri → BNDZ.pri. WinUI MRT resolves resources by exe basename;
+      1) Copy the apphost .exe, never $(TargetPath) â€” TargetPath is often the managed .dll.
+      2) Also alias {AssemblyName}.pri â†’ BNDZ.pri. WinUI MRT resolves resources by exe basename;
          without BNDZ.pri, BNDZ.exe crashes in Microsoft.UI.Xaml.dll (0xc000027b) while
          BNDZShell.exe boots fine from the same folder.
   -->
@@ -112,5 +112,20 @@
     <Copy SourceFiles="$(_BndzShellAppHost)" DestinationFiles="$(_BndzProductExe)" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" />
     <Copy SourceFiles="$(_BndzShellPri)" DestinationFiles="$(TargetDir)BNDZ.pri" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" />
     <Copy SourceFiles="$(_BndzShellPdb)" DestinationFiles="$(TargetDir)BNDZ.pdb" SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" Condition="Exists('$(_BndzShellPdb)')" />
+  </Target>
+
+  <!-- Unpackaged WinUI: TermControl native must sit next to the exe or LoadLibrary fails (empty COMException). -->
+  <Target Name="CopyTerminalNativesToOutput" AfterTargets="Build">
+    <PropertyGroup>
+      <_TermRid Condition="'$(Platform)' == 'ARM64' or '$(Platform)' == 'arm64'">win-arm64</_TermRid>
+      <_TermRid Condition="'$(_TermRid)' == ''">win-x64</_TermRid>
+      <_ConPtyRid Condition="'$(Platform)' == 'ARM64' or '$(Platform)' == 'arm64'">win10-arm64</_ConPtyRid>
+      <_ConPtyRid Condition="'$(_ConPtyRid)' == ''">win10-x64</_ConPtyRid>
+    </PropertyGroup>
+    <ItemGroup>
+      <_TermNative Include="$(OutputPath)runtimes\$(_TermRid)\native\Microsoft.Terminal.Control.dll" Condition="Exists('$(OutputPath)runtimes\$(_TermRid)\native\Microsoft.Terminal.Control.dll')" />
+      <_TermNative Include="$(OutputPath)runtimes\$(_ConPtyRid)\native\conpty.dll" Condition="Exists('$(OutputPath)runtimes\$(_ConPtyRid)\native\conpty.dll')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_TermNative)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_TermNative)' != ''" />
   </Target>
 </Project>

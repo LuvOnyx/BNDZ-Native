@@ -1326,7 +1326,22 @@ namespace BNDZ.Services
                 var evt = new { type = "MESH_TERMINAL_OUTPUT", payload = new { sessionId, data } };
                 PostToUi(() =>
                 {
-                    try { DeliverIpcJson(JsonSerializer.Serialize(evt, MeshJsonOpts)); }
+                    try
+                    {
+                        var json = JsonSerializer.Serialize(evt, MeshJsonOpts);
+                        try
+                        {
+                            var dir = Path.Combine(
+                                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                "BNDZ");
+                            Directory.CreateDirectory(dir);
+                            File.AppendAllText(
+                                Path.Combine(dir, "terminal.log"),
+                                $"{DateTime.Now:HH:mm:ss.fff} PUSH OUTPUT id={sessionId} b64len={data?.Length ?? 0} targets={BndzEmbeddedBackendHost.PushTargetCount}{Environment.NewLine}");
+                        }
+                        catch { /* ignore */ }
+                        DeliverIpcJson(json);
+                    }
                     catch { }
                 });
             };

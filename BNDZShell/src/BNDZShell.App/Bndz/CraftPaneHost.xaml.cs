@@ -250,12 +250,39 @@ public sealed partial class CraftPaneHost : UserControl
 				}
 				try
 				{
+					var isTermOut = json.Contains("\"MESH_TERMINAL_OUTPUT\"", StringComparison.Ordinal);
 					var dq = DispatcherQueue;
 					if (dq is not null && !dq.HasThreadAccess)
 					{
+						// Terminal frames MUST NOT be dropped — OLE STA pressure used to lose them
+						// while OPEN_RESULT (Invoke path) still worked → blank xterm with a live ConPTY.
+						if (isTermOut)
+						{
+							var enqueued = dq.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, Post);
+							if (!enqueued)
+							{
+								for (var i = 0; i < 20 && !enqueued; i++)
+								{
+									Thread.Sleep(2);
+									enqueued = dq.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, Post);
+								}
+							}
+							if (!enqueued)
+							{
+								_ = Task.Run(async () =>
+								{
+									for (var i = 0; i < 30; i++)
+									{
+										await Task.Delay(8).ConfigureAwait(false);
+										if (dq.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, Post))
+											return;
+									}
+								});
+							}
+							return;
+						}
 						if (!dq.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, Post))
 						{
-							// Enqueue can fail under OLE STA pressure — retry next tick.
 							_ = Task.Run(async () =>
 							{
 								await Task.Delay(16).ConfigureAwait(false);
@@ -1268,6 +1295,33 @@ public sealed partial class CraftPaneHost : UserControl
 		// Dual-path: PostWebMessage can silently drop under OLE STA; inject CustomEvent too.
 		if (json.Contains("\"EXTERNAL_FILES_DROPPED\"", StringComparison.Ordinal))
 			InjectExternalDropScript(json);
+		// Same for ConPTY→xterm — blank cursor with no prompt is often a dropped push, not a dead PTY.
+		if (json.Contains("\"MESH_TERMINAL_OUTPUT\"", StringComparison.Ordinal))
+			InjectMeshTerminalOutputScript(json);
+	}
+
+	/// <summary>
+	/// Backup delivery when WebView2 PostWebMessage loses MESH_TERMINAL_OUTPUT under STA pressure.
+	/// Mirrors InjectExternalDropScript — CustomEvent reaches React even if the message listener misses a frame.
+	/// </summary>
+	private void InjectMeshTerminalOutputScript(string json)
+	{
+		try
+		{
+			var core = PaneWebView.CoreWebView2;
+			if (core is null) return;
+			var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+			var script =
+				"(function(){try{" +
+				$"var raw=atob('{b64}');var j=JSON.parse(raw);var p=j.payload||j;" +
+				"window.dispatchEvent(new CustomEvent('bndz-mesh-terminal-output',{detail:p}));" +
+				"}catch(e){}})();";
+			_ = core.ExecuteScriptAsync(script);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] InjectMeshTerminalOutputScript: {ex.Message}");
+		}
 	}
 
 	/// <summary>

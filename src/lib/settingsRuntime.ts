@@ -286,7 +286,7 @@ export function entitySortName(entity: any): string {
 export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): SortColumnId {
   if (pane?.sortColumn) return pane.sortColumn as SortColumnId;
   const persisted = config.listSortColumn as SortColumnId | undefined;
-  if (persisted === 'name' || persisted === 'type' || persisted === 'size' || persisted === 'modified' || persisted === 'created' || persisted === 'tags' || persisted === 'ghostState' || persisted === 'ramZone') {
+  if (persisted === 'name' || persisted === 'type' || persisted === 'size' || persisted === 'modified' || persisted === 'created' || persisted === 'tags' || persisted === 'ghostState' || persisted === 'ramZone' || persisted === 'cloudStatus' || persisted === 'path' || persisted === 'attributes' || persisted === 'label' || persisted === 'comment') {
     return persisted;
   }
   const method = config.sortMethod || 'Natural';
@@ -401,12 +401,37 @@ export function compareEntities(
     if (cmp !== 0) return mul * cmp;
     return naturalCompare(entitySortName(a), entitySortName(b), config);
   }
-  if (col === 'path' && config.mixedSortOnPathColumns) {
+  if (col === 'path') {
     const pathA = String(a.path || a.id || '');
     const pathB = String(b.path || b.id || '');
-    if (a.type === 'directory' && b.type !== 'directory') return -1;
-    if (b.type === 'directory' && a.type !== 'directory') return 1;
-    return mul * pathA.localeCompare(pathB);
+    if (config.mixedSortOnPathColumns) {
+      if (a.type === 'directory' && b.type !== 'directory') return -1;
+      if (b.type === 'directory' && a.type !== 'directory') return 1;
+    }
+    const cmp = pathA.localeCompare(pathB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'attributes') {
+    const attrA = Array.isArray(a.attributes) ? a.attributes.filter(Boolean).join('\0') : String(a.attributes || '');
+    const attrB = Array.isArray(b.attributes) ? b.attributes.filter(Boolean).join('\0') : String(b.attributes || '');
+    const cmp = attrA.localeCompare(attrB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'label') {
+    const labelA = String(a.label || '');
+    const labelB = String(b.label || '');
+    const cmp = labelA.localeCompare(labelB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'comment') {
+    const commentA = String(a.comment || '');
+    const commentB = String(b.comment || '');
+    const cmp = commentA.localeCompare(commentB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
   }
   return 0;
 }

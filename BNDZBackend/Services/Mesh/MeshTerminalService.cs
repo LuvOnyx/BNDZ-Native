@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
+using System.Threading;
 using Renci.SshNet;
 
 namespace BNDZ.Services.Mesh;
@@ -34,14 +36,15 @@ public sealed class MeshTerminalService : IDisposable
         EmitOrBuffer(session, Convert.ToBase64String(Encoding.UTF8.GetBytes(
             $"\r\nBNDZ SSH — {host.Alias ?? host.Hostname ?? hostId}\r\n\r\n")));
         ArmAttachTimeout(session);
+        TermLog($"OpenSsh id={id} host={hostId} cwd={cwd ?? ""}");
         return new MeshTerminalSessionInfo { Id = id, HostId = hostId, RemoteCwd = cwd, IsLocal = false, Embedded = false, ExternalOs = false };
     }
 
     /// <summary>
-    /// Local PowerShell via ConPTY → same xterm.js surface as SSH.
-    /// Windows Terminal model — not HWND SetParent, not a detached OS window.
-    /// Early ConPTY output (including DA1 handshake) is buffered until the WebView
-    /// acknowledges the session so xterm can answer and the prompt paints immediately.
+    /// Local PowerShell via ConPTY → xterm.js (VS Code / node-pty model).
+    /// Critical for BNDZShell: MESH_TERMINAL_OPEN_RESULT travels the proven Invoke/response
+    /// channel; background PushWebMessage can drop ConPTY frames under WinUI STA pressure.
+    /// So we capture the first paint into BootstrapOutputBase64 on that channel, then stream.
     /// </summary>
     public MeshTerminalSessionInfo OpenLocal(string? cwd, uint cols = 120, uint rows = 32)
     {
@@ -54,36 +57,87 @@ public sealed class MeshTerminalService : IDisposable
             IsLocal = true,
             PendingCwd = workDir,
         };
-        // Register before Start so the first ConPTY bytes (DA query) hit the buffer.
         _sessions[id] = session;
+
+        var bootstrapGate = new object();
+        var bootstrap = new MemoryStream();
+        var live = 0; // 0 = collecting bootstrap, 1 = live stream to OnOutput
 
         BndzConPtyTerminal? pty = null;
         try
         {
+            TermLog($"OpenLocal id={id} cwd={workDir} cols={cols} rows={rows}");
+            // Banner first — guaranteed visible once FE writes bootstrap from OPEN_RESULT.
+            var banner = Encoding.UTF8.GetBytes($"\r\nBNDZ Local PowerShell — {workDir}\r\n\r\n");
+            lock (bootstrapGate) { bootstrap.Write(banner, 0, banner.Length); }
+
             pty = BndzConPtyTerminal.Start(
                 workDir,
                 cols,
                 rows,
                 onData: data =>
                 {
-                    try { EmitOrBuffer(session, Convert.ToBase64String(data)); }
-                    catch { /* ignore */ }
+                    try
+                    {
+                        if (Volatile.Read(ref live) == 0)
+                        {
+                            lock (bootstrapGate) { bootstrap.Write(data, 0, data.Length); }
+                            if (Interlocked.Increment(ref session.DataLogCount) <= 12)
+                                TermLog($"boot id={id} bytes={data.Length} total={bootstrap.Length}");
+                            return;
+                        }
+                        if (Interlocked.Increment(ref session.DataLogCount) <= 24)
+                            TermLog($"onData id={id} bytes={data.Length}");
+                        EmitLive(session, Convert.ToBase64String(data));
+                    }
+                    catch (Exception ex)
+                    {
+                        TermLog($"onData error id={id}: {ex.Message}");
+                    }
                 },
                 onExit: code =>
                 {
+                    TermLog($"onExit id={id} code={code}");
                     try { OnExit?.Invoke(id, code); }
                     catch { /* ignore */ }
                 });
         }
-        catch
+        catch (Exception ex)
         {
+            TermLog($"OpenLocal FAILED id={id}: {ex}");
             _sessions.TryRemove(id, out _);
             pty?.Dispose();
             throw;
         }
 
         session.LocalPty = pty;
-        ArmAttachTimeout(session);
+
+        // Wait for ConPTY's first real frame (DA + clear + prompt). Smoke tests show ~100–300ms.
+        var sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < 400)
+        {
+            int len;
+            lock (bootstrapGate) { len = (int)bootstrap.Length; }
+            // Banner (~40+) plus VT/prompt (~80+) — enough to paint something visible.
+            if (len >= 120) break;
+            Thread.Sleep(15);
+        }
+
+        byte[] bootBytes;
+        lock (bootstrapGate)
+        {
+            bootBytes = bootstrap.ToArray();
+            Volatile.Write(ref live, 1);
+            session.ClientAttached = true;
+        }
+
+        var bootB64 = bootBytes.Length > 0 ? Convert.ToBase64String(bootBytes) : null;
+        TermLog($"OpenLocal bootstrap id={id} bytes={bootBytes.Length} elapsedMs={sw.ElapsedMilliseconds} handlers={(OnOutput == null ? 0 : 1)}");
+
+        // Also push bootstrap on the live channel (best-effort) for listeners already attached.
+        if (!string.IsNullOrEmpty(bootB64))
+            EmitLive(session, bootB64);
+
         return new MeshTerminalSessionInfo
         {
             Id = id,
@@ -92,20 +146,17 @@ public sealed class MeshTerminalService : IDisposable
             IsLocal = true,
             Embedded = false,
             ExternalOs = false,
+            BootstrapOutputBase64 = bootB64,
         };
     }
 
-    /// <summary>
-    /// Client xterm is mounted and listening — flush buffered ConPTY/SSH bytes so DA
-    /// handshake completes and the shell prompt paints (Windows Terminal / VS Code model).
-    /// </summary>
     public void Acknowledge(string sessionId)
     {
         if (!_sessions.TryGetValue(sessionId, out var s)) return;
+        TermLog($"ACK id={sessionId} buffered={s.OutputBuffer.Count} attached={s.ClientAttached}");
         FlushBuffer(s);
     }
 
-    /// <summary>Legacy HWND layout — permanently no-op (WebView SetParent blacks out the FM).</summary>
     public void AttachOrLayoutEmbedded(string sessionId, IntPtr parentHwnd, int x, int y, int width, int height, bool visible)
     {
         _ = sessionId;
@@ -120,7 +171,6 @@ public sealed class MeshTerminalService : IDisposable
     public void SendInput(string sessionId, string base64)
     {
         if (!_sessions.TryGetValue(sessionId, out var s)) return;
-        // Input proves the client is attached — flush any pending handshake bytes first.
         FlushBuffer(s);
         var bytes = Convert.FromBase64String(base64);
         if (s.LocalPty != null)
@@ -153,6 +203,7 @@ public sealed class MeshTerminalService : IDisposable
     public void Close(string sessionId)
     {
         if (!_sessions.TryRemove(sessionId, out var s)) return;
+        TermLog($"Close id={sessionId}");
         try { s.AttachTimeoutCts?.Cancel(); } catch { }
         try { s.Shell?.Close(); } catch { }
         try { s.LocalPty?.Dispose(); } catch { }
@@ -163,23 +214,35 @@ public sealed class MeshTerminalService : IDisposable
         foreach (var id in _sessions.Keys.ToList()) Close(id);
     }
 
+    private void EmitLive(TerminalSession session, string b64)
+    {
+        if (string.IsNullOrEmpty(b64)) return;
+        try
+        {
+            OnOutput?.Invoke(session.Id, b64);
+        }
+        catch (Exception ex)
+        {
+            TermLog($"OnOutput error id={session.Id}: {ex.Message}");
+        }
+    }
+
     private void EmitOrBuffer(TerminalSession session, string b64)
     {
         if (string.IsNullOrEmpty(b64)) return;
         if (session.ClientAttached)
         {
-            OnOutput?.Invoke(session.Id, b64);
+            EmitLive(session, b64);
             return;
         }
         lock (session.BufferGate)
         {
             if (session.ClientAttached)
             {
-                OnOutput?.Invoke(session.Id, b64);
+                EmitLive(session, b64);
                 return;
             }
             session.OutputBuffer.Add(b64);
-            // Cap ~1MB of base64 (~750KB decoded) so a stuck client cannot unbounded-grow.
             while (session.OutputBuffer.Count > 800)
                 session.OutputBuffer.RemoveAt(0);
         }
@@ -200,11 +263,9 @@ public sealed class MeshTerminalService : IDisposable
         }
         try { session.AttachTimeoutCts?.Cancel(); } catch { }
         if (pending == null) return;
+        TermLog($"FlushBuffer id={session.Id} chunks={pending.Count}");
         foreach (var chunk in pending)
-        {
-            try { OnOutput?.Invoke(session.Id, chunk); }
-            catch { /* ignore */ }
-        }
+            EmitLive(session, chunk);
     }
 
     private void ArmAttachTimeout(TerminalSession session)
@@ -240,6 +301,21 @@ public sealed class MeshTerminalService : IDisposable
         return string.IsNullOrEmpty(profile) ? Environment.CurrentDirectory : profile;
     }
 
+    private static void TermLog(string message)
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "BNDZ");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(
+                Path.Combine(dir, "terminal.log"),
+                $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
+        }
+        catch { /* best-effort */ }
+    }
+
     private sealed class TerminalSession
     {
         public string Id { get; set; } = "";
@@ -252,5 +328,6 @@ public sealed class MeshTerminalService : IDisposable
         public readonly List<string> OutputBuffer = new();
         public bool ClientAttached;
         public CancellationTokenSource? AttachTimeoutCts;
+        public int DataLogCount;
     }
 }

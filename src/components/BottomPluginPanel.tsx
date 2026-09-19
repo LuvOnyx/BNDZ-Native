@@ -119,7 +119,7 @@ export default function BottomPluginPanel(props: any & {
 
   const orderedPlugins = useMemo(() => {
     const installed = pluginRegistry.filter((p: any) => p.isInstalled === true);
-    // Core FM Open Terminal needs the Remote Mesh surface for the Native TermControl hole
+    // Core FM Open Terminal needs the Remote Mesh surface for the Native TermControl strip
     // even when the marketplace plugin is Uninstalled (does not change install state).
     let base = installed as any[];
     const needTerminalSurface =
@@ -335,7 +335,7 @@ export default function BottomPluginPanel(props: any & {
       ...pluginProps,
       selectedItems: paths,
       selectedPaths: paths,
-      currentPath: launchContext.currentPath || pluginProps.currentPath,
+      currentPath: launchContext.cwd || launchContext.currentPath || pluginProps.currentPath,
       pluginLaunch: launchContext,
     };
   }, [launchContext, pluginProps]);

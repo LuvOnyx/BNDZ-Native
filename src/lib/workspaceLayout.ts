@@ -11,7 +11,7 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 64;
+export const WORKSPACE_LAYOUT_VERSION = 66;
 
 /**
  * Canonical outer split (user-confirmed):

@@ -191,13 +191,23 @@ internal sealed class BndzConPtyTerminal : IDisposable
                 IntPtr.Zero))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "UpdateProcThreadAttribute PSEUDOCONSOLE failed");
 
+        // STARTF_USESTDHANDLES with null std handles is required for ConPTY attachment when the
+        // parent is a GUI / redirected process. Without it, CreateProcess still duplicates the
+        // parent's std handles into the child — PowerShell never binds to the PTY and the host
+        // only receives a few invisible VT mode bytes (blank xterm with a cursor). See
+        // microsoft/terminal#15814 and MiniTerm / Windows Terminal host patterns.
+        const int startfUseShowWindow = 0x00000001;
+        const int startfUseStdHandles = 0x00000100;
         var si = new StartupInfoEx
         {
             StartupInfo = new StartupInfo
             {
                 cb = Marshal.SizeOf<StartupInfoEx>(),
-                dwFlags = 0x00000001, // STARTF_USESHOWWINDOW
+                dwFlags = startfUseShowWindow | startfUseStdHandles,
                 wShowWindow = 0, // SW_HIDE — avoid a flash of a real console
+                hStdInput = IntPtr.Zero,
+                hStdOutput = IntPtr.Zero,
+                hStdError = IntPtr.Zero,
             },
             lpAttributeList = _attrList,
         };

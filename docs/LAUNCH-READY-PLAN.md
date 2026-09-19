@@ -207,7 +207,7 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 - Tombstones / optimistic move-delete: clear on host omit; no flicker-back  
 - Small copy/move: toast + list refresh feel instant  
 - Fast Search: keyboard nav + Enter snappy; empty / no-Everything messaging  
-- Terminal: **Native** Local PowerShell first paint — WinUI `NativeTerminalHost` / TermControl overlay over plugin hole (not detached `wt`); geometry fills hole; ConPTY buffer+ACK  
+- Terminal: **Native** Local PowerShell — WinUI `EasyTerminalControl` overlay over the Remote plugin hole (`NATIVE_TERMINAL_*`); see [`docs/TERMINAL-QUALITY-GATES.md`](TERMINAL-QUALITY-GATES.md) 
 - Outbound ghost mechanics (RegisterClassExW + single premultiply) + tree drag bake — **code landed**; Windows wallpaper follow still verify  
 - **C4 code landed:** inbound list FluidDrag + outside OLE ghost craft — Windows matrix 46–58 next  
 - Sidebar cold-boot LMB (Caption/NC) — code fix landed; **re-verify** on Native cold start  
@@ -330,7 +330,7 @@ Rows **E4.1–E4.14** in [`docs/fm-launch-readiness.md`](fm-launch-readiness.md)
 | Row | Code | Windows |
 |-----|------|---------|
 | Shift+RMB full OS menu; no duplicate Open/Properties/Share | Weave + share/grantaccess dedupe harden | ☐ |
-| Terminal Native TermControl first-open paint + geometry | Code landed | ☐ |
+| Terminal Local WinUI TermControl overlay (G0–G5) | G0–G5 code paths via `verify-terminal-gates.ps1` + builds; optional live §2.3–2.5 | ☑ code / ☐ live |
 | Fast Search empty/keyboard | [x] | spot-check ☐ |
 | Transfer toast / list refresh snappiness | [x] | spot-check ☐ |
 | Bottom panel empty + install gating | [x] | ☐ (#99) |
