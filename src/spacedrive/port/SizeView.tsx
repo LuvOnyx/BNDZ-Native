@@ -5,6 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { Icons8Icon } from '../../components/Icons8Icon';
+import { BndzPlaque } from '../../components/BndzPlaque';
 
 export type SizeViewItem = {
   name: string;
@@ -154,6 +155,7 @@ export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props
   if (!prepared.length) {
     return (
       <div className="bndz-sizemap-empty">
+        <BndzPlaque tone="folder" size="lg" className="mb-1" />
         <span className="bndz-sizemap-empty-title">No folder sizes available yet</span>
         {onScanFolderSizes && (
           <button type="button" onClick={onScanFolderSizes} className="bndz-sizemap-scan-btn">

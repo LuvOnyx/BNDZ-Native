@@ -206,7 +206,16 @@ function FileListRow(props: FileListRowProps) {
   const commitInlineRename = () => {
     if (!inlineRename || inlineRename.entityId !== entity.id || inlineRename.path !== panePath) return;
     void commitRenameForEntity(entity, panePath, inlineRename.currentName).then(ok => {
-      if (ok) setInlineRename(null);
+      if (ok) {
+        setInlineRename(null);
+        return;
+      }
+      // Extension confirm cancelled / validation failed — keep editing and restore focus.
+      requestAnimationFrame(() => {
+        const el = document.querySelector('.bndz-inline-rename-input') as HTMLInputElement | null;
+        el?.focus();
+        el?.select();
+      });
     });
   };
 
@@ -279,6 +288,7 @@ function FileListRow(props: FileListRowProps) {
         ${isDragTarget && isDir ? 'ring-2 ring-inset ring-[color:var(--list-selected-bg,#a855f7)] bg-[color-mix(in_srgb,var(--list-selected-bg,#a855f7)_22%,transparent)]' : ''}
         ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
         ${config.coloredLines && clipboardMark ? 'fs-item-clipboard-colored-line' : ''}
+        ${entity?.__recentPaste ? 'fs-item-recent-paste' : ''}
         ${colorFilterResult?.className || ''}
         ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[color:var(--list-selected-bg,#a855f7)]/50' : ''}
         ${syncOpacity ? 'opacity-50' : ''}
@@ -330,8 +340,27 @@ function FileListRow(props: FileListRowProps) {
       }}
       onMouseDown={(e) => {
         if (e.button !== 0) return;
+        if (inlineRenameActive) {
+          e.stopPropagation();
+        }
+      }}
+      onPointerEnter={() => {
+        // Hover-warm shell verbs so right-click already has options (host + FE cache).
+        try {
+          const win = resolveEntityWindowsPath(panePath, entity);
+          if (win) {
+            void import('../../lib/nativeContextMenuCache').then(({ warmNativeContextMenuForPath }) => {
+              warmNativeContextMenuForPath(win);
+            });
+          }
+        } catch { /* ignore */ }
       }}
       onClick={(e) => {
+        if (inlineRenameActive) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (suppressRowClickRef.current) {
           suppressRowClickRef.current = false;
           e.preventDefault();
@@ -613,7 +642,7 @@ function FileListRow(props: FileListRowProps) {
                 <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
               )}
               {(entity as any).isGhostLink && (
-                <span className="bndz-ghostlink-emblem inline-flex items-center mr-1 shrink-0" title={(entity as any).linkTarget || 'Ghost link'}>
+                <span className="bndz-ghostlink-emblem inline-flex items-center mr-1 shrink-0" title={(entity as any).linkTarget || 'Symbolic link'}>
                   <EmblemIcon id="emblem-symbolic-link" size={12} />
                 </span>
               )}

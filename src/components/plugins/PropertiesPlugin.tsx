@@ -409,6 +409,8 @@ export default function PropertiesPlugin({
             >
                 <PluginEmptyState
                     icon="sys_properties"
+                    tone="idle"
+                    title="Nothing selected"
                     description="Select items to inspect properties, attributes, hashes, and BNDZ tags."
                 />
             </PluginPanelShell>

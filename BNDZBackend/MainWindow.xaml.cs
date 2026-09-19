@@ -1421,8 +1421,8 @@ namespace BNDZ
                 return wvPt;
             }
 
-            // onHover: throttled, dispatched to UI thread (already on UI thread via STA OLE).
-            void OleHover(double screenX, double screenY)
+            // onHover: signature matches Native C4.2 enrichment; classic WPF posts coords only (archive).
+            void OleHover(double screenX, double screenY, string[]? samplePaths, int totalCount, bool copyMode)
             {
                 var now = Environment.TickCount64;
                 if (now - _lastHoverTickMs < 16) return;
@@ -3198,6 +3198,34 @@ namespace BNDZ
                         });
                     });
                 }
+                else if (type == "PREFETCH_CONTEXT_MENU_ITEMS")
+                {
+                    var paths = new List<string>();
+                    try {
+                        var payload = root.GetProperty("payload");
+                        if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var el in pathsEl.EnumerateArray())
+                            {
+                                var p = NormalizeFsPath(el.GetString() ?? "");
+                                if (!string.IsNullOrEmpty(p)) paths.Add(p);
+                            }
+                        }
+                        if (paths.Count == 0 && payload.TryGetProperty("path", out var pathEl))
+                        {
+                            var single = NormalizeFsPath(pathEl.GetString() ?? "");
+                            if (!string.IsNullOrEmpty(single)) paths.Add(single);
+                        }
+                    } catch { }
+                    if (paths.Count > 0)
+                    {
+                        _ = Task.Run(() =>
+                        {
+                            try { _shellContextMenuService.PrefetchContextMenuItems(paths); }
+                            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Prefetch context menu failed: {ex.Message}"); }
+                        });
+                    }
+                }
                 else if (type == "EXECUTE_UNDO")
                 {
                     var idProp = root.TryGetProperty("id", out var uid) ? uid.GetString() : null;
@@ -3586,6 +3614,11 @@ namespace BNDZ
                     var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
                     var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
                     _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_TERMINAL_ACK")
+                {
+                    var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
+                    _meshOrchestrator.Terminal.Acknowledge(sessionId);
                 }
                 else if (type == "MESH_STAT")
                 {
@@ -10251,7 +10284,58 @@ namespace BNDZ
                                 if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
                                     return batchResolution;
 
-                                var evt = new { type = "CONFLICT_DETECTED", payload = new { operationId = opId, fileName, sourcePath = srcPath, destPath } };
+                                // Collect metadata for conflict dialog (file + folder).
+                                long srcSize = 0, srcModUtc = 0, destSize = 0, destModUtc = 0;
+                                var isFolder = false;
+                                try
+                                {
+                                    if (!string.IsNullOrEmpty(srcPath))
+                                    {
+                                        if (Directory.Exists(srcPath))
+                                        {
+                                            isFolder = true;
+                                            srcModUtc = new DateTimeOffset(new DirectoryInfo(srcPath).LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(srcPath))
+                                        {
+                                            var si = new FileInfo(srcPath);
+                                            srcSize = si.Length;
+                                            srcModUtc = new DateTimeOffset(si.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                    }
+                                    if (!string.IsNullOrEmpty(destPath))
+                                    {
+                                        if (Directory.Exists(destPath))
+                                        {
+                                            isFolder = true;
+                                            destModUtc = new DateTimeOffset(new DirectoryInfo(destPath).LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(destPath))
+                                        {
+                                            var di = new FileInfo(destPath);
+                                            destSize = di.Length;
+                                            destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                    }
+                                }
+                                catch { /* best-effort */ }
+
+                                var evt = new
+                                {
+                                    type = "CONFLICT_DETECTED",
+                                    payload = new
+                                    {
+                                        operationId = opId,
+                                        fileName,
+                                        sourcePath = srcPath,
+                                        destPath,
+                                        sourceSize = srcSize,
+                                        sourceModifiedUtc = srcModUtc,
+                                        destSize,
+                                        destModifiedUtc = destModUtc,
+                                        isFolder,
+                                    }
+                                };
                                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                                 string conflictKey = $"{opId}:{fileName}";
                                 _conflictResolvers[conflictKey] = tcs;
@@ -10341,7 +10425,13 @@ namespace BNDZ
                 }
                 catch (Exception ex)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    // Partial batch failure — some items in this copy/move succeeded and were already
+                    // recorded to the action log; expose only the failed source paths so queue Retry
+                    // resubmits those instead of replaying the entire original batch.
+                    var failedPaths = ex is PartialTransferException partialEx
+                        ? partialEx.FailedItems.Select(f => f.Path).ToList()
+                        : null;
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message, failedPaths);
                     var failEvt = new
                     {
                         type = "PROGRESS_UPDATE",
@@ -10352,6 +10442,7 @@ namespace BNDZ
                             currentFile = "",
                             error = ex.Message,
                             engine,
+                            failedPaths,
                         },
                     };
                     PostToUi(() =>

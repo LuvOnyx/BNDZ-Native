@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { usePluginRegistry, PluginManifest } from '../data/PluginRegistryContext';
 import { showNativeAlert } from '../lib/nativeDialog';
@@ -89,20 +90,20 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Browse and restore past file operations',
     ],
     'remote-mesh': [
-      'SSH/SFTP browse, terminal, sync, and LAN drop',
-      'Mesh VPS launch, import, start/stop, and Mesh bridge',
-      'Ephemeral and persistent instances with cloud-init SSH',
+      'Browse remote PCs over SSH, sync folders, and send files nearby',
+      'Temporary cloud instances you can start and stop',
+      'Built-in terminal for local and remote shells',
     ],
 
     'project-sandbox': [
-      'Isolated sandbox sessions with checkpoint/commit/discard',
-      'Encrypted vault unlock/browse beside sandbox work',
+      'Isolated work folders with checkpoint / discard',
+      'Optional locked vaults beside sandbox work',
       'Safe experimentation on live trees',
     ],
     'branching-time': [
-      'Content branches and VSS shadows',
-      'Compare and restore timeline paths',
-      'Non-destructive experimentation',
+      'Folder snapshots you can preview and restore',
+      'Compare timeline paths without losing the live folder',
+      'Windows Previous Versions when available',
     ],
   };
   return byId[plugin.id] || [
@@ -272,8 +273,8 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           <span className="bndz-hub-stat-orb bndz-hub-stat-orb--available">{stats.available}</span>
           available
         </span>
-        <span className="ml-auto text-[10px] tracking-[0.08em] uppercase text-white/20 font-medium">
-          BNDZ Extension Hub
+        <span className="ml-auto text-[10px] tracking-[0.06em] text-white/25 font-medium">
+          Extension Hub
         </span>
       </div>
 
@@ -285,7 +286,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           <div className="flex-1 overflow-y-auto styled-scrollbar p-2 min-h-0">
             {filteredPlugins.length === 0 ? (
               <div className="bndz-hub-empty">
-                <Icons8Icon id="search" size={28} className="opacity-30" />
+                <BndzPlaque tone={searchQuery.trim() ? 'search' : 'brand'} size="md" />
                 <p className="text-[12px] text-center leading-relaxed max-w-[200px]">
                   {searchQuery.trim()
                     ? 'No extensions match your search.'
@@ -537,7 +538,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
             </>
           ) : (
             <div className="bndz-hub-empty h-full">
-              <Icons8Icon id="extension_hub" size={38} className="opacity-30" />
+              <BndzPlaque tone="brand" size="lg" />
               <p className="text-[13px] text-center">Select an extension to inspect details.</p>
             </div>
           )}

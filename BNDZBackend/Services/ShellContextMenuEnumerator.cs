@@ -34,7 +34,7 @@ internal static class ShellContextMenuEnumerator
         /// <summary>shell = third-party / extension; builtin = classic verbs we already render in BNDZ.</summary>
         public string Kind { get; init; } = "shell";
         /// <summary>data:image/png;base64,… from the shell menu HBITMAP when available.</summary>
-        public string? IconBase64 { get; init; }
+        public string? IconBase64 { get; set; }
         /// <summary>Cascaded submenu children (New, Send to, etc.).</summary>
         public List<EnumeratedItem>? Children { get; init; }
     }
@@ -60,7 +60,11 @@ internal static class ShellContextMenuEnumerator
 
                 var cm2 = cm as IContextMenu2;
                 var cm3 = cm as IContextMenu3;
+                // Structure: fast path (root + first cascade only). Icons: always on those levels
+                // so WinRAR/7-Zip parents get bitmaps without InitAllPopups.
                 var items = WalkMenu(cm, cm2, cm3, hMenu, depth: 0, extractIcons: false);
+                items = DedupeByCanonicalVerb(items);
+                items = FillCascadeParentIconsFromChildren(items);
                 return CompactSeparators(items);
             });
         }
@@ -144,6 +148,8 @@ internal static class ShellContextMenuEnumerator
                     ? WalkMenu(cm, cm2, cm3, sub, depth + 1, extractIcons)
                     : new List<EnumeratedItem>();
                 children = CompactSeparators(children);
+                // Always pull bitmaps for root + first cascade (even on fast structure path).
+                var wantIcon = depth <= 1;
                 if (children.Count == 0)
                 {
                     // Rare: popup header is itself an invokable command (owner-draw / delayed).
@@ -161,7 +167,7 @@ internal static class ShellContextMenuEnumerator
                             Verb = string.IsNullOrEmpty(verb) ? id : verb,
                             CommandId = offset,
                             Kind = kind,
-                            IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
+                            IconBase64 = wantIcon ? TryExtractMenuItemIconBase64(hMenu, i) : null,
                         });
                     }
                     continue;
@@ -172,7 +178,7 @@ internal static class ShellContextMenuEnumerator
                     Id = $"submenu:{label.ToLowerInvariant()}",
                     Label = label,
                     Kind = "shell",
-                    IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
+                    IconBase64 = wantIcon ? TryExtractMenuItemIconBase64(hMenu, i) : null,
                     Children = children,
                 });
                 continue;
@@ -201,10 +207,35 @@ internal static class ShellContextMenuEnumerator
                 CommandId = leafOffset,
                 IsPrimary = string.Equals(leafVerb, "open", StringComparison.OrdinalIgnoreCase),
                 Kind = leafKind,
-                IconBase64 = extractIcons ? TryExtractMenuItemIconBase64(hMenu, i) : null,
+                IconBase64 = depth <= 1 ? TryExtractMenuItemIconBase64(hMenu, i) : null,
             });
         }
 
+        return items;
+    }
+
+    /// <summary>
+    /// Owner-draw cascade headers (HBMMENU_CALLBACK) often have no HBITMAP while children do.
+    /// Promote the first child bitmap onto the parent so WinRAR/7-Zip parents match children.
+    /// </summary>
+    private static List<EnumeratedItem> FillCascadeParentIconsFromChildren(List<EnumeratedItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.Children is { Count: > 0 } && string.IsNullOrEmpty(item.IconBase64))
+            {
+                foreach (var child in item.Children)
+                {
+                    if (!string.IsNullOrEmpty(child.IconBase64))
+                    {
+                        item.IconBase64 = child.IconBase64;
+                        break;
+                    }
+                }
+            }
+            if (item.Children is { Count: > 0 })
+                FillCascadeParentIconsFromChildren(item.Children);
+        }
         return items;
     }
 
@@ -397,12 +428,93 @@ internal static class ShellContextMenuEnumerator
         return null;
     }
 
+    /// <summary>
+    /// Verbs BNDZ already paints in the custom menu (must stay aligned with
+    /// <c>BUILT_IN_CONTEXT_VERBS</c> in <c>src/lib/contextMenuActions.ts</c>).
+    /// Share / Give access / Send to / Copy path / Pin were missing and caused
+    /// Shift+RMB weave duplicates when shell extensions re-registered them.
+    /// </summary>
     private static bool IsBuiltinVerb(string? verb)
     {
         if (string.IsNullOrWhiteSpace(verb)) return false;
-        return verb.ToLowerInvariant() is
+        var v = verb.Trim().ToLowerInvariant();
+        // Drop shell32 namespace prefixes (Windows.ModernShare → modernshare, etc.)
+        var bare = v.Contains('.') ? v[(v.LastIndexOf('.') + 1)..] : v;
+        return bare is
             "open" or "edit" or "openas" or "openwith" or "cut" or "copy" or "paste"
-            or "delete" or "rename" or "properties" or "link" or "print" or "runas";
+            or "delete" or "trash" or "rename" or "properties" or "settings"
+            or "link" or "print" or "runas"
+            or "share" or "modernshare" or "grantaccess" or "sendto"
+            or "copyaspath" or "copypath"
+            or "pintohome" or "pintostartscreen" or "pintotaskbar";
+    }
+
+    /// <summary>
+    /// Canonical (culture/label-invariant) key for verbs that Explorer only ever shows once,
+    /// even though a shell extension or a localized handler can enumerate the same command
+    /// twice (e.g. the OS "Open" plus a third-party "Open" echo, or "Properties" duplicated
+    /// by a non-English label). Returns null for opaque/extension-only verbs, which are never
+    /// merged here — only known canonical builtin verbs are deduped.
+    /// </summary>
+    private static string? CanonicalVerbKey(string? verb)
+    {
+        if (string.IsNullOrWhiteSpace(verb)) return null;
+        var v = verb.Trim().ToLowerInvariant();
+        var bare = v.Contains('.') ? v[(v.LastIndexOf('.') + 1)..] : v;
+        // Alias families that Shell32/WinRT spell differently for the same UI command.
+        if (bare is "openas" or "openwith") return "openwith";
+        if (bare is "share" or "modernshare") return "share";
+        if (bare is "copyaspath" or "copypath") return "copypath";
+        if (bare is "delete" or "trash") return "delete";
+        if (bare is "grantaccess") return "grantaccess";
+        if (bare is "sendto") return "sendto";
+        return IsBuiltinVerb(bare) ? bare : null;
+    }
+
+    /// <summary>
+    /// Dedupe the live shell menu by canonical verb (not label text), so Open/Properties/etc.
+    /// aren't doubled when a shell extension re-registers a builtin verb or supplies a
+    /// non-English label for the same command id. Recurses into cascaded submenus (Send to,
+    /// New, …) so nested duplicates are caught too. Opaque extension commands without a
+    /// recognized verb are never merged — only the first occurrence of each canonical verb
+    /// at a given menu level survives, preserving the shell's original ordering/priority.
+    /// </summary>
+    private static List<EnumeratedItem> DedupeByCanonicalVerb(List<EnumeratedItem> items)
+    {
+        var result = new List<EnumeratedItem>(items.Count);
+        var seenVerbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            if (item.Separator)
+            {
+                result.Add(item);
+                continue;
+            }
+
+            if (item.Children is { Count: > 0 })
+            {
+                result.Add(new EnumeratedItem
+                {
+                    Id = item.Id,
+                    Label = item.Label,
+                    Verb = item.Verb,
+                    CommandId = item.CommandId,
+                    Separator = item.Separator,
+                    IsPrimary = item.IsPrimary,
+                    Kind = item.Kind,
+                    IconBase64 = item.IconBase64,
+                    Children = DedupeByCanonicalVerb(item.Children),
+                });
+                continue;
+            }
+
+            var canonicalVerb = CanonicalVerbKey(item.Verb);
+            if (canonicalVerb != null && !seenVerbs.Add(canonicalVerb))
+                continue; // already have this canonical command at this menu level
+
+            result.Add(item);
+        }
+        return result;
     }
 
     private static List<EnumeratedItem> CompactSeparators(List<EnumeratedItem> items)

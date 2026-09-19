@@ -11,34 +11,16 @@ export const TAB_ACCENT_PRESETS = [
   { id: 'lime', label: 'Lime', color: '#a3e635' },
 ] as const;
 
-/** Colored tab chrome — reads as a machined bar, not a flat web pill. */
-export function tabAccentStyle(color?: string | null, isActive?: boolean): Record<string, string> | undefined {
+/**
+ * Colored tab chrome — same chip silhouette as uncolored tabs.
+ * CSS owns plaque / native-host fill; we only set slit + under-plaque tint vars.
+ * Never set inline `background` — that clears plaques and shrinks the painted chip.
+ */
+export function tabAccentStyle(color?: string | null, _isActive?: boolean): Record<string, string> | undefined {
   if (!color) return undefined;
-  const edge = isActive ? color : color;
   return {
-    borderTopWidth: '3px',
-    borderTopStyle: 'solid',
-    borderTopColor: edge,
-    borderLeftColor: `${color}99`,
-    borderRightColor: `${color}55`,
-    borderBottomColor: 'transparent',
-    boxShadow: isActive
-      ? [
-          `inset 0 1px 0 ${color}aa`,
-          `inset 0 -2px 0 ${color}`,
-          `inset 1px 0 0 ${color}33`,
-          `0 1px 0 rgba(0,0,0,0.35)`,
-          `0 0 14px ${color}28`,
-        ].join(', ')
-      : [
-          `inset 0 2px 0 ${color}`,
-          `inset 0 1px 0 ${color}66`,
-          `inset 0 -1px 0 ${color}33`,
-          `0 1px 0 rgba(0,0,0,0.25)`,
-        ].join(', '),
-    backgroundImage: isActive
-      ? `linear-gradient(180deg, ${color}28 0%, ${color}0c 42%, transparent 100%)`
-      : `linear-gradient(180deg, ${color}32 0%, ${color}14 45%, transparent 100%)`,
-    backgroundColor: isActive ? undefined : `${color}18`,
+    ['--bndz-tab-slit' as string]: color,
+    ['--bndz-tab-slit-glow' as string]: `${color}66`,
+    ['--bndz-tab-accent-tint' as string]: color,
   } as Record<string, string>;
 }

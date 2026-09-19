@@ -9,8 +9,12 @@ public sealed class FileOperationPreferences
 {
     public static FileOperationPreferences Current { get; private set; } = new();
 
-    /// <summary>bndz | native | teracopy — default native so BNDZ is a shell file manager.</summary>
-    public string Engine { get; set; } = "native";
+    /// <summary>
+    /// Default <c>bndz</c> so FileConflictModal owns same-name collisions while the BNDZ
+    /// transfer panel owns progress. Set to <c>native</c>/<c>windows</c> for Explorer IFileOperation
+    /// (including Explorer's own conflict UI).
+    /// </summary>
+    public string Engine { get; set; } = "bndz";
     public string CopyHandler { get; set; } = "native";
 
     public bool QueueOperations { get; set; } = true;
@@ -64,6 +68,12 @@ public sealed class FileOperationPreferences
 
         if (p.CopyHandler == "teracopy" && action is "copy" or "move")
             return "teracopy";
+
+        // Background transfer panel + silent IFileOperation is Launch Ready split-brain when
+        // Explorer still owns conflict prompts. Prefer BNDZ engine so FileConflictModal owns
+        // same-name collisions while the queue owns progress.
+        if (p.BackgroundProcessing && action is "copy" or "move")
+            return "bndz";
 
         if (string.Equals(p.Engine, "native", StringComparison.OrdinalIgnoreCase)
             || string.Equals(p.Engine, "windows", StringComparison.OrdinalIgnoreCase))
@@ -170,8 +180,8 @@ public sealed class FileOperationPreferences
             if (v is "bndz" or "managed" or "internal") return "bndz";
         }
 
-        // No explicit engine → Windows shell (native FM default).
-        return "native";
+        // No explicit engine → BNDZ managed path (FileConflictModal + transfer panel).
+        return "bndz";
     }
 
     private static string ReadDateFormat(JsonElement root)

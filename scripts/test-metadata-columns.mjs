@@ -47,6 +47,12 @@ assert.strictEqual(filtered.length, 1);
 assert.strictEqual(filtered[0].name, 'normal');
 
 const defaults = resolveCustomColumns();
-assert.strictEqual(defaults.every(c => !c.enabled), true, 'metadata columns should be off by default');
+const enabledByDefault = defaults.filter(c => c.enabled).map(c => c.id).sort();
+assert.deepStrictEqual(
+  enabledByDefault,
+  ['artists', 'authors', 'dimensions', 'length'],
+  'high-value metadata columns on by default',
+);
+assert.ok(defaults.some(c => !c.enabled), 'most metadata columns stay opt-in');
 
 console.log('metadata columns + tree/list filter tests passed');

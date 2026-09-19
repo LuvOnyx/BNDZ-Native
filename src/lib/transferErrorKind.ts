@@ -5,6 +5,9 @@ export type TransferErrorKind =
   | 'sharingViolation'
   | 'pathTooLong'
   | 'accessDenied'
+  | 'readOnly'
+  | 'invalidName'
+  | 'intoSelf'
   | 'other';
 
 export type ClassifiedTransferError = {
@@ -27,6 +30,16 @@ const PATH_LONG_RE =
   /path too long|filename.*long|ERROR_FILENAME_EXCED_RANGE|\b206\b|MAX_PATH|247 characters/i;
 const ACCESS_RE =
   /access is denied|access denied|unauthorized|requires administrator|elevation|E_ACCESSDENIED|ERROR_ACCESS_DENIED|0x80070005/i;
+const READ_ONLY_RE =
+  /write protect|write-protected|read-?only (?:file|volume|media|filesystem|disk)|ERROR_WRITE_PROTECT|\b19\b|0x80070013|media is write protected|destination is not writable|not writable/i;
+const INVALID_NAME_RE =
+  /invalid (?:file )?name|illegal characters?|filename.*incorrect|directory name.*incorrect|ERROR_INVALID_NAME|\b123\b|0x8007007b|reserved (?:device |file )?name|cannot contain|The filename, directory name, or volume label syntax is incorrect/i;
+const INTO_SELF_RE =
+  /cannot be (?:moved|copied) into itself|into itself|destination.*(is|was) (?:a )?sub(?:folder|directory)/i;
+
+/** Windows reserved device leaf names (with or without extension). */
+const RESERVED_DEVICE_RE =
+  /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
 /** Host emits e.g. "Need 1.5 GB, have 420 MB" (FileOperationPathPlanner). */
 const NEED_HAVE_RE =
@@ -39,6 +52,19 @@ const UNIT_MULT: Record<string, number> = {
   GB: 1024 ** 3,
   TB: 1024 ** 4,
 };
+
+const ILLEGAL_NAME_CHARS_RE = /[<>:"/\\|?*\u0000-\u001f]/;
+
+/** True when a bare file/folder name is illegal or a reserved Windows device name. */
+export function isInvalidWindowsFileName(name: string | null | undefined): boolean {
+  const n = String(name || '').trim();
+  if (!n) return true;
+  if (n === '.' || n === '..') return true;
+  if (ILLEGAL_NAME_CHARS_RE.test(n)) return true;
+  if (n.endsWith('.') || n.endsWith(' ')) return true;
+  if (RESERVED_DEVICE_RE.test(n)) return true;
+  return false;
+}
 
 export function parseByteSizeToken(value: string, unit: string): number | undefined {
   const n = Number(String(value).replace(/,/g, ''));
@@ -141,6 +167,33 @@ export function classifyTransferError(
       detail,
     };
   }
+  // Read-only before generic access-denied so write-protect media gets the right sheet.
+  if (READ_ONLY_RE.test(blob) || code === 'readOnly' || code === '19') {
+    return {
+      kind: 'readOnly',
+      title: 'Destination is read-only',
+      summary:
+        'This location cannot be written to (write-protected media or a read-only file). Choose another destination, clear the read-only attribute, or Skip.',
+      detail,
+    };
+  }
+  if (INVALID_NAME_RE.test(blob) || code === 'invalidName' || code === '123') {
+    return {
+      kind: 'invalidName',
+      title: 'Invalid name',
+      summary:
+        'That name is not allowed on Windows (illegal characters, trailing space/dot, or reserved names like CON / PRN). Rename and try again.',
+      detail,
+    };
+  }
+  if (INTO_SELF_RE.test(blob) || code === 'intoSelf') {
+    return {
+      kind: 'intoSelf',
+      title: 'Cannot move into itself',
+      summary: 'A folder cannot be moved or copied into itself or one of its subfolders.',
+      detail,
+    };
+  }
   if (ACCESS_RE.test(blob) || code === 'accessDenied' || code === '5') {
     return {
       kind: 'accessDenied',
@@ -168,15 +221,21 @@ export type PendingElevatedTransfer = {
 
 export function stashPendingElevatedTransfer(op: PendingElevatedTransfer): void {
   try {
-    sessionStorage.setItem(PENDING_ELEVATION_TRANSFER_KEY, JSON.stringify(op));
+    localStorage.setItem(PENDING_ELEVATION_TRANSFER_KEY, JSON.stringify(op));
+  } catch { /* ignore */ }
+  try {
+    sessionStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY);
   } catch { /* ignore */ }
 }
 
 export function consumePendingElevatedTransfer(): PendingElevatedTransfer | null {
   try {
-    const raw = sessionStorage.getItem(PENDING_ELEVATION_TRANSFER_KEY);
+    const raw =
+      localStorage.getItem(PENDING_ELEVATION_TRANSFER_KEY)
+      ?? sessionStorage.getItem(PENDING_ELEVATION_TRANSFER_KEY);
     if (!raw) return null;
-    sessionStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY);
+    try { localStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY); } catch { /* ignore */ }
+    try { sessionStorage.removeItem(PENDING_ELEVATION_TRANSFER_KEY); } catch { /* ignore */ }
     const parsed = JSON.parse(raw) as PendingElevatedTransfer;
     if (!parsed?.sources?.length || !parsed.destDir) return null;
     if (Date.now() - (parsed.savedAt || 0) > 15 * 60 * 1000) return null;

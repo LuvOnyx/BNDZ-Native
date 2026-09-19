@@ -78,6 +78,18 @@ public sealed partial class MainWindow : Window
 
         ChromeHost.PaneMessage += ChromeHost_PaneMessage;
         NativeList.ContextChanged += (_, _) => { };
+        NativeTerminal.SessionClosed += (_, sid) =>
+        {
+            try
+            {
+                ChromeHost.PostHostMessage(new
+                {
+                    type = "NATIVE_TERMINAL_CLOSED",
+                    payload = new { sessionId = sid },
+                });
+            }
+            catch { /* ignore */ }
+        };
             ChromeHost.WebViewInitialized += (_, _) =>
         {
             WireHostLifecycle();
@@ -94,6 +106,11 @@ public sealed partial class MainWindow : Window
         {
             RemoveWindowSubclass();
             DisposeTray();
+            try
+            {
+                CollapseTerminalStrip();
+            }
+            catch { /* ignore */ }
             try
             {
                 // Plugin pop-outs share the main process OLE target — never revoke it on close
@@ -284,6 +301,7 @@ public sealed partial class MainWindow : Window
                     return;
                 }
                 args.Cancel = true;
+                try { CollapseTerminalStrip(); } catch { /* ignore */ }
                 try
                 {
                     ChromeHost.PostHostMessage(new
@@ -699,11 +717,164 @@ public sealed partial class MainWindow : Window
         if (type is "BNDZ_NATIVE_LIST_BOUNDS" or "BNDZ_PANE_NAVIGATE" or "BNDZ_REQUEST_DIR_LISTING")
             return;
 
+        if (type is "NATIVE_TERMINAL_OPEN" or "NATIVE_TERMINAL_LAYOUT" or "NATIVE_TERMINAL_CLOSE" or "NATIVE_TERMINAL_THEME")
+        {
+            HandleNativeTerminalMessage(type, root);
+            return;
+        }
+
         if (type is "BNDZ_UI_READY")
         {
             ScheduleMenubarInputRegionRefresh("ui-ready");
             return;
         }
+    }
+
+    private void HandleNativeTerminalMessage(string? type, JsonElement root)
+    {
+        if (_launch.IsPlugin) return;
+        JsonElement payload = default;
+        var hasPayload = root.TryGetProperty("payload", out payload);
+
+
+        if (type is "NATIVE_TERMINAL_THEME" && hasPayload)
+        {
+            string? fontFamily = payload.TryGetProperty("fontFamily", out var ffEl) && ffEl.ValueKind == JsonValueKind.String
+                ? ffEl.GetString() : null;
+            int? fontSize = payload.TryGetProperty("fontSize", out var fsEl) && fsEl.TryGetInt32(out var fsi) ? fsi : null;
+            string? foreground = payload.TryGetProperty("foreground", out var fgEl) && fgEl.ValueKind == JsonValueKind.String
+                ? fgEl.GetString() : null;
+            string? background = payload.TryGetProperty("background", out var bgEl) && bgEl.ValueKind == JsonValueKind.String
+                ? bgEl.GetString() : null;
+            string? cursor = payload.TryGetProperty("cursor", out var cuEl) && cuEl.ValueKind == JsonValueKind.String
+                ? cuEl.GetString() : null;
+            NativeTerminal.ApplyThemePrefs(fontFamily, fontSize, foreground, background, cursor);
+            return;
+        }
+
+        if (type is "NATIVE_TERMINAL_CLOSE")
+        {
+            NativeTerminal.Close(notify: true);
+            return;
+        }
+
+        if (type is "NATIVE_TERMINAL_LAYOUT" && hasPayload)
+        {
+            var x = payload.TryGetProperty("x", out var xEl) && xEl.TryGetDouble(out var xd) ? xd : 0;
+            var y = payload.TryGetProperty("y", out var yEl) && yEl.TryGetDouble(out var yd) ? yd : 0;
+            var w = payload.TryGetProperty("width", out var wEl) && wEl.TryGetDouble(out var wd) ? wd : 0;
+            var h = payload.TryGetProperty("height", out var hEl) && hEl.TryGetDouble(out var hd) ? hd : 0;
+            var visible = !payload.TryGetProperty("visible", out var vEl) || vEl.ValueKind != JsonValueKind.False;
+            if (NativeTerminal.HasSession || visible)
+                NativeTerminal.ApplyBounds(x, y, w, h, visible && NativeTerminal.HasSession);
+            else
+                NativeTerminal.ApplyBounds(0, 0, 0, 0, visible: false);
+            return;
+        }
+
+        if (type is "NATIVE_TERMINAL_OPEN" && hasPayload)
+        {
+            var sessionId = payload.TryGetProperty("sessionId", out var sidEl) && sidEl.ValueKind == JsonValueKind.String
+                ? sidEl.GetString()
+                : $"term-{Guid.NewGuid():N}";
+            var cmd = payload.TryGetProperty("commandLine", out var cmdEl) && cmdEl.ValueKind == JsonValueKind.String
+                ? cmdEl.GetString()
+                : null;
+            var cwd = payload.TryGetProperty("cwd", out var cwdEl) && cwdEl.ValueKind == JsonValueKind.String
+                ? cwdEl.GetString()
+                : null;
+            var label = payload.TryGetProperty("label", out var labEl) && labEl.ValueKind == JsonValueKind.String
+                ? labEl.GetString()
+                : "Local";
+            var x = payload.TryGetProperty("x", out var xEl) && xEl.TryGetDouble(out var xd) ? xd : 0;
+            var y = payload.TryGetProperty("y", out var yEl) && yEl.TryGetDouble(out var yd) ? yd : 0;
+            var w = payload.TryGetProperty("width", out var wEl) && wEl.TryGetDouble(out var wd) ? wd : 0;
+            var h = payload.TryGetProperty("height", out var hEl) && hEl.TryGetDouble(out var hd) ? hd : 0;
+            string? fontFamily = payload.TryGetProperty("fontFamily", out var ffEl) && ffEl.ValueKind == JsonValueKind.String
+                ? ffEl.GetString() : null;
+            int? fontSize = payload.TryGetProperty("fontSize", out var fsEl) && fsEl.TryGetInt32(out var fsi) ? fsi : null;
+            string? foreground = payload.TryGetProperty("foreground", out var fgEl) && fgEl.ValueKind == JsonValueKind.String
+                ? fgEl.GetString() : null;
+            string? background = payload.TryGetProperty("background", out var bgEl) && bgEl.ValueKind == JsonValueKind.String
+                ? bgEl.GetString() : null;
+            string? cursor = payload.TryGetProperty("cursor", out var cuEl) && cuEl.ValueKind == JsonValueKind.String
+                ? cuEl.GetString() : null;
+
+            try
+            {
+                // Open arms the session; ApplyBounds (with real hole size) creates TermControl
+                // so ConPTY StartTerm sees non-zero Columns/Rows — not a cursor-only void.
+                NativeTerminal.ApplyThemePrefs(fontFamily, fontSize, foreground, background, cursor);
+                NativeTerminal.Open(sessionId!, cmd, cwd, label ?? "Local");
+                if (w >= 24 && h >= 24)
+                    NativeTerminal.ApplyBounds(x, y, w, h, visible: true);
+
+                // Mount on UI thread BEFORE success — otherwise React shows a live session over a navy void.
+                var reqId = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                var mounted = NativeTerminal.TryMountTermNow();
+                if (!mounted)
+                {
+                    PostNativeTerminalOpenResult(
+                        reqId,
+                        ok: false,
+                        sessionId,
+                        NativeTerminal.Label,
+                        error: "Terminal control failed to mount (see %LocalAppData%\\BNDZ\\native-term.log)");
+                    try { NativeTerminal.Close(notify: false); } catch { /* ignore */ }
+                }
+                else
+                {
+                    PostNativeTerminalOpenResult(
+                        reqId,
+                        ok: true,
+                        sessionId,
+                        NativeTerminal.Label,
+                        error: null);
+                }
+            }
+            catch (Exception ex)
+            {
+                PostNativeTerminalOpenResult(
+                    root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null,
+                    ok: false,
+                    sessionId: null,
+                    label: null,
+                    error: ex.Message);
+            }
+        }
+    }
+
+    private void PostNativeTerminalOpenResult(
+        string? id,
+        bool ok,
+        string? sessionId,
+        string? label,
+        string? error)
+    {
+        try
+        {
+            ChromeHost.PostHostMessage(new
+            {
+                type = "NATIVE_TERMINAL_OPEN_RESULT",
+                id,
+                payload = new
+                {
+                    ok,
+                    sessionId,
+                    label,
+                    error,
+                },
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] NATIVE_TERMINAL_OPEN_RESULT: {ex.Message}");
+        }
+    }
+
+    private void CollapseTerminalStrip()
+    {
+        try { NativeTerminal.Close(notify: false); } catch { /* ignore */ }
     }
 
     private int _menubarRegionRefreshGen;
@@ -976,14 +1147,14 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            ChromeHost.ShowPaneStatus($"BNDZ shell error — see shell-crash.log\n{message}");
+            ChromeHost.ShowPaneStatus($"BNDZ error — see shell-crash.log\n{message}");
         }
         catch { /* ignore */ }
         try
         {
             var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
             {
-                Title = "BNDZ shell error",
+                Title = "BNDZ error",
                 Content = message + "\n\nDetails were written to %LocalAppData%\\BNDZ\\shell-crash.log",
                 CloseButtonText = "Close",
                 XamlRoot = Content?.XamlRoot,

@@ -1154,7 +1154,8 @@ namespace BNDZ.Services
             _meshDropService = new MeshDropService(_fileTransferQueue);
             _ghostLinkService = new GhostLinkService(_linkService, _fileTransferQueue);
             _ghostLinkService.SetActionLog(_actionLogService);
-            _ghostLinkService.StartIdleScanner();
+            // Idle scanner deferred below (post-construction Task.Run) — first list paint must
+            // not wait behind the 2-minute-delayed background scan loop spinning up.
             _ramStagingService = new RamStagingService(_fileTransferQueue);
             ProjFsSandboxHost.BindRamStaging(_ramStagingService);
             _automationRunnerDeps = new AutomationRunnerDeps
@@ -1239,6 +1240,7 @@ namespace BNDZ.Services
                 try { UsnHealthWatcherService.Instance.Start(); } catch { }
                 try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
                 try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
+                try { _ghostLinkService.StartIdleScanner(); } catch { }
             });
             _meshDropService.SetSessionChangedHandler(evt =>
             {
@@ -1267,19 +1269,27 @@ namespace BNDZ.Services
             _settingsManager = new SettingsManager();
             _globalHotkeys = new GlobalHotkeyService();
             _globalHotkeys.HotkeyPressed += OnGlobalHotkeyPressed;
-            try
+            // Settings/action-log/transfer-history load is file I/O that first GET_DIR_CONTENTS
+            // does not depend on (listing uses live FS enumeration + tag/reparse enrich only, not
+            // FileOperationPreferences/hotkeys/QuickLook/media-cache/action-log/queue-history).
+            // Deferred post-construction so first list paint is not blocked behind disk reads —
+            // matches RestorePersistedWatchers / UsnHealthWatcherService.Start() pattern above.
+            _ = Task.Run(() =>
             {
-                var bootSettings = _settingsManager.LoadSettings();
-                bootSettings = SanitizeThumbnailSettingsJson(bootSettings);
-                FileOperationPreferences.ApplyFromJson(bootSettings);
-                ApplyFileOperationPreferences();
-                ApplyGlobalHotkeysFromSettingsJson(bootSettings);
-                ApplyOsQuickLookFromSettingsJson(bootSettings);
-                BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
-                _actionLogService.LoadPersistedIfEnabled();
-                _fileTransferQueue.LoadPersistedHistory();
-            }
-            catch { /* use defaults */ }
+                try
+                {
+                    var bootSettings = _settingsManager.LoadSettings();
+                    bootSettings = SanitizeThumbnailSettingsJson(bootSettings);
+                    FileOperationPreferences.ApplyFromJson(bootSettings);
+                    ApplyFileOperationPreferences();
+                    ApplyGlobalHotkeysFromSettingsJson(bootSettings);
+                    ApplyOsQuickLookFromSettingsJson(bootSettings);
+                    BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
+                    _actionLogService.LoadPersistedIfEnabled();
+                    _fileTransferQueue.LoadPersistedHistory();
+                }
+                catch { /* use defaults */ }
+            });
             _fileTransferQueue.QueueChanged += () =>
             {
                 PostFileTransferQueueChanged();
@@ -1316,7 +1326,22 @@ namespace BNDZ.Services
                 var evt = new { type = "MESH_TERMINAL_OUTPUT", payload = new { sessionId, data } };
                 PostToUi(() =>
                 {
-                    try { DeliverIpcJson(JsonSerializer.Serialize(evt, MeshJsonOpts)); }
+                    try
+                    {
+                        var json = JsonSerializer.Serialize(evt, MeshJsonOpts);
+                        try
+                        {
+                            var dir = Path.Combine(
+                                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                "BNDZ");
+                            Directory.CreateDirectory(dir);
+                            File.AppendAllText(
+                                Path.Combine(dir, "terminal.log"),
+                                $"{DateTime.Now:HH:mm:ss.fff} PUSH OUTPUT id={sessionId} b64len={data?.Length ?? 0} targets={BndzEmbeddedBackendHost.PushTargetCount}{Environment.NewLine}");
+                        }
+                        catch { /* ignore */ }
+                        DeliverIpcJson(json);
+                    }
                     catch { }
                 });
             };
@@ -1796,6 +1821,7 @@ namespace BNDZ.Services
             "MESH_TERMINAL_INPUT",
             "MESH_TERMINAL_CLOSE",
             "MESH_TERMINAL_RESIZE",
+            "MESH_TERMINAL_ACK",
             "MESH_TERMINAL_LAYOUT",
             "MESH_DROP_SET_CONFIG",
             "MESH_DROP_CANCEL",
@@ -2333,6 +2359,10 @@ namespace BNDZ.Services
         private double? _lastExternalDragWebViewY;
         /// <summary>Environment.TickCount64 at the last PostExternalFileDragHover call — throttle guard.</summary>
         private long _lastHoverTickMs;
+        /// <summary>C4.2 inbound hover enrichment cached across throttled posts.</summary>
+        private string[]? _inboundHoverSample;
+        private int _inboundHoverCount;
+        private bool _inboundHoverCopy;
 
         // AllowExternalDrop stays true so WebView2 does not install a blocking target
         // before we call RegisterDragDrop on its HWND (see SetupNativeFileDrop /
@@ -2502,7 +2532,12 @@ namespace BNDZ.Services
             }
         }
 
-        private void PostExternalFileDragHover(double webViewX, double webViewY)
+        private void PostExternalFileDragHover(
+            double webViewX,
+            double webViewY,
+            string[]? samplePaths = null,
+            int totalCount = 0,
+            bool copyMode = false)
         {
             // Throttle: at most one hover message per ~16 ms (~60 fps). Without this guard,
             // rapid DragOver floods the JS side with hundreds of messages per second.
@@ -2510,11 +2545,41 @@ namespace BNDZ.Services
             if (now - _lastHoverTickMs < 16) return;
             _lastHoverTickMs = now;
 
+            // Keep last enrichment for coords-only callers (WPF AcceptFileDrag) that don't re-pass sample.
+            if (samplePaths != null)
+            {
+                _inboundHoverSample = samplePaths;
+                _inboundHoverCount = totalCount > 0 ? totalCount : samplePaths.Length;
+            }
+            if (samplePaths != null || totalCount > 0)
+                _inboundHoverCopy = copyMode;
+
+            var paths = _inboundHoverSample;
+            var count = _inboundHoverCount;
+            var copy = _inboundHoverCopy;
+
             var msg = new
             {
                 type = "EXTERNAL_FILES_DRAG_HOVER",
-                payload = new { webViewX, webViewY },
+                payload = new
+                {
+                    webViewX,
+                    webViewY,
+                    paths,
+                    count,
+                    copy,
+                },
             };
+            var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => DeliverIpcJson(json));
+        }
+
+        private void PostExternalFileDragLeave()
+        {
+            _inboundHoverSample = null;
+            _inboundHoverCount = 0;
+            _inboundHoverCopy = false;
+            var msg = new { type = "EXTERNAL_FILES_DRAG_LEAVE", payload = new { } };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             PostToUi(() => DeliverIpcJson(json));
         }
@@ -2534,6 +2599,9 @@ namespace BNDZ.Services
         private void PostExternalFileDrop(string[] paths, double? webViewX = null, double? webViewY = null, string preferredEffect = "copy", string coordSource = "drop")
         {
             if (paths == null || paths.Length == 0) return;
+            _inboundHoverSample = null;
+            _inboundHoverCount = 0;
+            _inboundHoverCopy = false;
             var fingerprint = string.Join('|', paths);
             var now = DateTime.UtcNow;
             if (fingerprint == _lastExternalDropFingerprint && (now - _lastExternalDropUtc).TotalMilliseconds < 400)
@@ -2882,17 +2950,18 @@ namespace BNDZ.Services
                 return wvPt;
             }
 
-            // onHover: throttled, dispatched to UI thread (already on UI thread via STA OLE).
-            void OleHover(double screenX, double screenY)
+            // onHover: C4.2 enrichment (sample/count/copy) + coords. PostExternalFileDragHover throttles.
+            void OleHover(double screenX, double screenY, string[]? samplePaths, int totalCount, bool copyMode)
             {
-                var now = Environment.TickCount64;
-                if (now - _lastHoverTickMs < 16) return;
-                _lastHoverTickMs = now;
-
                 var pt = OleScreenToWebViewClient(screenX, screenY);
                 _lastExternalDragWebViewX = pt.X;
                 _lastExternalDragWebViewY = pt.Y;
-                PostExternalFileDragHover(pt.X, pt.Y);
+                PostExternalFileDragHover(pt.X, pt.Y, samplePaths, totalCount, copyMode);
+            }
+
+            void OleLeave()
+            {
+                PostExternalFileDragLeave();
             }
 
             // onDrop: convert coords, apply dedup guard, post EXTERNAL_FILES_DROPPED.
@@ -2925,7 +2994,8 @@ namespace BNDZ.Services
                 windowHwnd,
                 OleDrop,
                 OleHover,
-                () => _bndzOleDragActive);
+                () => _bndzOleDragActive,
+                OleLeave);
         }
 
         private void PostIconResult(string? id, string? payload)
@@ -4822,6 +4892,35 @@ namespace BNDZ.Services
                         });
                     });
                 }
+                else if (type == "PREFETCH_CONTEXT_MENU_ITEMS")
+                {
+                    // Fire-and-forget warm — no reply. Host shape-cache fills so the next GET is instant.
+                    var paths = new List<string>();
+                    try {
+                        var payload = root.GetProperty("payload");
+                        if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var el in pathsEl.EnumerateArray())
+                            {
+                                var p = NormalizeFsPath(el.GetString() ?? "");
+                                if (!string.IsNullOrEmpty(p)) paths.Add(p);
+                            }
+                        }
+                        if (paths.Count == 0 && payload.TryGetProperty("path", out var pathEl))
+                        {
+                            var single = NormalizeFsPath(pathEl.GetString() ?? "");
+                            if (!string.IsNullOrEmpty(single)) paths.Add(single);
+                        }
+                    } catch { }
+                    if (paths.Count > 0)
+                    {
+                        _ = Task.Run(() =>
+                        {
+                            try { _shellContextMenuService.PrefetchContextMenuItems(paths); }
+                            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Prefetch context menu failed: {ex.Message}"); }
+                        });
+                    }
+                }
                 else if (type == "EXECUTE_UNDO")
                 {
                     var idProp = root.TryGetProperty("id", out var uid) ? uid.GetString() : null;
@@ -5210,6 +5309,11 @@ namespace BNDZ.Services
                     var cols = payload.TryGetProperty("cols", out var cEl) ? (uint)Math.Max(1, cEl.GetInt32()) : 80;
                     var rows = payload.TryGetProperty("rows", out var rEl) ? (uint)Math.Max(1, rEl.GetInt32()) : 24;
                     _meshOrchestrator.Terminal.Resize(sessionId, cols, rows);
+                }
+                else if (type == "MESH_TERMINAL_ACK")
+                {
+                    var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
+                    _meshOrchestrator.Terminal.Acknowledge(sessionId);
                 }
                 else if (type == "MESH_TERMINAL_LAYOUT")
                 {
@@ -12198,21 +12302,40 @@ namespace BNDZ.Services
                                 if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
                                     return batchResolution;
 
-                                // Collect file metadata for the conflict dialog (size, modified date).
+                                // Collect metadata for the conflict dialog (size, modified, folder vs file).
                                 long srcSize = 0, srcModUtc = 0, destSize = 0, destModUtc = 0;
+                                var isFolder = false;
                                 try
                                 {
-                                    if (!string.IsNullOrEmpty(srcPath) && File.Exists(srcPath))
+                                    if (!string.IsNullOrEmpty(srcPath))
                                     {
-                                        var si = new System.IO.FileInfo(srcPath);
-                                        srcSize = si.Length;
-                                        srcModUtc = new DateTimeOffset(si.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        if (Directory.Exists(srcPath))
+                                        {
+                                            isFolder = true;
+                                            var di = new DirectoryInfo(srcPath);
+                                            srcModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(srcPath))
+                                        {
+                                            var si = new System.IO.FileInfo(srcPath);
+                                            srcSize = si.Length;
+                                            srcModUtc = new DateTimeOffset(si.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
                                     }
-                                    if (!string.IsNullOrEmpty(destPath) && File.Exists(destPath))
+                                    if (!string.IsNullOrEmpty(destPath))
                                     {
-                                        var di = new System.IO.FileInfo(destPath);
-                                        destSize = di.Length;
-                                        destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        if (Directory.Exists(destPath))
+                                        {
+                                            isFolder = true;
+                                            var di = new DirectoryInfo(destPath);
+                                            destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
+                                        else if (File.Exists(destPath))
+                                        {
+                                            var di = new System.IO.FileInfo(destPath);
+                                            destSize = di.Length;
+                                            destModUtc = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                                        }
                                     }
                                 }
                                 catch { /* metadata collection is best-effort */ }
@@ -12230,6 +12353,7 @@ namespace BNDZ.Services
                                         sourceModifiedUtc = srcModUtc,
                                         destSize,
                                         destModifiedUtc = destModUtc,
+                                        isFolder,
                                     }
                                 };
                                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -12449,7 +12573,12 @@ namespace BNDZ.Services
                 }
                 catch (Exception ex)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    // Partial batch failure — some items succeeded (already in the action log);
+                    // expose only failed source paths so queue Retry resubmits those.
+                    var failedPaths = ex is PartialTransferException partialEx
+                        ? partialEx.FailedItems.Select(f => f.Path).ToList()
+                        : null;
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message, failedPaths);
                     var failEvt = new
                     {
                         type = "PROGRESS_UPDATE",
@@ -12460,6 +12589,7 @@ namespace BNDZ.Services
                             currentFile = "",
                             error = ex.Message,
                             engine,
+                            failedPaths,
                         },
                     };
                     PostToUi(() =>

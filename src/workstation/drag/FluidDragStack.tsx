@@ -254,10 +254,12 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
                 thumb={leadItem ? thumbs[leadItem.path] : undefined}
                 size={22}
               />
-              {meta.copy && (
+              {meta.copy ? (
                 <span className="bndz-fluid-drag-copy-badge">
                   <Icons8Icon id="copy" size={9} />
                 </span>
+              ) : (
+                <span className="bndz-fluid-drag-move-badge" aria-label="Move">↗</span>
               )}
             </div>
             <div className="min-w-0">

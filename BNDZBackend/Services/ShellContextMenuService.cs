@@ -83,6 +83,84 @@ public sealed class ShellContextMenuService
     private const uint SHCNE_ASSOCCHANGED = 0x08000000;
     private const uint SHCNF_IDLIST = 0x0000;
 
+    /// <summary>
+    /// Shape-keyed menu cache — same extension / folder arity shares verbs.
+    /// Makes GET_CONTEXT_MENU_ITEMS return in ms after the first enumerate for that type.
+    /// Exact-path CommandIds are still refreshed by the FE background pass.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (List<MenuItemDto> Items, long At)> MenuShapeCache = new(StringComparer.OrdinalIgnoreCase);
+    private const int MenuShapeCacheTtlMs = 120_000;
+    private const int MenuShapeCacheMax = 48;
+
+    private static string MenuShapeKey(IReadOnlyList<string> paths)
+    {
+        if (paths.Count == 0) return "shape:empty";
+        if (paths.Count > 1)
+        {
+            var allDirs = paths.All(Directory.Exists);
+            return $"shape:multi|n={paths.Count}|{(allDirs ? "dirs" : "mixed")}";
+        }
+        var p = paths[0];
+        if (Directory.Exists(p)) return "shape:dir";
+        var ext = Path.GetExtension(p);
+        if (string.IsNullOrEmpty(ext)) return "shape:file";
+        return $"shape:ext|{ext.ToLowerInvariant()}";
+    }
+
+    private static List<MenuItemDto>? TryGetCachedMenu(IReadOnlyList<string> paths)
+    {
+        var key = MenuShapeKey(paths);
+        if (!MenuShapeCache.TryGetValue(key, out var hit)) return null;
+        if (Environment.TickCount64 - hit.At > MenuShapeCacheTtlMs)
+        {
+            MenuShapeCache.TryRemove(key, out _);
+            return null;
+        }
+        // Clone so callers can't mutate the cache entry.
+        return hit.Items.Select(CloneDto).ToList();
+    }
+
+    private static void StoreCachedMenu(IReadOnlyList<string> paths, List<MenuItemDto> items)
+    {
+        if (items.Count == 0) return;
+        var key = MenuShapeKey(paths);
+        MenuShapeCache[key] = (items.Select(CloneDto).ToList(), Environment.TickCount64);
+        if (MenuShapeCache.Count <= MenuShapeCacheMax) return;
+        foreach (var old in MenuShapeCache.OrderBy(kv => kv.Value.At).Take(MenuShapeCache.Count - MenuShapeCacheMax).Select(kv => kv.Key).ToList())
+            MenuShapeCache.TryRemove(old, out _);
+    }
+
+    private static MenuItemDto CloneDto(MenuItemDto e) => new()
+    {
+        Id = e.Id,
+        Label = e.Label,
+        Verb = e.Verb,
+        Icon = e.Icon,
+        IconBase64 = e.IconBase64,
+        IsPrimary = e.IsPrimary,
+        Separator = e.Separator,
+        Kind = e.Kind,
+        CommandId = e.CommandId,
+        Children = e.Children?.Select(CloneDto).ToList(),
+    };
+
+    /// <summary>Fire-and-forget warm so the next right-click for this type is instant.</summary>
+    public void PrefetchContextMenuItems(IEnumerable<string> rawPaths)
+    {
+        var paths = NormalizeExistingPaths(rawPaths);
+        if (paths.Count == 0) return;
+        if (TryGetCachedMenu(paths) != null) return;
+        try
+        {
+            var items = BuildContextMenuItems(paths, useCache: false);
+            if (items.Count > 0) StoreCachedMenu(paths, items);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"PrefetchContextMenuItems failed: {ex.Message}");
+        }
+    }
+
     private static string NormalizePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return "";
@@ -162,8 +240,19 @@ public sealed class ShellContextMenuService
     public List<MenuItemDto> GetContextMenuItems(IEnumerable<string> rawPaths)
     {
         var paths = NormalizeExistingPaths(rawPaths);
+        if (paths.Count == 0) return new();
+        return BuildContextMenuItems(paths, useCache: true);
+    }
+
+    private List<MenuItemDto> BuildContextMenuItems(IReadOnlyList<string> paths, bool useCache)
+    {
+        if (useCache)
+        {
+            var cached = TryGetCachedMenu(paths);
+            if (cached is { Count: > 0 }) return cached;
+        }
+
         var items = new List<MenuItemDto>();
-        if (paths.Count == 0) return items;
 
         // Prefer live IContextMenu enumeration (third-party shell extensions + OS cascades).
         var enumerated = ShellContextMenuEnumerator.Enumerate(paths);
@@ -171,6 +260,7 @@ public sealed class ShellContextMenuService
         {
             foreach (var e in enumerated)
                 items.Add(ToDto(e));
+            StoreCachedMenu(paths, items);
             return items;
         }
 
@@ -199,6 +289,7 @@ public sealed class ShellContextMenuService
         items.Add(MenuItemDto.Sep());
         items.Add(new MenuItemDto { Id = "properties", Label = "Properties", Verb = "properties", Icon = "settings", Kind = "builtin" });
 
+        StoreCachedMenu(paths, items);
         return items;
     }
 

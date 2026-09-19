@@ -59,20 +59,8 @@ public static class MediaThumbnailService
 
         var ext = Path.GetExtension(filePath);
 
-        // 0) Explorer thumbcache hit — free warm navigate (Files-style InCacheOnly).
-        var cached = ShellThumbnailCacheService.TryGetCachedBase64(filePath, size);
-        if (!string.IsNullOrEmpty(cached))
-            return cached;
-
-        // 0b) Assimp mesh silhouette (obj/fbx/gltf/stl/…)
-        if (AssimpMeshThumbService.IsMeshPath(filePath))
-        {
-            var meshBytes = AssimpMeshThumbService.TryRenderSilhouette(filePath, size);
-            if (meshBytes is { Length: > 0 })
-                return Convert.ToBase64String(meshBytes);
-        }
-
-        // 1) MagicScaler stills (JPEG/PNG/WEBP/TIFF) — partial decode + EXIF, ahead of Skia.
+        // 0) MagicScaler stills FIRST — EXIF-correct PNG/JPEG/WEBP. Must beat Explorer thumbcache
+        // so a previously flipped shell encode cannot poison list thumbs forever.
         if (MagicScalerThumbnailService.IsSupported(filePath))
         {
             var magic = MagicScalerThumbnailService.TryEncodeThumbnailBase64(filePath, size);
@@ -80,7 +68,28 @@ public static class MediaThumbnailService
                 return magic;
         }
 
-        // 2) Fast Skia stills (png/jpg/webp/…) + Svg.Skia for vectors — EXIF-oriented.
+        // 0b) Svg.Skia before shell cache (same reason — orientation).
+        if (ext.Equals(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            var svgEarly = SkiaThumbnailService.TryEncodeSvgBase64(filePath, size);
+            if (!string.IsNullOrEmpty(svgEarly))
+                return svgEarly;
+        }
+
+        // 1) Explorer thumbcache hit — free warm navigate (Files-style InCacheOnly).
+        var cached = ShellThumbnailCacheService.TryGetCachedBase64(filePath, size);
+        if (!string.IsNullOrEmpty(cached))
+            return cached;
+
+        // 1b) Assimp mesh silhouette (obj/fbx/gltf/stl/…)
+        if (AssimpMeshThumbService.IsMeshPath(filePath))
+        {
+            var meshBytes = AssimpMeshThumbService.TryRenderSilhouette(filePath, size);
+            if (meshBytes is { Length: > 0 })
+                return Convert.ToBase64String(meshBytes);
+        }
+
+        // 2) Fast Skia stills (png/jpg/webp/…) — EXIF-oriented (MagicScaler already tried).
         if (ext.Equals(".svg", StringComparison.OrdinalIgnoreCase))
         {
             var svg = SkiaThumbnailService.TryEncodeSvgBase64(filePath, size);

@@ -44,7 +44,7 @@ export function getLocationEntityFromPath(path: string | null | undefined): FSEn
   if (isBndzHomePath(p) || p === BNDZ_HOME) {
     return {
       id: 'loc:bndz-home',
-      name: 'Continuum',
+      name: 'Home',
       type: 'directory',
       path: BNDZ_HOME,
       isVirtual: true,

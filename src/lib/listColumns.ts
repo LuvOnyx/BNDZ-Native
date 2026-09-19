@@ -9,7 +9,7 @@ export type BuiltinListColumnId =
   | 'cloudStatus'
   | 'ghostState' | 'coldTarget' | 'ramZone';
 export type ListColumnId = BuiltinListColumnId | `custom:${string}`;
-export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags' | 'ghostState' | 'ramZone' | 'cloudStatus';
+export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags' | 'ghostState' | 'ramZone' | 'cloudStatus' | 'path' | 'attributes' | 'label' | 'comment';
 
 export interface ListColumnDef {
   id: ListColumnId;
@@ -30,16 +30,16 @@ export const LIST_COLUMN_DEFS: ListColumnDef[] = [
   { id: 'modified', label: 'Modified', widthClass: 'shrink-0', widthPx: 150, sortable: true },
   { id: 'created', label: 'Created', widthClass: 'shrink-0', widthPx: 150, sortable: true },
   { id: 'cloudStatus', label: 'Cloud', widthClass: 'shrink-0', widthPx: 72, sortable: true },
-  { id: 'attributes', label: 'Attributes', widthClass: 'shrink-0', widthPx: 100 },
+  { id: 'attributes', label: 'Attributes', widthClass: 'shrink-0', widthPx: 100, sortable: true },
   { id: 'tags', label: 'Tags', widthClass: 'shrink-0', widthPx: 120, sortable: true },
-  { id: 'label', label: 'Label', widthClass: 'shrink-0', widthPx: 120 },
-  { id: 'comment', label: 'Comment', widthClass: 'shrink-0', widthPx: 160 },
-  { id: 'path', label: 'Path', widthClass: 'shrink-0', widthPx: 240 },
+  { id: 'label', label: 'Label', widthClass: 'shrink-0', widthPx: 120, sortable: true },
+  { id: 'comment', label: 'Comment', widthClass: 'shrink-0', widthPx: 160, sortable: true },
+  { id: 'path', label: 'Path', widthClass: 'shrink-0', widthPx: 240, sortable: true },
   { id: 'originalLocation', label: 'Original location', widthClass: 'shrink-0', widthPx: 220 },
   { id: 'originalPath', label: 'Original path', widthClass: 'shrink-0', widthPx: 280 },
-  { id: 'ghostState', label: 'Ghost', widthClass: 'shrink-0', widthPx: 90, sortable: true },
-  { id: 'coldTarget', label: 'Cold target', widthClass: 'shrink-0', widthPx: 180 },
-  { id: 'ramZone', label: 'RAM zone', widthClass: 'shrink-0', widthPx: 120, sortable: true },
+  { id: 'ghostState', label: 'Link state', widthClass: 'shrink-0', widthPx: 90, sortable: true },
+  { id: 'coldTarget', label: 'Archive path', widthClass: 'shrink-0', widthPx: 180 },
+  { id: 'ramZone', label: 'Virtual zone', widthClass: 'shrink-0', widthPx: 120, sortable: true },
 ];
 
 export const DEFAULT_LIST_COLUMN_PX: Record<BuiltinListColumnId, number> = {

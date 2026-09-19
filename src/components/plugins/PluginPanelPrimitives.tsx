@@ -1,5 +1,6 @@
 import React, { type CSSProperties, type ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { BndzPlaque, type BndzPlaqueSize, type BndzPlaqueTone } from '../BndzPlaque';
 import { formatUiPath } from '../../lib/displayPath';
 
 export const PLUGIN_INPUT_CLASS =
@@ -245,18 +246,47 @@ export function PluginEmptyState({
   icon = 'layers_ui',
   title,
   description,
+  message,
+  hint,
+  tone,
+  size = 'md',
 }: {
   icon?: string;
   title?: string;
   description?: string;
+  /** Alias used by some plugins */
+  message?: string;
+  hint?: string;
+  tone?: BndzPlaqueTone;
+  size?: BndzPlaqueSize;
 }) {
+  const body = description || message || hint;
+  const resolvedTone = tone ?? toneFromPluginIcon(icon);
   return (
     <div className="bndz-plugin-empty flex flex-col items-center justify-center h-full min-h-[120px] gap-3 p-6 select-none text-center">
-      <Icons8Icon id={icon} size={36} className="opacity-25" />
+      <BndzPlaque tone={resolvedTone} size={size} className="opacity-95" />
+      <span className="sr-only">{icon}</span>
       {title && <p className="text-sm font-medium text-gray-400">{title}</p>}
-      {description && <p className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">{description}</p>}
+      {body && <p className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">{body}</p>}
     </div>
   );
+}
+
+/** Map plugin empty icons to FM plaque tones — stop every surface sharing "unable-display". */
+function toneFromPluginIcon(icon: string): BndzPlaqueTone {
+  const id = String(icon || '').toLowerCase();
+  if (/search|find|filter|magnif/.test(id)) return 'search';
+  if (/folder|dir|vault|sandbox|library|project|rename|batch/.test(id)) return 'folder';
+  if (/sync|transfer|mesh|drop|upload|download|queue|inbox|compare|copy|duplicate/.test(id)) return 'transfer';
+  if (/history|log|timeline|clock|action/.test(id)) return 'history';
+  if (/tab|window/.test(id)) return 'tabs';
+  if (/warn|alert|shield|policy/.test(id)) return 'warn';
+  if (/error|fail|missing|delete/.test(id)) return 'error';
+  // System Properties / volume / attributes → disk idle keeper
+  if (/sys_properties|properties|disk|drive|volume|hash|acl|attribute/.test(id)) return 'idle';
+  if (/panel|plugin|hub|rack|tool|preview|inspector/.test(id)) return 'panel';
+  if (/idle|empty|layers/.test(id)) return 'idle';
+  return 'idle';
 }
 
 export function PluginStatCard({
@@ -276,6 +306,27 @@ export function PluginStatCard({
       <div className="bndz-plugin-section-title">{label}</div>
       <div className="text-base font-semibold text-white tracking-tight">{value}</div>
       {sub && <div className="bndz-panel-muted truncate text-xs">{sub}</div>}
+    </div>
+  );
+}
+
+/** Compact host-ops meter row — prefer over PluginStatCard SaaS farms in absorb embeds. */
+export function PluginOpsMeter({
+  items,
+}: {
+  items: Array<{ label: string; value: string; tone?: 'ok' | 'warn' | 'neutral' }>;
+}) {
+  return (
+    <div className="bndz-plugin-ops-meter" role="group">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className={`bndz-plugin-ops-meter-cell${item.tone ? ` is-${item.tone}` : ''}`}
+        >
+          <span className="bndz-plugin-ops-meter-value">{item.value}</span>
+          <span className="bndz-plugin-ops-meter-label">{item.label}</span>
+        </div>
+      ))}
     </div>
   );
 }

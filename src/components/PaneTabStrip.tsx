@@ -163,27 +163,20 @@ function SortablePaneTab({
   const effectiveWidth = liveWidth ?? customWidth;
   const useCustom = !flexibleTabWidth && resizableTabs && typeof effectiveWidth === 'number' && effectiveWidth > 0;
 
+  // Light theme: CSS owns chip paint. Dark themes: set text only —
+  // plaque / accent CSS owns background (inline `background` shorthand fought plaques and looked tiny).
+  const isLightTheme =
+    typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light');
   const style: React.CSSProperties = {
-    ...(applyColors
-      ? {
-          background: isActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
-          color: isActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)',
-        }
-      : {
-          background: isActive ? 'var(--tab-active-bg, var(--bndz-surface-raised))' : 'var(--tab-inactive-bg, var(--bndz-surface-chrome))',
-          color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
-        }),
-    // Light themes keep dark tabstrip — always prefer light ink when theme-light is on
-    ...(typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light')
-      ? {
-          ...(tab.color
-            ? {}
-            : {
-                background: isActive ? 'var(--tab-active-bg, #2a2e36)' : 'var(--tab-inactive-bg, #1a1c22)',
-              }),
-          color: isActive ? 'var(--tab-active-text, rgba(255,255,255,0.95))' : 'var(--tab-inactive-text, rgba(255,255,255,0.58))',
-        }
-      : {}),
+    ...(isLightTheme
+      ? {}
+      : applyColors
+        ? {
+            color: isActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)',
+          }
+        : {
+            color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
+          }),
     ...tabAccentStyle(tab.color, isActive),
     transform: CSS.Translate.toString(
       transform ? { ...transform, y: 0, scaleX: 1, scaleY: 1 } : null,
@@ -231,7 +224,7 @@ function SortablePaneTab({
       style={style}
       data-tab-id={tab.id}
       data-tab-index={index}
-      className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[6px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow] duration-75 ease-out ${
+      className={`relative bndz-tab-item flex items-center px-3.5 py-[7px] ml-[2px] rounded-t-[10px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow,filter] duration-75 ease-out ${
         flexibleTabWidth
           ? 'bndz-tab-item--flexible'
           : useCustom
@@ -239,14 +232,15 @@ function SortablePaneTab({
             : 'bndz-tab-item--fixed'
       } ${isActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${
         makeSelectedTabBold && isActive ? 'font-bold' : 'font-semibold'
-      } ${isDragging ? 'opacity-60 bndz-tab-item--dragging' : ''} ${
+      } ${isDragging ? 'bndz-tab-item--dragging' : ''} ${
         isFileDropHover ? 'bndz-tab-item--file-drop' : ''
-      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${
+      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bndz-tab-item--locked' : ''} ${
         isBndzCanvasPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--spatial' : ''
       } ${
         isBndzAutomationPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--automation' : ''
       }`}
       data-tab-accent={tab.color ? '1' : undefined}
+      title={label}
       data-workspace-tab={isBndzCanvasPath(tab.path) ? 'spatial' : isBndzAutomationPath(tab.path) ? 'automation' : undefined}
       {...attributes}
       {...dragListeners}
@@ -290,13 +284,13 @@ function SortablePaneTab({
           <ShellNativeIcon
             path={tab.path}
             isDir={tab.path !== '/' && !tab.path.match(/^\/[A-Za-z]:$/)}
-            size={12}
+            size={14}
             eager
           />
         </span>
       )}
-      {tab.locked && <Icons8Icon id="lock_ui" size={10} className="mr-1 shrink-0 pointer-events-none" title="Locked" />}
-      <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, 11px)' }}>{label}</span>
+      {tab.locked && <Icons8Icon id="lock_ui" size={11} className="mr-1 shrink-0 pointer-events-none" title="Locked" />}
+      <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, var(--bndz-tab-font-size, 12px))' }}>{label}</span>
       {showXClose && (
         <span
           data-tab-close
@@ -308,7 +302,7 @@ function SortablePaneTab({
             onClose(e);
           }}
         >
-          <CloseGlyph size={12} />
+          <CloseGlyph size={13} />
         </span>
       )}
       {resizableTabs && !flexibleTabWidth && (
@@ -372,8 +366,8 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const ids = useMemo(() => tabs.map(t => t.id), [tabs]);
-  const minWidth = Math.max(48, Number(minimumTabWidthInPixels) || 72);
-  const maxWidth = Math.max(minWidth, Number(maximumTabWidthInPixels) || 200);
+  const minWidth = Math.max(64, Number(minimumTabWidthInPixels) || 100);
+  const maxWidth = Math.max(minWidth, Number(maximumTabWidthInPixels) || 320);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -395,11 +389,13 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     <div
       data-tabstrip
       data-pane-id={paneId}
-      className={`bndz-chrome-tabstrip flex pt-1 px-1 pb-0.5 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''} ${
+      className={`bndz-chrome-tabstrip flex pt-0.5 px-1 pb-0 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''} ${
         String(buttonsPosition || '').toLowerCase() === 'right' ? 'flex-row-reverse' : ''
       }`}
       style={{
-        minHeight: Math.max(tabBarHeight || 28, 32),
+        /* Configuration → Tabs → Tab bar height (24–36px) */
+        minHeight: tabBarHeight ?? undefined,
+        height: tabBarHeight ? `${tabBarHeight}px` : 'var(--bndz-tab-bar-height, 44px)',
         background: 'var(--bndz-surface-chrome)',
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',
@@ -492,7 +488,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
 
       {showNewTabButton !== false && (
         <div
-          className={`ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-default text-gray-400 font-bold transition-colors ${
+          className={`ml-1 px-2.5 self-stretch min-h-[calc(var(--bndz-tab-bar-height,44px)-6px)] hover:bg-[#333] rounded-t-[10px] flex items-center justify-center cursor-default text-gray-400 font-bold transition-colors ${
             newTabDropActive ? 'ring-1 ring-inset ring-[#38bdf8]/60 bg-[#333]' : ''
           }`}
           data-new-tab-zone={paneId}
@@ -502,11 +498,11 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
             onAddTab();
           }}
         >
-          <span className="text-[14px] leading-tight">+</span>
+          <span className="text-[16px] leading-none">+</span>
         </div>
       )}
       {showTabListButton && (
-        <div className="ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-default text-gray-400">
+        <div className="ml-1 px-2.5 self-stretch min-h-[calc(var(--bndz-tab-bar-height,44px)-6px)] hover:bg-[#333] rounded-t-[10px] flex items-center justify-center cursor-default text-gray-400">
           <Icons8Icon id="layers_ui" size={12} />
         </div>
       )}

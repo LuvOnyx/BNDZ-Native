@@ -199,7 +199,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     }
     // Bust stale empty SVG/HEIC thumbnail CAS after Svg.Skia + stream-fallback removal.
     // 21: alpha-preserving shell PNG encode (no MakeTransparent white plates).
-    if ((merged.iconCacheBuster ?? 0) < 22) merged.iconCacheBuster = 22;
+    if ((merged.iconCacheBuster ?? 0) < 24) merged.iconCacheBuster = 24;
     if (merged.showLensStage === undefined) merged.showLensStage = true;
     if (merged.lensCollapsedByDefault === undefined) merged.lensCollapsedByDefault = false;
     if (merged.permanentHomeTab === undefined) merged.permanentHomeTab = false;
@@ -316,6 +316,13 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
             merged.uiFontFamilyMono = '"Cascadia Code", "Cascadia Mono", Consolas, monospace';
         }
         merged.uiFontFamilyMigrationVersion = 1;
+    }
+    // Explorer-parity rename: show extensions in the edit box so type can be changed (with confirm).
+    if ((merged.renameExtVisibleMigrationVersion ?? 0) < 1) {
+        merged.hideExtensionsFromRenameEditBox = false;
+        merged.excludeFileExtensionFromInitialSelection = true;
+        merged.preselectName = true;
+        merged.renameExtVisibleMigrationVersion = 1;
     }
     // Corrupted toolbarProfiles (flat array / null) must not blow up chrome `.map`.
     if (!Array.isArray(merged.toolbarProfiles) || !merged.toolbarProfiles.every((p: unknown) => Array.isArray(p))) {

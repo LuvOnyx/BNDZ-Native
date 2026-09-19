@@ -4,7 +4,7 @@ import { ContextMenuIcon } from './ContextMenuIcon';
 import { Icons8Icon } from './Icons8Icon';
 
 export const menuItemClass =
-  'bndz-context-menu-item flex items-center gap-2.5 cursor-default text-sm select-none leading-[24px]';
+  'bndz-context-menu-item flex items-center gap-2 cursor-default text-[13px] select-none leading-[22px]';
 
 export type ContextMenuTone = 'danger' | 'positive' | 'accent';
 
@@ -34,6 +34,8 @@ interface ContextSubmenuProps {
   label: string;
   iconId?: string;
   iconVerb?: string;
+  /** data: URL for native shell cascade parents (WinRAR / 7-Zip / etc.) */
+  iconSrc?: string | null;
   groupClass?: string;
   children: React.ReactNode;
   showChevron?: boolean;
@@ -45,6 +47,7 @@ export function ContextSubmenu({
   label,
   iconId,
   iconVerb,
+  iconSrc,
   children,
   showChevron = true,
   onOpen,
@@ -94,6 +97,14 @@ export function ContextSubmenu({
     closeTimer.current = setTimeout(() => setOpen(false), SUBMENU_CLOSE_MS);
   };
 
+  const leadingIcon = iconSrc
+    ? <img src={iconSrc} alt="" className="w-3.5 h-3.5 shrink-0 object-contain bndz-context-menu-icon" draggable={false} />
+    : iconId
+      ? <Icons8Icon id={iconId} size={14} className="shrink-0 bndz-context-menu-icon" />
+      : iconVerb
+        ? <ContextMenuIcon verb={iconVerb} />
+        : <span className="bndz-context-menu-icon" aria-hidden />;
+
   return (
     <div
       ref={rowRef}
@@ -104,7 +115,7 @@ export function ContextSubmenu({
     >
       <div className={`${menuItemClass} justify-between ${open ? 'bndz-context-menu-item-active' : ''}`}>
         <span className="flex items-center gap-2.5 min-w-0">
-          {iconId ? <Icons8Icon id={iconId} size={14} className="shrink-0 bndz-context-menu-icon" /> : iconVerb ? <ContextMenuIcon verb={iconVerb} /> : null}
+          {leadingIcon}
           <span className="truncate">{label}</span>
         </span>
         {showChevron && <Icons8Icon id="chevron_right" size={11} className={`opacity-55 shrink-0 ${open ? 'bndz-context-chevron--open' : ''}`} />}

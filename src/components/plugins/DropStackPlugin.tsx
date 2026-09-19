@@ -32,7 +32,7 @@ export const DropStackPluginDef = {
   id: 'dropstack',
   name: 'Drop Stack',
   icon: 'dropstack',
-  description: 'Intake & stage — stash transfers, inbound capture, and drop policies in one place',
+  description: 'Hold files from many places, then copy or move them all at once',
   targetPanel: 'bottom',
 };
 
@@ -297,16 +297,16 @@ export default function DropStackPlugin({
 
   return (
     <PluginPanelShell
-      title="Intake & Stage"
+      title="Drop Stack"
       icon="dropstack"
       iconColor="#a78bfa"
       variant="embedded"
     
       subtitle={panelTab === 'intake'
-        ? 'Clipboard, OCR captures, and folder watchers'
+        ? 'Clipboard images and watched folders'
         : panelTab === 'policies'
-          ? 'Block, warn, or reroute on drop'
-          : 'Named stashes · selective transfer'}
+          ? 'Rules when files are dropped here'
+          : 'Hold files, then copy or move them together'}
       toolbar={(
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={panelTab === 'stack'} onClick={() => setPanelTab('stack')}>

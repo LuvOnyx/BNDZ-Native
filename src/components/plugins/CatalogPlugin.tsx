@@ -210,7 +210,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
       icon="bookmark"
       iconColor="#0078d4"
       variant="embedded"
-      subtitle="Virtual folders · browse as /vf"
+      subtitle="Saved collections you can browse anytime"
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <div className="bndz-catalog-opsrail">

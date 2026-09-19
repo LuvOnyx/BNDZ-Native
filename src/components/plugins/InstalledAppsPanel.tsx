@@ -7,7 +7,6 @@ import {
   PluginToolbarButton,
   PluginSectionTitle,
   PluginCard,
-  PluginStatCard,
   PluginEmptyState,
   PluginFieldLabel,
   PLUGIN_SELECT_CLASS,
@@ -118,10 +117,17 @@ export default function InstalledAppsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="bndz-plugin-stat-grid">
-        <PluginStatCard label="Installed" value={String(apps.length)} sub="Registry + Start Menu" iconId="extension_hub" />
-        <PluginStatCard label="Uninstallable" value={String(uninstallableCount)} sub="Has uninstall command" iconId="trash_ui" />
-        <PluginStatCard label="Est. footprint" value={formatAppSize(totalSize)} sub="Where size reported" iconId="hard_drive_ui" />
+      <div className="bndz-cleanup-meter">
+        <div className="bndz-cleanup-meter-row">
+          <strong>{apps.length}</strong>
+          <span>installed</span>
+          <em>·</em>
+          <strong>{uninstallableCount}</strong>
+          <span>can uninstall</span>
+          <em>·</em>
+          <strong>{formatAppSize(totalSize)}</strong>
+          <span>reported size</span>
+        </div>
       </div>
 
       <PluginCard className="flex flex-wrap items-end gap-3">

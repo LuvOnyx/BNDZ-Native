@@ -391,8 +391,8 @@ export function applySettingsBehavior(config: AppConfig): void {
   setRuntimeThumbPresets(thumbs.thumbnailSizePreset1 || 96, thumbs.thumbnailSizePreset2 || 256);
 
   const tabs = getTabsBehavior(config);
-  const minW = Number(tabs.minimumTabWidthInPixels || config.minimumTabWidthInPixels) || 72;
-  const maxW = Number(tabs.maximumTabWidthInPixels || config.maximumTabWidthInPixels) || 200;
+  const minW = Number(tabs.minimumTabWidthInPixels || config.minimumTabWidthInPixels) || 100;
+  const maxW = Number(tabs.maximumTabWidthInPixels || config.maximumTabWidthInPixels) || 320;
   root.style.setProperty('--bndz-tab-min-width', `${Math.max(24, minW)}px`);
   root.style.setProperty('--bndz-tab-max-width', `${Math.max(minW, maxW)}px`);
   // Tab chrome dataset is owned by applyAppearanceVariants (runs after this).

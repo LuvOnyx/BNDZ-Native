@@ -215,7 +215,7 @@ export function buildUiRuntime(config: AppConfig) {
     fontFamily: readSettingString(config, 'uiFontFamily', '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif'),
     fontFamilyMono: readSettingString(config, 'uiFontFamilyMono', '"Cascadia Code", "Cascadia Mono", Consolas, monospace'),
     tabFontSize: readSettingNumber(config, 'tabFontSize', 11),
-    tabBarHeight: readSettingNumber(config, 'tabBarHeight', 28),
+    tabBarHeight: readSettingNumber(config, 'tabBarHeight', 36),
     rowHeight: configuredRow > 0 ? configuredRow : densityRow,
     showMenubar: readSettingBool(config, 'showTopMenubar', true)
       && readSettingBool(config, 'showTopMenuBar', true),

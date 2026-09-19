@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { CloseGlyph } from '../ChromeGlyphs';
 import { Icons8Icon } from '../Icons8Icon';
+import { BndzPlaque, type BndzPlaqueTone } from '../BndzPlaque';
 import type { NativeDialogButton, NativeDialogTone } from '../BndzNativeDialog';
 
 export type NativeDialogSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
@@ -44,6 +45,14 @@ const TONE_ICON: Record<NativeDialogTone, string> = {
   conflict: 'copy',
 };
 
+/** Prefer PNG plaques for alert heroes — Icons8 only when iconId is forced. */
+const TONE_PLAQUE: Record<NativeDialogTone, BndzPlaqueTone> = {
+  info: 'idle',
+  warning: 'warn',
+  destructive: 'error',
+  conflict: 'question',
+};
+
 export function NativeDialogCheckbox({
   checked,
   onChange,
@@ -84,7 +93,10 @@ export function NativeDialogShell({
 }: NativeDialogShellProps) {
   if (!open) return null;
 
-  const resolvedIcon = iconId ?? TONE_ICON[tone];
+  const forceIcon = iconId !== undefined;
+  const resolvedIcon = forceIcon ? iconId : TONE_ICON[tone];
+  const plaqueTone = forceIcon ? undefined : TONE_PLAQUE[tone];
+  const showGlyph = Boolean(resolvedIcon) || Boolean(plaqueTone);
   const showFooter = footer != null || (footerButtons && footerButtons.length > 0);
   const isAlert = variant === 'alert';
 
@@ -94,12 +106,13 @@ export function NativeDialogShell({
       onMouseDown={e => { if (e.target === e.currentTarget) onClose?.(); }}
     >
       <div
-        className={`bndz-native-dialog bndz-native-dialog--${variant} relative w-full ${SIZE_CLASS[size]} ${maxHeightClass} flex flex-col ${panelClassName}`}
+        className={`bndz-native-dialog bndz-native-dialog--${variant} bndz-native-dialog--tone-${tone} relative w-full ${SIZE_CLASS[size]} ${maxHeightClass} flex flex-col ${panelClassName}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="bndz-native-dialog-title"
         onMouseDown={e => e.stopPropagation()}
       >
+        <div className="bndz-native-dialog-wash" aria-hidden />
         <div className="bndz-native-dialog-titlebar">
           <h2 id="bndz-native-dialog-title" className="bndz-native-dialog-title">{title}</h2>
           {showCloseButton && onClose && (
@@ -111,9 +124,18 @@ export function NativeDialogShell({
 
         {isAlert ? (
           <div className={`bndz-native-alert-body ${bodyClassName}`}>
-            <div className={`bndz-native-alert-glyph bndz-native-alert-glyph--${tone}`} aria-hidden>
-              <Icons8Icon id={resolvedIcon} size={32} />
-            </div>
+            {showGlyph && (
+              <div
+                className={`bndz-native-alert-glyph bndz-native-alert-glyph--${tone}${plaqueTone ? ' bndz-native-alert-glyph--plaque' : ''}`}
+                aria-hidden
+              >
+                {plaqueTone ? (
+                  <BndzPlaque tone={plaqueTone} size="md" animate={false} />
+                ) : (
+                  <Icons8Icon id={resolvedIcon!} size={32} />
+                )}
+              </div>
+            )}
             <div className="bndz-native-alert-content min-w-0 flex-1">
               {subtitle && <p className="bndz-native-alert-lead">{subtitle}</p>}
               {children}

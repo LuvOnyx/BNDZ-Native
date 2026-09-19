@@ -6615,7 +6615,7 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Tabs",
-    "label": "Keep Continuum Home as a permanent locked tab",
+    "label": "Keep Home as a permanent locked tab",
     "key": "permanentHomeTab",
     "keywords": [
       "keep",

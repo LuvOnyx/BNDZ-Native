@@ -3,6 +3,7 @@ import { ThumbnailIcon } from './ThumbnailIcon';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import { BndzNativeDialog } from './BndzNativeDialog';
 import { NativeDialogCheckbox } from './native/NativeDialogShell';
+import { BndzPlaque } from './BndzPlaque';
 import {
   subscribeNativeConfirm,
   subscribeNativePrompt,
@@ -26,6 +27,8 @@ export type ConflictDetails = {
   sourceModifiedUtc?: number;
   destSize?: number;
   destModifiedUtc?: number;
+  /** Folder-vs-folder collision (E4.2) — titles/copy say folder, not file. */
+  isFolder?: boolean;
 };
 
 export type ModalConfig = {
@@ -193,7 +196,11 @@ function FileConflictModal({
     <BndzNativeDialog
       open
       title={config.title}
-      subtitle="A file with this name already exists — choose how to proceed."
+      subtitle={
+        c.isFolder
+          ? 'A folder with this name already exists — choose how to proceed.'
+          : 'A file with this name already exists — choose how to proceed.'
+      }
       tone="conflict"
       variant="sheet"
       size="lg"
@@ -206,6 +213,14 @@ function FileConflictModal({
       ]}
     >
       <div className="space-y-3 -mt-0.5">
+        <div className="bndz-conflict-plaque-row">
+          <BndzPlaque tone="warn" size="md" className="bndz-plaque--hex-well" animate={false} />
+          <p className="text-[11px] text-gray-400 leading-relaxed m-0">
+            {c.isFolder
+              ? 'Same folder name on disk — compare Incoming vs Existing, then Replace, Keep both, or Skip.'
+              : 'Same name on disk — compare Incoming vs Existing, then Replace, Keep both, or Skip.'}
+          </p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <ConflictFileCard
             label="Incoming"

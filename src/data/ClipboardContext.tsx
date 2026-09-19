@@ -369,17 +369,14 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       try {
         const shell = await IPC.getShellClipboard();
         if (shell?.ok && shell.paths?.length) {
+          // Shell CF_HDROP is Explorer truth — always prefer it on paste.
           const shellAction: ClipboardAction = shell.action === 'cut' || shell.cut ? 'cut' : 'copy';
           const shellItems = shell.paths.map(p => toWindowsPath(p)).filter(Boolean);
           if (shellItems.length) {
-            const localEmpty = !clipboard.items.length || !clipboard.action;
-            const sameAsShell = !localEmpty && pathsEqualIgnoreCase(clipboard.items, shellItems);
-            if (localEmpty || sameAsShell) {
-              sourceItems = shellItems;
-              sourceAction = shellAction;
-              if (localEmpty || clipboard.action !== shellAction) {
-                applyLocalClipboard(shellItems, shellAction);
-              }
+            sourceItems = shellItems;
+            sourceAction = shellAction;
+            if (!pathsEqualIgnoreCase(clipboard.items, shellItems) || clipboard.action !== shellAction) {
+              applyLocalClipboard(shellItems, shellAction);
             }
           }
         }
@@ -469,6 +466,21 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       } catch { /* ignore */ }
     }
 
+    // Dest optimism + transfer stash — Explorer shows rows before disk settles.
+    try {
+      const { basenameFromWinPath } = await import('../lib/pasteCompletion');
+      window.dispatchEvent(new CustomEvent('bndz-paste-started', {
+        detail: {
+          opId,
+          op,
+          label,
+          destPanePath: panePath,
+          sourceWinPaths: winSources,
+          sourceNames: winSources.map(basenameFromWinPath),
+        },
+      }));
+    } catch { /* ignore */ }
+
     try {
       window.dispatchEvent(new CustomEvent('bndz-transfer-started', {
         detail: { opId, op, label, dest: panePath },
@@ -478,21 +490,25 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     const res = await IPC.executeFsOperation(opId, op, winSources, dest, false, label, 'high', recreateSourceStructure);
     if (res && res.ok === false) {
       pushToast({ kind: 'error', title: 'Paste failed', message: res.error || label });
+      try {
+        window.dispatchEvent(new CustomEvent('bndz-paste-failed', { detail: { opId, destPanePath: panePath } }));
+      } catch { /* ignore */ }
       return;
     }
 
-    // Always refresh the paste target so the list updates even if FS watch is quiet.
-    window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
-    window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
-    }, 500);
-
-    // Background ack is not completion — leave list refresh to the transfer queue listener.
-    // Cut clipboard still clears (Explorer clears Cut on paste start); do not toast “done”.
+    // Queued: leave list refresh to the transfer queue listener (avoids stale coalesce).
     if (isQueuedIpcResult(res)) {
       if (effectiveAction === 'cut') clearClipboard();
       return;
     }
+
+    // Sync paste completed in-process — refresh + select now.
+    window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
+    try {
+      window.dispatchEvent(new CustomEvent('bndz-paste-completed', {
+        detail: { opId, destPanePath: panePath, sourceNames: winSources.map(p => p.split('\\').pop() || '') },
+      }));
+    } catch { /* ignore */ }
 
     if (effectiveAction === 'cut') {
       clearClipboard();

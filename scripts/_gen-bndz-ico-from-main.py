@@ -1,8 +1,22 @@
-from PIL import Image
+"""Regenerate multi-resolution BNDZ.ico (fill/zoom) for taskbar + ApplicationIcon.
+
+Sizes match BNDZBackend/Services/AppIconService.cs (16–256 including 20/24/60).
+Run from repo root: python3 scripts/_gen-bndz-ico-from-main.py
+"""
+from __future__ import annotations
+
 from pathlib import Path
 
-src = Path(r"C:\Users\mikey\Projects\BNDZ-Native\public\Bndz-main.png")
-img = Image.open(src).convert("RGBA")
+from PIL import Image
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "public" / "Bndz-main.png"
+# Keep in sync with AppIconService.IconSizes
+SIZES = [16, 20, 24, 32, 48, 60, 64, 128, 256]
+OUT_PATHS = [
+    ROOT / "public" / "BNDZ.ico",
+    ROOT / "BNDZBackend" / "Assets" / "BNDZ.ico",
+]
 
 
 def fill_square(im: Image.Image, size: int) -> Image.Image:
@@ -21,18 +35,20 @@ def fill_square(im: Image.Image, size: int) -> Image.Image:
     return filled.resize((size, size), Image.Resampling.LANCZOS)
 
 
-sizes = [16, 24, 32, 48, 64, 128, 256]
-icons = [fill_square(img, s) for s in sizes]
-out_paths = [
-    Path(r"C:\Users\mikey\Projects\BNDZ-Native\public\BNDZ.ico"),
-    Path(r"C:\Users\mikey\Projects\BNDZ-Native\BNDZBackend\Assets\BNDZ.ico"),
-]
-for out in out_paths:
-    icons[-1].save(
-        out,
-        format="ICO",
-        sizes=[(s, s) for s in sizes],
-        append_images=icons[:-1],
-    )
-    print(f"wrote {out} ({out.stat().st_size} bytes)")
-print("src", img.size)
+def main() -> None:
+    img = Image.open(SRC).convert("RGBA")
+    icons = [fill_square(img, s) for s in SIZES]
+    for out in OUT_PATHS:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        icons[-1].save(
+            out,
+            format="ICO",
+            sizes=[(s, s) for s in SIZES],
+            append_images=icons[:-1],
+        )
+        print(f"wrote {out} ({out.stat().st_size} bytes) sizes={SIZES}")
+    print("src", img.size)
+
+
+if __name__ == "__main__":
+    main()

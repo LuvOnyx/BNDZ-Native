@@ -16,7 +16,6 @@ type Place = { id: string; label: string; path: string; icon: string };
 const PLACES: Place[] = [
   { id: 'this-pc', label: 'This PC', path: '/', icon: 'this_pc' },
   { id: 'home', label: 'Home', path: BNDZ_HOME, icon: 'home' },
-  { id: 'continuum', label: 'Continuum', path: BNDZ_HOME, icon: 'view_grid' },
   { id: 'workspace-tools', label: 'Workspace Tools', path: BNDZ_CANVAS, icon: 'layers_ui' },
   { id: 'spatial', label: 'Spatial Canvas', path: BNDZ_CANVAS, icon: 'view_grid' },
   { id: 'automation', label: 'Automation', path: BNDZ_AUTOMATION, icon: 'zap_ui' },
@@ -30,7 +29,7 @@ function normKey(p: string) {
 }
 
 /**
- * Native-shell sidebar island — glass sections, drive cards, Continuum discoverability.
+ * Native-shell sidebar island — glass sections, drive cards, Home discoverability.
  * Craft language adapted from Uiverse depth/glass patterns into BNDZ tokens.
  */
 export default function NativeShellSidebar({ currentPath, onNavigate }: Props) {

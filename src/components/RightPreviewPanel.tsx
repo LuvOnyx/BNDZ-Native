@@ -12,6 +12,7 @@ import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
 import { Icons8Icon, PopOutGlyph } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
@@ -495,7 +496,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     return (
       <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 select-none">
         <div className="bndz-preview-empty">
-          <Icons8Icon id="file_ui" size={40} className="opacity-25" />
+          <BndzPlaque tone="panel" size="lg" />
           <div className="bndz-preview-empty-title">Inspector idle</div>
           <p className="bndz-preview-empty-desc">
             Select a file for preview, metadata, and media transport — or open a workspace.
@@ -1326,7 +1327,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     </motion.div>
 
                     {/* Security & Access Box */}
-                    <div className="mt-2 border bndz-preview-detail-card rounded-[4px] p-3 shadow-inner">
+                    <div className="mt-2 border bndz-preview-detail-card rounded-[var(--bndz-radius-sm)] p-2.5">
                        <div className="flex items-center gap-1.5 bndz-panel-section-title mb-2">
                           <Icons8Icon id="shield_ui" size={14} className="bndz-preview-inline-icon" /> Access Properties
                        </div>
@@ -1357,7 +1358,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     </div>
 
                     {extendedDetails && Object.keys(extendedDetails).length > 0 && (
-                       <div className="border bndz-preview-detail-card rounded-[4px] p-3">
+                       <div className="border bndz-preview-detail-card rounded-[var(--bndz-radius-sm)] p-2.5">
                           <div className="bndz-panel-section-title mb-2 flex items-center gap-1">
                              <Icons8Icon id="database_ui" size={14} className="bndz-preview-inline-icon" /> Extended Metadata
                           </div>

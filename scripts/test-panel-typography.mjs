@@ -21,9 +21,12 @@ const baseConfig = {
 };
 
 const tree = resolvePanelFont(baseConfig, 'tree');
-assert.equal(tree.size, 12);
+assert.equal(tree.size, 12.5); // Files-modern tree density (13.5 on native-host)
 assert.equal(tree.weight, 500);
 assert.ok(tree.family.includes('Segoe UI Variable'));
+
+const list = resolvePanelFont(baseConfig, 'list');
+assert.equal(list.size, 13);
 
 const overridden = resolvePanelFont({
   ...baseConfig,

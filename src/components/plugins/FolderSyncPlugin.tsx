@@ -22,7 +22,7 @@ export const FolderSyncPluginDef = {
   id: 'folder-sync',
   name: 'Folder Sync',
   icon: 'sync_folders',
-  description: 'Sync & diff — robocopy jobs plus binary file and recursive folder compare',
+  description: 'Keep folders in sync, or compare two folders side by side',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -267,8 +267,8 @@ export default function FolderSyncPlugin({
       iconColor="#0078d4"
       variant="embedded"
       subtitle={panelTab === 'diff'
-        ? 'Binary file compare and recursive folder diff'
-        : 'Auto-sync folders via robocopy'}
+        ? 'Compare two files or whole folders'
+        : 'Keep two folders automatically in sync'}
       toolbar={(
         <div className="flex items-center gap-2 min-w-0">
           <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">

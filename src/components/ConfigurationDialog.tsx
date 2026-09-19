@@ -276,6 +276,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
       const result = await apply();
       if (!result.success && result.needsElevation) {
+        // Persist the intended toggle BEFORE relaunch — elevated host loads shell
+        // settings from disk via SettingsManager, not from dialog-local React state.
+        const { persistConfigNow } = await import('../data/configContext');
+        await persistConfigNow(globalConfig, nextConfig, updateGlobalConfig);
         // Pass --apply-shell so the elevated process force-applies ALL shell settings
         // from persisted config before the WebView / fingerprint system initialises.
         const elevated = await promptElevationIfNeeded(result, {
@@ -290,6 +294,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             }
             return reverted;
           });
+          // Roll back the optimistic persist so Cancel does not leave a dirty disk state.
+          try {
+            const rolled = { ...nextConfig };
+            for (const key of Object.keys(updates)) {
+              (rolled as any)[key] = !(updates as any)[key];
+            }
+            await persistConfigNow(globalConfig, rolled, updateGlobalConfig);
+          } catch { /* ignore */ }
           setShellStatus('Administrator approval was required but not granted.');
           return;
         }
@@ -806,8 +818,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <SectionHeader title="Rename" />
               <div className="ml-2 mb-4 space-y-[6px]">
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">P</span>reselect name</span>} checked={localConfig.preselectName ?? false} onChange={e => updateLocalConfig({ preselectName: e.target.checked })} />
-                  <Checkbox label={<span>Exclude file <span className="underline decoration-1 underline-offset-[3px]">e</span>xtension from initial selection</span>} checked={localConfig.excludeFileExtensionFromInitialSelection ?? false} onChange={e => updateLocalConfig({ excludeFileExtensionFromInitialSelection: e.target.checked })} />
-                  <Checkbox label={<span>Hide extensions from rename edit bo<span className="underline decoration-1 underline-offset-[3px]">x</span></span>} checked={localConfig.hideExtensionsFromRenameEditBox ?? false} onChange={e => updateLocalConfig({ hideExtensionsFromRenameEditBox: e.target.checked })} />
+                  <Checkbox label={<span>Exclude file <span className="underline decoration-1 underline-offset-[3px]">e</span>xtension from initial selection</span>} checked={localConfig.excludeFileExtensionFromInitialSelection !== false} onChange={e => updateLocalConfig({ excludeFileExtensionFromInitialSelection: e.target.checked })} />
+                  <Checkbox label={<span>Hide extensions from rename edit bo<span className="underline decoration-1 underline-offset-[3px]">x</span></span>} checked={!!localConfig.hideExtensionsFromRenameEditBox} onChange={e => updateLocalConfig({ hideExtensionsFromRenameEditBox: e.target.checked })} />
+                  <p className="text-[10px] text-gray-500 -mt-1 mb-1 pl-0.5">When extensions are shown, changing `.png` → `.jpg` asks for confirmation (Explorer-style).</p>
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>erial rename with Up and Down keys</span>} checked={localConfig.serialRenameWithUpAndDownKeys ?? false} onChange={e => updateLocalConfig({ serialRenameWithUpAndDownKeys: e.target.checked })} />
                   <Checkbox label={<span>Show name <span className="underline decoration-1 underline-offset-[3px]">l</span>ength while renaming</span>} checked={localConfig.showNameLengthWhileRenaming ?? false} onChange={e => updateLocalConfig({ showNameLengthWhileRenaming: e.target.checked })} />
                   <Checkbox label={<span>Use dialog to re<span className="underline decoration-1 underline-offset-[3px]">n</span>ame single items</span>} checked={localConfig.useDialogToRenameSingleItems ?? false} onChange={e => updateLocalConfig({ useDialogToRenameSingleItems: e.target.checked })} />
@@ -939,7 +952,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <SectionHeader title="Context Menus" />
               <div className="ml-2 mb-4 space-y-[6px]">
                  <SettingsHint>
-                   Merge native Windows shell verbs from Shell Integration → Context Menu. This tab configures BNDZ menu extras only.
+                   Weave Windows actions into the BNDZ menu from Shell Integration → “Include Native shell verbs in BNDZ menu.” This tab only turns BNDZ menu extras on or off.
                  </SettingsHint>
                  <div className="ml-[0px]">
                     <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>old Ctrl to invert the above selection</span>} checked={localConfig.holdCtrlToInvertTheAboveSelection ?? false} onChange={e => updateLocalConfig({ holdCtrlToInvertTheAboveSelection: e.target.checked })} />
@@ -1910,11 +1923,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        useCustomContextMenu: true,
                      })} 
                  />
-                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. Shell verbs weave into Open / clipboard / tools sections — never a dump folder. Shift+right-click still opens the full Windows menu.</p>
+                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. Windows actions (Open, Share, and more) appear inside it when this is on. Shift+right-click still opens the full Windows menu.</p>
               </div>
 
               <SectionHeader title="Shell Succession" />
-              <p className="text-[12px] text-[#e0e0e0] mb-[22px] mt-1 ml-[8px]">Make BNDZ the default folder handler — reversible. Changes take effect immediately for this user.</p>
+              <p className="text-[12px] text-[#e0e0e0] mb-[22px] mt-1 ml-[8px]">
+                Make BNDZ the default folder handler — reversible.
+                {' '}Current user writes HKCU (Explorer may need a refresh). All users elevates and writes HKLM.
+              </p>
 
               <div className="flex items-center gap-[42px] ml-[24px] mb-8 mt-[10px]">
                  <span className="text-[12px] text-[#e0e0e0]">Scope:</span>
@@ -2500,7 +2516,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        <ActionBtn label="..." className="w-[30px] h-6 min-h-[24px]" onClick={() => void browseFolderInto('newTabPath', 'Select default new tab folder')} />
                     </div>
                  </div>
-                 <Checkbox label={<span>Keep Continuum Home as a permanent locked tab</span>} checked={localConfig.permanentHomeTab === true} onChange={e => updateLocalConfig({ permanentHomeTab: e.target.checked })} />
+                 <Checkbox label={<span>Keep Home as a permanent locked tab</span>} checked={localConfig.permanentHomeTab === true} onChange={e => updateLocalConfig({ permanentHomeTab: e.target.checked })} />
                  <p className="text-[11px] text-[#888] ml-[20px] mb-2 max-w-[520px] leading-snug">
                     Home (`/bndz/home`) stays pinned and locked in every pane. New tabs still follow the path above.
                  </p>
@@ -2546,14 +2562,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  </SettingsHint>
                  <div className="flex items-center gap-2 ml-[20px] mb-2 mt-1">
                     <input type="number" 
-                       value={localConfig.minimumTabWidthInPixels ?? 72} 
-                       onChange={(e) => updateLocalConfig({minimumTabWidthInPixels: parseInt(e.target.value) || 72})} 
+                       value={localConfig.minimumTabWidthInPixels ?? 100} 
+                       onChange={(e) => updateLocalConfig({minimumTabWidthInPixels: parseInt(e.target.value) || 100})} 
                        className="w-[45px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-center outline-none disabled:opacity-50"
                        disabled={!localConfig.flexibleTabWidth && !localConfig.resizableTabs}
                     />
                     <input type="number" 
-                       value={localConfig.maximumTabWidthInPixels ?? 200} 
-                       onChange={(e) => updateLocalConfig({maximumTabWidthInPixels: parseInt(e.target.value) || 200})} 
+                       value={localConfig.maximumTabWidthInPixels ?? 320} 
+                       onChange={(e) => updateLocalConfig({maximumTabWidthInPixels: parseInt(e.target.value) || 320})} 
                        className="w-[45px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-center outline-none disabled:opacity-50"
                        disabled={!localConfig.flexibleTabWidth && !localConfig.resizableTabs}
                     />
@@ -2562,8 +2578,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  
                  <div className="flex items-center gap-[42px] mb-[8px] mt-2">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Tab bar height:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.tabBarHeight ?? 28} onChange={e => updateLocalConfig({ tabBarHeight: parseInt(e.target.value) })}>
-                       {[24, 26, 28, 30, 32, 36].map(n => <option key={n} value={n}>{n}px</option>)}
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.tabBarHeight ?? 44} onChange={e => updateLocalConfig({ tabBarHeight: parseInt(e.target.value) })}>
+                       {[24, 26, 28, 30, 32, 36, 40, 44].map(n => <option key={n} value={n}>{n}px</option>)}
                     </select>
                  </div>
                  <div className="flex items-center gap-[42px] mb-[8px]">
@@ -2735,7 +2751,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             <TabsContent value="Bottom Panel" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Bottom Panel</h1>
               <p className="text-[12px] text-gray-400 mb-6 max-w-[520px]">
-                Control the plugin dock at the bottom of the workspace. Drag tabs on the panel itself to reorder them — order is saved automatically.
+                Control the bottom plugin panel. Drag tabs on the panel itself to reorder them — order is saved automatically.
               </p>
 
               <SectionHeader title="Visibility &amp; Startup" />
@@ -3259,7 +3275,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                applyFeedback === 'applied'
                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.45)]'
                  : hasChanges
-                   ? 'bg-[#007acc] border-[#007acc] text-white hover:bg-[#006bb3] shadow-[0_0_10px_rgba(0,122,204,0.35)]'
+                   ? 'bg-[color:var(--accent,#0078d4)] border-[color:var(--accent,#0078d4)] text-white hover:brightness-110 shadow-[0_0_10px_color-mix(in_srgb,var(--accent,#0078d4)_35%,transparent)]'
                    : 'bg-[#333] border-[#666] text-gray-500'
              }`}
              onClick={applyChanges}

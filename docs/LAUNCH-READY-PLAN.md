@@ -1,8 +1,27 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** Execution in progress — A1–A3 hosts crafted; E1 ops suite (into-self, disk need/free, Skip/Retry/Open log, path-too-long UX) landed; Wave C code verified (virtualization threshold 1); Wave D/Windows UAC·DnD live matrix still require Windows shell  
+**Status:** **NOT launch-ready** — mid-execution. Tabs/Home/About/ops QC green; Wave F code done; E ops suite coded; **C4 drag-ghost craft code landed** (Windows click-through still ☐); `fm-launch-readiness.md` is **0 signed rows**. Next = Windows DnD matrix 46–58 after C4, then A2 / E4 / D2–D3.  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
+**Ship binary:** **BNDZ-Native only** — `BNDZShell` via `scripts/run-bndz-native.cmd` / `BNDZShell.exe`. FilesMerge and classic WPF `MainWindow` are reference/archive — not the launch gate target.
+
+---
+
+## Audit verdict (2026-09-18) — did we finish?
+
+**No.** Strong code progress on Waves A / E / F / **C4** and chrome polish, but launch cannot be claimed until:
+
+| Blocker | State |
+|---------|--------|
+| **C4** inbound list FluidDrag + outside OLE ghost craft | **Code landed** — Windows verify ☐ |
+| **`fm-launch-readiness.md`** | **~112 ☐ / 0 ☑** on real Windows |
+| **DnD matrix 46–58** | Unsigned; must re-run after C4 |
+| **E4.1–E4.14** UAC / collisions / Shell Integration | Code suite ≠ live verify |
+| **A2 absorb smoke** | Remaps coded; Windows host-tab open still ☐ |
+| **D2** Shift+RMB / terminal first paint / menu dupes | Windows ☐ |
+| **A1 residue** | Hub clean; FilesMerge catalog scrubbed; Ghost/RAM Wave3 pages deleted; dead ContextMenuView props removed; plugin `.tsx` quarantined |
+
+**Parked correctly (do not start):** [`to-do-future-upgrades.md`](../to-do-future-upgrades.md), external npm/zip plugins, selling pillars.
 
 ---
 
@@ -10,9 +29,11 @@
 
 | # | Decision |
 |---|----------|
-| **1.A** | **Remove RAM Staging** from the product surface this pass (Hub, Command Deck, menus, Workspace Tools, Hub cards, automation nodes, launch-check rows that assume `/bndz/ram`). **No replacement RAM feature.** Strip ImDisk / AIM install–UAC–driver theater with it. Ghost/cold UI that only lived under Staging leaves the Hub with it (no half-kept “Cold” orphan plugin). |
-| **2** | **All tracks** — do not thin to one pillar. Run Waves **A–E** below as one Launch Ready program (parallel where safe; serialize only where files collide). |
-| **3** | **DnD CRITICAL:** Do not break inbound/outbound drag-and-drop. Outside-ghost polish is allowed. Spine is protected; bad polish can be reverted from commit history — still verify matrix 46–58 after any near-DnD touch. |
+| **1.A** | **Remove RAM Staging** from the product surface this pass (Hub, Command Deck, menus, Workspace Tools, Hub cards, automation nodes). **No replacement RAM feature.** Ghost/cold UI that only lived under Staging leaves the Hub with it. Checks **34/99** in readiness already retargeted (Drop Stack / install gating) — do not reopen Staging to satisfy the gate. |
+| **1.B** | **Launch = BNDZ-Native.** Sign readiness on `BNDZShell`. Do not expand FilesMerge / classic WPF as ship surface. |
+| **2** | **All tracks** — do not thin to one pillar. Run Waves **A–F** as one Launch Ready program. |
+| **3** | **DnD CRITICAL:** Do not break inbound/outbound drag-and-drop. Outside-ghost + inbound FluidDrag polish allowed under C3/C4 rules. Spine protected; verify matrix 46–58 after any near-DnD touch. |
+| **4** | **Anti-fake:** IPC wiring / “build succeeded” ≠ pass. Windows ☐→☑ only after user-visible proof on Native. |
 
 ---
 
@@ -28,7 +49,8 @@ Your brief maps to **five** launch pillars. Every one is in scope:
 | Icons and assets correctly used and looking good | **Icons & assets** | B |
 | Transfer **collision** modals (same name, disk full, …); Windows **admin/UAC** when needed; Settings **Shell Integration** admin path verified | **Ops dialogs + elevation** | E |
 | “And so on” (ship bar: menus, transfers, terminal, About/Register, defaults, signed checklist, DnD proof) | **Ship gate & remaining polish** | D |
-| **CRITICAL:** inbound/outbound DnD must not break; outside-ghost polish OK (committed baseline can be restored) | **DnD protect** | C3 + global |
+| **CRITICAL:** inbound/outbound DnD must not break; outside-ghost polish OK (committed baseline can be restored) | **DnD protect** | C3 + C4 + global |
+| Quick boot + honest index finished | **Boot + index** | F |
 
 ---
 
@@ -48,6 +70,31 @@ Defaults: System Properties, Fast Search, Visual Filters only · `FIRST_USE_PLUG
 |---------|--------|
 | **RAM Staging** (`ram-staging`) + Ghost Hub/Deck/menu chrome | **Remove** from Hub catalog, bottom panel, Command Deck tools, shell menu presets, Workspace Tools tabs, Continuum compose board, Hub view cards. Remap any saved `ram-staging` / `ghost-link` installs to **uninstall / drop** (or a no-op host redirect that does not re-expose Staging). Delete or quarantine install/driver IPC UX. Update [`docs/fm-launch-readiness.md`](fm-launch-readiness.md) checks **34** and **99** (they currently assume RAM staging). |
 | **Design Board** (`design-board`) | **Remove from Hub for launch** — hosted Fabric/OpenPencil iframe is not a native FM plugin. Keep code behind a “later” flag or archive; do not market as a Hub install. |
+
+### A1 residue scrub (still required before launch honesty)
+
+Hub catalog no longer installs Staging / Design Board — **but residue remains in the tree**. Close before D3:
+
+| Residue | Action |
+|---------|--------|
+| `RamStagingPlugin.tsx` / `GhostLinkPlugin.tsx` / `DesignBoardPlugin.tsx` | **Quarantined** → `src/components/plugins/_a1_quarantine/` |
+| `BNDZUI` RAM zone list / `ramStaging*` IPC / path remaps | Tree expand chrome scrubbed; zones still filter mount letters from This PC; path remaps kept for leftover tabs |
+| FilesMerge `BndzPluginCatalog` still listing `ram-staging` | **Done** — ghost-link / ram-staging removed from DefaultInstalled + Marketplace + Deck map |
+| FilesMerge `BndzPluginPageFactory` | **Done** — ghost-link / ram-staging ctors removed |
+| Ghost→RAM “must-move” rows in `PLUGINS-TODO-BEFORE-LAUNCH.MD` | Strike — superseded by 1.A remove (do not professionalize Staging) |
+| Nested absorb children using `PluginStatCard` SaaS strips | **Partial** — RealityCheck / SemanticDesk → `PluginOpsMeter`; Ram/Ghost quarantined |
+| **Preview idle + System Properties idle plaques** | **Wired** — panel=`unable-to-display-*`, idle=`disk-*`; thin customs superseded; Native visual QC ☐ |
+
+- [x] FilesMerge catalog no longer resurrects Staging / Ghost Link
+- [x] Nested absorb embeds (RealityCheck / SemanticDesk) off `PluginStatCard`
+- [x] Plugin `.tsx` quarantined under `_a1_quarantine/`
+- [x] BNDZUI RAM/Ghost tree expand chrome scrubbed; Workspace Tools dead Ghost/RAM refresh removed
+- [x] FilesMerge Wave3 `BndzGhostLinkPage` / `BndzRamStagingPage` deleted (not merely unregistered)
+- [x] Dead `ContextMenuView` Ghost/RAM stage props removed
+- [x] Preview + System Properties idle plaques replaced (code)
+- [ ] Preview + System Properties idle plaques Native visual QC
+- [ ] A1 residue scrub complete (final Windows confirm no resurrect)
+
 | Leftover **Ghost-*** user-facing strings | Scrub product copy (menus, Deck, automation labels, transfer queue names) even where code embeds remain. |
 
 ### A2 — Absorb verification (features moved, not lost)
@@ -66,6 +113,7 @@ Per [`PLUGINS-TODO-BEFORE-LAUNCH.MD`](../PLUGINS-TODO-BEFORE-LAUNCH.MD) must-mov
 | Remaps | `RETIRED_PLUGIN_REMAP` in `PluginRegistryContext.tsx` |
 
 - **Exception:** Ghost → RAM Staging absorb is **superseded by A1 remove** — do not professionalize Staging; remove it.
+- [x] Code audit: remaps + host tabs present (Magnets/Encode/Intake/Policies/Capacity/Health/Diff/Vault/Groups)
 - [ ] Windows UI smoke: open each host tab once after install remap hydrate
 
 ### A3 — Keep + professionalize (big-company hosts)
@@ -130,6 +178,18 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 - Menubar / context hover colors consistent  
 - Shell Menus plugin UI must not reintroduce dump “Shell extensions” folder into the live menu  
 
+### B progress (honest)
+
+| Row | Code | Windows |
+|-----|------|---------|
+| B1 native chrome density / no SaaS cards in core FM | Advanced | ☐ click-through |
+| B2 multi-res taskbar ICO (16–256) present | [x] | ☐ crisp at 16/32/48 on Native |
+| B2 About/Register brand plaque (not missing PNG) | [x] craft pass | ☐ visual QC on Native |
+| B2 list icons warm / no pop-in on revisit | Partial | ☐ folder+file warm proof |
+| B3 Shift+RMB + no duplicate Open/Properties/Share | Weave + share/grantaccess host/FE align + unit test | ☐ Windows |
+| B3 menubar/context hover consistency | [x] | ☐ |
+| Context-menu plaques | Parked (`PLAQUE_CONTEXT_MENU_ENABLED=false`) — **not** launch blocker |
+
 ---
 
 ## Wave C — Performance and reliability
@@ -147,8 +207,11 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 - Tombstones / optimistic move-delete: clear on host omit; no flicker-back  
 - Small copy/move: toast + list refresh feel instant  
 - Fast Search: keyboard nav + Enter snappy; empty / no-Everything messaging  
-- Terminal: Local PowerShell prompt paints on first open  
-- Outbound drag ghost outside border + tree drag ghosts — **verify-first**; fix only with DnD protect rules  
+- Terminal: **Native** Local PowerShell — WinUI `EasyTerminalControl` overlay over the Remote plugin hole (`NATIVE_TERMINAL_*`); see [`docs/TERMINAL-QUALITY-GATES.md`](TERMINAL-QUALITY-GATES.md) 
+- Outbound ghost mechanics (RegisterClassExW + single premultiply) + tree drag bake — **code landed**; Windows wallpaper follow still verify  
+- **C4 code landed:** inbound list FluidDrag + outside OLE ghost craft — Windows matrix 46–58 next  
+- Sidebar cold-boot LMB (Caption/NC) — code fix landed; **re-verify** on Native cold start  
+- `CraftPaneHost` IDropTarget reclaim after Chromium first paint — known OLE fragility; include in matrix 46–58 notes (do not rewrite spine) 
 
 ### C3 — DnD protect (non-negotiable) — CRITICAL
 
@@ -156,11 +219,36 @@ Parked post-launch product ideas (list checkboxes all views, Folder Options, Not
 
 | Allowed | Forbidden |
 |---------|-----------|
-| Polish **outside** drag ghosts (cursor-outside-border ghost, tree-row ghost craft) | Rewriting CraftPaneHost OLE, WebView2 drop target, FE handoff / `bndz-ole-drag-handoff`, FluidDrag multi fan, dual-path dedupe |
+| Polish **outside** drag ghosts (cursor-outside-border GDI craft, tree-row ghost craft) | Rewriting CraftPaneHost OLE, Drop / self-refuse / effect resolve, FE handoff / `bndz-ole-drag-handoff`, FluidDrag multi fan, dual-path dedupe |
+| **Inbound list ghost** via existing `FluidDragStack` + read-only hover path sample | Second Win32 inbound overlay fighting Explorer; changing Drop commit |
 | Surgical CSS / ghost clone paint after matrix still green | “Cleanup” refactors of drop delivery, escalate, or commit bus |
 | Re-verify readiness **46–58** after any touch near DnD | Shipping DnD changes without Windows matrix proof |
 
 Files treated as protect zones (surgical only): `BNDZUI.tsx`, `dragController.ts`, FluidDrag stack, `fileDragSession` / cleanup / drop dest, `fileDropBus`, host `WebView2DropTargetService` / OLE deliver path.
+
+### C4 — Drag ghost craft (inbound list + outside design) — CODE LANDED
+
+**Paint + hover enrichment only; spine protected.** Windows click-through still required.
+
+#### C4.1 — Outside OLE ghost design upgrade — **done (code)**
+
+[`BndzOutboundDragGhostOverlay.cs`](../BNDZBackend/Services/BndzOutboundDragGhostOverlay.cs) `BuildCardBitmap`: soft shadow pad, rim, Midnight gradient, shell LARGEICON, magenta move / emerald copy, multi stack + count chip; FE `.bndz-drag-ghost-op-move` → `#a855f7`.
+
+#### C4.2 — Inbound list drag ghost — **done (code)**
+
+| Step | Change |
+|------|--------|
+| Host | DragEnter caches CF_HDROP sample ≤10 + count; `EXTERNAL_FILES_DRAG_HOVER` carries `{ paths, count, copy }`; `EXTERNAL_FILES_DRAG_LEAVE` on leave. Drop / self-refuse / effect unchanged. |
+| FE | `bndz-external-drag-hover` → `armFluidDrag` when no outbound session; disarm on leave / drop / fail / magnet. |
+| Reuse | `fluidDragBridge` + `FluidDragStack` — no second ghost |
+| Parity | Native `BndzIpcHost` enriched; classic MainWindow coords-only (archive) |
+
+#### C4.3 — After C4 code lands
+
+- Tick Active rows in [`to-do.md`](../to-do.md)  
+- Re-note DnD matrix **46–58**  
+- Fresh `npm run build` + Debug `dotnet`  
+- Then resume Windows-gated A2 / E4 / D2–D3 sign-off  
 
 ---
 
@@ -181,8 +269,8 @@ Big-company FMs never fail silently on transfer collisions or permission walls. 
 | **Access denied / needs admin** | Explain + offer elevate | Cancel; **Run as administrator** / retry elevated (Windows UAC) |
 | **File in use** (sharing violation) | Locked-file message | Skip, Retry, Cancel |
 | **Path too long** | MAX_PATH / long-path messaging | Skip, Cancel; rename hint if applicable |
-| **Read-only / destination not writable** | Permission/read-only sheet | Skip, Cancel; elevate if policy allows |
-| **Invalid name / reserved device names** | Validation toast/modal | Fix name / Cancel |
+| **Read-only / destination not writable** | Permission/read-only sheet | Skip, Cancel; elevate if policy allows — **code: `readOnly` kind** |
+| **Invalid name / reserved device names** | Validation toast/modal | Fix name / Cancel — **code: `invalidName` + rename guard** |
 | **Copy/move folder into itself** (or descendant) | Block with clear reason | OK |
 | **Partial failure** mid-batch | Summary of failed items | Retry failed, Skip rest, Open log |
 
@@ -215,27 +303,47 @@ Do not ship Shell Integration as “looks wired” — run the toggles on Window
 
 ### E4 — Launch-readiness additions (Wave E)
 
-Add/sign checks for: name collision modal; disk-full modal; access-denied → UAC Allow; UAC Cancel; Shell Integration toggle elevate round-trip; file-in-use; folder-into-self block.
+Rows **E4.1–E4.14** in [`docs/fm-launch-readiness.md`](fm-launch-readiness.md). Sign on real **BNDZ-Native** for: name collision; folder conflict; disk-full; in-use; path-too-long; read-only; invalid name; access-denied → UAC Allow/Cancel; into-self; partial batch; Shell Integration elevate round-trip.
 
 ---
 
 ## Wave D — Ship gate (“and so on”)
 
+### D0 — Ship binary lock
+
+- [x] Gate runs only on **BNDZ-Native** (`scripts/run-bndz-native.cmd` / `BNDZShell.exe`)
+- [x] Do not treat FilesMerge or classic WPF as launch proof
+- [x] Readiness header / D3 wording matches Native-only
+- [x] Root `README.md`, `docs/native-shell/`, `FilesMerge/README_BNDZ.md`, archived build/run scripts all point at BNDZShell
+
 ### D1 — Defaults / chrome already expected at launch
 
-- Command Deck **off** by default (FilesMerge / native as applicable)  
+- Command Deck **off** by default on Native  
 - Midnight default theme; branch bar / mini tree defaults per product prefs  
 - Default plugins: Properties, Fast Search, Visual Filters only  
+- Command Deck actions = **installed plugins only** (never auto-install on click)  
+- Config change re-syncs install state (never freeze first hydrate)  
+- Omnibar must not resurrect a Plugins/Smart Tools strip that fights Deck gating  
 
 ### D2 — Close open [`to-do.md`](../to-do.md) Launch-ready polish rows
 
-Context menu verify · Fast Search empty/keyboard · Toolbar Designer density · transfer snappiness · terminal first paint · Visual Filters empty craft · Tag Manager / Action History spot-check · bottom panel gating · menubar hover · Config shell copy  
+| Row | Code | Windows |
+|-----|------|---------|
+| Shift+RMB full OS menu; no duplicate Open/Properties/Share | Weave + share/grantaccess dedupe harden | ☐ |
+| Terminal Local WinUI TermControl overlay (G0–G5) | G0–G5 code paths via `verify-terminal-gates.ps1` + builds; optional live §2.3–2.5 | ☑ code / ☐ live |
+| Fast Search empty/keyboard | [x] | spot-check ☐ |
+| Transfer toast / list refresh snappiness | [x] | spot-check ☐ |
+| Bottom panel empty + install gating | [x] | ☐ (#99) |
+| Sidebar cold-boot LMB | Fix landed | ☐ re-verify |
+| About/Register brand craft | [x] | ☐ visual QC |
+| Taskbar/tray multi-res ICO crisp 16/32/48 | Asset landed | ☐ (#92) |
 
 ### D3 — Sign [`docs/fm-launch-readiness.md`](fm-launch-readiness.md)
 
-- All **100** checks on real Windows `BNDZShell`  
-- After Staging removal: rewrite/remove checks **34** and **99** so the gate does not require RAM staging  
+- All **100** core checks + **E4.1–E4.14** on real Windows **BNDZ-Native**  
+- Checks **34/99** already retargeted (Drop Stack / install gating) — confirm gate text matches product  
 - Anti-fake: IPC wiring alone ≠ pass; list drag/marquee regressions block launch  
+- After C4: re-sign DnD **46–58** before closing D3  
 
 ### D4 — Build / verify every product turn
 
@@ -244,23 +352,42 @@ npm run build
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 ```
 
-Plus native shell build when Shell surfaces change.
+Plus native shell build when Shell surfaces change (`scripts/build-bndz-native.ps1` when Shell code changes).
+
+### D5 — Windows Sign-Off Protocol (required to claim Launch Ready)
+
+1. Run **BNDZ-Native** on a real Windows machine (not Linux CI alone).  
+2. Work the checklist in [`fm-launch-readiness.md`](fm-launch-readiness.md) top-to-bottom; flip ☐→☑ only after user-visible proof.  
+3. For DnD: paste `ole-dnd.log` snippets (`outbound-ghost show`, inbound deliver) into the PR / notes.  
+4. For UAC: record Allow **and** Cancel paths for Shell Integration + one protected-folder transfer.  
+5. Perf: measure scroll with Perf HUD (Ctrl+Shift+Alt+P) if available — target ≈ display Hz with warm icons.  
+6. Freeze: after matrix green, no near-DnD polish without re-running 46–58.  
+
+### D6 — Packaging (launch-adjacent — do not skip forever)
+
+Not required to flip every readiness row, but required before public “ship”:
+
+- [x] Installer / unpackaged distribute path documented for Native (`BNDZ_NATIVE.md` § Distribute + playbook)
+- [x] Authenticode / SmartScreen plan (explicit **unsigned Native beta** until OV/EV)
+- [ ] Clean VM: WebView2 runtime present; first-run trial/About honest (Windows)  
 
 ---
 
 ## Execution order (all tracks — how we run it)
 
 ```text
-Wave A1  Remove Staging + Design Board Hub + Ghost scrub     ─┐
-Wave A2  Absorb smoke on remaining hosts                      ├─ early (unblocks honesty)
-Wave A3  Professionalize hosts (Uiverse + assets)            ─┘
-Wave B   Native chrome + icons/assets + menus                 ── parallel with A3 where files differ
-Wave C   List/scroll perf + reliability; DnD protect          ── parallel; serialize on BNDZUI / drag stack
-Wave E   Collision modals + UAC + Shell Integration verify    ── parallel with B/C on dialog/settings files
-Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windows required for ☐→☑
+DONE   A1 Hub drop Staging/Design Board
+DONE   A1 residue quarantine (plugin .tsx + FilesMerge factory + BNDZUI tree chrome)
+DONE   A3 host craft / E1 ops suite / F boot+index (code)
+DONE   Tabs / Home rename / About de-AI / ops elevation QC
+DONE   C4  Outside OLE ghost craft + inbound list FluidDrag ghost (code)
+DONE   Idle plaque pick/replace (Preview panel + System Properties)
+NEXT   Windows PC: [`docs/WINDOWS-TEST-PLAYBOOK.md`](WINDOWS-TEST-PLAYBOOK.md) (DnD 46–58, E4, D2, plaques, A2)
+THEN   D3 sign full readiness on BNDZ-Native
+THEN   D6 Authenticode / public installer (beyond unsigned beta docs)
 ```
 
-**Parallelism rule:** A1 first (Staging removal), then A2/A3 ∥ B ∥ C ∥ E on non-overlapping files; anything touching `BNDZUI.tsx` / drag stack serializes under **DnD protect** (ghost polish OK; spine rewrite forbidden); D signs only after A–C–E evidence.
+**Parallelism rule:** Anything touching `BNDZUI.tsx` / drag stack / OLE serializes under **DnD protect**. C4 before claiming DnD green. D3 only after C4 + E live evidence.
 
 ---
 
@@ -271,6 +398,7 @@ Wave D   Polish backlog + sign 100-check gate (+ E rows)      ── last; Windo
 - External plugin package marketplace runtime  
 - DnD architecture rewrite (ghost polish ≠ rewrite)  
 - Replacement RAM disk feature after Staging removal  
+- Context-menu plaque wire (density pass parked)  
 - Calendar estimates  
 
 ---
@@ -290,7 +418,7 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 - [x] Native shell: idle-defer font pack + armed automations (same pattern as FilesHost) — do not contend with first `GET_DIR_CONTENTS` / settings
 - [x] Do not start default library indexing until `INDEX_PROGRESS` callback is wired (avoid silent progress + boot disk contention)
 - [x] Keep `BNDZ_UI_READY` / pending IPC queue — never drop listings for speed
-- [ ] Stretch (same wave if cheap): trim IpcHost critical-path scanners until after UI ready
+- [x] Stretch: defer IpcHost settings/history/idle-scanner boot I/O via post-ctor `Task.Run` (first list paint unblocked); more work on `BNDZ_UI_READY`
 
 ### F2 — Search index reaches a real finished state
 **Symptom:** status chip spins / “never finishes”; no 100% / Complete affordance.
@@ -312,61 +440,78 @@ Explorer-grade cold start and an honest “index finished” state. Belongs in L
 
 ## Definition of Launch Ready
 
-1. Hub is smaller and professional — fillers gone; absorbs verified; Staging/Design Board not marketed  
-2. Core FM feels native — list/scroll/menus/transfers/terminal meet polish bar  
-3. Icons/assets correct and crisp (taskbar + in-app)  
-4. Perf/reliability: large-folder scroll + optimistic ops + search empty states hold up  
-5. **Collision + elevation suite complete** (name, disk full, in-use, …) and Shell Integration admin path verified on Windows  
-6. **Inbound/outbound DnD matrix not regressed** (46–58); outside-ghost polish only if still green  
-7. `fm-launch-readiness.md` signed on Windows with honest ☐/☑ (including Wave E rows)  
+All of the following must be true — **none optional**:
+
+1. Hub is smaller and professional — fillers gone; **A1 residue scrubbed**; absorbs smoke-verified; Staging/Design Board not marketed  
+2. Core FM feels native on **BNDZ-Native** — list/scroll/menus/transfers/terminal meet polish bar  
+3. Icons/assets correct and crisp (taskbar 16/32/48 + in-app warm icons)  
+4. Perf/reliability: large-folder scroll ≈ Hz + optimistic ops + search empty states hold up  
+5. **Collision + elevation suite** live-verified (E4.1–E4.14) including Shell Integration Allow/Cancel  
+6. **C4 ghosts shipped** + **DnD matrix 46–58** re-signed after C4; inbound + outbound proof in `ole-dnd.log`  
+7. `fm-launch-readiness.md` signed on Windows **BNDZ-Native** with honest ☐/☑ (100 + E4)  
 8. Above and Beyond + BNDZ build gates green on every product turn  
+9. Packaging path clear (D6) before public distribution — or explicit “unsigned Native beta” label  
 
 ---
 
 ## Immediate next execution slice (when you say go)
 
-1. **A1** — Remove RAM Staging (+ Ghost product chrome) and demote Design Board from Hub  
-2. Patch launch-readiness checks 34/99  
-3. Ghost string scrub  
-4. Then parallel: **A2 smoke · B2 About assets · C1 scroll · E1 gap audit** (which collision types are missing vs table) — no DnD spine edits  
-)
+1. **Windows** — Post-C4 DnD matrix **46–58** + `ole-dnd.log`; Preview/System Properties idle plaque visual QC  
+2. **A2** absorb smoke + **E4** live UAC/collision + **D2/D3** sign-off  
+3. Final A1 Windows confirm — no Staging/Design Board resurrect  
 
+Do **not** restart A1 Hub removal, E1 gap audit, C4 craft, or idle plaque pick — those are done; Windows verify remains.
 
 ---
 
-## E1 gap audit (recorded at A1 start)
+## E1 gap audit (recorded at A1 start — historical)
 
 | Situation | Exists today? | Launch gap |
 |-----------|---------------|------------|
-| Same-name collision | Partial — `FileConflictModal` on **bndz** engine (files + folders); default **native** uses Explorer UI | Unify / optional default-engine policy |
+| Same-name collision | Yes — default/background engine is **bndz** so `FileConflictModal` owns collisions; explicit `native`/`windows` engine keeps Explorer UI | Done (default + BackgroundProcessing → bndz) |
 | Disk full | Yes — failed-job modal shows need vs free (host enrich + drive probe); Storage Cleanup / Skip / Retry / Open log | Windows live verify on full volume |
 | Access denied → UAC | Partial — elevate + stash/replay for last local transfer | Windows live verify UAC Allow/Cancel |
 | File in use | Yes — classified modal with working Skip / Retry / Open log | Mid-batch continue (engine) optional |
 | Folder into itself | Yes — list DnD + Copy/Move To + paste guards; host bndz engine also rejects | Windows live verify remaining |
 | Path too long | Yes — rename/shorten hint + Open destination + working Skip / Retry / Open log | Windows live verify |
-| Partial batch failure | Yes — queue Retry (per-op stash) / Skip (clears history) / Open log | Host failedPaths[] stretch optional |
+| Partial batch failure | Yes — per-item continue + `PartialTransferException` → job `failedPaths[]`; Retry resubmits only failed sources | Done |
 | Shell Integration admin | Mostly yes | Windows live verify toggles (E3) |
 
 ### E progress (this pass)
-- [x] Transfer error classifier (`transferErrorKind.ts`) — disk full / in-use / path too long / access denied
+- [x] Transfer error classifier (`transferErrorKind.ts`) — disk full / in-use / path too long / access denied / intoSelf
 - [x] Failed-job ops dialogs in BNDZUI (dedicated modal, not toast-only)
 - [x] Folder-into-self reject — list DnD + Copy/Move To + paste + host bndz guard (OLE untouched)
 - [x] Bndz engine folder same-name → `FileConflictModal` (skip / replace / keep both)
-- [x] Elevation: stash last local transfer + replay after admin relaunch
+- [x] Elevation: stash last local transfer in **localStorage** + replay after admin relaunch
+- [x] Transfer UAC no longer stamps `bndz-shell-apply-pending` (only `--apply-shell` relaunches do)
 - [x] Host `PrivilegePolicyService` classifies diskFull / sharingViolation / pathTooLong / accessDenied
 - [x] Disk-full need-vs-free capacity line (parse host Need/have + drive probe + MarkFailed enrich)
-- [x] Partial-batch suite — per-op Retry stash, Skip clears history, Open Action Log (modal + queue)
+- [x] Partial-batch suite — ops modal even when summary is unclassified; Retry failed / Skip rest / Open Action Log
 - [x] Path-too-long Skip/Open destination/Retry UX (Skip no longer a no-op)
 - [x] CheckSpaceBeforeCopy defaults on for bndz engine preflight
+- [x] E4.1–E4.14 checklist rows in `fm-launch-readiness.md` (incl. readOnly / invalidName)
 - [ ] Windows live verify: Shell Integration toggles + UAC Allow/Cancel matrix
-- [ ] Windows live verify: disk-full / path-too-long / into-self click-through
+- [ ] Windows live verify: disk-full / path-too-long / into-self / read-only / invalid-name click-through
 
 ### C progress (this pass)
 - [x] VirtualizedFileList default threshold = 1 (always virtualize) — code audit
-- [ ] Windows scroll FPS ≈ display Hz with warm icons (live measure)
+- [x] Outside-app OLE ghost — premultiplied BGRA for UpdateLayeredWindow + failure logging (QC: single premultiply)
+- [x] Tree drag ghost — bake live `.nav-tree-row` computed paint
+- [x] **C4.1** Outside OLE ghost **design upgrade** (shadow, rim, shell icon, magenta move; FE badge sync)
+- [x] **C4.2** Inbound list FluidDrag ghost (DragEnter path sample → `armFluidDrag`; Drop untouched)
+- [x] A1 FilesMerge catalog + RealityCheck/SemanticDesk PluginStatCard scrub (plugin `.tsx` quarantine still open)
+- [ ] Windows scroll FPS ≈ display Hz with warm icons (Perf HUD when available)
+- [ ] Windows confirm outbound ghost follows on wallpaper (`ole-dnd.log`)
+- [ ] Windows confirm inbound list ghost arms over list without double-ghost / commit regression
+- [ ] Post-C4 re-sign DnD matrix 46–58
 
 ### D progress (this pass)
 - [x] Build gate recipe still `npm run build` + Debug `dotnet` after product turns
-- [ ] Sign `fm-launch-readiness.md` 100-check on real Windows `BNDZShell`
+- [x] D0 Native-only ship binary lock documented + followed
+- [x] D6 unpackaged Native + unsigned-beta documented (`BNDZ_NATIVE.md`, playbook)
+- [ ] D2 Windows: Shift+RMB / terminal / ICO / cold-boot LMB / About QC
+- [ ] D3 Sign `fm-launch-readiness.md` on real Windows **BNDZ-Native**
+- [ ] D5 Sign-off protocol followed (logs + Allow/Cancel evidence)
+- [ ] D6 Clean-VM first-run + Authenticode (public ship beyond unsigned beta)
 
-**DnD protect:** A1/E do not touch OLE spine; only removed RAM-zone product drop interception and Hub/Deck/menu chrome.
+**DnD protect:** A1/E do not touch OLE spine; **C4** is paint + read-only hover enrichment only (no Drop/effect/handoff rewrite).

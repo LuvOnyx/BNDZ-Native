@@ -35,10 +35,48 @@ function zoneSizeKey(zone: PanelFontZone): keyof AppConfig {
 const selectClass =
   'bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm outline-none focus:border-[#0078d4]/45';
 
+const TERMINAL_SIZE_OPTIONS = [9, 10, 11, 12, 13, 14, 15, 16];
+
+function primaryFontFace(stackOrFace: string): string {
+  const s = (stackOrFace || '').trim();
+  if (!s) return 'Cascadia Mono';
+  const m = s.match(/"([^"]+)"|'([^']+)'|([^,]+)/);
+  return (m?.[1] || m?.[2] || m?.[3] || s).trim();
+}
+
+/** Single-face options for WinUI TermControl (not CSS stacks). */
+const TERMINAL_FONT_OPTIONS: { label: string; value: string }[] = (() => {
+  const fromMono = MONO_FONT_PRESET_OPTIONS.map(o => ({
+    label: o.label,
+    value: primaryFontFace(o.value),
+  }));
+  const extras = [
+    { label: 'Cascadia Mono', value: 'Cascadia Mono' },
+    { label: 'Cascadia Code', value: 'Cascadia Code' },
+    { label: 'Consolas', value: 'Consolas' },
+    { label: 'Courier New', value: 'Courier New' },
+    { label: 'JetBrains Mono', value: 'JetBrains Mono' },
+  ];
+  const seen = new Set<string>();
+  const out: { label: string; value: string }[] = [];
+  for (const o of [...fromMono, ...extras]) {
+    const key = o.value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(o);
+  }
+  return out;
+})();
+
+
 export default function FontsTabContent({ localConfig, updateLocalConfig }: Props) {
   const patch = (updates: Partial<AppConfig>) => {
     updateLocalConfig(updates);
     applySettingsRuntime({ ...localConfig, ...updates });
+    const terminalTouched = Object.keys(updates).some(k => k.startsWith('terminal'));
+    if (terminalTouched) {
+      try { window.dispatchEvent(new CustomEvent('bndz-terminal-theme-changed')); } catch { /* ignore */ }
+    }
   };
 
   const baseFamily = localConfig.uiFontFamily || UI_FONT_PRESET_OPTIONS[0]?.value || '';
@@ -117,6 +155,68 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
         </div>
       </SettingsSection>
 
+
+      <SettingsSection title="Terminal">
+        <p className="text-[11px] text-gray-500 mb-3 max-w-[560px] leading-relaxed">
+          Applies to the bottom-panel terminal (WinUI TermControl). Re-open the terminal or it updates live when possible.
+        </p>
+        <div className="space-y-3 max-w-[640px]">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">Font family</span>
+            <select
+              className={`${selectClass} flex-1 min-w-[200px]`}
+              value={localConfig.terminalFontFamily || 'Cascadia Mono'}
+              onChange={e => patch({ terminalFontFamily: e.target.value })}
+            >
+              {TERMINAL_FONT_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">Font size</span>
+            <select
+              className={`${selectClass} w-[120px]`}
+              value={localConfig.terminalFontSize ?? 11}
+              onChange={e => patch({ terminalFontSize: parseInt(e.target.value, 10) })}
+            >
+              {TERMINAL_SIZE_OPTIONS.map(n => (
+                <option key={n} value={n}>{n}px</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">Foreground</span>
+            <input
+              type="color"
+              value={localConfig.terminalForeground || '#d8dee9'}
+              onChange={e => patch({ terminalForeground: e.target.value })}
+              className="w-9 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+            />
+            <span className="text-[11px] text-white/40 font-mono">{localConfig.terminalForeground || '#d8dee9'}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">Background</span>
+            <input
+              type="color"
+              value={localConfig.terminalBackground || '#07090e'}
+              onChange={e => patch({ terminalBackground: e.target.value })}
+              className="w-9 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+            />
+            <span className="text-[11px] text-white/40 font-mono">{localConfig.terminalBackground || '#07090e'}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">Cursor</span>
+            <input
+              type="color"
+              value={localConfig.terminalCursor || '#7dd3fc'}
+              onChange={e => patch({ terminalCursor: e.target.value })}
+              className="w-9 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+            />
+            <span className="text-[11px] text-white/40 font-mono">{localConfig.terminalCursor || '#7dd3fc'}</span>
+          </div>
+        </div>
+      </SettingsSection>
       <SettingsSection title="Per-panel overrides">
         <p className="text-[11px] text-gray-500 mb-3 max-w-[560px] leading-relaxed">
           Set a custom family or size for each workspace region. Leave family as &ldquo;Inherit&rdquo; or size at &ldquo;Default&rdquo; to use the global UI font.

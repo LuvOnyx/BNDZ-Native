@@ -16,7 +16,11 @@ for %%P in (
 ) do if exist "%%~P\Files.exe" if exist "%%~P\AppxManifest.xml" set "LAYOUT=%%~P"
 
 if "%LAYOUT%"=="" (
-  echo BNDZ-Native shell layout not found. Run:
+  echo [archived] FilesMerge layout not found. For product use:
+  echo   powershell -File scripts\build-bndz-native.ps1
+  echo   scripts\run-bndz-native.cmd
+  echo.
+  echo To rebuild this archived hybrid:
   echo   powershell -File scripts\build-files-bndz-merge.ps1
   exit /b 1
 )

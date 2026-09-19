@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>BNDZ plaque QC</title>
+<style>
+:root { --ink:#e8ecf2; --muted:#9aa3b2; --line:rgba(255,255,255,.1); }
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.4 "Segoe UI",system-ui;background:#0b0d12;color:var(--ink)}
+header{padding:20px 28px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,13,18,.94);backdrop-filter:blur(8px);z-index:2}
+h1{margin:0 0 6px;font-size:18px}
+p{margin:0;color:var(--muted);max-width:920px}
+.badge{display:inline-block;margin:10px 0 0;padding:4px 10px;border-radius:999px;background:rgba(46,160,67,.18);color:#8fdc9b;font-weight:600}
+main{padding:20px 28px 48px}
+h2{font-size:15px;margin:28px 0 12px}
+.panel{border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:18px}
+.panel.dark{background:#151922}
+.panel.light{background:#eef1f6;color:#111827}
+.panel.light code,.panel.light .muted{color:#4b5563}
+.tone{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.panel.light .tone{border-bottom-color:rgba(0,0,0,.08)}
+.tone:last-child{border-bottom:0}
+.label{font-weight:650}
+.label code{font-weight:500;font-size:10px;opacity:.75}
+.sizes{display:flex;flex-wrap:wrap;gap:14px;align-items:end}
+.cell{text-align:center}
+.cell span{display:block;font-size:10px;opacity:.65;margin-top:4px}
+.box{display:grid;place-items:center;border-radius:10px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.06)}
+.panel.light .box{background:#fff;border-color:rgba(0,0,0,.08)}
+.box img{max-width:90%;max-height:90%;object-fit:contain}
+.strip{height:40px;border-radius:10px;background-image:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.12)),url('tab-strip.svg');background-size:auto,480px 40px;background-repeat:repeat-x;display:flex;align-items:end;gap:4px;padding:0 8px 0;margin-top:10px}
+.panel.light .strip{background-image:linear-gradient(180deg,rgba(255,255,255,.7),rgba(236,239,244,.95)),url('tab-strip-light.svg')}
+.chip{height:32px;width:120px;background-size:100% 100%;background-repeat:no-repeat}
+.chip.on{background-image:url('tab-active.svg')}
+.chip.off{background-image:url('tab-inactive.svg');opacity:.9}
+.panel.light .chip.on{background-image:url('tab-active-light.svg')}
+.panel.light .chip.off{background-image:url('tab-inactive-light.svg')}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:600}
+.pass{color:#8fdc9b}.fail{color:#f0a0a0}.warn{color:#e6c07b}
+</style></head><body>
+<header>
+  <h1>BNDZ plaque quality check</h1>
+  <p>Real-size tone matrix (xs→xl), light/dark chrome, soft FM tab strip mock. Keepers only — no people art.</p>
+  <div class="badge">QC board · pre-ship</div>
+</header>
+<main>
+<section>
+  <h2>Checklist</h2>
+  <table>
+    <tr><th>Check</th><th>Result</th><th>Notes</th></tr>
+    <tr><td>No people / skin in keepers</td><td class="pass">PASS</td><td>Skin scan clean; people quarantined (32)</td></tr>
+    <tr><td>BndzPlaque path resolve</td><td class="pass">PASS</td><td>All tone paths exist</td></tr>
+    <tr><td>Tab CSS path resolve</td><td class="pass">PASS</td><td>active/inactive/strip light+dark</td></tr>
+    <tr><td>currentColor bake for &lt;img&gt;</td><td class="pass">PASS</td><td>Accent baked to #0078d4</td></tr>
+    <tr><td>Soft FM tab shape</td><td class="pass">PASS</td><td>Rounded top, flush bottom (not Chrome curves)</td></tr>
+    <tr><td>Context menus</td><td class="warn">GATED</td><td>PLAQUE_CONTEXT_MENU_ENABLED=false</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Dark chrome — tones × sizes</h2>
+  <div class="panel dark"><div class="tone"><div class="label">idle<br><code>no-data.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="no-data.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="no-data.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="no-data.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="no-data.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="no-data.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">warn<br><code>warning.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="warning.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="warning.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="warning.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="warning.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="warning.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">error<br><code>error-dark.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="error-dark.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="error-dark.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="error-dark.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="error-dark.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="error-dark.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">brand<br><code>brand-mark.png</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="brand-mark.png" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="brand-mark.png" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="brand-mark.png" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="brand-mark.png" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="brand-mark.png" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">question<br><code>access-denied-dark.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="access-denied-dark.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="access-denied-dark.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="access-denied-dark.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="access-denied-dark.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="access-denied-dark.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">panel<br><code>unable-display-dark.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="unable-display-dark.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="unable-display-dark.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="unable-display-dark.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="unable-display-dark.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="unable-display-dark.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">folder<br><code>folder-empty-dark.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="folder-empty-dark.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="folder-empty-dark.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="folder-empty-dark.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="folder-empty-dark.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="folder-empty-dark.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">search<br><code>search-empty-dark.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="search-empty-dark.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="search-empty-dark.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="search-empty-dark.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="search-empty-dark.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="search-empty-dark.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">tabs<br><code>tab-empty.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="tab-empty.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="tab-empty.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="tab-empty.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="tab-empty.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="tab-empty.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">transfer<br><code>data-transfer.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="data-transfer.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="data-transfer.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="data-transfer.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="data-transfer.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="data-transfer.svg" alt=""></div><span>xl 148</span></div></div></div></div>
+</section>
+
+<section>
+  <h2>Light chrome — tones × sizes</h2>
+  <div class="panel light"><div class="tone"><div class="label">idle<br><code>no-data.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="no-data.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="no-data.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="no-data.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="no-data.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="no-data.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">warn<br><code>warning.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="warning.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="warning.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="warning.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="warning.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="warning.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">error<br><code>error-light.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="error-light.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="error-light.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="error-light.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="error-light.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="error-light.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">brand<br><code>brand-mark.png</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="brand-mark.png" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="brand-mark.png" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="brand-mark.png" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="brand-mark.png" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="brand-mark.png" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">question<br><code>access-denied-light.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="access-denied-light.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="access-denied-light.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="access-denied-light.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="access-denied-light.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="access-denied-light.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">panel<br><code>unable-display-light.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="unable-display-light.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="unable-display-light.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="unable-display-light.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="unable-display-light.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="unable-display-light.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">folder<br><code>folder-empty-light.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="folder-empty-light.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="folder-empty-light.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="folder-empty-light.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="folder-empty-light.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="folder-empty-light.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">search<br><code>search-empty-light.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="search-empty-light.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="search-empty-light.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="search-empty-light.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="search-empty-light.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="search-empty-light.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">tabs<br><code>tab-empty.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="tab-empty.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="tab-empty.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="tab-empty.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="tab-empty.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="tab-empty.svg" alt=""></div><span>xl 148</span></div></div></div>
+<div class="tone"><div class="label">transfer<br><code>data-transfer.svg</code></div><div class="sizes"><div class="cell"><div class="box" style="width:28px;height:28px"><img src="data-transfer.svg" alt=""></div><span>xs 28</span></div><div class="cell"><div class="box" style="width:44px;height:44px"><img src="data-transfer.svg" alt=""></div><span>sm 44</span></div><div class="cell"><div class="box" style="width:72px;height:72px"><img src="data-transfer.svg" alt=""></div><span>md 72</span></div><div class="cell"><div class="box" style="width:112px;height:112px"><img src="data-transfer.svg" alt=""></div><span>lg 112</span></div><div class="cell"><div class="box" style="width:148px;height:148px"><img src="data-transfer.svg" alt=""></div><span>xl 148</span></div></div></div></div>
+</section>
+
+<section>
+  <h2>Tab strip mock (40px rail)</h2>
+  <div class="panel dark">
+    <div class="muted" style="opacity:.7;margin-bottom:6px">Dark</div>
+    <div class="strip">
+      <div class="chip off"></div>
+      <div class="chip on"></div>
+      <div class="chip off"></div>
+    </div>
+  </div>
+  <div class="panel light">
+    <div class="muted" style="opacity:.7;margin-bottom:6px">Light</div>
+    <div class="strip">
+      <div class="chip off"></div>
+      <div class="chip on"></div>
+      <div class="chip off"></div>
+    </div>
+  </div>
+</section>
+</main></body></html>

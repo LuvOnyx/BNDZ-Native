@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RAM_ROOT, BNDZ_RECENT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_TEMPORAL_DIFF, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
+import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RECENT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_TEMPORAL_DIFF, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
 import { getIndexStatusCached } from '../../lib/indexStatusCache';
 import { loadSpatialCanvas } from '../../lib/spatialCanvasStore';
@@ -61,7 +61,7 @@ const VIEWS = [
     path: BNDZ_INBOUND,
     icon: 'download_ui',
     accent: '#60a5fa',
-    desc: 'Clipboard captures and inbound file staging',
+    desc: 'Screenshots and files waiting in Drop Stack',
   },
 ] as const;
 
@@ -71,21 +71,21 @@ const WORKSPACES = [
     icon: 'view_grid',
     accent: '#c4a35a',
     title: 'Spatial Canvas',
-    desc: 'Freeform 2D board — organize files from many folders without moving them on disk',
+    desc: 'Pin files from many folders on one board — without moving them on disk',
   },
   {
     path: BNDZ_AUTOMATION,
     icon: 'zap_ui',
     accent: '#34d399',
     title: 'Automation',
-    desc: 'Visual pipelines for watch, filter, copy, and rsync deploy blocks',
+    desc: 'Build simple flows: watch a folder, filter files, then copy or sync',
   },
   {
     path: BNDZ_TEMPORAL_DIFF,
     icon: 'clock_ui',
     accent: '#34d399',
     title: 'Time Diff',
-    desc: 'Scrub this folder now vs N minutes ago — adds, removes, and modifies',
+    desc: 'See what was added, removed, or changed in this folder recently',
   },
 ] as const;
 
@@ -138,13 +138,13 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop }: P
             {onOpenMeshDrop && (
               <WorkspaceLaunchCard
                 title="Mesh Drop"
-                desc="Zero-trust P2P file streaming — one-time pairing codes, no cloud middleman"
+                desc="Send files over your network with a one-time code — no cloud account"
                 icon="share"
                 emblemId="share-check"
                 accent="#5b9fd4"
-                badge="P2P"
+                badge="LAN"
                 badgeVariant="gold"
-                features={['LAN beacon', 'Mesh codes', 'Web share']}
+                features={['Nearby PCs', 'Share codes', 'Web link']}
                 onClick={onOpenMeshDrop}
               />
             )}

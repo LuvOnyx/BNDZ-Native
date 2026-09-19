@@ -62,6 +62,48 @@ function Stop-BndzLockingProcesses {
 
 Stop-BndzLockingProcesses
 
+function Clear-CorruptDotnetIntermediates {
+    # Wipe obj trees that contain null-padded or empty generated AssemblyInfo.cs (CS1056).
+    $roots = @(
+        (Join-Path $root "BNDZBackend"),
+        (Join-Path $root "BNDZCore"),
+        (Join-Path $root "BNDZShell\src\BNDZShell.App"),
+        (Join-Path $root "BNDZShell\src\BNDZCore")
+    )
+    $scrubbed = 0
+    foreach ($projRoot in $roots) {
+        $obj = Join-Path $projRoot "obj"
+        if (-not (Test-Path $obj)) { continue }
+        $hit = $false
+        Get-ChildItem -Path $obj -Recurse -File -Filter "*AssemblyInfo.cs" -ErrorAction SilentlyContinue | ForEach-Object {
+            try {
+                $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+                if ($bytes.Length -eq 0) { $hit = $true; return }
+                foreach ($b in $bytes) {
+                    if ($b -eq 0) { $hit = $true; return }
+                }
+            } catch {
+                $hit = $true
+            }
+        }
+        if (-not $hit) {
+            Get-ChildItem -Path $obj -Recurse -File -Filter "*.cs" -ErrorAction SilentlyContinue | ForEach-Object {
+                if ($_.Length -eq 0) { $hit = $true }
+            }
+        }
+        if (-not $hit) { continue }
+        Write-Host "  corrupt intermediates under $obj - wiping obj" -ForegroundColor DarkYellow
+        Remove-Item -LiteralPath $obj -Recurse -Force -ErrorAction SilentlyContinue
+        $scrubbed++
+    }
+    if ($scrubbed -eq 0) {
+        Write-Host "  intermediates clean" -ForegroundColor DarkGreen
+    }
+}
+
+Write-Host "==> Scrub corrupt obj intermediates (CS1056 null AssemblyInfo)" -ForegroundColor Cyan
+Clear-CorruptDotnetIntermediates
+
 function Ensure-BndzShellMsixAssets {
     $assetsDir = Join-Path $root "BNDZShell\src\BNDZShell.App\Assets"
     $iconPath = Join-Path $root "BNDZBackend\Assets\BNDZ.ico"
@@ -151,7 +193,14 @@ Sync-UiAssetsToShellOutput
 
 Write-Host "==> BNDZBackend (services + embedded host)" -ForegroundColor Cyan
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
-if ($LASTEXITCODE -ne 0) { throw "BNDZBackend build failed" }
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  BNDZBackend failed - force-clean obj/bin and retry once (CS1056 / stale intermediates)" -ForegroundColor DarkYellow
+    Remove-Item -Recurse -Force (Join-Path $root "BNDZBackend\obj") -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force (Join-Path $root "BNDZBackend\bin") -ErrorAction SilentlyContinue
+    Clear-CorruptDotnetIntermediates
+    dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true --no-incremental
+    if ($LASTEXITCODE -ne 0) { throw "BNDZBackend build failed" }
+}
 
 Write-Host "==> BNDZShell WinUI x64" -ForegroundColor Cyan
 dotnet build BNDZShell/src/BNDZShell.App/BNDZShell.App.csproj -c Debug -p:Platform=x64
@@ -173,7 +222,7 @@ Sync-UiAssetsToShellOutput
 # Stage a fresh copy for convenience paths — run-bndz-native prefers bin, but keep artifacts current.
 Write-Host "==> Stage artifacts\bndzshell-debug from x64 Debug" -ForegroundColor Cyan
 $x64Out = Get-ChildItem -Path (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\x64\Debug") -Directory -Recurse -Filter "net*-windows*" -EA SilentlyContinue |
-    Where-Object { Test-Path (Join-Path $_.FullName "BNDZShell.exe") } |
+    Where-Object { (Test-Path (Join-Path $_.FullName "BNDZ.exe")) -or (Test-Path (Join-Path $_.FullName "BNDZShell.exe")) } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 if ($null -eq $x64Out) {
@@ -189,6 +238,6 @@ if ($null -eq $x64Out) {
 Write-Host ""
 Write-Host "Ready - launch:" -ForegroundColor Green
 Write-Host "  scripts\run-bndz-native.cmd  (prefers bin\x64\Debug, then artifacts)"
-Write-Host "  or double-click BNDZShell.exe under bin\x64\Debug\net*-windows*\"
+Write-Host "  or double-click BNDZ.exe under bin\x64\Debug\net*-windows*\"
 Write-Host "  ARM64: bin\ARM64\Debug\net*-windows*\ (when built)"
 Write-Host "(Unpackaged self-contained WinAppSDK - MSIX register no longer required.)"

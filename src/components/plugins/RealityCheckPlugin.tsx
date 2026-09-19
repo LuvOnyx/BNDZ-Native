@@ -14,7 +14,7 @@ import {
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
-  PluginStatCard,
+  PluginOpsMeter,
   PluginSectionTitle,
 } from './PluginPanelPrimitives';
 import {
@@ -201,10 +201,14 @@ export default function RealityCheckPlugin({
             {active ? 'Glow active' : 'Enable glow'}
           </PluginHeroActionButton>
         </div>
-        <div className="flex flex-wrap gap-2 mt-3">
-          <PluginStatCard label="Project files" value={String(stats.projectFiles)} icon="folder_ui" />
-          <PluginStatCard label="Missing" value={String(stats.missing)} icon="data_warning" accent="#f87171" />
-          <PluginStatCard label="OK" value={String(stats.ok)} icon="check" accent="#34d399" />
+        <div className="mt-3">
+          <PluginOpsMeter
+            items={[
+              { label: 'Project files', value: String(stats.projectFiles), tone: 'neutral' },
+              { label: 'Missing', value: String(stats.missing), tone: stats.missing ? 'warn' : 'ok' },
+              { label: 'OK', value: String(stats.ok), tone: 'ok' },
+            ]}
+          />
         </div>
         {scanRoot && (
           <p className="text-[10px] text-gray-500 mt-2 truncate" title={formatUiPath(scanRoot)}>Last scan: {formatUiPath(scanRoot)}</p>

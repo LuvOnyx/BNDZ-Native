@@ -15,7 +15,6 @@ import {
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
-  PluginStatCard,
   PluginSectionTitle,
 } from './PluginPanelPrimitives';
 
@@ -23,7 +22,7 @@ export const LibraryHealthPluginDef = {
   id: 'library-health',
   name: 'Library Health',
   icon: 'shield_ui',
-  description: 'Scan libraries for broken links, naming conflicts, permission issues, orphans, and missing project refs.',
+  description: 'Find broken links, naming problems, and missing project files',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -302,7 +301,7 @@ export default function LibraryHealthPlugin({
                 <Icons8Icon id={t.icon} size={11} />
                 {t.label}
                 {t.badge != null && t.badge > 0 && (
-                  <span className="bndz-ghostlink-tab-badge">{t.badge}</span>
+                  <span className="bndz-cleanup-quiet-link" style={{ pointerEvents: 'none', border: 'none', padding: '2px 8px' }}>{t.badge}</span>
                 )}
               </span>
             </PluginTab>
@@ -378,11 +377,20 @@ export default function LibraryHealthPlugin({
         <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
           {activeTab === 'summary' && (
             <div className="p-5 space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <PluginStatCard label="Total issues" value={String(summary.total)} iconId="warning" />
-                <PluginStatCard label="Critical" value={String(summary.critical)} sub="Broken links · data loss" iconId="emblem_important" />
-                <PluginStatCard label="Warnings" value={String(summary.warning)} sub="Permissions · conflicts" iconId="data_warning" />
-                <PluginStatCard label="Info" value={String(summary.info)} sub="Naming · orphans" iconId="data_information" />
+              <div className="bndz-cleanup-meter">
+                <div className="bndz-cleanup-meter-row">
+                  <strong>{summary.total}</strong>
+                  <span>issues</span>
+                  <em>·</em>
+                  <strong className="text-rose-300">{summary.critical}</strong>
+                  <span>critical</span>
+                  <em>·</em>
+                  <strong className="text-amber-300">{summary.warning}</strong>
+                  <span>warnings</span>
+                  <em>·</em>
+                  <strong>{summary.info}</strong>
+                  <span>info</span>
+                </div>
               </div>
 
               {/* Kind breakdown with clickable badges */}

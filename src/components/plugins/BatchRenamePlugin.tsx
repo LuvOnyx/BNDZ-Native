@@ -21,7 +21,7 @@ export const BatchRenamePluginDef = {
     id: "batch-rename",
     name: "Batch Rename",
     icon: 'batch_rename',
-    description: 'Batch rename + magnets — pattern renames plus drop recipes for rename, tag, and route',
+    description: 'Rename many files at once, plus drop rules for rename, tag, and move',
 };
 
 type PanelTabId = 'rename' | 'magnets';
@@ -390,8 +390,8 @@ export default function BatchRenamePlugin({
             iconColor="#34d399"
             variant="embedded"
             subtitle={panelTab === 'magnets'
-                ? 'Magnets — rename, tag, and route on release'
-                : `${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
+                ? 'Drop zones — rename, tag, or move files when you release them'
+                : `${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name conflict(s)` : ''}`}
             toolbar={(
                 <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
                     <PluginTab active={panelTab === 'rename'} onClick={() => setPanelTab('rename')}>

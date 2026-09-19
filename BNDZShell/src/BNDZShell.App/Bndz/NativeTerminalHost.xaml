@@ -1,0 +1,16 @@
+<UserControl
+    x:Class="BNDZShell.Bndz.NativeTerminalHost"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Visibility="Collapsed"
+    IsHitTestVisible="False"
+    HorizontalAlignment="Left"
+    VerticalAlignment="Top"
+    Background="#07090E">
+
+    <!-- Filled at runtime with EasyTerminalControl (Windows Terminal TermControl + ConPTY). -->
+    <Grid x:Name="TermSlot" Background="#07090E" />
+</UserControl>

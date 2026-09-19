@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="180" viewBox="0 0 240 180" fill="none">
+  <!-- FM panel host  window + list chrome -->
+  <rect x="36" y="28" width="168" height="124" rx="12" fill="#252A34"/>
+  <rect x="36" y="28" width="168" height="124" rx="12" stroke="#4A5568" stroke-opacity="0.5"/>
+  <path d="M36 52H204" stroke="#3D4656" stroke-width="2"/>
+  <circle cx="52" cy="40" r="4" fill="#F87171"/>
+  <circle cx="66" cy="40" r="4" fill="#FBBF24"/>
+  <circle cx="80" cy="40" r="4" fill="#34D399"/>
+  <rect x="48" y="64" width="88" height="12" rx="3" fill="#1C212B"/>
+  <rect x="48" y="84" width="72" height="12" rx="3" fill="#1C212B"/>
+  <rect x="48" y="104" width="96" height="12" rx="3" fill="#1C212B"/>
+  <rect x="48" y="124" width="64" height="12" rx="3" fill="#1C212B"/>
+  <rect x="152" y="64" width="36" height="72" rx="6" fill="#1C212B" stroke="#0078D4" stroke-opacity="0.45"/>
+  <path d="M160 78H180M160 92H176M160 106H182" stroke="#5B6A7E" stroke-width="2" stroke-linecap="round"/>
+</svg>

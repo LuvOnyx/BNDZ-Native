@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { showNativeAlert } from '../lib/nativeDialog';
 import { NativeDialogShell } from './native/NativeDialogShell';
 
@@ -61,8 +62,8 @@ export default function AboutDialog({
       open
       title="About BNDZ"
       subtitle="Native file manager for Windows"
-      tone="info"
       variant="sheet"
+      iconId=""
       onClose={onClose}
       showCloseButton
       zIndexClass="z-[520]"
@@ -71,7 +72,7 @@ export default function AboutDialog({
     >
       <div className="bndz-about-body space-y-4 -mt-1">
         <div className="bndz-register-brand !mb-0">
-          <img src="/Bndz-main.png" alt="" className="bndz-register-brand-mark" draggable={false} />
+          <BndzPlaque tone="brand" size="md" className="bndz-register-brand-mark" animate={false} />
           <div className="bndz-register-brand-copy">
             <div className="bndz-register-brand-name">BNDZ</div>
             <div className="bndz-register-brand-tag">Built for people who live in files all day</div>
@@ -108,7 +109,12 @@ export default function AboutDialog({
                     <p className="bndz-native-dialog-muted line-clamp-4 whitespace-pre-wrap">{updateInfo.releaseNotes}</p>
                   )}
                   {updateInfo.releaseUrl && (
-                    <a href={updateInfo.releaseUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#7eb8e8] hover:underline">
+                    <a
+                      href={updateInfo.releaseUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bndz-about-link inline-flex items-center gap-1 hover:underline"
+                    >
                       Open release page <Icons8Icon id="external_link" size={11} />
                     </a>
                   )}
@@ -124,7 +130,7 @@ export default function AboutDialog({
 
         <div className="pt-1 border-t border-white/5 space-y-2">
           <p className="text-[12px] bndz-native-dialog-muted leading-relaxed">
-            Dual-pane browsing, native shell integration, staging, sync, cleanup, and deep preview —
+            Dual-pane browsing, native shell integration, sync, cleanup, and deep preview —
             engineered as a real Windows host, not a thin web shell.
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
@@ -136,17 +142,16 @@ export default function AboutDialog({
               <button
                 key={key}
                 type="button"
-                className="text-[#7eb8e8]/90 hover:text-[#99c9f0] hover:underline"
+                className="bndz-about-link hover:underline"
                 onClick={() => openLegal(key)}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 text-[10px] bndz-native-dialog-muted pt-1">
-            <Icons8Icon id="sparkles_ui" size={12} />
-            <span>© {new Date().getFullYear()} BNDZ. All rights reserved.</span>
-          </div>
+          <p className="text-[10px] bndz-native-dialog-muted pt-1">
+            © {new Date().getFullYear()} BNDZ. All rights reserved.
+          </p>
         </div>
       </div>
     </NativeDialogShell>

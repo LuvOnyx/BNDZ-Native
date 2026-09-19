@@ -19,7 +19,7 @@ export const BranchingTimePluginDef = {
   id: 'branching-time',
   name: 'Branching Time',
   icon: 'history_ui',
-  description: 'Content-addressed folder snapshots — create, peek tip, restore. Git for folders without git.',
+  description: 'Save folder snapshots you can preview and restore later — like undo for a whole folder',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -236,7 +236,7 @@ export default function BranchingTimePlugin({
 
   const createVssBranch = async () => {
     if (!root) {
-      pushToast('Open a real folder tab to create a VSS branch.');
+      pushToast('Open a real folder tab to create a named snapshot.');
       return;
     }
     const name = branchName.trim() || `vss-${new Date().toISOString().slice(0, 16).replace('T', '-')}`;
@@ -244,10 +244,10 @@ export default function BranchingTimePlugin({
     try {
       const res = await IPC.branchCreateVss(root, name);
       if (!res.ok) {
-        pushToast(res.error || 'VSS branch failed — try elevated BNDZ.');
+        pushToast(res.error || 'Named snapshot failed — try running BNDZ as administrator.');
         return;
       }
-      pushToast(`VSS branch "${name}" created.`);
+      pushToast(`Snapshot "${name}" created.`);
       setBranchName('');
       setActiveTab('vss');
       await refresh();
@@ -265,15 +265,15 @@ export default function BranchingTimePlugin({
     window.dispatchEvent(new CustomEvent('bndz-navigate', {
       detail: { path: browseRoot.replace(/^([A-Za-z]):\\/, '/$1/').replace(/\\/g, '/') },
     }));
-    pushToast(`Opened VSS browse root (${(res.items || []).length} items).`);
+    pushToast(`Opened snapshot browse root (${(res.items || []).length} items).`);
   };
 
   const restoreVss = async (id: string) => {
     setBusy(true);
     try {
       const res = await IPC.branchRestoreVss(id);
-      if (!res.ok) pushToast(res.error || 'VSS restore failed.');
-      else pushToast('VSS restore queued into live folder.');
+      if (!res.ok) pushToast(res.error || 'Snapshot restore failed.');
+      else pushToast('Restore queued into the live folder.');
     } finally {
       setBusy(false);
     }
@@ -282,7 +282,7 @@ export default function BranchingTimePlugin({
   const deleteVss = async (id: string) => {
     const res = await IPC.branchDeleteVss(id);
     if (res.ok) {
-      pushToast('VSS branch deleted.');
+      pushToast('Named snapshot deleted.');
       await refresh();
     }
   };
@@ -310,20 +310,20 @@ export default function BranchingTimePlugin({
       icon="history_ui"
       iconColor="#c4a35a"
       variant="embedded"
-      subtitle="Folder snapshots · peek tip · restore"
+      subtitle="Folder snapshots · preview · restore"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={activeTab === 'branches'} onClick={() => setActiveTab('branches')}>
             Timeline
           </PluginTab>
           <PluginTab active={activeTab === 'vss'} onClick={() => setActiveTab('vss')}>
-            Named VSS
+            Named snapshots
           </PluginTab>
           <PluginTab active={activeTab === 'system'} onClick={() => { setActiveTab('system'); void loadSystemShadows(); }}>
-            Shadows
+            Previous Versions
           </PluginTab>
           <PluginTab active={activeTab === 'peek'} onClick={() => peekId && setActiveTab('peek')}>
-            Tip
+            Preview
           </PluginTab>
         </PluginTabStrip>
       }
@@ -364,7 +364,7 @@ export default function BranchingTimePlugin({
                 Snapshot
               </PluginHeroActionButton>
               <PluginHeroActionButton disabled={busy || !root} onClick={() => void createVssBranch()}>
-                VSS snapshot
+                Named snapshot
               </PluginHeroActionButton>
               <PluginToolbarButton title="Refresh" onClick={() => void refresh()} disabled={busy} icon="refresh_ui" />
             </>
@@ -378,8 +378,8 @@ export default function BranchingTimePlugin({
                 icon="history_ui"
                 title={root ? 'No snapshots yet' : 'No folder selected'}
                 description={root
-                  ? 'Snapshot this folder to pin a content-addressed tip you can peek and restore later.'
-                  : 'Open a folder in the list, then snapshot it from Branching Time.'}
+                  ? 'Save a snapshot of this folder so you can preview and restore it later.'
+                  : 'Open a folder in the list, then save a snapshot from Branching Time.'}
               />
             ) : (
               <ol className="bndz-bt-timeline">
@@ -403,7 +403,7 @@ export default function BranchingTimePlugin({
                           </div>
                         </div>
                         <div className="bndz-bt-actions">
-                          <PluginToolbarButton title="Peek tip" onClick={() => void openPeek(b.id)}>
+                          <PluginToolbarButton title="Preview" onClick={() => void openPeek(b.id)}>
                             <EmblemIcon id="emblem-information" size={12} />
                           </PluginToolbarButton>
                           <PluginToolbarButton title="Restore all" onClick={() => void restoreAll(b.id)} disabled={busy}>
@@ -427,8 +427,8 @@ export default function BranchingTimePlugin({
             {vssBranches.length === 0 ? (
               <PluginEmptyState
                 icon="history_ui"
-                title="No named VSS snapshots"
-                description="Create a Volume Shadow Copy of this folder. Elevation may be required — run BNDZ as Administrator if create fails."
+                title="No named snapshots"
+                description="Create a named Windows snapshot of this folder when Previous Versions support is available. You may need to run BNDZ as administrator."
               />
             ) : (
               vssBranches.map(b => (
@@ -438,7 +438,7 @@ export default function BranchingTimePlugin({
                       <div className="bndz-bt-card-title">{b.name}</div>
                       <div className="bndz-bt-card-path" title={formatUiPath(b.rootPath)}>{formatUiPath(b.rootPath)}</div>
                       <div className="bndz-bt-card-meta">
-                        <span className="bndz-bt-pill">VSS</span>
+                        <span className="bndz-bt-pill">Snapshot</span>
                         <span>{formatWhen(b.createdUtc)}</span>
                       </div>
                     </div>
@@ -449,7 +449,7 @@ export default function BranchingTimePlugin({
                       <PluginToolbarButton title="Restore to live" onClick={() => void restoreVss(b.id)} disabled={busy}>
                         <EmblemIcon id="emblem-update" size={12} />
                       </PluginToolbarButton>
-                      <PluginToolbarButton title="Delete VSS branch" onClick={() => void deleteVss(b.id)}>
+                      <PluginToolbarButton title="Delete named snapshot" onClick={() => void deleteVss(b.id)}>
                         <EmblemIcon id="emblem-remove" size={12} />
                       </PluginToolbarButton>
                     </div>

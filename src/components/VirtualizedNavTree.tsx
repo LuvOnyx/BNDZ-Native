@@ -361,19 +361,31 @@ function TreeRow({
         <input
           type="text"
           autoFocus
+          data-bndz-inline-rename="1"
           className="bndz-inline-rename-input px-1.5 outline-none text-[12px] w-[140px] rounded-sm"
           value={inlineRename.currentName}
           onChange={e => setInlineRename({ ...inlineRename, currentName: e.target.value })}
-          onBlur={() => {
-            if (inlineRename.currentName !== row.label && row.path) {
-              const parentPath = row.path.substring(0, row.path.lastIndexOf('/'));
-              IPC.executeFsOperation(`rename-${Date.now()}`, 'move', row.path, `${parentPath}/${inlineRename.currentName}`);
-            }
-            setInlineRename(null);
+          onMouseDown={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+          onBlur={(e) => {
+            const next = e.relatedTarget as HTMLElement | null;
+            if (next?.closest?.('[data-bndz-inline-rename], .bndz-inline-rename-input')) return;
+            window.setTimeout(() => {
+              if (document.activeElement?.classList?.contains('bndz-inline-rename-input')) return;
+              if (inlineRename.currentName !== row.label && row.path) {
+                const parentPath = row.path.substring(0, row.path.lastIndexOf('/'));
+                IPC.executeFsOperation(`rename-${Date.now()}`, 'move', row.path, `${parentPath}/${inlineRename.currentName}`);
+              }
+              setInlineRename(null);
+            }, 0);
           }}
           onKeyDown={e => {
             if (e.key === 'Enter') e.currentTarget.blur();
-            else if (e.key === 'Escape') setInlineRename(null);
+            else if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              setInlineRename(null);
+            }
           }}
           onClick={e => e.stopPropagation()}
           onDoubleClick={e => e.stopPropagation()}
@@ -681,36 +693,61 @@ export function VirtualizedNavTree({
       removeTreeGhost();
       try {
         const rect = rowEl.getBoundingClientRect();
+        const hadSelected = rowEl.classList.contains('nav-tree-row-selected');
+        if (!hadSelected) rowEl.classList.add('nav-tree-row-selected');
         const cs = getComputedStyle(rowEl);
+        // Bake live sidebar paint before cloning — body orphans lose
+        // `html[data-bndz-shell] .bndz-chrome-sidebar .nav-tree-row-selected` rules.
+        const paint = {
+          backgroundImage: cs.backgroundImage,
+          backgroundColor: cs.backgroundColor,
+          backgroundSize: cs.backgroundSize,
+          backgroundPosition: cs.backgroundPosition,
+          backgroundRepeat: cs.backgroundRepeat,
+          boxShadow: cs.boxShadow,
+          borderTop: cs.borderTop,
+          borderRight: cs.borderRight,
+          borderBottom: cs.borderBottom,
+          borderLeft: cs.borderLeft,
+          borderRadius: cs.borderRadius,
+          color: cs.color,
+          font: cs.font,
+          paddingTop: cs.paddingTop,
+          paddingRight: cs.paddingRight,
+          paddingBottom: cs.paddingBottom,
+          paddingLeft: cs.paddingLeft,
+          gap: cs.gap,
+          alignItems: cs.alignItems,
+          height: `${rect.height}px`,
+          width: `${Math.max(rect.width, 120)}px`,
+        };
+        if (!hadSelected) rowEl.classList.remove('nav-tree-row-selected');
+
         const clone = rowEl.cloneNode(true) as HTMLElement;
-        clone.classList.add('bndz-tree-drag-ghost', 'nav-tree-row-selected');
+        clone.classList.add('bndz-tree-drag-ghost', 'nav-tree-row', 'nav-tree-row-selected');
+        clone.classList.remove('nav-tree-row-dragging', 'nav-tree-row-trace', 'nav-tree-file-drop-target');
         clone.removeAttribute('data-nav-path');
         clone.removeAttribute('data-tree-key');
-        clone.querySelectorAll('button, [data-nav-expand], input').forEach(el => {
+        clone.querySelectorAll('button, [data-nav-expand], input, .nav-tree-reorder-grip').forEach(el => {
           el.setAttribute('tabindex', '-1');
           (el as HTMLElement).style.pointerEvents = 'none';
         });
-        // Paint like the live tree button — not a generic card.
-        clone.style.cssText = [
-          'position:fixed',
-          'left:0',
-          'top:0',
-          `width:${Math.max(rect.width, 120)}px`,
-          `height:${rect.height}px`,
-          `padding-left:${cs.paddingLeft}`,
-          `padding-right:${cs.paddingRight}`,
-          `background:${cs.backgroundColor}`,
-          `color:${cs.color}`,
-          `border-radius:${cs.borderRadius}`,
-          `font:${cs.font}`,
-          'box-shadow:0 10px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.1)',
-          'opacity:0.98',
-          'z-index:9500',
-          'pointer-events:none',
-          'margin:0',
-          'box-sizing:border-box',
-          'will-change:transform',
-        ].join(';');
+        clone.querySelectorAll('.nav-tree-reorder-grip').forEach(el => {
+          (el as HTMLElement).style.visibility = 'hidden';
+        });
+        // Additive layout — preserve indent from live paddingLeft bake.
+        Object.assign(clone.style, {
+          position: 'fixed',
+          left: '0',
+          top: '0',
+          zIndex: '9500',
+          pointerEvents: 'none',
+          margin: '0',
+          boxSizing: 'border-box',
+          willChange: 'transform',
+          cursor: 'grabbing',
+          ...paint,
+        });
         document.body.appendChild(clone);
         treeGhostEl = clone;
         placeTreeGhost(startX, startY);

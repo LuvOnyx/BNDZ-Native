@@ -10,6 +10,8 @@ type Props = {
   segments: BreadcrumbSeg[];
   dropTarget: string | null;
   onNavigate: (path: string, opts?: { newTab?: boolean }) => void;
+  /** Double-click empty rail chrome (not a crumb) — Command Hub / CEA. */
+  onWhiteDoubleClick?: () => void;
 };
 
 /** Rough px width for a segment label + separator — conservative so we keep paths visible. */
@@ -59,6 +61,7 @@ export function BreadcrumbTrail({
   segments,
   dropTarget,
   onNavigate,
+  onWhiteDoubleClick,
 }: Props) {
   const railRef = useRef<HTMLDivElement>(null);
   const [maxVisible, setMaxVisible] = useState(segments.length);
@@ -126,14 +129,27 @@ export function BreadcrumbTrail({
   );
 
   return (
-    <div ref={railRef} className="relative flex items-center min-w-0 w-full flex-nowrap overflow-visible">
+    <div
+      ref={railRef}
+      className="relative flex items-center min-w-0 w-full flex-nowrap overflow-visible"
+      title="Click path to navigate · click empty to edit · double-click empty for Command Hub"
+      onDoubleClick={(e) => {
+        if (!onWhiteDoubleClick) return;
+        const t = e.target as HTMLElement;
+        // Crumb / overflow control keep their own actions.
+        if (t.closest('[data-breadcrumb-path], button')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onWhiteDoubleClick();
+      }}
+    >
       {head.map((seg, i) => renderSeg(seg, i > 0))}
       {mid.length > 0 && (
         <>
           <span className="text-gray-500 mx-1 shrink-0">&gt;</span>
           <button
             type="button"
-            className="shrink-0 px-1.5 py-0.5 rounded-[8px] text-[11px] font-semibold text-gray-300 hover:bg-[#333] border border-transparent hover:border-[#555]"
+            className="shrink-0 px-1.5 py-0.5 rounded-[var(--bndz-radius-sm)] text-[11px] font-semibold text-gray-300 hover:bg-[#333] border border-transparent hover:border-[#555]"
             onPointerDown={(e) => {
               if (e.button !== 0) return;
               const { clientX, clientY } = e;

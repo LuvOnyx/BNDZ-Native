@@ -70,6 +70,8 @@ export interface FileTransferJobDto {
   progress: number;
   currentFile?: string;
   error?: string;
+  /** Host-classified ops kind (diskFull | sharingViolation | …) — preferred over regex. */
+  errorKind?: string;
   queuedUtc?: string;
   startedUtc?: string;
   completedUtc?: string;
@@ -82,6 +84,8 @@ export interface FileTransferJobDto {
   destinationPath?: string;
   verifyMode?: 'none' | 'size' | 'sha256' | string;
   verifyStatus?: 'pending' | 'verified' | 'skipped' | 'failed' | string;
+  /** Source paths that failed in a partially-completed multi-item batch. */
+  failedPaths?: string[];
 }
 
 export interface FileTransferQueueState {
@@ -101,6 +105,8 @@ export interface ConflictPayload {
   sourceModifiedUtc?: number;
   destSize?: number;
   destModifiedUtc?: number;
+  /** True when either side is a directory (folder-vs-folder conflict). */
+  isFolder?: boolean;
 }
 
 function _parseWebViewMessage(raw: unknown): any {
@@ -202,6 +208,8 @@ export const IPC = {
           window.dispatchEvent(new CustomEvent('bndz-ole-drag-ended', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DRAG_HOVER') {
           window.dispatchEvent(new CustomEvent('bndz-external-drag-hover', { detail: data.payload }));
+        } else if (data.type === 'EXTERNAL_FILES_DRAG_LEAVE') {
+          window.dispatchEvent(new CustomEvent('bndz-external-drag-leave', { detail: data.payload }));
         } else if (data.type === 'FOLDER_SIZE_PROGRESS') {
           this._folderSizeListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'DUPLICATE_SCAN_PROGRESS') {
@@ -648,7 +656,112 @@ export const IPC = {
     });
   },
 
-  /** Legacy no-op — local shell is ConPTY→xterm, never HWND SetParent. */
+  /** xterm is mounted and listening — flush buffered ConPTY DA/handshake + early output. */
+  meshTerminalAck(sessionId: string): void {
+    if (!this.isNative || !sessionId) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'MESH_TERMINAL_ACK',
+      payload: { sessionId },
+    });
+  },
+
+  /** WinUI TermControl overlay (EasyTerminalControl) over the Remote plugin hole. */
+  nativeTerminalOpen(opts: {
+    sessionId?: string;
+    commandLine?: string;
+    cwd?: string;
+    label?: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    fontFamily?: string;
+    fontSize?: number;
+    foreground?: string;
+    background?: string;
+    cursor?: string;
+  }): Promise<{ ok: boolean; sessionId?: string; label?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_nativeTerm`;
+    return _nativeCall<any>('NATIVE_TERMINAL_OPEN', 'NATIVE_TERMINAL_OPEN_RESULT', id, {
+      sessionId: opts.sessionId || `term-${Date.now().toString(36)}`,
+      commandLine: opts.commandLine,
+      cwd: opts.cwd,
+      label: opts.label,
+      x: opts.x ?? 0,
+      y: opts.y ?? 0,
+      width: opts.width ?? 0,
+      height: opts.height ?? 0,
+      fontFamily: opts.fontFamily,
+      fontSize: opts.fontSize,
+      foreground: opts.foreground,
+      background: opts.background,
+      cursor: opts.cursor,
+    }, 60000).then((r) => ({
+      ok: r?.ok !== false && !r?.error,
+      sessionId: r?.sessionId,
+      label: r?.label,
+      error: r?.error ? String(r.error) : undefined,
+    }));
+  },
+
+
+  nativeTerminalTheme(opts: {
+    fontFamily?: string;
+    fontSize?: number;
+    foreground?: string;
+    background?: string;
+    cursor?: string;
+  }): void {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({
+        type: 'NATIVE_TERMINAL_THEME',
+        payload: opts,
+      });
+    } catch { /* ignore */ }
+  },
+  nativeTerminalLayout(opts: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  }): void {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({
+        type: 'NATIVE_TERMINAL_LAYOUT',
+        payload: opts,
+      });
+    } catch { /* ignore */ }
+  },
+
+  nativeTerminalClose(): void {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({ type: 'NATIVE_TERMINAL_CLOSE', payload: {} });
+    } catch { /* ignore */ }
+  },
+
+  onNativeTerminalClosed(cb: (sessionId: string) => void): () => void {
+    const handler = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data?.type !== 'NATIVE_TERMINAL_CLOSED') return;
+        const sid = data?.payload?.sessionId || data?.payload?.SessionId;
+        if (sid) cb(String(sid));
+      } catch { /* ignore */ }
+    };
+    try {
+      (window as any).chrome?.webview?.addEventListener('message', handler);
+    } catch { /* ignore */ }
+    return () => {
+      try { (window as any).chrome?.webview?.removeEventListener('message', handler); } catch { /* ignore */ }
+    };
+  },
+
+  /** Prefer nativeTerminalLayout on BNDZShell. */
   meshTerminalLayout(_opts: {
     sessionId: string;
     screenX: number;
@@ -657,7 +770,13 @@ export const IPC = {
     height: number;
     visible: boolean;
   }): void {
-    /* intentionally empty */
+    this.nativeTerminalLayout({
+      x: _opts.screenX,
+      y: _opts.screenY,
+      width: _opts.width,
+      height: _opts.height,
+      visible: _opts.visible,
+    });
   },
 
   meshStat(path: string): Promise<any> {
@@ -1780,6 +1899,25 @@ export const IPC = {
     workingDir?: string,
     shell?: { useCustom?: boolean; interpreter?: string; args?: string },
   ) {
+    // BNDZ-Native: Open Terminal → bottom Remote Local → WinUI TermControl strip (WebView yields).
+    if (action === 'openTerminal') {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        if (sp.get('nativeShell') === '1') {
+          const raw = Array.isArray(path) ? path[0] : path;
+          const cwd = (workingDir || raw || '').toString().trim();
+          window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+            detail: {
+              id: 'remote-mesh',
+              tab: 'terminal',
+              ...(cwd ? { cwd } : {}),
+            },
+          }));
+          return;
+        }
+      } catch { /* fall through to classic host verb */ }
+    }
+
     const resolvedPath = action === 'copyPath'
       ? (() => {
           const text = formatPathsForClipboard(clipboardPathConfigFromDom(), path);
@@ -2484,6 +2622,19 @@ export const IPC = {
     }
     // Never fabricate Explorer-looking menus outside the host.
     return Promise.resolve([]);
+  },
+
+  /** Fire-and-forget: warm host shape-cache so the next right-click is already populated. */
+  prefetchNativeContextMenuItems(path: string | string[]): void {
+    if (!this.isNative) return;
+    const paths = (Array.isArray(path) ? path : [path]).filter(Boolean);
+    if (!paths.length) return;
+    try {
+      (window as any).chrome?.webview?.postMessage?.({
+        type: 'PREFETCH_CONTEXT_MENU_ITEMS',
+        payload: { path: paths[0], paths },
+      });
+    } catch { /* ignore */ }
   },
 
   /** Live Windows shell popup (Vanara IContextMenu / TrackPopupMenu) — never opens Explorer. */

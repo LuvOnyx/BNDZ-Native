@@ -239,21 +239,43 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const openResultAt = (index: number) => {
         const item = results[index];
         const path = String(item?.path || '');
-        if (path) navigateTo(path);
+        if (!path) return;
+        const isDirectory = !!(item as { isDirectory?: boolean })?.isDirectory;
+        window.dispatchEvent(new CustomEvent('bndz-open-in-bndz', {
+          detail: { path, isDirectory },
+        }));
     };
 
     const onResultsKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            setActiveResultIndex(-1);
+            (document.querySelector('.bndz-find-query-input') as HTMLInputElement | null)?.focus();
+            return;
+        }
         if (!results.length) return;
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             setActiveResultIndex(i => Math.min(results.length - 1, (i < 0 ? 0 : i) + 1));
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
+            if (activeResultIndex <= 0) {
+                setActiveResultIndex(-1);
+                (document.querySelector('.bndz-find-query-input') as HTMLInputElement | null)?.focus();
+                return;
+            }
             setActiveResultIndex(i => Math.max(0, (i < 0 ? 0 : i) - 1));
         } else if (e.key === 'Enter') {
             e.preventDefault();
             const idx = activeResultIndex >= 0 ? activeResultIndex : 0;
             openResultAt(idx);
+        } else if (e.key === 'PageDown') {
+            e.preventDefault();
+            setActiveResultIndex(i => Math.min(results.length - 1, Math.max(0, i) + 10));
+        } else if (e.key === 'PageUp') {
+            e.preventDefault();
+            setActiveResultIndex(i => Math.max(0, (i < 0 ? 0 : i) - 10));
         } else if (e.key === 'Home') {
             e.preventDefault();
             setActiveResultIndex(0);
@@ -340,9 +362,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             icon="find"
             iconColor="#a855f7"
             variant="embedded"
-            subtitle={mode === 'global' ? 'Everything · all drives' : mode === 'advanced' ? 'Boolean · multi-root · content' : mode === 'duplicates' ? 'Hash duplicates in scope' : `Scoped · ${formatUiPath(scopePath)}`}
+            subtitle={mode === 'global' ? 'Search all drives' : mode === 'advanced' ? 'Search several folders with AND / OR' : mode === 'duplicates' ? 'Find same files in this folder' : `This folder · ${formatUiPath(scopePath)}`}
             status={!IPC.isNative ? (
-                <span className="text-amber-300/90 text-[11px]">Native host required for indexed search</span>
+                <span className="text-amber-300/90 text-[11px]">Needs the BNDZ app for indexed search</span>
             ) : undefined}
             toolbar={
                 mode === 'duplicates' && searching ? (
@@ -354,9 +376,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 <PluginHeroStrip
                     icon={<Icons8Icon id="find" size={52} className="opacity-90" />}
                     name={query.trim() || 'Fast Search'}
-                    typeLabel={mode === 'global' ? 'Global' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
+                    typeLabel={mode === 'global' ? 'Everything' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
                     path={mode === 'local' ? scopePath : undefined}
-                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy chips · Everything global · advanced boolean')}</span>}
+                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy · Everything · Advanced')}</span>}
                     actions={
                         <PluginHeroActionButton
                             icon={searching ? 'loading' : 'play_ui'}
@@ -370,23 +392,24 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 />
                 <div className="px-4 pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
                     {([
-                        { id: 'local' as const, label: 'Easy', hint: 'This folder + chips', icon: 'find', tone: 'from-violet-500/18 border-violet-400/30' },
-                        { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network', tone: 'from-sky-500/18 border-sky-400/30' },
-                        { id: 'advanced' as const, label: 'Advanced', hint: 'Boolean · multi-root', icon: 'code_ui', tone: 'from-amber-500/18 border-amber-400/30' },
-                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Hash groups in scope', icon: 'copy', tone: 'from-emerald-500/18 border-emerald-400/30' },
+                        { id: 'local' as const, label: 'Easy', hint: 'This folder', icon: 'find' },
+                        { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network' },
+                        { id: 'advanced' as const, label: 'Advanced', hint: 'AND / OR · several folders', icon: 'code_ui' },
+                        { id: 'duplicates' as const, label: 'Duplicates', hint: 'Same files in this folder', icon: 'copy' },
                     ]).map(card => (
                         <button
                             key={card.id}
                             type="button"
                             onClick={() => setMode(card.id)}
-                            className={`text-left rounded-2xl border bg-gradient-to-br to-transparent px-3 py-2.5 transition-all ${card.tone} ${
-                                mode === card.id ? 'ring-1 ring-white/25 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]' : 'opacity-85 hover:opacity-100'
+                            data-mode={card.id}
+                            className={`bndz-find-mode-chip text-left px-2.5 py-2 transition-colors ${
+                                mode === card.id ? 'is-active' : ''
                             }`}
                         >
-                            <div className="flex items-center gap-1.5 text-[12px] font-semibold text-white/95">
+                            <div className="bndz-find-mode-chip-label flex items-center gap-1.5 text-[12px] font-semibold">
                                 <Icons8Icon id={card.icon} size={13} /> {card.label}
                             </div>
-                            <p className="text-[10px] bndz-panel-muted mt-0.5 leading-snug">{card.hint}</p>
+                            <p className="bndz-find-mode-chip-hint text-[10px] mt-0.5 leading-snug">{card.hint}</p>
                         </button>
                     ))}
                 </div>
@@ -395,10 +418,10 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     <PluginSectionTitle icon="filters">Mode</PluginSectionTitle>
                     <div className="flex flex-col gap-1">
                         {([
-                            { id: 'local' as const, label: 'Easy (local)', icon: 'find' },
+                            { id: 'local' as const, label: 'Easy — this folder', icon: 'find' },
                             { id: 'global' as const, label: 'Everything', icon: 'go_network' },
-                            { id: 'advanced' as const, label: 'Advanced find', icon: 'code_ui' },
-                            { id: 'duplicates' as const, label: 'Duplicate finder', icon: 'copy' },
+                            { id: 'advanced' as const, label: 'Advanced', icon: 'code_ui' },
+                            { id: 'duplicates' as const, label: 'Duplicates', icon: 'copy' },
                         ]).map(m => (
                             <button
                                 key={m.id}
@@ -522,12 +545,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                             <div className="bndz-context-menu-sep opacity-30" />
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
                                 <input type="checkbox" checked={regexEnabled} onChange={e => setRegexEnabled(e.target.checked)} className="accent-[#0078d4]" />
-                                Regular expressions
+                                Match patterns (advanced)
                             </label>
                             {mode !== 'advanced' && (
                                 <label className="flex items-center gap-2 text-xs cursor-pointer">
                                     <input type="checkbox" checked={booleanMode} onChange={e => setBooleanMode(e.target.checked)} className="accent-[#0078d4]" />
-                                    Boolean (AND / OR / NOT)
+                                    Match with AND / OR / NOT
                                 </label>
                             )}
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
@@ -535,8 +558,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 Search file content
                             </label>
                             {mode === 'advanced' && (
-                                <div className="mt-1">
-                                    <PluginSectionTitle icon="file_ui">Extra roots (; separated)</PluginSectionTitle>
+                                  <div className="mt-1">
+                                      <PluginSectionTitle icon="file_ui">Extra folders (separate with ;)</PluginSectionTitle>
                                     <textarea
                                         value={extraRoots}
                                         onChange={e => setExtraRoots(e.target.value)}
@@ -607,6 +630,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     value={query}
                                     onChange={e => setQuery(e.target.value)}
                                     onKeyDown={e => {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            if (query) setQuery('');
+                                            else (e.currentTarget as HTMLInputElement).blur();
+                                            return;
+                                        }
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
                                             void doSearch().then(() => {
@@ -618,8 +647,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                             setActiveResultIndex(0);
                                         }
                                     }}
-                                    placeholder={mode === 'advanced' ? 'Boolean query across multiple roots…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
-                                    className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm`}
+                                    placeholder={mode === 'advanced' ? 'Search several folders — try report OR invoice NOT draft…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
+                                    className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm bndz-find-query-input`}
                                 />
                             </div>
                             <div className="flex flex-wrap gap-1.5 items-center">
@@ -673,20 +702,47 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 <PluginEmptyState
                                   icon="copy"
                                   title={searching ? 'Scanning…' : 'No duplicates yet'}
-                                  description={searching ? 'Hashing files in the current folder.' : 'Scan the current folder for duplicate files by content hash.'}
+                                  description={searching ? 'Comparing files in the current folder…' : 'Scan this folder for files that are exact copies of each other.'}
                                 />
                             ) : (
-                                <div className="p-2 space-y-3">
+                                <div
+                                  className="p-2 space-y-3 outline-none"
+                                  tabIndex={0}
+                                  role="listbox"
+                                  aria-label="Duplicate groups"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      (document.querySelector('.bndz-find-query-input') as HTMLInputElement | null)?.focus();
+                                      return;
+                                    }
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      const first = duplicateGroups[0]?.paths?.[0];
+                                      if (!first) return;
+                                      e.preventDefault();
+                                      navigateTo(first.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'));
+                                    }
+                                  }}
+                                >
                                     {duplicateGroups.map(g => (
-                                        <div key={g.hash} className="bndz-plugin-card overflow-hidden !p-0">
+                                        <div key={g.hash} className="bndz-plugin-card overflow-hidden !p-0" role="group">
                                             <div className="px-3 py-2 border-b border-white/[0.06] text-xs bndz-panel-muted bndz-mono">
                                                 {g.paths.length} copies · {g.size} bytes
                                             </div>
                                             {g.paths.map(p => (
                                                 <div
                                                     key={p}
-                                                    className="px-3 py-2 text-[11px] text-gray-300 hover:bg-white/[0.04] cursor-pointer truncate font-mono"
+                                                    role="option"
+                                                    tabIndex={0}
+                                                    className="px-3 py-2 text-[11px] text-gray-300 hover:bg-white/[0.04] cursor-pointer truncate font-mono outline-none focus:bg-white/[0.08]"
+                                                    onClick={() => navigateTo(p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'))}
                                                     onDoubleClick={() => navigateTo(p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'))}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        navigateTo(p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'));
+                                                      }
+                                                    }}
                                                     title={p}
                                                 >
                                                     {p}
@@ -729,9 +785,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     role="option"
                                     data-find-result-index={i}
                                     aria-selected={active || checked}
-                                    className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''} ${active ? 'bg-[#094771]/28 ring-1 ring-inset ring-sky-400/35' : ''}`}
+                                    className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[color-mix(in_srgb,var(--accent,#0078d4)_18%,transparent)] cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''} ${active ? 'bg-[color-mix(in_srgb,var(--accent,#0078d4)_28%,transparent)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--accent,#0078d4)_45%,transparent)]' : ''}`}
                                     onClick={() => setActiveResultIndex(i)}
-                                    onDoubleClick={() => navigateTo(path)}
+                                    onDoubleClick={() => openResultAt(i)}
                                     title={r.snippet ? `${shown}\n${r.snippet}` : shown}
                                   >
                                     <input

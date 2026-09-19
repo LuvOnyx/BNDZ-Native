@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import { IPC } from '../lib/ipcBridge';
 import { EMPTY_LICENSE_STATUS } from '../lib/licenseTypes';
 import { NativeDialogShell } from './native/NativeDialogShell';
@@ -56,8 +57,8 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       open
       title="Register BNDZ"
       subtitle="Online activation — one Windows PC per serial"
-      tone="info"
       variant="sheet"
+      iconId=""
       onClose={onClose}
       showCloseButton
       zIndexClass="z-[10050]"
@@ -81,7 +82,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
     >
       <div className="bndz-register-body">
         <div className="bndz-register-brand" aria-hidden>
-          <img src="/Bndz-main.png" alt="" className="bndz-register-brand-mark" draggable={false} />
+          <BndzPlaque tone="brand" size="md" className="bndz-register-brand-mark" animate={false} />
           <div className="bndz-register-brand-copy">
             <div className="bndz-register-brand-name">BNDZ</div>
             <div className="bndz-register-brand-tag">Unlock the full native file manager</div>

@@ -47,5 +47,10 @@ export async function finishCreateAndRename(ctx: FinishCreateContext): Promise<v
 
   ctx.setSelectedItems([target.id], ctx.paneId);
   ctx.setFocusedItemId(target.id);
+  requestAnimationFrame(() => {
+    try {
+      document.getElementById(`fs-item-${target.id}`)?.scrollIntoView({ block: 'nearest' });
+    } catch { /* ignore */ }
+  });
   ctx.beginInlineRename(panePath, target.id, target);
 }

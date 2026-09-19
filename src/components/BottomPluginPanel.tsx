@@ -20,6 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
 import { Icons8Icon, DragHandleGlyph, PopOutGlyph } from './Icons8Icon';
+import { BndzPlaque } from './BndzPlaque';
 import BndzErrorBoundary from './BndzErrorBoundary';
 import { IPC } from '../lib/ipcBridge';
 import { pushToast } from './ToastHost';
@@ -75,6 +76,8 @@ export type BottomPluginLaunchContext = {
   tab?: string;
   sessionId?: string;
   hostId?: string;
+  /** Working directory for Local terminal (Native TermControl / ConPTY). */
+  cwd?: string;
 };
 
 export default function BottomPluginPanel(props: any & {
@@ -116,14 +119,23 @@ export default function BottomPluginPanel(props: any & {
 
   const orderedPlugins = useMemo(() => {
     const installed = pluginRegistry.filter((p: any) => p.isInstalled === true);
+    // Core FM Open Terminal needs the Remote Mesh surface for the Native TermControl strip
+    // even when the marketplace plugin is Uninstalled (does not change install state).
+    let base = installed as any[];
+    const needTerminalSurface =
+      requestedTab === 'remote-mesh' || launchContext?.tab === 'terminal';
+    if (needTerminalSurface && !base.some((p: any) => p.id === 'remote-mesh')) {
+      const mesh = pluginRegistry.find((p: any) => p.id === 'remote-mesh');
+      if (mesh) base = [...base, mesh];
+    }
     const order: string[] = (config.bottomPluginTabOrder || []).filter(
-      (id: string) => installed.some((p: any) => p.id === id),
+      (id: string) => base.some((p: any) => p.id === id),
     );
-    if (!order.length) return installed;
-    const ordered = order.map(id => installed.find((p: any) => p.id === id)).filter(Boolean) as any[];
-    const rest = installed.filter((p: any) => !order.includes(p.id));
+    if (!order.length) return base;
+    const ordered = order.map(id => base.find((p: any) => p.id === id)).filter(Boolean) as any[];
+    const rest = base.filter((p: any) => !order.includes(p.id));
     return [...ordered, ...rest];
-  }, [pluginRegistry, config.bottomPluginTabOrder]);
+  }, [pluginRegistry, config.bottomPluginTabOrder, requestedTab, launchContext?.tab]);
 
   // Persist scrub: drop uninstalled IDs from saved tab order so they cannot resurrect.
   useEffect(() => {
@@ -323,7 +335,7 @@ export default function BottomPluginPanel(props: any & {
       ...pluginProps,
       selectedItems: paths,
       selectedPaths: paths,
-      currentPath: launchContext.currentPath || pluginProps.currentPath,
+      currentPath: launchContext.cwd || launchContext.currentPath || pluginProps.currentPath,
       pluginLaunch: launchContext,
     };
   }, [launchContext, pluginProps]);
@@ -335,12 +347,17 @@ export default function BottomPluginPanel(props: any & {
   if (orderedPlugins.length === 0) {
     return (
       <div className="bndz-bottom-panel flex flex-col h-full min-h-0 border-t border-white/[0.06]">
-        <div className="bndz-bottom-tabstrip flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05] bndz-panel-muted shrink-0">
+        <div className="bndz-bottom-tabstrip flex items-center gap-2 px-4 py-2 border-b border-white/[0.05] bndz-panel-muted shrink-0">
           <Icons8Icon id="extension_hub" size={14} />
-          <span className="font-semibold">Plugin Panel</span>
+          <span className="font-semibold text-[12px]">Plugin Panel</span>
         </div>
-        <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
-          <span>No plugins installed.</span>
+        <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3 px-6 text-center">
+          <BndzPlaque tone="panel" size="lg" />
+          <span className="text-sm font-medium text-gray-300">No plugins installed</span>
+          <span className="text-xs bndz-panel-muted max-w-[300px] leading-relaxed">
+            Only installed plugins appear here and on the Command Deck.
+            Defaults are System Properties, Fast Search, and Visual Filters — add them from Extension Hub.
+          </span>
           {onOpenPluginStore && (
             <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold">
               <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub
@@ -363,7 +380,7 @@ export default function BottomPluginPanel(props: any & {
             type="button"
             className="bndz-bottom-immersive-exit"
             onClick={() => onExitImmersive?.()}
-            title="Restore docked panel (Esc)"
+            title="Restore panel (Esc)"
           >
             <Icons8Icon id="chevron_down" size={12} />
             Restore
@@ -372,7 +389,7 @@ export default function BottomPluginPanel(props: any & {
             Immersive · {activePlugin?.name || 'Plugin'}
           </span>
           <span className="text-[10px] text-gray-500 ml-auto">
-            Covers the file list · Esc to restore
+            Covers the file list · Esc restores the panel
           </span>
         </div>
       )}
@@ -483,8 +500,17 @@ export default function BottomPluginPanel(props: any & {
           );
         })}
         {!activeTab && (
-          <div className="flex items-center justify-center h-full bndz-panel-muted">
-            Select a plugin capability above.
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <BndzPlaque tone="panel" size="md" />
+            <span className="text-sm font-medium text-gray-300">Select a plugin above</span>
+            <span className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">
+              Installed plugins open here — pick a tab from the strip to start.
+            </span>
+            {onOpenPluginStore && (
+              <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-3 py-1.5 text-xs font-semibold">
+                <Icons8Icon id="extension_hub" size={12} /> Extension Hub
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -180,4 +180,4 @@ absorb → professionalize hosts → About/Register polish → launch
 - [x] About + Register dialog polish
 - [x] User smoke: install remaps, open each absorbed tab, Command Deck gating — *catalog remaps in place; Windows smoke still required*
 - [x] **Launch Ready A1:** remove RAM Staging + Ghost product chrome; demote Design Board from Hub ([`docs/LAUNCH-READY-PLAN.md`](docs/LAUNCH-READY-PLAN.md))
-- [ ] **Launch Ready E:** collision modal suite + UAC retry + Shell Integration admin verify (gap audit recorded in plan)
+- [ ] **Launch Ready E:** Windows live verify UAC / Shell Integration / ops modals (E4.1–E4.12 rows in `fm-launch-readiness.md`; code suite + elevation intent split landed)

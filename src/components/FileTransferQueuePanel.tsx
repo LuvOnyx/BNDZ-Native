@@ -19,8 +19,8 @@ type Props = {
 };
 
 const TRANSFER_EXPANDED_KEY = 'bndz-transfer-panel-expanded';
-/** Keep finished rows long enough to notice; toast uses the same window via isRecentlyCompleted. */
-const AUTO_CLEAR_DELAY_MS = 8_000;
+/** Keep finished rows briefly; toast uses the same window via isRecentlyCompleted. */
+const AUTO_CLEAR_DELAY_MS = 2_500;
 
 /** Survives unmount when the panel hides between jobs. */
 let transferPanelExpandedSession: boolean | null = null;
@@ -284,7 +284,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
           return changed ? nextMap : prev;
         });
       });
-      pollId = window.setInterval(() => { void refresh(); }, 200);
+      pollId = window.setInterval(() => { void refresh(); }, 2000);
       unsubProgress = IPC.onProgress((payload: {
         percentage?: number;
         operationId?: string;
@@ -417,7 +417,13 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
   };
 
   const handleRetryFailed = (operationId: string) => {
-    window.dispatchEvent(new CustomEvent('bndz-retry-last-transfer', { detail: { operationId } }));
+    const job = state.jobs.find((j) => j.operationId === operationId);
+    window.dispatchEvent(new CustomEvent('bndz-retry-last-transfer', {
+      detail: {
+        operationId,
+        failedPaths: Array.isArray(job?.failedPaths) ? job!.failedPaths : undefined,
+      },
+    }));
   };
 
   const handleOpenActionLog = () => {

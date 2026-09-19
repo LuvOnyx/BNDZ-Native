@@ -40,6 +40,12 @@ public sealed class FileTransferJob
     public string? CurrentFile { get; set; }
     public string? DestinationPath { get; set; }
     public string? Error { get; set; }
+    /// <summary>
+    /// Stable ops-sheet kind from <see cref="PrivilegePolicyService"/> —
+    /// diskFull | sharingViolation | pathTooLong | accessDenied | readOnly | invalidName | intoSelf | other.
+    /// FE prefers this over regex on <see cref="Error"/>.
+    /// </summary>
+    public string? ErrorKind { get; set; }
     public DateTime QueuedUtc { get; init; } = DateTime.UtcNow;
     public DateTime? StartedUtc { get; set; }
     public DateTime? CompletedUtc { get; set; }
@@ -53,6 +59,11 @@ public sealed class FileTransferJob
     public string VerifyMode { get; set; } = "none";
     /// <summary>pending | verified | skipped | failed</summary>
     public string VerifyStatus { get; set; } = "pending";
+    /// <summary>
+    /// Source paths that failed inside a partially-completed multi-item batch.
+    /// Empty for total failures — UI Retry then resubmits the whole batch.
+    /// </summary>
+    public List<string> FailedPaths { get; set; } = new();
 
     public object ToDto() => new
     {
@@ -67,6 +78,7 @@ public sealed class FileTransferJob
         currentFile = CurrentFile,
         destinationPath = DestinationPath,
         error = Error,
+        errorKind = ErrorKind,
         queuedUtc = QueuedUtc,
         startedUtc = StartedUtc,
         completedUtc = CompletedUtc,
@@ -78,6 +90,7 @@ public sealed class FileTransferJob
         etaSeconds = EtaSeconds,
         verifyMode = VerifyMode,
         verifyStatus = VerifyStatus,
+        failedPaths = FailedPaths,
     };
 }
 
@@ -94,6 +107,7 @@ internal sealed class PersistedTransferJob
     public string? CurrentFile { get; set; }
     public string? DestinationPath { get; set; }
     public string? Error { get; set; }
+    public string? ErrorKind { get; set; }
     public DateTime QueuedUtc { get; set; }
     public DateTime? StartedUtc { get; set; }
     public DateTime? CompletedUtc { get; set; }
@@ -194,6 +208,7 @@ public sealed class FileTransferQueueService
                 job.CurrentFile = row.CurrentFile;
                 job.DestinationPath = row.DestinationPath;
                 job.Error = row.Error;
+                job.ErrorKind = row.ErrorKind;
                 job.StartedUtc = row.StartedUtc;
                 job.CompletedUtc = row.CompletedUtc ?? DateTime.UtcNow;
                 job.ItemsTotal = row.ItemsTotal;
@@ -317,14 +332,25 @@ public sealed class FileTransferQueueService
         NotifyChanged();
     }
 
-    public void MarkFailed(string operationId, string? error)
+    /// <param name="failedPaths">
+    /// Source paths that failed in a partially-completed multi-item batch (some items succeeded).
+    /// Null/empty for a total failure — UI Retry then falls back to resubmitting the whole batch.
+    /// </param>
+    /// <param name="errorKind">
+    /// Optional pre-classified kind. When null, inferred from <paramref name="error"/> via
+    /// <see cref="PrivilegePolicyService"/> so FE ops sheets do not depend on regex alone.
+    /// </param>
+    public void MarkFailed(string operationId, string? error, List<string>? failedPaths = null, string? errorKind = null)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
         // Don't overwrite terminal success/cancel/pause with a late failure from post-work hooks.
         if (job.Status is FileTransferJobStatus.Completed or FileTransferJobStatus.Cancelled or FileTransferJobStatus.Paused) return;
         job.Status = FileTransferJobStatus.Failed;
         job.Error = EnrichDiskFullError(job, error);
+        job.ErrorKind = string.IsNullOrWhiteSpace(errorKind) ? InferErrorKind(job.Error) : errorKind!.Trim();
         job.CompletedUtc = DateTime.UtcNow;
+        if (failedPaths != null && failedPaths.Count > 0)
+            job.FailedPaths = failedPaths;
         if (!string.IsNullOrWhiteSpace(error) && error.Contains("verification", StringComparison.OrdinalIgnoreCase))
         {
             job.VerifyMode = "sha256";
@@ -335,6 +361,19 @@ public sealed class FileTransferQueueService
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();
         NotifyChanged();
+    }
+
+    /// <summary>Map host failure text → FE ops-sheet kind (aligned with PrivilegePolicyService + into-self).</summary>
+    private static string InferErrorKind(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error)) return "other";
+        if (error.Contains("into itself", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("into its own", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("cannot copy a folder into itself", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("cannot move a folder into itself", StringComparison.OrdinalIgnoreCase))
+            return "intoSelf";
+        var classified = PrivilegePolicyService.Classify(new IOException(error));
+        return string.IsNullOrWhiteSpace(classified.Kind) ? "other" : classified.Kind;
     }
 
     public void MarkCancelled(string operationId, string? reason = "Cancelled")
@@ -853,6 +892,7 @@ public sealed class FileTransferQueueService
                         CurrentFile = j.CurrentFile,
                         DestinationPath = j.DestinationPath,
                         Error = j.Error,
+                        ErrorKind = j.ErrorKind,
                         QueuedUtc = j.QueuedUtc,
                         StartedUtc = j.StartedUtc,
                         CompletedUtc = j.CompletedUtc,

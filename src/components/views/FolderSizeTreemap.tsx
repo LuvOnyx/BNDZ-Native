@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { BndzPlaque } from '../BndzPlaque';
 
 type Item = { name: string; type?: string; size?: number; path?: string };
 
@@ -36,6 +37,7 @@ export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes
   if (!prepared.length) {
     return (
       <div className="bndz-sizemap-empty">
+        <BndzPlaque tone="folder" size="lg" className="mb-1" />
         <span className="bndz-sizemap-empty-title">No folder sizes available yet</span>
         {onScanFolderSizes && (
           <button type="button" onClick={onScanFolderSizes} className="bndz-sizemap-scan-btn">
@@ -50,6 +52,7 @@ export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes
   if (!rects.length) {
     return (
       <div className="bndz-sizemap-empty">
+        <BndzPlaque tone="panel" size="md" className="mb-1" />
         <span className="bndz-sizemap-empty-title">Nothing large enough to map in this folder</span>
       </div>
     );

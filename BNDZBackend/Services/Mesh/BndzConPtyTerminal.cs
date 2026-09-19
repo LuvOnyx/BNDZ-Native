@@ -161,6 +161,10 @@ internal sealed class BndzConPtyTerminal : IDisposable
         var dir = Directory.Exists(workingDirectory) ? workingDirectory : null;
         StartProcessAttachedToConPty(cmdLine, dir);
 
+        // Kick ConPTY with an explicit resize to the same size — some hosts delay
+        // the first paint / DA handshake until WINSIZE is confirmed.
+        try { Resize((uint)_cols, (uint)_rows); } catch { /* ignore */ }
+
         _cts = new CancellationTokenSource();
         _ = Task.Run(() => PumpOutputAsync(_cts.Token));
     }
@@ -187,49 +191,69 @@ internal sealed class BndzConPtyTerminal : IDisposable
                 IntPtr.Zero))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "UpdateProcThreadAttribute PSEUDOCONSOLE failed");
 
+        // STARTF_USESTDHANDLES with null std handles is required for ConPTY attachment when the
+        // parent is a GUI / redirected process. Without it, CreateProcess still duplicates the
+        // parent's std handles into the child — PowerShell never binds to the PTY and the host
+        // only receives a few invisible VT mode bytes (blank xterm with a cursor). See
+        // microsoft/terminal#15814 and MiniTerm / Windows Terminal host patterns.
+        const int startfUseShowWindow = 0x00000001;
+        const int startfUseStdHandles = 0x00000100;
         var si = new StartupInfoEx
         {
             StartupInfo = new StartupInfo
             {
                 cb = Marshal.SizeOf<StartupInfoEx>(),
-                dwFlags = 0x00000001, // STARTF_USESHOWWINDOW
+                dwFlags = startfUseShowWindow | startfUseStdHandles,
                 wShowWindow = 0, // SW_HIDE — avoid a flash of a real console
+                hStdInput = IntPtr.Zero,
+                hStdOutput = IntPtr.Zero,
+                hStdError = IntPtr.Zero,
             },
             lpAttributeList = _attrList,
         };
 
         var cmd = new System.Text.StringBuilder(commandLine);
-        const uint createUnicodeEnvironment = 0x00000400;
-        if (!CreateProcess(
-                null,
-                cmd,
-                IntPtr.Zero,
-                IntPtr.Zero,
-                false,
-                ExtendedStartupInfoPresent | createUnicodeEnvironment,
-                IntPtr.Zero,
-                workingDirectory,
-                ref si,
-                out var pi))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateProcess for ConPTY shell failed");
-
+        var envBlock = BuildConPtyEnvironmentBlock();
+        var envPtr = IntPtr.Zero;
         try
         {
-            _process = Process.GetProcessById(pi.dwProcessId);
-            _process.EnableRaisingEvents = true;
-            _process.Exited += (_, _) =>
-            {
-                try { OnExit?.Invoke(_process.HasExited ? _process.ExitCode : -1); }
-                catch { /* ignore */ }
-            };
-        }
-        catch
-        {
-            _process = null;
-        }
+            envPtr = Marshal.StringToHGlobalUni(envBlock);
+            const uint createUnicodeEnvironment = 0x00000400;
+            if (!CreateProcess(
+                    null,
+                    cmd,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    false,
+                    ExtendedStartupInfoPresent | createUnicodeEnvironment,
+                    envPtr,
+                    workingDirectory,
+                    ref si,
+                    out var pi))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateProcess for ConPTY shell failed");
 
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+            try
+            {
+                _process = Process.GetProcessById(pi.dwProcessId);
+                _process.EnableRaisingEvents = true;
+                _process.Exited += (_, _) =>
+                {
+                    try { OnExit?.Invoke(_process.HasExited ? _process.ExitCode : -1); }
+                    catch { /* ignore */ }
+                };
+            }
+            catch
+            {
+                _process = null;
+            }
+
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
+        finally
+        {
+            if (envPtr != IntPtr.Zero) Marshal.FreeHGlobal(envPtr);
+        }
     }
 
     private async Task PumpOutputAsync(CancellationToken ct)
@@ -268,7 +292,46 @@ internal sealed class BndzConPtyTerminal : IDisposable
     {
         var shell = ResolveShellExecutable();
         // -NoLogo keeps the pane clean; ConPTY provides a real interactive console.
+        // pwsh supports -WorkingDirectory; Windows PowerShell relies on CreateProcess cwd.
+        var isPwsh = shell.EndsWith("pwsh.exe", StringComparison.OrdinalIgnoreCase);
+        if (isPwsh && !string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory))
+        {
+            var quotedDir = workingDirectory.Replace("\"", "\\\"");
+            return $"\"{shell}\" -NoLogo -WorkingDirectory \"{quotedDir}\"";
+        }
         return $"\"{shell}\" -NoLogo";
+    }
+
+    /// <summary>
+    /// Unicode environment block for CreateProcess — inherit process env and force
+    /// xterm-capable TERM so ConPTY / PowerShell negotiate like Windows Terminal.
+    /// </summary>
+    private static string BuildConPtyEnvironmentBlock()
+    {
+        var map = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+        {
+            var key = entry.Key?.ToString();
+            if (string.IsNullOrEmpty(key)) continue;
+            map[key] = entry.Value?.ToString() ?? "";
+        }
+        map["TERM"] = "xterm-256color";
+        map["COLORTERM"] = "truecolor";
+        map["TERM_PROGRAM"] = "BNDZ";
+        // Avoid WT-specific vars confusing nested shells; ensure ConPTY path is clear.
+        map.Remove("WT_SESSION");
+        map.Remove("WT_PROFILE_ID");
+
+        var sb = new System.Text.StringBuilder(map.Count * 32);
+        foreach (var kv in map)
+        {
+            sb.Append(kv.Key);
+            sb.Append('=');
+            sb.Append(kv.Value);
+            sb.Append('\0');
+        }
+        sb.Append('\0');
+        return sb.ToString();
     }
 
     private static string ResolveShellExecutable()

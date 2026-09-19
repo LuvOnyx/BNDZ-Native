@@ -4,54 +4,11 @@ import { Checkbox } from '../ui/checkbox';
 import { ColorSettingRow } from './ColorSettingRow';
 import { COLOR_CONFIG_SECTIONS, COLOR_CONFIG_FIELDS, getColorConfigDefaults } from '../../data/colorConfigSchema';
 import { applySettingsRuntime } from '../../lib/settingsRuntime';
-import { fillToBackground, fillToSolid, migratePluginHeroFill } from '../../lib/colorFill';
+import { fillToBackground, migratePluginHeroFill } from '../../lib/colorFill';
 
 interface ColorsTabContentProps {
   localConfig: Record<string, any>;
   updateLocalConfig: (updates: Record<string, any>) => void;
-}
-
-function MiniPreview({ localConfig }: { localConfig: Record<string, any> }) {
-  const treeBg = fillToBackground(localConfig.colorConfig2 || '#111111');
-  const treeText = fillToSolid(localConfig.colorConfig1 || '#d4d4d4');
-  const listBg = fillToBackground(localConfig.colorConfig11 || '#1c1c1c');
-  const listText = fillToSolid(localConfig.colorConfig10 || '#e0e0e0');
-  const selBg = fillToBackground(localConfig.colorConfig14 || '#264f78');
-  const tabActive = fillToBackground(localConfig.colorConfig7 || '#2d2d30');
-  const accent = fillToSolid(localConfig.colorConfig20 || '#007acc');
-  const hero = fillToBackground(
-    migratePluginHeroFill(localConfig.colorConfig47, localConfig.colorConfig48, localConfig.colorConfig49),
-  );
-
-  return (
-    <div className="rounded-xl border border-white/10 overflow-hidden shadow-2xl shadow-black/40">
-      <div className="flex h-[140px] text-[10px]">
-        <div className="w-[28%] border-r border-black/30 p-2 space-y-1" style={{ background: treeBg, color: treeText }}>
-          <div className="font-semibold opacity-90">Navigation</div>
-          <div className="opacity-70">Home</div>
-          <div className="opacity-70">This PC</div>
-          <div className="rounded px-1" style={{ background: accent, color: '#fff' }}>Documents</div>
-        </div>
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="h-6 flex items-center px-2 border-b border-black/30 font-semibold" style={{ background: tabActive, color: '#fff' }}>
-            Documents
-          </div>
-          <div className="flex-1 p-2 space-y-0.5" style={{ background: listBg, color: listText }}>
-            <div className="opacity-60">report.pdf</div>
-            <div className="rounded px-1" style={{ background: selBg, color: '#fff' }}>project-notes.md</div>
-            <div className="opacity-60">photos/</div>
-          </div>
-        </div>
-      </div>
-      <div className="h-8 px-3 flex items-center text-[9px] text-sky-100/80 border-t border-white/5" style={{ background: hero }}>
-        Plugin hero preview
-      </div>
-      <div className="px-3 py-1.5 text-[9px] text-gray-500 bg-[#0d0d10] border-t border-white/5 flex items-center gap-1.5">
-        <Icons8Icon id="sparkles_ui" size={10} />
-        Live workspace preview
-      </div>
-    </div>
-  );
 }
 
 export default function ColorsTabContent({ localConfig, updateLocalConfig }: ColorsTabContentProps) {
@@ -96,17 +53,14 @@ export default function ColorsTabContent({ localConfig, updateLocalConfig }: Col
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-[20px] font-bold text-white mb-1 leading-tight flex items-center gap-2">
-            <Icons8Icon id="palette_ui" size={20} />
-            Colors
-          </h1>
-          <p className="text-[12px] text-[#a0a0a0] max-w-[480px]">
-            Every color uses one picker — Solid or Gradient. Gradients edit as steps inside the picker. Plugin heroes are gradient-only.
-          </p>
-        </div>
-        <MiniPreview localConfig={localConfig} />
+      <div className="mb-6">
+        <h1 className="text-[20px] font-bold text-white mb-1 leading-tight flex items-center gap-2">
+          <Icons8Icon id="palette_ui" size={20} />
+          Colors
+        </h1>
+        <p className="text-[12px] text-[#a0a0a0] max-w-[560px]">
+          Every color uses one picker — Solid or Gradient. Gradients edit as steps inside the picker. Plugin heroes are gradient-only. Changes paint the live workspace immediately when Apply colors is on.
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-4 mb-8 pb-5 border-b border-[#333] rounded-lg bg-gradient-to-r from-[#1a1a22] to-[#141418] px-4 py-3">

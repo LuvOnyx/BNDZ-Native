@@ -22,7 +22,9 @@ setMarqueeActive(false);
 
 beginDragSession(1, 100, 100, 0);
 assert.equal(shouldAllowDragStart(false), false);
+// Production requires consecutive samples past threshold (jitter filter).
 trackDragPointer(100 + DRAG_THRESHOLD + 1, 100);
+trackDragPointer(100 + DRAG_THRESHOLD + 2, 100);
 assert.equal(shouldAllowDragStart(false), true);
 clearDragSession();
 

@@ -286,7 +286,7 @@ export function entitySortName(entity: any): string {
 export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): SortColumnId {
   if (pane?.sortColumn) return pane.sortColumn as SortColumnId;
   const persisted = config.listSortColumn as SortColumnId | undefined;
-  if (persisted === 'name' || persisted === 'type' || persisted === 'size' || persisted === 'modified' || persisted === 'created' || persisted === 'tags' || persisted === 'ghostState' || persisted === 'ramZone') {
+  if (persisted === 'name' || persisted === 'type' || persisted === 'size' || persisted === 'modified' || persisted === 'created' || persisted === 'tags' || persisted === 'ghostState' || persisted === 'ramZone' || persisted === 'cloudStatus' || persisted === 'path' || persisted === 'attributes' || persisted === 'label' || persisted === 'comment') {
     return persisted;
   }
   const method = config.sortMethod || 'Natural';
@@ -401,12 +401,37 @@ export function compareEntities(
     if (cmp !== 0) return mul * cmp;
     return naturalCompare(entitySortName(a), entitySortName(b), config);
   }
-  if (col === 'path' && config.mixedSortOnPathColumns) {
+  if (col === 'path') {
     const pathA = String(a.path || a.id || '');
     const pathB = String(b.path || b.id || '');
-    if (a.type === 'directory' && b.type !== 'directory') return -1;
-    if (b.type === 'directory' && a.type !== 'directory') return 1;
-    return mul * pathA.localeCompare(pathB);
+    if (config.mixedSortOnPathColumns) {
+      if (a.type === 'directory' && b.type !== 'directory') return -1;
+      if (b.type === 'directory' && a.type !== 'directory') return 1;
+    }
+    const cmp = pathA.localeCompare(pathB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'attributes') {
+    const attrA = Array.isArray(a.attributes) ? a.attributes.filter(Boolean).join('\0') : String(a.attributes || '');
+    const attrB = Array.isArray(b.attributes) ? b.attributes.filter(Boolean).join('\0') : String(b.attributes || '');
+    const cmp = attrA.localeCompare(attrB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'label') {
+    const labelA = String(a.label || '');
+    const labelB = String(b.label || '');
+    const cmp = labelA.localeCompare(labelB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'comment') {
+    const commentA = String(a.comment || '');
+    const commentB = String(b.comment || '');
+    const cmp = commentA.localeCompare(commentB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
   }
   return 0;
 }
@@ -452,7 +477,7 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
 export function getRenameInitialValue(entity: any, config: AppConfig): string {
   const name = entity.name || '';
   if (shouldHideRenameExtension(entity, config)) {
-    return stripEntityExtension(name, entity.extension);
+    return stripEntityExtension(name, entity.extension || splitFileName(name).ext);
   }
   return name;
 }
@@ -461,13 +486,21 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Split `file.tar.gz` → stem `file.tar`, ext `gz` (Explorer-style last segment). */
+export function splitFileName(name: string): { stem: string; ext: string } {
+  const base = String(name || '').split(/[/\\]/).pop() || '';
+  const i = base.lastIndexOf('.');
+  if (i <= 0 || i === base.length - 1) return { stem: base, ext: '' };
+  return { stem: base.slice(0, i), ext: base.slice(i + 1) };
+}
+
 function stripEntityExtension(name: string, extension: string | undefined): string {
   if (!extension) return name;
   return name.replace(new RegExp(`\\.${escapeRegExp(extension)}$`, 'i'), '');
 }
 
 function shouldHideRenameExtension(entity: any, config: AppConfig): boolean {
-  const ext = String(entity?.extension || '').toLowerCase();
+  const ext = String(entity?.extension || splitFileName(entity?.name || '').ext || '').toLowerCase();
   if (!ext || entity?.type === 'directory') return false;
   if (ext === 'lnk' && config.hideShortcutExtensions !== false) return true;
   return !!config.hideExtensionsFromRenameEditBox;
@@ -475,7 +508,7 @@ function shouldHideRenameExtension(entity: any, config: AppConfig): boolean {
 
 /** Resolve the actual filesystem name represented by the rename edit box. */
 export function resolveRenameTargetName(entity: any, editedValue: string, config: AppConfig): string {
-  const ext = String(entity?.extension || '');
+  const ext = String(entity?.extension || splitFileName(entity?.name || '').ext || '');
   const raw = String(editedValue || '').trim();
   if (!raw || entity?.type === 'directory' || !shouldHideRenameExtension(entity, config)) {
     return raw;
@@ -488,17 +521,35 @@ export function resolveRenameTargetName(entity: any, editedValue: string, config
   return `${raw}${suffix}`;
 }
 
+/** True when rename changes the file type (extension), including removal. */
+export function renameChangesFileExtension(
+  originalName: string,
+  nextName: string,
+  isDirectory?: boolean,
+): boolean {
+  if (isDirectory) return false;
+  const a = splitFileName(originalName).ext.toLowerCase();
+  const b = splitFileName(nextName).ext.toLowerCase();
+  return a !== b;
+}
+
 /** Explorer-style initial selection for inline rename fields. */
 export function applyRenameInputSelection(input: HTMLInputElement, entity: any, config: AppConfig): void {
   if (!input || config.preselectName === false) return;
   requestAnimationFrame(() => {
     try {
       const value = input.value;
-      const ext = String(entity?.extension || '');
-      const shouldSelectBase = entity?.type !== 'directory'
-        && ext
-        && (config.excludeFileExtensionFromInitialSelection !== false || shouldHideRenameExtension(entity, config));
-      const end = shouldSelectBase ? stripEntityExtension(value, ext).length : value.length;
+      const ext = String(entity?.extension || splitFileName(value).ext || '');
+      const extInBox = entity?.type !== 'directory'
+        && !!ext
+        && !shouldHideRenameExtension(entity, config);
+      // Extension visible → select stem only (Explorer). Hidden → whole field is the stem.
+      const shouldSelectBase = extInBox
+        ? config.excludeFileExtensionFromInitialSelection !== false
+        : true;
+      const end = shouldSelectBase && extInBox
+        ? stripEntityExtension(value, ext).length
+        : value.length;
       input.focus();
       input.setSelectionRange(0, Math.max(0, end));
     } catch {
@@ -590,7 +641,9 @@ export function evaluateColorFilter(
   const ext = (entity.extension || '').toLowerCase();
   const attrs: string[] = entity.attributes || [];
   const size = entity.size ?? 0;
-  const modified = entity.modified ? new Date(entity.modified) : null;
+  const modified = entity.modified
+    ? new Date(entity.modified)
+    : (entity.dateModified ? new Date(entity.dateModified) : null);
 
   for (const row of filters) {
     if (!row.c || !row.t) continue;
@@ -985,8 +1038,8 @@ function clearColorCssVars(root: HTMLElement): void {
  * After applyColors, restore light-theme chrome contrast tokens that color packs
  * commonly overwrite (dark #252528 menus, black status/breadcrumb text on dark
  * strips, light tree text on white sidebar). Popup menus stay pale + black ink;
- * top menubar/toolbar/tabstrip/address stay dark + white ink; footer statusbar is
- * pale paper + black ink (never white-on-pale).
+ * top menubar/toolbar/address stay dark + white ink; file tab chips are pale +
+ * dark ink; footer statusbar is pale paper + black ink (never white-on-pale).
  */
 function lockLightThemeChromeContrast(root: HTMLElement): void {
   if (!root.classList.contains('theme-light')) return;
@@ -1020,11 +1073,12 @@ function lockLightThemeChromeContrast(root: HTMLElement): void {
   root.style.setProperty('--toolbar-bg', '#1a1a1f');
   root.style.setProperty('--toolbar-text', chromeText);
 
-  // Tabs sit on dark tabstrip — keep chips dark + white ink (color packs often force pale chips + black text).
-  root.style.setProperty('--tab-active-bg', '#2a2e36');
-  root.style.setProperty('--tab-active-text', chromeText);
-  root.style.setProperty('--tab-inactive-bg', '#1a1c22');
-  root.style.setProperty('--tab-inactive-text', chromeMuted);
+  // File tabstrip is pale in light themes — lock chips to dark ink (not dark chips + white ink).
+  // Menubar/toolbar/address stay dark via --chrome-dark-* / --toolbar-* above.
+  root.style.setProperty('--tab-active-bg', '#ffffff');
+  root.style.setProperty('--tab-active-text', 'rgba(15, 23, 42, 0.95)');
+  root.style.setProperty('--tab-inactive-bg', 'transparent');
+  root.style.setProperty('--tab-inactive-text', 'rgba(15, 23, 42, 0.55)');
 
   // Pale panels keep black type
   root.style.setProperty('--tree-text', 'rgba(0,0,0,0.88)');
@@ -1243,7 +1297,7 @@ export function applySettingsRuntime(config: AppConfig): void {
     // Also force when launched elevated with --apply-shell (query / hash mirror from host).
     try {
       const q = typeof location !== 'undefined' ? `${location.search} ${location.hash}` : '';
-      if (/apply-shell|elevated/i.test(q)) force = true;
+      if (/apply-shell/i.test(q)) force = true;
     } catch { /* ignore */ }
     scheduleBackendSettings(config, force);
   });

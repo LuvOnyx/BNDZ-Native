@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240" fill="none">
+  <!-- BNDZ glass panel - Preview Inspector idle. Loupe + dashed well + waveform. Object only. -->
+  <defs>
+    <linearGradient id="gPanelGlass" x1="36" y1="28" x2="204" y2="212">
+      <stop offset="0%" stop-color="#2A3548" stop-opacity="0.72"/>
+      <stop offset="50%" stop-color="#151C28" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#0E121A" stop-opacity="0.94"/>
+    </linearGradient>
+    <linearGradient id="gPanelWell" x1="56" y1="64" x2="184" y2="176">
+      <stop offset="0%" stop-color="#1A2233" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#0C1018" stop-opacity="0.75"/>
+    </linearGradient>
+    <linearGradient id="gPanelLoupe" x1="88" y1="78" x2="148" y2="138">
+      <stop offset="0%" stop-color="#E8EEF6" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#9BB0C8" stop-opacity="0.75"/>
+    </linearGradient>
+    <radialGradient id="gPanelGlow" cx="50%" cy="48%" r="40%">
+      <stop offset="0%" stop-color="#0078D4" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#0078D4" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="gPanelGrid" width="12" height="12" patternUnits="userSpaceOnUse">
+      <path d="M12 0H0V12" fill="none" stroke="#5A6A80" stroke-opacity="0.18" stroke-width="0.6"/>
+    </pattern>
+  </defs>
+
+  <!-- Outer glass frame -->
+  <rect x="28" y="28" width="184" height="184" rx="22" fill="url(#gPanelGlass)" stroke="#0078D4" stroke-opacity="0.45" stroke-width="1.75"/>
+  <!-- Top inner sheen -->
+  <path d="M48 36h144" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Soft center glow -->
+  <ellipse cx="120" cy="118" rx="62" ry="52" fill="url(#gPanelGlow)"/>
+
+  <!-- Dashed preview well -->
+  <rect x="52" y="58" width="136" height="112" rx="16" fill="url(#gPanelWell)" stroke="#8BA3C0" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="56" y="62" width="128" height="104" rx="14" fill="url(#gPanelGrid)" opacity="0.55"/>
+
+  <!-- Waveform (behind loupe) -->
+  <path d="M68 118 C76 102, 84 134, 92 118 S108 102, 116 118 S132 134, 140 118 S156 102, 164 118 S172 130, 176 118"
+        fill="none" stroke="#0078D4" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+  <path d="M72 124 C80 112, 88 136, 96 124 S112 112, 120 124 S136 136, 144 124 S160 112, 168 124"
+        fill="none" stroke="#A855F7" stroke-opacity="0.18" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Loupe -->
+  <g transform="translate(120 112)">
+    <circle r="28" fill="#1A2230" fill-opacity="0.35" stroke="url(#gPanelLoupe)" stroke-width="3.5"/>
+    <circle r="22" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1.25"/>
+    <!-- glass highlight -->
+    <path d="M-12 -16 A22 22 0 0 1 8 -20" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- handle -->
+    <path d="M18 18 L34 34" stroke="#C5D0E0" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M18 18 L34 34" stroke="#6A7A90" stroke-width="3" stroke-linecap="round"/>
+    <!-- blue tip accent -->
+    <circle cx="34" cy="34" r="4.5" fill="#0078D4"/>
+    <circle cx="34" cy="34" r="2" fill="#7EC8F8"/>
+  </g>
+
+  <!-- Accent bar (stands in for caption  no text) -->
+  <rect x="98" y="186" width="44" height="4" rx="2" fill="#0078D4"/>
+  <!-- Idle status dot -->
+  <circle cx="48" cy="196" r="4" fill="#0078D4"/>
+  <rect x="58" y="193.5" width="22" height="5" rx="2.5" fill="#5A6A80" fill-opacity="0.55"/>
+</svg>

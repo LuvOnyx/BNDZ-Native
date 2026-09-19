@@ -9,5 +9,7 @@
     <Grid x:Name="RootGrid" Background="Transparent">
         <bndz:CraftPaneHost x:Name="ChromeHost" Pane="browser" />
         <bndz:NativeListHost x:Name="NativeList" Visibility="Collapsed" IsHitTestVisible="False" />
+        <!-- Real TermControl overlay — positioned over React Remote terminal hole. -->
+        <bndz:NativeTerminalHost x:Name="NativeTerminal" Visibility="Collapsed" IsHitTestVisible="False" />
     </Grid>
 </Window>

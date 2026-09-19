@@ -1,6 +1,10 @@
 # BNDZ Official Launch Checklist
 
-Use this guide before publishing BNDZ 1.0.0 (or later) to end users.
+> **BNDZ-Native ship binary is `BNDZShell`, not classic WPF.**  
+> For Launch Ready testing use [`BNDZ_NATIVE.md`](../BNDZ_NATIVE.md) + [`WINDOWS-TEST-PLAYBOOK.md`](WINDOWS-TEST-PLAYBOOK.md) (`scripts/build-bndz-native.ps1` / `run-bndz-native.cmd`).  
+> This document describes the **classic** Inno/`BNDZ.exe` packaging path — keep for later Authenticode; do **not** treat `dist\BNDZ-Setup-*.exe` as Native launch proof.
+
+Use this guide before publishing classic BNDZ 1.0.0 (or later) to end users.
 
 ## 1. Build the installer
 

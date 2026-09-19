@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>BNDZ plaque QC — Fluent extract</title>
+<style>
+body{margin:0;font:13px/1.4 system-ui;background:#0c1018;color:#e8eaed;padding:28px}
+.ok{display:inline-block;padding:4px 10px;border-radius:8px;background:rgba(0,120,212,.2);color:#7ec8f8;font-size:11px;margin-bottom:12px}
+.row{display:flex;flex-wrap:wrap;gap:18px}
+.card{width:180px;padding:14px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:#161a22;text-align:center}
+.card.light{background:#f3f4f6;color:#1f2937}
+.card.check{background:repeating-conic-gradient(#ccc 0% 25%,#fff 0% 50%) 50%/16px 16px}
+img{width:112px;height:112px;object-fit:contain}
+.cap{font-size:11px;color:#94a3b8;margin-top:8px;word-break:break-all}
+.card.light .cap{color:#6b7280}
+.label{font-weight:650;font-size:12px;margin-bottom:8px}
+.modal{width:360px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1);position:relative;
+ background:linear-gradient(165deg,#2a2d34,#17191e)}
+.modal .wash{position:absolute;inset:0;pointer-events:none;
+ background:radial-gradient(ellipse 85% 65% at 18% 28%,rgba(220,38,38,.3),transparent 55%)}
+.modal .bar{position:relative;z-index:1;padding:10px 14px;font-weight:650;font-size:12.5px;border-bottom:1px solid rgba(255,255,255,.06)}
+.modal .body{position:relative;z-index:1;display:flex;gap:14px;padding:18px;align-items:flex-start}
+.modal .glyph{width:72px;height:72px;border-radius:16px;background:rgba(0,0,0,.35);display:grid;place-items:center;flex-shrink:0}
+.modal .glyph img{width:64px;height:64px;object-fit:contain}
+.modal .msg{margin:0;font-size:12px;color:#c4c8d0;line-height:1.5}
+</style></head><body>
+<span class="ok">EXTRACTED Fluent Emoji 3D · true alpha · AI gen superseded</span>
+<h1>Idle + modal keepers</h1>
+<p style="color:#94a3b8">Idle=Information · Panel=Magnifier · Warn=Wastebasket+Warning · Error=Warning alone</p>
+<div class="row">
+  <div class="card check"><div class="label">Error α</div><img src="fm-modal-error-dark.png"/><div class="cap">fm-modal-error-dark.png</div></div>
+  <div class="card check"><div class="label">Warn α</div><img src="fm-modal-warn-dark.png"/><div class="cap">fm-modal-warn-dark.png</div></div>
+  <div class="card check"><div class="label">Idle α</div><img src="fm-glass-idle-dark.png"/><div class="cap">fm-glass-idle-dark.png</div></div>
+  <div class="card check"><div class="label">Panel α</div><img src="fm-glass-panel-dark.png"/><div class="cap">fm-glass-panel-dark.png</div></div>
+  <div class="modal">
+    <div class="wash"></div>
+    <div class="bar">Delete permanently?</div>
+    <div class="body">
+      <div class="glyph"><img src="fm-modal-error-dark.png" alt=""/></div>
+      <p class="msg">These items will be permanently deleted and cannot be recovered.</p>
+    </div>
+  </div>
+</div>
+</body></html>

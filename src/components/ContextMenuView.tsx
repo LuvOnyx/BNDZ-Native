@@ -60,8 +60,12 @@ const SORT_BY_OPTIONS: Array<{ value: SortColumnId; label: string }> = [
   { value: 'modified', label: 'Date modified' },
   { value: 'created', label: 'Date created' },
   { value: 'tags', label: 'Tags' },
-  { value: 'ghostState', label: 'Ghost' },
-  { value: 'ramZone', label: 'RAM zone' },
+  { value: 'path', label: 'Path' },
+  { value: 'attributes', label: 'Attributes' },
+  { value: 'label', label: 'Label' },
+  { value: 'comment', label: 'Comment' },
+  { value: 'ghostState', label: 'Link state' },
+  { value: 'ramZone', label: 'Virtual zone' },
 ];
 
 interface ContextMenuViewProps {
@@ -73,15 +77,14 @@ interface ContextMenuViewProps {
   addTab: (paneId: string, path: string) => void;
   onOpenBatchRename?: () => void;
   onOpenMeshDrop?: (paths: string[]) => void;
-  onGhostLinkOffload?: (paths: string[]) => void | Promise<void>;
-  onGhostLinkRestore?: (path: string) => void | Promise<void>;
-  onStageToRam?: (paths: string[]) => void | Promise<void>;
   setIsSmartToolsOpen: (v: boolean) => void;
   setToastMessage: (msg: string) => void;
   setInlineRename: (v: { path: string; entityId: string; currentName: string } | null) => void;
   setClipboardState: (items: string[], action: ClipboardAction) => void;
   executePaste: (targetDir: string) => Promise<void>;
   onDeletePaths: (paths: string[]) => void;
+  /** Prefer bottom-panel Mesh terminal over external wt/conhost. */
+  onOpenTerminal?: (paths: string[]) => void;
   onEmptyRecycleBin?: () => void;
   onRefreshList?: () => void;
   onRefreshTree?: () => void;
@@ -121,8 +124,8 @@ interface ContextMenuViewProps {
 
 function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
-  onOpenBatchRename, onOpenMeshDrop, onGhostLinkOffload, onGhostLinkRestore, onStageToRam, setIsSmartToolsOpen, setToastMessage, setInlineRename,
-  setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
+  onOpenBatchRename, onOpenMeshDrop, setIsSmartToolsOpen, setToastMessage, setInlineRename,
+  setClipboardState, executePaste, onDeletePaths, onOpenTerminal, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
   onRestoreRecycleItems, onPurgeRecycleItems, onSelectAll, onInvertSelection,
@@ -186,7 +189,6 @@ function ContextMenuView({
   const shellSlots = shellMergeEnabled
     ? partitionShellMergeItems(supplementalNative)
     : { open: [], clipboard: [], cascades: [], tools: [], footer: [] };
-  const shellPending = shellMergeEnabled && shellExtensionsPending && supplementalNative.length === 0;
   /** After shell verbs merge in, briefly ignore clicks so layout settle doesn't steal a fast click. */
   const [shellMergeSettling, setShellMergeSettling] = useState(false);
   const prevShellCountRef = useRef(0);
@@ -194,7 +196,7 @@ function ContextMenuView({
     const n = supplementalNative.length;
     if (n > 0 && prevShellCountRef.current === 0 && !shellExtensionsPending) {
       setShellMergeSettling(true);
-      const t = window.setTimeout(() => setShellMergeSettling(false), 160);
+      const t = window.setTimeout(() => setShellMergeSettling(false), 48);
       prevShellCountRef.current = n;
       return () => window.clearTimeout(t);
     }
@@ -451,11 +453,17 @@ function ContextMenuView({
       ? item.iconBase64
       : null;
     if (item.children && item.children.length > 0) {
+      const parentIcon =
+        iconSrc
+        ?? (item.children
+          .map(c => (typeof c.iconBase64 === 'string' && c.iconBase64.startsWith('data:') ? c.iconBase64 : null))
+          .find(Boolean) ?? null);
       return (
         <ContextSubmenu
           key={`${keyPrefix}-${item.id || item.label || i}`}
           label={item.label || item.id || 'More'}
-          iconVerb={item.icon || 'shell'}
+          iconSrc={parentIcon}
+          iconVerb={parentIcon ? undefined : (item.icon || 'shell')}
         >
           {item.children.map((child, j) => renderNativeItem(child, j, `${keyPrefix}-${i}`))}
         </ContextSubmenu>
@@ -480,22 +488,14 @@ function ContextMenuView({
   const renderShellSlot = (slot: ShellMergeSlot, opts?: { pending?: boolean; withSep?: boolean }) => {
     if (!shellMergeEnabled) return null;
     const items = shellSlots[slot];
-    const showPending = !!opts?.pending && shellPending && slot === 'tools';
-    if (!showPending && !items.length) return null;
+    // No skeleton placeholders — paint static BNDZ verbs immediately; shell rows patch in silently.
+    if (!items.length) return null;
     return (
       <>
         {(opts?.withSep !== false) && <div className="bndz-context-menu-sep" />}
-        {showPending ? (
-          <div className="bndz-context-menu-shell-skeleton" aria-hidden>
-            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '72%' }} />
-            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '54%' }} />
-            <div className="bndz-context-menu-shell-skeleton-row" style={{ width: '63%' }} />
-          </div>
-        ) : (
-          <div className={shellMergeSettling ? 'bndz-context-menu-shell-settling' : undefined}>
-            {items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))}
-          </div>
-        )}
+        <div className={shellMergeSettling ? 'bndz-context-menu-shell-settling' : undefined}>
+          {items.map((item, i) => renderNativeItem(item, i, `shell-${slot}`))}
+        </div>
       </>
     );
   };
@@ -822,11 +822,11 @@ function ContextMenuView({
             {onGoForward && <ContextMenuItem label="Forward" iconVerb="forward" onClick={() => { onGoForward(); onClose(); }} />}
           </>
         )}
-        {renderShellSlot('open')}
-        {renderShellSlot('cascades')}
+        {renderShellSlot('open', { pending: true })}
+        {renderShellSlot('cascades', { pending: true })}
         {renderShellSlot('tools', { pending: true })}
         {renderShellSlot('clipboard', { withSep: false })}
-        {renderShellSlot('footer')}
+        {renderShellSlot('footer', { pending: true })}
         <div className="bndz-context-menu-sep" />
         <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
       </ClampedFixedMenu>
@@ -1057,7 +1057,7 @@ function ContextMenuView({
         <ContextMenuItem label="Open With..." iconVerb="openas" onClick={() => handleVerb('openas')} />
       )}
 
-      {renderShellSlot('open', { withSep: false })}
+      {renderShellSlot('open', { withSep: false, pending: true })}
 
       <div className="bndz-context-menu-sep" />
 
@@ -1112,7 +1112,7 @@ function ContextMenuView({
       )}
 
       {renderShellSlot('clipboard')}
-      {renderShellSlot('cascades')}
+      {renderShellSlot('cascades', { pending: true })}
 
       {!isBackground && showShareMenu && (
         <ContextSubmenu label="Share" iconVerb="share" onOpen={() => setShareRequested(true)}>
@@ -1519,7 +1519,10 @@ function ContextMenuView({
               // Shell Menus plugin command-based actions
               else if (cmd === 'refresh') runRefresh();
               else if (cmd === 'copyPath') IPC.shellExecute('copyPath', targetPaths);
-              else if (cmd === 'openTerminal') IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
+              else if (cmd === 'openTerminal') {
+                if (onOpenTerminal) onOpenTerminal(targetPaths);
+                else IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
+              }
               else if (cmd === 'openExplorer') IPC.shellExecute('openExplorer', targetPaths);
               else if (cmd) {
                 // Arbitrary command: expand %1 with first target and run via shell
@@ -1544,9 +1547,9 @@ function ContextMenuView({
         <ContextMenuItem
           label="Open in Terminal"
           iconVerb="terminal"
-          onClick={async () => {
-            const IPC = await runIpc();
-            IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
+          onClick={() => {
+            if (onOpenTerminal) onOpenTerminal(targetPaths);
+            else void runIpc().then((IPC) => IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config)));
             onClose();
           }}
         />
@@ -1695,7 +1698,7 @@ function ContextMenuView({
       />
 
       {renderShellSlot('tools', { pending: true })}
-      {renderShellSlot('footer')}
+      {renderShellSlot('footer', { pending: true })}
 
       <div className="bndz-context-menu-sep" />
       <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />

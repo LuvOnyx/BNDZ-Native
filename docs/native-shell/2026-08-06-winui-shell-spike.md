@@ -1,6 +1,6 @@
 # Native shell spike — dual complete versions
 
-> **Superseded for product direction.** BNDZ-Native uses architecture #3: `FilesMerge/` as the WinUI host (not `--native-shell` banner, not HWND embed). See `BNDZ_NATIVE.md` and `docs/native-shell/README.md`.
+> **Superseded.** Product shell is `BNDZShell/` (see root `BNDZ_NATIVE.md`). `FilesMerge/` hybrid and this `--native-shell` WPF banner are archived reference only — not the launch gate.
 
 ## Problem
 

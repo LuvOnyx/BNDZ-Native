@@ -76,10 +76,10 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .bndz-glass-panel {
-  border-radius: var(--bndz-radius-lg);
-  background: #252526;
-  border: 1px solid #454545;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border-radius: var(--bndz-radius-md);
+  background: var(--bndz-surface-raised, #252526);
+  border: 1px solid var(--border-subtle, #454545);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 
 .bndz-storage-track {
@@ -2141,9 +2141,11 @@ html[data-theme] .bndz-chrome-preview .bndz-preview-stage {
 }
 
 html[data-theme] .bndz-chrome-preview .bndz-preview-detail-card {
-  border-radius: var(--bndz-radius-md);
-  background: var(--bndz-glass-bg) !important;
-  border-color: var(--bndz-glass-border) !important;
+  border-radius: var(--bndz-radius-sm);
+  background: color-mix(in srgb, var(--panel-preview-bg, #2a2a2a) 88%, #000 12%) !important;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
 html[data-theme] .bndz-chrome-bottom {
@@ -2355,14 +2357,7 @@ html.theme-light .bndz-chrome-omnibar {
   border-bottom-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* Tab row (pink accent line sits here) — light surface in light themes */
-html.theme-light .bndz-chrome-tabstrip,
-html.theme-light .bndz-chrome-tabs {
-  color: rgba(15, 23, 42, 0.88) !important;
-  background:
-    linear-gradient(180deg, #f4f6fa 0%, #e8ecf2 100%) !important;
-  border-bottom-color: rgba(15, 23, 42, 0.12) !important;
-}
+/* Tab row pale strip + chip paint: canonical light file-tabstrip block near file end. */
 
 /* Breadcrumb / address strip stays dark */
 html.theme-light .bndz-files-address-strip {
@@ -2439,13 +2434,8 @@ html.theme-light .bndz-chrome-omnibar input::placeholder {
   color: rgba(255, 255, 255, 0.42) !important;
 }
 
-html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
-  color: rgba(15, 23, 42, 0.55) !important;
-}
+/* Light tab chip ink/BG: see canonical block near file end (html.theme-light .bndz-tab-item). */
 
-html.theme-light .bndz-tab-item.bndz-tab-active {
-  color: rgba(15, 23, 42, 0.92) !important;
-}
 
 html.theme-light[data-theme] .nav-tree-row:hover:not(.nav-tree-row-selected) {
   background: rgba(0, 0, 0, 0.05) !important;
@@ -2857,10 +2847,12 @@ html.theme-light .bndz-context-menu-icon {
   color: rgba(0, 0, 0, 0.55) !important;
 }
 
-/* Hover keeps dark ink on pale fill (never flip to white/cyan) — except semantic tones */
+/* Hover: light theme menubar/context rows stay pale; dark uses accent via .bndz-menubar-row */
 html.theme-light .bndz-context-menu-item:hover,
 html.theme-light .bndz-context-menu-item-active,
 html.theme-light .bndz-menubar-menu > div.px-3:hover,
+html.theme-light .bndz-menubar-menu > div.bndz-menubar-row:hover,
+html.theme-light .bndz-menubar-menu .bndz-menubar-row:hover,
 html.theme-light .bndz-context-menu > div.px-3:hover {
   background: rgba(0, 0, 0, 0.06) !important;
   color: rgba(0, 0, 0, 0.92) !important;
@@ -2874,7 +2866,7 @@ html.theme-light .bndz-context-menu-item--positive:hover {
   color: #fff !important;
 }
 html.theme-light .bndz-context-menu-item--accent:hover {
-  background: #007acc !important;
+  background: var(--accent, #007acc) !important;
   color: #fff !important;
 }
 
@@ -2909,7 +2901,7 @@ html.theme-light .bndz-chrome-sidebar .bndz-drive-card-sub {
   color: rgba(0, 0, 0, 0.55) !important;
 }
 
-/* List column headers / sort chips — pale fills + black text (no active white-ink) */
+/* List column headers — flat pale bar + black text (no chip fills) */
 html.theme-light .bndz-list-header-bar,
 html.theme-light .bndz-list-header-bar .bndz-list-col-header,
 html.theme-light .bndz-list-header-bar .bndz-list-col-header .bndz-list-col-header-label,
@@ -2917,18 +2909,19 @@ html.theme-light .bndz-list-col-header--sortable:hover {
   color: rgba(0, 0, 0, 0.82) !important;
 }
 
-/* Inactive col chips — pale paper (not dark metal) */
 html.theme-light .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter),
 html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter) {
-  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.03) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+html.theme-light .bndz-list-col-header--sortable:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
 }
 
 html.theme-light .bndz-list-header-bar:not(.bndz-list-header-bar--no-grid) .bndz-list-col-header:not(:last-child)::after {
-  background: rgba(0, 0, 0, 0.10) !important;
+  background: rgba(0, 0, 0, 0.12) !important;
 }
 
 html.theme-light .bndz-list-col-header--active,
@@ -2936,23 +2929,13 @@ html.theme-light .bndz-list-col-header--active .bndz-list-col-header-label,
 html.theme-light .bndz-list-header-bar .bndz-list-col-header--active,
 html.theme-light .bndz-list-header-bar .bndz-list-col-header--active .bndz-list-col-header-label {
   color: rgba(0, 0, 0, 0.88) !important;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 12%, #f4f5f7) 0%,
-    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 6%, #e8eaee) 100%
-  ) !important;
-  border-color: color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 28%, rgba(0, 0, 0, 0.12)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.04) !important;
+  background: rgba(0, 0, 0, 0.035) !important;
+  border: none !important;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 65%, transparent) !important;
 }
 
 html.theme-light .bndz-list-col-header--active:hover {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 16%, #f0f1f4) 0%,
-    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 8%, #e2e4e9) 100%
-  ) !important;
+  background: rgba(0, 0, 0, 0.055) !important;
 }
 
 html.theme-light .bndz-list-sort-caret--asc {
@@ -3069,39 +3052,7 @@ html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-sky-300 {
   color: #7dd3fc !important;
 }
 
-/* Light theme tabstrip: dark ink on pale tabs (address strip stays white-on-dark below) */
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item {
-  color: rgba(15, 23, 42, 0.72) !important;
-  border-color: transparent !important;
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):hover,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):hover {
-  color: rgba(15, 23, 42, 0.92) !important;
-  background: rgba(15, 23, 42, 0.06) !important;
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
-html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active {
-  color: rgba(15, 23, 42, 0.95) !important;
-  background: #ffffff !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 75%, transparent);
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-close,
-html.theme-light .bndz-chrome-tabs .bndz-tab-close {
-  color: rgba(15, 23, 42, 0.45);
-}
-
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-close:hover,
-html.theme-light .bndz-chrome-tabs .bndz-tab-close:hover {
-  color: #fff;
-  background: rgba(232, 17, 35, 0.85);
-}
+/* Light tab chip paint + close: canonical block near file end (accent-safe). */
 
 html.theme-light .bndz-files-address-strip,
 html.theme-light .bndz-files-address-strip input,
@@ -3131,6 +3082,17 @@ html.theme-light .bndz-files-address-strip input::placeholder {
 .bndz-compact-toolbar .bndz-chrome-toolbar [role="button"] {
   padding: 2px 5px !important;
   min-height: 22px;
+}
+
+.bndz-compact-toolbar .bndz-tb-preview-bar {
+  min-height: 22px;
+  padding: 1px 3px;
+}
+
+.bndz-compact-toolbar .bndz-tb-chip {
+  width: 24px;
+  height: 22px;
+  padding: 2px;
 }
 
 .bndz-dense-menubar .bndz-chrome-menubar {
@@ -4451,8 +4413,8 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 
 /* Bottom plugin panel chrome */
 .bndz-bottom-tabstrip {
-  min-height: 32px;
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.04) 0%, transparent 100%), #0f1118;
+  min-height: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%), #121418;
 }
 
 .bndz-bottom-tab {
@@ -4460,21 +4422,21 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   font-weight: 600;
   letter-spacing: 0.01em;
   text-transform: none;
-  padding: 5px 9px;
+  padding: 4px 8px;
   color: rgba(203, 213, 225, 0.55);
   border-right: 1px solid rgba(148, 163, 184, 0.06);
-  transition: color 0.12s ease, background 0.12s ease;
+  transition: color 0.1s ease, background 0.1s ease;
   max-width: 148px;
 }
 
 .bndz-bottom-tab:hover {
   color: rgba(226, 232, 240, 0.92);
-  background: rgba(56, 189, 248, 0.06);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .bndz-bottom-tab-active {
-  color: #bae6fd !important;
-  background: rgba(56, 189, 248, 0.12) !important;
+  color: color-mix(in srgb, var(--accent, #0078d4) 35%, #e8eef6) !important;
+  background: color-mix(in srgb, var(--accent, #0078d4) 12%, transparent) !important;
   /* Full-width underline lives on .bndz-bottom-tab-underline */
   box-shadow: none;
 }
@@ -4639,6 +4601,44 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
     0 18px 40px rgba(0, 0, 0, 0.42),
     0 0 24px rgba(196, 163, 90, 0.08),
     0 1px 0 rgba(255, 255, 255, 0.1) inset;
+}
+
+/* Absorb-embed ops meter — replaces PluginStatCard SaaS farms */
+.bndz-plugin-ops-meter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.18) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.bndz-plugin-ops-meter-cell {
+  flex: 1 1 72px;
+  min-width: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+.bndz-plugin-ops-meter-cell.is-ok .bndz-plugin-ops-meter-value { color: #86efac; }
+.bndz-plugin-ops-meter-cell.is-warn .bndz-plugin-ops-meter-value { color: #fbbf24; }
+.bndz-plugin-ops-meter-value {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: rgba(248, 250, 252, 0.95);
+  line-height: 1.1;
+}
+.bndz-plugin-ops-meter-label {
+  font-size: 9px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(148, 163, 184, 0.72);
 }
 .bndz-plugin-card.is-selected,
 .bndz-plugin-card[data-selected='true'] {
@@ -5544,6 +5544,45 @@ html.theme-light .bndz-plugin-empty {
   color: rgba(148, 163, 184, 0.7);
 }
 
+/* Visual Filters — empty well + template chips (object plaques, soft FM craft) */
+.bndz-filters-empty-well {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  margin: 4px 2px 8px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.08), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+html.theme-light .bndz-filters-empty-well {
+  border-color: rgba(0, 0, 0, 0.08);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0, 120, 212, 0.08), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(0, 0, 0, 0.03));
+}
+.bndz-filters-template {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.bndz-filters-template:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 20px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+.bndz-filters-editor-idle {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(167, 139, 250, 0.08), transparent 50%),
+    rgba(0, 0, 0, 0.18);
+}
+.bndz-filters-hero-plaque {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
+}
+
 .bndz-plugin-btn {
   min-height: 28px;
 }
@@ -6063,7 +6102,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   font-family: var(--bndz-font-list-family, var(--bndz-font-family));
   font-weight: 500;
   letter-spacing: 0;
-  color: var(--list-text, rgba(236, 242, 250, 0.92));
+  color: var(--list-text, #f3f4f6);
   min-width: 64px;
 }
 
@@ -6395,9 +6434,12 @@ html.bndz-scrolling .bndz-view-details {
   min-height: 220px;
   padding: 24px;
   text-align: center;
-  border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.015);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.04), transparent 55%),
+    rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .bndz-sizemap-empty-title {
@@ -6830,10 +6872,10 @@ html.theme-light .bndz-list-filter-info button:hover {
 
 .bndz-col-resize-handle {
   position: absolute;
-  right: -2px;
+  right: -4px;
   top: 0;
   height: 100%;
-  width: 10px;
+  width: 12px;
   cursor: col-resize;
   z-index: 20;
   touch-action: none;
@@ -6854,19 +6896,20 @@ html[data-col-resizing] * {
   cursor: col-resize !important;
 }
 
-/* Segmented native list column headers */
+/* Flat native list column headers — Explorer density with quieter dividers */
 .bndz-list-header-bar {
   gap: 0;
-  padding: 5px 0 4px;
-  color: #9aa0a8;
-  min-height: 34px;
+  padding: 0;
+  color: #c4cad3;
+  min-height: 28px;
   box-sizing: border-box;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-/* Matches .bndz-list-header-bar outer height ? reserved when column headers are hidden but tools remain. */
+/* Matches .bndz-list-header-bar outer height — reserved when column headers are hidden but tools remain. */
 .bndz-list-header-bar-spacer {
-  min-height: 34px;
-  height: 34px;
+  min-height: 28px;
+  height: 28px;
   box-sizing: border-box;
 }
 
@@ -6879,15 +6922,13 @@ html[data-col-resizing] * {
   display: flex;
   align-items: center;
   gap: 3px;
-  min-height: 24px;
-  padding: 2px 8px 2px 7px;
-  border-radius: var(--bndz-radius-sm, 5px);
-  border: 1px solid transparent;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.12) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
-  transition: background 0.1s ease, border-color 0.1s ease, color 0.1s ease, box-shadow 0.1s ease;
+  min-height: 26px;
+  padding: 3px 10px 3px 10px;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  transition: background 0.08s ease, color 0.08s ease;
   --col-accent: var(--accent, #0078d4);
 }
 
@@ -6902,28 +6943,19 @@ html[data-col-resizing] * {
 .bndz-list-col-header[data-col-id="comment"] { --col-accent: var(--col-accent-comment, #fb923c); }
 .bndz-list-col-header[data-col-id="path"] { --col-accent: var(--col-accent-path, #60a5fa); }
 
-/* Quiet left rail ? readable color coding without loud fills */
+/* No left accent rails — flat header cells only */
 .bndz-list-col-header:not(.bndz-list-col-header--gutter)::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 5px;
-  bottom: 5px;
-  width: 2px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--col-accent) 42%, transparent);
-  opacity: 0.55;
-  pointer-events: none;
+  display: none;
 }
 
 .bndz-list-header-bar:not(.bndz-list-header-bar--no-grid) .bndz-list-col-header:not(:last-child)::after {
   content: '';
   position: absolute;
-  right: -2px;
-  top: 5px;
-  bottom: 5px;
+  right: 0;
+  top: 8px;
+  bottom: 8px;
   width: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.055);
   pointer-events: none;
 }
 
@@ -6944,41 +6976,27 @@ html[data-col-resizing] * {
 }
 
 .bndz-list-col-header--sortable:hover {
-  color: #e5e7eb;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
-  border-color: rgba(255, 255, 255, 0.08);
+  color: #f3f4f6;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .bndz-list-col-header--sortable:hover::before {
-  opacity: 0.9;
+  display: none;
 }
 
 .bndz-list-col-header--active {
-  color: #f3f6fa;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--col-accent) 20%, #2a2e36) 0%,
-    color-mix(in srgb, var(--col-accent) 9%, #1a1d22) 100%
-  );
-  border-color: color-mix(in srgb, var(--col-accent) 38%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--col-accent) 24%, transparent),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
-    0 0 0 1px color-mix(in srgb, var(--col-accent) 10%, transparent);
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent, #0078d4) 70%, transparent);
 }
 
 .bndz-list-col-header--active::before {
-  opacity: 1;
-  background: var(--col-accent);
-  width: 2.5px;
+  display: none;
 }
 
 .bndz-list-col-header--active:hover {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--col-accent) 26%, #323842) 0%,
-    color-mix(in srgb, var(--col-accent) 12%, #1e2228) 100%
-  );
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .bndz-list-col-header--right .bndz-list-col-header-label {
@@ -6997,7 +7015,7 @@ html[data-col-resizing] * {
 
 .bndz-list-col-header--active .bndz-list-col-header-label {
   font-weight: 600;
-  color: color-mix(in srgb, var(--col-accent) 32%, #fff);
+  color: #f3f6fa;
 }
 
 .bndz-list-sort-caret {
@@ -7011,11 +7029,11 @@ html[data-col-resizing] * {
 }
 
 .bndz-list-sort-caret--asc {
-  border-bottom: 5px solid color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 55%, #fff);
+  border-bottom: 5px solid color-mix(in srgb, var(--accent, #0078d4) 65%, #fff);
 }
 
 .bndz-list-sort-caret--desc {
-  border-top: 5px solid color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 55%, #fff);
+  border-top: 5px solid color-mix(in srgb, var(--accent, #0078d4) 65%, #fff);
 }
 
 .bndz-col-reorder-grip {
@@ -7043,7 +7061,8 @@ html[data-col-resizing] * {
 }
 
 html[data-theme] .bndz-list-col-header--active {
-  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+  border: none;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--col-accent, var(--accent)) 72%, transparent);
 }
 
 .bndz-tab-drop-before {
@@ -7101,13 +7120,20 @@ html[data-marquee-active] .bndz-list-col-gutter {
   cursor: inherit;
 }
 
-/* Trailing empty canvas after columns ? grows so full folders still have deselect/marquee space */
+/* Trailing empty canvas after columns — grows so full folders still have deselect/marquee space */
 .bndz-list-marquee-trail {
   flex: 1 1 0%;
   min-width: 48px;
   width: auto;
   align-self: stretch;
   cursor: inherit;
+}
+
+/* Header strip trail must not steal the last column's resize handle hit target.
+   Keep row trails interactive for marquee/deselect. */
+.fs-list-header .bndz-list-marquee-trail,
+.bndz-list-header-bar .bndz-list-marquee-trail {
+  pointer-events: none;
 }
 
 .bndz-list-marquee-pad {
@@ -7301,16 +7327,43 @@ html[data-marquee-active] .bndz-list-col-gutter {
   font-weight: 500;
   max-width: 220px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
 .bndz-status-clipboard--cut {
   color: #fde68a;
 }
 
+.bndz-status-clipboard--pulse {
+  border-color: rgba(130, 224, 91, 0.55);
+  background: linear-gradient(180deg, rgba(130, 224, 91, 0.22) 0%, rgba(130, 224, 91, 0.08) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(130, 224, 91, 0.25),
+    0 0 14px rgba(130, 224, 91, 0.28);
+  animation: bndz-clipboard-pulse 1.35s ease-out 1;
+}
+
+@keyframes bndz-clipboard-pulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
 .bndz-status-clipboard-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Just-pasted / just-dropped rows — green flash until age color-filter / settle. */
+.fs-item-recent-paste:not(.fs-item-selected) {
+  background: linear-gradient(90deg, rgba(130, 224, 91, 0.22) 0%, rgba(130, 224, 91, 0.06) 48%, transparent 100%) !important;
+  box-shadow: inset 3px 0 0 #82e05b;
+}
+.fs-item-recent-paste:not(.fs-item-selected) .bndz-list-name,
+.fs-item-recent-paste:not(.fs-item-selected) [data-col-id="name"] {
+  color: #d8ffc4 !important;
 }
 
 /* Density */
@@ -7696,17 +7749,21 @@ html[data-density="spacious"] .nav-tree-row {
 
 /* Tab strip variants ? snappy press; Classic Explorer vs Soft Modern */
 .bndz-tab-item {
-  transition: background 0.06s ease, border-color 0.06s ease, color 0.06s ease, box-shadow 0.06s ease !important;
+  transition: background 0.06s ease, border-color 0.06s ease, color 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease !important;
   user-select: none;
   touch-action: pan-x;
   cursor: default;
-  min-width: var(--bndz-tab-min-width, 72px);
-  max-width: var(--bndz-tab-max-width, 200px);
+  min-width: var(--bndz-tab-min-width, 100px);
+  max-width: var(--bndz-tab-max-width, 320px);
   width: max-content;
+  min-height: calc(var(--bndz-tab-bar-height, 44px) - 2px);
+  padding-left: 14px !important;
+  padding-right: 12px !important;
+  --bndz-tab-slit: var(--accent, #0078d4);
 }
 
 .bndz-tab-item--flexible {
-  max-width: min(var(--bndz-tab-max-width, 200px), 100%);
+  max-width: min(var(--bndz-tab-max-width, 320px), 100%);
   flex: 1 1 auto;
   width: auto;
 }
@@ -7720,7 +7777,35 @@ html[data-density="spacious"] .nav-tree-row {
   flex: 0 0 auto;
   width: var(--bndz-tab-custom-width);
   max-width: var(--bndz-tab-custom-width);
-  min-width: var(--bndz-tab-min-width, 72px);
+  min-width: var(--bndz-tab-min-width, 100px);
+}
+
+/* Instrument bottom slit — tracks theme accent or right-click tab color */
+.bndz-chrome-tabstrip .bndz-tab-item::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 3px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--bndz-tab-slit, var(--accent, #0078d4));
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 0 8px var(--bndz-tab-slit-glow, transparent);
+  transition: opacity 0.08s ease, background 0.08s ease, box-shadow 0.08s ease;
+}
+.bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active::after,
+.bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent]::after {
+  opacity: 0.92;
+}
+.bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent])::after {
+  opacity: 0;
+}
+html[data-tab-style="underline"] .bndz-chrome-tabstrip .bndz-tab-item::after,
+html[data-tab-style="segment"] .bndz-chrome-tabstrip .bndz-tab-item::after,
+html[data-tab-style="flat"] .bndz-chrome-tabstrip .bndz-tab-item::after {
+  display: none;
 }
 
 .bndz-tab-resize-handle {
@@ -7742,10 +7827,10 @@ html[data-density="spacious"] .nav-tree-row {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   margin-left: 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   color: rgba(203, 213, 225, 0.55);
   cursor: default;
   flex-shrink: 0;
@@ -7791,6 +7876,14 @@ html[data-density="spacious"] .nav-tree-row {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 120, 212, 0.3) !important;
   cursor: grabbing !important;
   will-change: transform;
+}
+
+/* Locked tab: theme tokens (not hard-coded near-black chip). Accent keeps slit tint. */
+.bndz-tab-item--locked {
+  background-color: color-mix(in srgb, var(--tab-inactive-bg, var(--bndz-surface-chrome, #1a1c22)) 82%, #b45309 18%);
+}
+html.theme-light .bndz-tab-item--locked {
+  background-color: color-mix(in srgb, #fef3c7 55%, #ffffff 45%) !important;
 }
 
 .bndz-tab-item--file-drop {
@@ -7841,48 +7934,37 @@ html[data-density="spacious"] .nav-tree-row {
   transition: transform 70ms cubic-bezier(0.2, 0, 0, 1) !important;
 }
 
-.bndz-tab-item:active:not(.bndz-tab-active):not([data-tab-accent]) {
+.bndz-tab-item:active:not(.bndz-tab-active) {
   background: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Classic Explorer — rectangular, Fluent-like strip */
+/* Classic Explorer — rectangular, Fluent-like strip (accent = same chrome + slit) */
 html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
   border-bottom-color: rgba(255, 255, 255, 0.08);
   gap: 1px;
 }
 
-html[data-tab-style="explorer"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 6px 6px 0 0 !important;
-  padding-top: 5px !important;
-  padding-bottom: 5px !important;
+html[data-tab-style="explorer"] .bndz-tab-item {
+  border-radius: 10px 10px 0 0 !important;
+  /* Plaque SVG already chamfers — do not double-cut with clip-path */
+  clip-path: none;
+  padding-top: 7px !important;
+  padding-bottom: 8px !important;
   border-color: transparent !important;
-  background: transparent !important;
+  background-color: transparent !important; /* keep plaque background-image */
 }
 
-html[data-tab-style="explorer"] .bndz-tab-item[data-tab-accent] {
-  border-radius: 6px 6px 0 0 !important;
-  padding-top: 5px !important;
-  padding-bottom: 5px !important;
-}
-
-html[data-tab-style="explorer"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
-  background: rgba(255, 255, 255, 0.055) !important;
+html[data-tab-style="explorer"] .bndz-tab-item:hover:not(.bndz-tab-active) {
+  filter: brightness(1.12);
   border-color: rgba(255, 255, 255, 0.04) !important;
 }
 
-html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
-  background: var(--bndz-surface-raised, #1e1e1e) !important;
+html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active {
+  background-color: transparent !important; /* plaque SVG supplies the chip */
   color: #f3f3f3 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: transparent !important;
   border-bottom-color: transparent !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 70%, transparent);
-}
-
-html[data-tab-style="explorer"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  border-bottom-color: transparent !important;
+  box-shadow: none !important; /* bottom slit is CSS ::after (--bndz-tab-slit) */
 }
 
 html[data-tab-style="explorer"] .bndz-tab-close:hover {
@@ -7890,42 +7972,26 @@ html[data-tab-style="explorer"] .bndz-tab-close:hover {
   color: #ffffff;
 }
 
-/* Soft Modern — calm squircle tabs (Card-2x language) */
-html[data-tab-style="soft"] .bndz-tab-item:not([data-tab-accent]) {
-  border-radius: 11px 11px 5px 5px !important;
-  margin-bottom: 2px;
-  border-color: rgba(255, 255, 255, 0.07) !important;
-  background:
-    linear-gradient(180deg, rgba(48, 48, 56, 0.5) 0%, rgba(22, 22, 28, 0.42) 100%) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 1px 0 rgba(0, 0, 0, 0.18);
+/* Soft Modern — instrument chips with bottom slit (plaque owns silhouette) */
+html[data-tab-style="soft"] .bndz-tab-item {
+  border-radius: 10px 10px 0 0 !important;
+  clip-path: none;
+  margin-bottom: 0;
+  border-color: transparent !important;
+  background-color: transparent !important; /* plaque chip */
+  box-shadow: none;
 }
 
-html[data-tab-style="soft"] .bndz-tab-item[data-tab-accent] {
-  border-radius: 11px 11px 5px 5px !important;
-  margin-bottom: 2px;
-}
-
-html[data-tab-style="soft"] .bndz-tab-item:hover:not(.bndz-tab-active):not([data-tab-accent]) {
+html[data-tab-style="soft"] .bndz-tab-item:hover:not(.bndz-tab-active) {
   filter: brightness(1.07);
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
-  background:
-    linear-gradient(180deg, rgba(54, 54, 64, 0.98) 0%, rgba(30, 30, 38, 0.96) 100%) !important;
-  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(190, 190, 190, 0.22)) !important;
+html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active {
+  background-color: transparent !important;
+  border-color: transparent !important;
   color: #f8fafc !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 55%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.28);
-}
-
-html[data-tab-style="soft"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
-  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(190, 190, 190, 0.22)) !important;
-  color: #f8fafc !important;
+  box-shadow: none !important;
 }
 
 html[data-tab-style="underline"] .bndz-tab-item.bndz-tab-active {
@@ -7935,7 +8001,7 @@ html[data-tab-style="underline"] .bndz-tab-item.bndz-tab-active {
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent, #0078d4) 35%, transparent);
 }
 
-html[data-tab-style="segment"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+html[data-tab-style="segment"] .bndz-tab-item.bndz-tab-active {
   background: var(--bndz-surface-raised) !important;
   border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 12%, transparent);
@@ -7950,13 +8016,13 @@ html[data-tab-style="flat"] .bndz-tab-item {
   border-radius: var(--bndz-radius-sm);
 }
 
-html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
+html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active {
   background: color-mix(in srgb, var(--accent, #0078d4) 14%, transparent) !important;
   color: #e8f4fc !important;
 }
 
 html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
-  color: #e8f4fc !important;
+  background: color-mix(in srgb, var(--bndz-tab-slit, var(--accent, #0078d4)) 22%, transparent) !important;
 }
 
 /* Surface style toggles glass on panels */
@@ -8388,7 +8454,7 @@ html[data-theme] .bndz-destination-picker-footer {
   }
 }
 
-/* Theme-aware context / menubar menus ? flat desktop density (Explorer-like) */
+/* Theme-aware context / menubar menus — flat desktop density (Explorer-like) */
 .bndz-context-menu,
 .bndz-context-submenu,
 .bndz-menubar-menu {
@@ -8399,19 +8465,19 @@ html[data-theme] .bndz-destination-picker-footer {
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.50),
     0 1px 0 rgba(255, 255, 255, 0.05) inset;
-  padding: 6px;
+  padding: 4px;
   contain: layout style;
   will-change: opacity, transform;
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .bndz-context-menu-item {
   color: var(--menu-text, #f3f4f6);
   margin: 0;
-  padding: 5px 12px 5px 10px;
-  min-height: 28px;
-  gap: 10px;
+  padding: 3px 10px 3px 8px;
+  min-height: 26px;
+  gap: 8px;
   border-radius: 4px;
   transition: background-color 50ms ease-out, color 50ms ease-out;
   will-change: auto;
@@ -8422,8 +8488,17 @@ html[data-theme] .bndz-destination-picker-footer {
 
 .bndz-context-menu-item:hover,
 .bndz-context-menu-item-active {
-  background: #007acc;
+  background: var(--accent, #007acc);
   color: #ffffff;
+}
+
+/* Menubar rows — same accent hover as context items (no hardcoded #007acc) */
+.bndz-menubar-menu > div.bndz-menubar-row:hover,
+.bndz-menubar-menu .bndz-menubar-row:hover,
+[data-bndz-menubar-menu] > div.bndz-menubar-row:hover,
+[data-bndz-menubar-menu] .bndz-menubar-row:hover {
+  background: var(--accent, #0078d4) !important;
+  color: #ffffff !important;
 }
 
 .bndz-context-menu-item--danger {
@@ -8449,7 +8524,7 @@ html[data-theme] .bndz-destination-picker-footer {
 }
 .bndz-context-menu-item--accent:hover,
 .bndz-context-menu-item--accent.bndz-context-menu-item-active {
-  background: #007acc;
+  background: var(--accent, #007acc);
   color: #fff;
 }
 
@@ -8465,9 +8540,9 @@ html[data-theme] .bndz-destination-picker-footer {
 
 .bndz-context-menu-sep {
   height: 1px;
-  margin: 4px 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 0;
+  margin: 2px 8px;
+  background: color-mix(in srgb, var(--menu-border, #454545) 85%, transparent);
+  border: none;
 }
 
 /* While dragging a panel splitter, freeze list scroll/hit-testing underneath. */
@@ -8492,13 +8567,6 @@ html.bndz-panel-resizing .bndz-resize-handle {
   opacity: 0.9;
 }
 
-.bndz-context-menu-sep {
-  height: 1px;
-  margin: 4px 10px;
-  background: color-mix(in srgb, var(--menu-border, #454545) 85%, transparent);
-  border: none;
-}
-
 /* Soft hit targets for legacy menubar / menu rows that still use Tailwind hover fills */
 .bndz-menubar-menu > div.px-3,
 .bndz-context-menu > div.px-3 {
@@ -8517,11 +8585,13 @@ html.bndz-panel-resizing .bndz-resize-handle {
 }
 
 .bndz-native-dialog {
+  position: relative;
+  isolation: isolate;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, transparent 28%),
     linear-gradient(165deg, #2a2d34 0%, #1c1e24 55%, #17191e 100%);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(0, 0, 0, 0.45),
@@ -8530,8 +8600,51 @@ html.bndz-panel-resizing .bndz-resize-handle {
   overflow: hidden;
 }
 
+.bndz-native-dialog-wash {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* CSS wash only — no baked PNG plate behind heroes */
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(0, 120, 212, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 75%, rgba(168, 85, 247, 0.12), transparent 50%);
+  opacity: 0.85;
+}
+
+.bndz-native-dialog--tone-warning .bndz-native-dialog-wash {
+  background:
+    radial-gradient(ellipse 85% 65% at 18% 28%, rgba(245, 158, 11, 0.28), transparent 55%),
+    radial-gradient(ellipse 70% 55% at 88% 78%, rgba(239, 68, 68, 0.12), transparent 50%);
+}
+
+.bndz-native-dialog--tone-destructive .bndz-native-dialog-wash {
+  background:
+    radial-gradient(ellipse 85% 65% at 18% 28%, rgba(220, 38, 38, 0.3), transparent 55%),
+    radial-gradient(ellipse 70% 55% at 88% 78%, rgba(168, 85, 247, 0.14), transparent 50%);
+}
+
+.bndz-native-dialog--tone-info .bndz-native-dialog-wash,
+.bndz-native-dialog--tone-conflict .bndz-native-dialog-wash {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(0, 120, 212, 0.2), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 75%, rgba(56, 189, 248, 0.1), transparent 50%);
+}
+
+html.theme-light .bndz-native-dialog-wash {
+  opacity: 0.55;
+}
+
+.bndz-native-dialog-titlebar,
+.bndz-native-alert-body,
+.bndz-native-sheet-body,
+.bndz-native-dialog-commandbar {
+  position: relative;
+  z-index: 1;
+}
+
 .bndz-native-dialog--alert {
-  max-width: 400px;
+  max-width: 440px;
 }
 
 .bndz-native-dialog-titlebar {
@@ -8584,8 +8697,8 @@ html.bndz-panel-resizing .bndz-resize-handle {
 .bndz-native-alert-body {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 18px 18px 14px;
+  gap: 16px;
+  padding: 20px 18px 16px;
 }
 
 .bndz-native-alert-glyph {
@@ -8753,6 +8866,21 @@ html.bndz-panel-resizing .bndz-resize-handle {
 .bndz-register-brand-mark {
   width: 40px;
   height: 40px;
+  flex-shrink: 0;
+}
+.bndz-register-brand-mark.bndz-plaque,
+.bndz-register-brand .bndz-plaque.bndz-register-brand-mark {
+  width: 40px;
+  height: 40px;
+}
+.bndz-register-brand-mark .bndz-plaque-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.bndz-register-brand-mark-img {
+  width: 40px;
+  height: 40px;
   object-fit: cover;
   object-position: center;
   border-radius: 8px;
@@ -8771,6 +8899,19 @@ html.bndz-panel-resizing .bndz-resize-handle {
   font-size: 11px;
   color: #9aa3b0;
   margin-top: 2px;
+}
+
+/* About / Register text links — BNDZ ink, not generic AI blue */
+.bndz-about-link {
+  color: color-mix(in srgb, var(--bndz-text-primary, #e8eaed) 78%, var(--accent, #c4a35a) 22%);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.bndz-about-link:hover {
+  color: var(--bndz-text-primary, #f1f5f9);
 }
 
 .bndz-register-fields {
@@ -8924,35 +9065,34 @@ html.bndz-panel-resizing .bndz-resize-handle {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Extension Hub — BNDZ craft (glass/squircle, motion, depth)
+   Extension Hub — instrument workshop (metal / squircle, not SaaS store)
    ═══════════════════════════════════════════════════════════════ */
 
 @keyframes bndz-hub-glow-pulse {
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50%       { opacity: 0.9;  transform: scale(1.12); }
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%       { opacity: 0.75; transform: scale(1.06); }
 }
 @keyframes bndz-hub-shimmer {
   0%   { transform: translateX(-100%) skewX(-12deg); }
   100% { transform: translateX(220%)  skewX(-12deg); }
 }
 @keyframes bndz-hub-installed-ring {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.35); }
-  50%       { box-shadow: 0 0 0 5px rgba(56, 189, 248, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 120, 212, 0.28); }
+  50%       { box-shadow: 0 0 0 4px rgba(0, 120, 212, 0); }
 }
 @keyframes bndz-hub-row-in {
-  from { opacity: 0; transform: translateX(-6px); }
+  from { opacity: 0; transform: translateX(-4px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Root surface — deep space with aurora nebula */
+/* Root surface — charcoal instrument panel */
 .bndz-hub {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(ellipse 900px 500px at 0% -10%,  rgba(120, 40, 200, 0.09) 0%, transparent 60%),
-    radial-gradient(ellipse 700px 380px at 100% 5%,   rgba(14, 165, 233, 0.07) 0%, transparent 55%),
-    radial-gradient(ellipse 500px 300px at 55% 100%,  rgba(236, 72, 153, 0.05) 0%, transparent 55%),
-    #16181f;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, transparent 28%),
+    radial-gradient(ellipse 800px 420px at 8% -8%, color-mix(in srgb, var(--accent, #0078d4) 10%, transparent) 0%, transparent 58%),
+    #16181c;
 }
 /* Noise grain overlay for depth */
 .bndz-hub::before {
@@ -8961,7 +9101,7 @@ html.bndz-panel-resizing .bndz-resize-handle {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.018;
+  opacity: 0.016;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
   background-size: 180px 180px;
 }
@@ -8970,9 +9110,9 @@ html.bndz-panel-resizing .bndz-resize-handle {
 /* Command strip — paper glass */
 .bndz-hub-command {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
-    rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(4px);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, transparent 100%),
+    rgba(0, 0, 0, 0.26);
+  backdrop-filter: none;
 }
 
 /* Stats band */
@@ -9197,19 +9337,19 @@ html.bndz-panel-resizing .bndz-resize-handle {
     0 18px 44px rgba(0, 0, 0, 0.50);
 }
 
-/* ── Primary CTA — BNDZ signature gradient with shimmer ── */
+/* ── Primary CTA — accent metal, not marketplace rainbow ── */
 .bndz-hub-btn-primary {
   position: relative;
   overflow: hidden;
   color: #fff;
-  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 50%, #7c3aed 100%);
-  border: 1px solid rgba(99, 179, 245, 0.55);
-  border-radius: 9px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent, #0078d4) 88%, #fff) 0%, var(--accent, #0078d4) 55%, color-mix(in srgb, var(--accent, #0078d4) 75%, #000) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent, #0078d4) 55%, rgba(255, 255, 255, 0.2));
+  border-radius: 6px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.20),
-    0 8px 20px rgba(14, 165, 233, 0.28),
-    0 2px 6px rgba(0, 0, 0, 0.25);
-  transition: filter 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 12px color-mix(in srgb, var(--accent, #0078d4) 22%, transparent),
+    0 1px 4px rgba(0, 0, 0, 0.28);
+  transition: filter 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
 }
 /* Shimmer sweep */
 .bndz-hub-btn-primary::before {
@@ -9218,20 +9358,20 @@ html.bndz-panel-resizing .bndz-resize-handle {
   top: 0; bottom: 0;
   left: 0;
   width: 50%;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.14) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 50%, transparent 100%);
   transform: translateX(-100%) skewX(-12deg);
   transition: none;
 }
 .bndz-hub-btn-primary:hover::before {
-  animation: bndz-hub-shimmer 0.55s ease forwards;
+  animation: bndz-hub-shimmer 0.5s ease forwards;
 }
 .bndz-hub-btn-primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
   transform: translateY(-1px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 12px 28px rgba(14, 165, 233, 0.36),
-    0 3px 8px rgba(0, 0, 0, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 6px 16px color-mix(in srgb, var(--accent, #0078d4) 28%, transparent),
+    0 2px 6px rgba(0, 0, 0, 0.3);
 }
 .bndz-hub-btn-primary:active {
   transform: translateY(0px);
@@ -9243,14 +9383,13 @@ html.bndz-panel-resizing .bndz-resize-handle {
   color: rgba(203, 213, 225, 0.80);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 9px;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: 6px;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .bndz-hub-btn-ghost:hover {
   color: #f1f5f9;
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
 }
 
 /* ── Danger / uninstall button ── */
@@ -9260,19 +9399,18 @@ html.bndz-panel-resizing .bndz-resize-handle {
   color: #fca5a5;
   background: linear-gradient(135deg, rgba(153, 27, 27, 0.38) 0%, rgba(127, 29, 29, 0.28) 100%);
   border: 1px solid rgba(239, 68, 68, 0.38);
-  border-radius: 9px;
+  border-radius: 6px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: filter 0.14s ease, background 0.14s ease, border-color 0.14s ease, color 0.14s ease, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: filter 0.12s ease, background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .bndz-hub-btn-danger:hover {
   color: #fee2e2;
   background: linear-gradient(135deg, rgba(220, 38, 38, 0.48) 0%, rgba(153, 27, 27, 0.40) 100%);
   border-color: rgba(248, 113, 113, 0.55);
-  transform: translateY(-1px);
   filter: brightness(1.04);
 }
 .bndz-hub-btn-danger:active {
-  transform: translateY(0px);
+  filter: brightness(0.96);
 }
 
 /* ── Capability check item ── */
@@ -9292,13 +9430,14 @@ html.bndz-panel-resizing .bndz-resize-handle {
   transform: translateX(3px);
 }
 .bndz-hub-cap-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--accent, #0078d4);
   flex-shrink: 0;
-  margin-top: 4px;
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+  margin-top: 5px;
+  box-shadow: none;
+  opacity: 0.85;
 }
 
 /* ── Detail pane empty state ── */
@@ -9338,14 +9477,14 @@ html.bndz-panel-resizing .bndz-resize-handle {
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 3px;
-  background: linear-gradient(180deg, #38bdf8 0%, #818cf8 100%);
-  border-radius: 3px 0 0 3px;
+  background: var(--accent, #0078d4);
+  border-radius: 2px 0 0 2px;
 }
 
 /* ── Search input accent focus ── */
 .bndz-hub .bndz-native-input:focus {
-  border-color: rgba(56, 189, 248, 0.45) !important;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 50%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .bndz-native-input {
@@ -9478,7 +9617,7 @@ html.bndz-panel-resizing .bndz-resize-handle {
 .bndz-status-bar-chip-track {
   height: 4px;
   width: 48px;
-  border-radius: 999px;
+  border-radius: 3px;
   overflow: hidden;
   flex-shrink: 0;
   background: color-mix(in srgb, var(--status-text, #fff) 14%, transparent);
@@ -9681,8 +9820,15 @@ html.theme-light .bndz-context-menu-shell-skeleton-row {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.bndz-chrome-omnibar input {
-  border-radius: 8px !important;
+.bndz-chrome-omnibar input,
+.bndz-omnibar-input {
+  border-radius: 5px !important;
+}
+
+.bndz-chrome-omnibar input:focus,
+.bndz-omnibar-input:focus {
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 55%, #555) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 22%, transparent);
 }
 
 .bndz-menubar-trigger {
@@ -9842,30 +9988,29 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   padding: 8px 10px;
 }
 
-/* ?? Toolbar Designer (workshop surface ? distinct from Extension Hub) ?? */
+/* ── Toolbar Designer (workshop surface — dense metal, not marketplace) ── */
 .bndz-tb-root {
   background:
-    radial-gradient(1200px 480px at 12% -10%, rgba(251, 191, 36, 0.06), transparent 55%),
-    radial-gradient(900px 420px at 100% 0%, rgba(56, 189, 248, 0.05), transparent 50%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 36%),
     #141418;
 }
 
 .bndz-tb-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(0, 0, 0, 0.12) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.14) 100%);
 }
 
 .bndz-tb-stats {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: rgba(255, 255, 255, 0.32);
 }
 
@@ -9885,28 +10030,28 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
 .bndz-tb-cat {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  padding: 5px 10px;
-  border-radius: 7px;
+  padding: 4px 8px;
+  border-radius: 5px;
   color: rgba(226, 232, 240, 0.5);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+  transition: color 0.1s ease, background 0.1s ease, border-color 0.1s ease;
 }
 
 .bndz-tb-cat:hover {
   color: rgba(248, 250, 252, 0.88);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.055);
   border-color: rgba(255, 255, 255, 0.14);
 }
 
 .bndz-tb-cat--active {
   color: #fde68a;
-  background: rgba(251, 191, 36, 0.12);
-  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.34);
 }
 
 .bndz-tb-cat-count {
@@ -9990,7 +10135,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 8px 12px;
+  padding: 4px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(0, 0, 0, 0.2);
 }
@@ -10000,9 +10145,9 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
-  min-height: 56px;
-  padding: 10px 12px;
+  gap: 0;
+  min-height: 28px;
+  padding: 2px 4px;
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -10012,7 +10157,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
 }
 
 .bndz-tb-preview-bar--empty {
-  min-height: 72px;
+  min-height: 36px;
 }
 
 .bndz-tb-preview-empty {
@@ -10021,7 +10166,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12.5px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.32);
   font-style: italic;
 }
@@ -10030,29 +10175,32 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin: 1px;
-  border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  width: 28px;
+  height: 28px;
+  margin: 0 1px;
+  padding: 4px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: grab;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition: background 0.1s ease, border-color 0.1s ease;
 }
 
 .bndz-tb-chip:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: #333;
+  border-color: transparent;
 }
 
 .bndz-tb-chip--structure {
   width: auto;
-  min-width: 34px;
-  padding: 0 10px;
+  min-width: 22px;
+  height: 28px;
+  padding: 0 8px;
   font-size: 11px;
   font-weight: 600;
   color: rgba(226, 232, 240, 0.55);
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.22);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .bndz-tb-trash {
@@ -10439,13 +10587,14 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   color: var(--menu-text, #f3f3f3);
 }
 
-.bndz-native-transfer-toast {
+.bndz-native-transfer-toast,
+.bndz-xfer-toast {
   pointer-events: auto;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(165deg, var(--surface, #1c1c24) 0%, var(--bg, #121218) 100%);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  padding: 1rem;
+  background: linear-gradient(180deg, #1e1e24 0%, #16161a 100%);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  padding: 0;
 }
 
 .bndz-themes-section-title {
@@ -11237,6 +11386,215 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-smart-empty-cta:active:not(:disabled) {
   background: linear-gradient(180deg, #094771 0%, #073a5c 100%);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Native FM plaques (static empties / dialog tones / tab grain) ── */
+.bndz-plaque {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+  user-select: none;
+  pointer-events: none;
+}
+.bndz-plaque-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+.bndz-plaque--xs { width: 28px; height: 28px; }
+.bndz-plaque--sm { width: 44px; height: 44px; }
+.bndz-plaque--md { width: 72px; height: 72px; }
+.bndz-plaque--lg { width: 112px; height: 112px; }
+.bndz-plaque--xl { width: 148px; height: 148px; }
+.bndz-plaque--brand.bndz-plaque--sm { width: 40px; height: 40px; }
+.bndz-plaque--brand.bndz-plaque--md { width: 56px; height: 56px; }
+.bndz-plaque--animate {
+  animation: bndz-plaque-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes bndz-plaque-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.bndz-plaque--hex-well {
+  padding: 6px;
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 90% at 30% 15%, rgba(255, 255, 255, 0.1), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.18));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 20px rgba(0, 0, 0, 0.22);
+}
+html.theme-light .bndz-plaque--hex-well {
+  background:
+    radial-gradient(120% 90% at 30% 15%, rgba(255, 255, 255, 0.9), transparent 55%),
+    linear-gradient(165deg, #f7f8fb, #e6ebf3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 6px 16px rgba(26, 29, 35, 0.12);
+}
+
+/* Alert glyph wells that host plaque PNGs / SVGs */
+.bndz-native-alert-glyph--plaque {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  padding: 2px;
+  overflow: hidden;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.28)),
+    rgba(12, 14, 20, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+}
+.bndz-native-alert-glyph--plaque .bndz-plaque {
+  width: 100%;
+  height: 100%;
+}
+.bndz-native-alert-glyph--plaque .bndz-plaque-img {
+  object-fit: contain;
+  border-radius: 12px;
+  background: transparent;
+}
+.bndz-native-alert-glyph--warning.bndz-native-alert-glyph--plaque {
+  box-shadow:
+    inset 0 0 0 1px rgba(234, 179, 8, 0.35),
+    0 8px 22px rgba(180, 90, 20, 0.28);
+}
+.bndz-native-alert-glyph--destructive.bndz-native-alert-glyph--plaque {
+  box-shadow:
+    inset 0 0 0 1px rgba(196, 43, 28, 0.4),
+    0 8px 22px rgba(160, 30, 30, 0.3);
+}
+
+/* List tab strip rail — Classic Explorer + Soft Modern only (classic shell; not native/files) */
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.1)),
+    url('/plaques/tab-strip.svg');
+  background-size: auto, 480px 40px;
+  background-repeat: repeat-x;
+  background-blend-mode: normal, soft-light;
+  align-items: flex-end;
+}
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(236, 239, 244, 0.92)),
+    url('/plaques/tab-strip-light.svg');
+  background-blend-mode: normal, multiply;
+}
+
+/*
+ * Soft Explorer / Soft Modern — plaque SVG chips (classic shell only).
+ * Native/files host MUST NOT get these: plaque specificity beat the solid-fill
+ * overrides, so uncolored tabs stayed on the stubby SVG while colored (accent)
+ * tabs looked like proper solid chips.
+ */
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item,
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item {
+  border-radius: 8px 8px 0 0 !important;
+  border-bottom: none !important;
+}
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
+  background-image: url('/plaques/tab-inactive.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-color: transparent !important;
+}
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
+  background-image: url('/plaques/tab-active.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
+  background-image: url('/plaques/tab-inactive-light.svg') !important;
+}
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
+  background-image: url('/plaques/tab-active-light.svg') !important;
+}
+
+/*
+ * Accent tint under plaque (soft/explorer) — same plaque silhouette as uncolored.
+ * Skip native/files host: those use full-bleed solid fills (not chamfer plaques).
+ */
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent]:not(.bndz-tab-active),
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent]:not(.bndz-tab-active) {
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 28%, transparent),
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 12%, transparent)
+    ),
+    url('/plaques/tab-inactive.svg') !important;
+  background-blend-mode: soft-light, normal;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+}
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent].bndz-tab-active,
+html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent].bndz-tab-active {
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 32%, transparent),
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 14%, transparent)
+    ),
+    url('/plaques/tab-active.svg') !important;
+  background-blend-mode: soft-light, normal;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+}
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent]:not(.bndz-tab-active),
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent]:not(.bndz-tab-active) {
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 22%, transparent),
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 10%, transparent)
+    ),
+    url('/plaques/tab-inactive-light.svg') !important;
+}
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent].bndz-tab-active,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent].bndz-tab-active {
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 26%, transparent),
+      color-mix(in srgb, var(--bndz-tab-accent-tint, var(--bndz-tab-slit)) 12%, transparent)
+    ),
+    url('/plaques/tab-active-light.svg') !important;
+}
+
+.bndz-list-empty-plaque {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 160px;
+  padding: 16px;
+  text-align: center;
+}
+.bndz-conflict-plaque-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.bndz-conflict-plaque-row .bndz-plaque {
+  flex-shrink: 0;
 }
 
 .bndz-smart-section-header {
@@ -13280,32 +13638,20 @@ html[data-theme] .nav-tree-row:focus-visible {
   min-height: 0;
 }
 .bndz-plugin-toolbar--terminal {
-  min-height: 28px;
-  max-height: 30px;
+  min-height: 34px;
+  max-height: 40px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   background: color-mix(in srgb, var(--panel-bottom-bg, #0c0e14) 88%, #000 12%);
 }
 .bndz-plugin-toolbar--terminal .bndz-mesh-term-actions button,
 .bndz-plugin-toolbar--terminal button {
-  padding-top: 2px !important;
-  padding-bottom: 2px !important;
-  font-size: 10px !important;
-  line-height: 1.15 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
 }
-/* When Terminal is active, compress the bottom plugin tabstrip so it doesn't
-   steal ~20% of the panel from the ConPTY hole. */
-.bndz-bottom-panel[data-terminal-active='true'] .bndz-bottom-tabstrip {
-  min-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-.bndz-bottom-panel[data-terminal-active='true'] .bndz-bottom-tab {
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 11px;
-}
+/* Terminal mode must not shrink the bottom plugin panel — keep full dock height. */
 .bndz-bottom-panel[data-terminal-active='true'] .bndz-bottom-content {
-  /* Raise effective footer: content fills remaining height above any dock chrome. */
   padding-bottom: 0;
   margin-bottom: 0;
 }
@@ -13316,8 +13662,10 @@ html[data-theme] .nav-tree-row:focus-visible {
   flex: 1 1 auto;
   border: none;
   border-radius: 0;
+  /* Pad the frame — never pad .xterm or FitAddon mis-measures ConPTY rows. */
+  padding: 6px 8px 10px;
+  box-sizing: border-box;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
-  /* Isolate paint so chrome siblings cannot cover the xterm hole. */
   isolation: isolate;
   z-index: 1;
 }
@@ -13327,24 +13675,32 @@ html[data-theme] .nav-tree-row:focus-visible {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  /* Host box = FitAddon measure target (no padding on host). */
   padding: 0;
   margin: 0;
+  background: #07090e;
+  color: #e8eef7;
+}
+.bndz-mesh-surface--terminal .bndz-mesh-terminal-frame {
+  padding: 0;
+}
+.bndz-native-term-hole {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #07090e;
 }
 .bndz-mesh-terminal .xterm {
   height: 100%;
   width: 100%;
-  /* Slight inset inside the hole — not enough to look like under-chrome paint. */
-  padding: 4px 6px 8px;
+  padding: 0;
   box-sizing: border-box;
+  color: #e8eef7;
+  background: #07090e;
 }
 .bndz-mesh-terminal .xterm-viewport {
-  /* Let FitAddon size rows — do not force screen under chrome. */
   overflow-y: auto !important;
-}
-.bndz-mesh-terminal .xterm-screen {
-  /* Never force 100% height in a way that paints under header/footer chrome. */
-  height: auto !important;
+  background-color: #07090e !important;
 }
 .bndz-mesh-mirror-card,
 .bndz-mesh-liveshare-card {
@@ -13557,16 +13913,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   padding: 24px;
   position: relative;
 }
-.bndz-history-empty-orb {
-  width: 72px;
-  height: 72px;
-  margin-bottom: 14px;
-  border-radius: 22px;
-  background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.2), transparent 45%),
-    linear-gradient(145deg, rgba(56, 189, 248, 0.35), rgba(167, 139, 250, 0.2));
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
+.bndz-history-empty-orb { display: none; } /* replaced by BndzPlaque history tone */
 .bndz-history-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.28));
@@ -14618,7 +14965,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   position: absolute;
   inset: -20%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(126,184,232,0.18), transparent 65%);
+  background: radial-gradient(circle, rgba(168,85,247,0.12), transparent 65%);
   pointer-events: none;
   z-index: 0;
 }
@@ -14656,8 +15003,8 @@ html[data-theme] .nav-tree-row:focus-visible {
   color: #0a150f;
 }
 .bndz-drag-ghost-op-move {
-  background: #3b82f6;
-  color: #e8f0ff;
+  background: #a855f7;
+  color: #f8f0ff;
 }
 .bndz-drag-ghost-text {
   display: flex;
@@ -16511,16 +16858,17 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   pointer-events: none !important;
   margin: 0;
   box-sizing: border-box;
-  /* Clone keeps real .nav-tree-row / selected paint — just lift + soft shadow */
+  /* Lift only — row paint is baked from live getComputedStyle in armTreeGhost */
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+    0 12px 32px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
   opacity: 0.98;
   will-change: transform;
   cursor: grabbing;
 }
 .bndz-tree-drag-ghost .nav-tree-chevron,
-.bndz-tree-drag-ghost [data-nav-expand] {
+.bndz-tree-drag-ghost [data-nav-expand],
+.bndz-tree-drag-ghost .nav-tree-reorder-grip {
   pointer-events: none !important;
 }
 .bndz-fluid-drag-lead {
@@ -16902,6 +17250,23 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.bndz-fluid-drag-move-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: #a855f7;
+  color: #f8f0ff;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
 }
 .bndz-fluid-drag-card-inner {
   width: 44px;
@@ -18054,35 +18419,62 @@ html[data-bndz-shell="native-host"] .bndz-view-mode-btn {
 }
 html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip,
 html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {
-  min-height: 40px !important;
-  padding-top: 8px !important;
+  min-height: var(--bndz-tab-bar-height, 44px) !important;
+  height: var(--bndz-tab-bar-height, 44px);
+  padding-top: 4px !important;
   padding-left: 6px !important;
   padding-right: 4px !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   background:
     linear-gradient(180deg, rgba(40, 44, 52, 0.55) 0%, rgba(22, 24, 28, 0.92) 100%) !important;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item,
-html[data-bndz-shell="native-host"] .bndz-tab-item {
-  border-radius: 6px 6px 0 0 !important;
-  min-height: 30px !important;
-  padding: 5px 12px !important;
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item,
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item {
+  border-radius: 10px 10px 0 0 !important;
+  min-height: calc(var(--bndz-tab-bar-height, 44px) - 2px) !important;
+  padding: 7px 14px 8px !important;
   margin-right: 2px !important;
-  font-size: 12px !important;
+  font-size: 12.5px !important;
+  /* Hard-kill plaque SVGs — solid CSS chips only on native/files host */
+  background-image: none !important;
+  background-blend-mode: normal !important;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
-html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
-  background: color-mix(in srgb, var(--bndz-surface-raised, #1e222a) 92%, var(--accent, #0078d4) 8%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+/* Same full-bleed chip for colored + uncolored — accent only retints the fill + slit */
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
+  background: var(--bndz-surface-raised, #252830) !important;
+  background-image: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-bottom-color: transparent !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   font-weight: 600;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
-html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
-  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+  background: color-mix(
+    in srgb,
+    var(--bndz-surface-raised, #252830) 72%,
+    var(--bndz-tab-slit, var(--accent, #0078d4)) 28%
+  ) !important;
+  background-image: none !important;
+}
+/* Inactive: same hit box; soft chip body so defaults aren't "slit-only" stubs */
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
+  background: color-mix(in srgb, var(--bndz-surface-chrome, #1a1c22) 82%, #ffffff 18%) !important;
+  background-image: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
   border-bottom-color: transparent !important;
-  font-weight: 600;
+}
+/* Inactive colored tabs: same hit box; soft tint fill, not plaque chip */
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
+  background: color-mix(
+    in srgb,
+    var(--bndz-surface-chrome, #1a1c22) 55%,
+    var(--bndz-tab-slit, var(--accent, #0078d4)) 45%
+  ) !important;
+  background-image: none !important;
 }
 html[data-bndz-shell="files-host"] .bndz-files-address-strip,
 html[data-bndz-shell="native-host"] .bndz-files-address-strip {
@@ -18726,7 +19118,7 @@ html.theme-light .bndz-chrome-omnibar input {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
-/* File tabstrip is pale in light themes — dark ink (address strip above stays white-on-dark). */
+/* Canonical light file-tabstrip: pale strip + dark ink; accents never wiped. */
 html.theme-light .bndz-chrome-tabstrip,
 html.theme-light .bndz-chrome-tabs {
   color: rgba(15, 23, 42, 0.88) !important;
@@ -18745,46 +19137,82 @@ html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
   color: rgba(15, 23, 42, 0.78) !important;
 }
 
-html.theme-light .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-tab-item:not(.bndz-tab-active) {
   color: rgba(15, 23, 42, 0.55) !important;
-  background: transparent !important;
+  background-color: transparent !important;
+  background-image: url('/plaques/tab-inactive-light.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
 }
 
-html.theme-light .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
-  /* Keep user tab color visible when inactive — do not wipe backgroundImage / tint. */
-  background-color: transparent;
-  color: rgba(15, 23, 42, 0.78) !important;
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active):hover,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabs .bndz-tab-item:not(.bndz-tab-active):hover {
+  color: rgba(15, 23, 42, 0.92) !important;
+  background-color: transparent !important;
+  background-image: url('/plaques/tab-inactive-light.svg') !important;
+  background-size: 100% 100% !important;
+  filter: brightness(0.97);
 }
 
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
-html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]),
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active:not([data-tab-accent]) {
-  background: #ffffff !important;
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"]) .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active {
+  background-color: transparent !important;
+  background-image: url('/plaques/tab-active-light.svg') !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
   color: rgba(15, 23, 42, 0.95) !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 2px 0 0 color-mix(in srgb, var(--accent, #0078d4) 75%, transparent);
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
-html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent],
-html.theme-light .bndz-chrome-tabs .bndz-tab-item.bndz-tab-active[data-tab-accent],
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent],
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+/* Light native/files host: same full-bleed solid for accent + non-accent */
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
+  background: color-mix(in srgb, #ffffff 88%, var(--accent, #0078d4) 12%) !important;
+  background-image: none !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  border-bottom-color: transparent !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   color: rgba(15, 23, 42, 0.95) !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent],
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active[data-tab-accent] {
+  background: color-mix(
+    in srgb,
+    #ffffff 78%,
+    var(--bndz-tab-slit, var(--accent, #0078d4)) 22%
+  ) !important;
+  background-image: none !important;
 }
 
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]),
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active):not([data-tab-accent]) {
-  background: transparent !important;
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active),
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active) {
+  background: color-mix(in srgb, #e8ecf2 70%, #ffffff 30%) !important;
+  background-image: none !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-bottom-color: transparent !important;
   color: rgba(15, 23, 42, 0.55) !important;
 }
-
-html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
-html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent],
+html.theme-light[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item:not(.bndz-tab-active)[data-tab-accent] {
   color: rgba(15, 23, 42, 0.78) !important;
+  background: color-mix(
+    in srgb,
+    transparent 70%,
+    var(--bndz-tab-slit, var(--accent, #0078d4)) 30%
+  ) !important;
+  background-image: none !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-close,
+html.theme-light .bndz-chrome-tabs .bndz-tab-close {
+  color: rgba(15, 23, 42, 0.45);
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-close:hover,
+html.theme-light .bndz-chrome-tabs .bndz-tab-close:hover {
+  color: #fff;
+  background: rgba(232, 17, 35, 0.85);
 }
 
 /*
@@ -18970,9 +19398,16 @@ html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip * {
   color: rgba(0, 0, 0, 0.86) !important;
 }
 
-html.theme-light .bndz-chrome-bottom .bndz-plugin-tier > *:not(.bndz-plugin-card):not(.bndz-plugin-sidebar),
+html.theme-light .bndz-chrome-bottom .bndz-plugin-tier > *:not(.bndz-plugin-card):not(.bndz-plugin-sidebar):not(.bndz-mesh-terminal-frame):not(.bndz-mesh-surface--terminal),
 html.theme-light .bndz-chrome-bottom .bndz-bottom-content {
   color: rgba(0, 0, 0, 0.86) !important;
+}
+/* Terminal pane must never inherit light-theme black ink onto #07090e. */
+html.theme-light .bndz-chrome-bottom .bndz-mesh-terminal-frame,
+html.theme-light .bndz-chrome-bottom .bndz-mesh-terminal-frame *,
+html.theme-light .bndz-chrome-bottom .bndz-native-term-hole {
+  color: #e8eef7 !important;
+  -webkit-text-fill-color: #e8eef7 !important;
 }
 
 /* Preview empty state — black ink on paper (not gray-on-white) */
@@ -19065,6 +19500,13 @@ html.theme-light .bndz-dual-diff-strip__row:hover {
   border: 1px solid var(--accent, #007acc) !important;
   border-radius: 4px;
   caret-color: #fff;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.bndz-inline-rename {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 html.theme-light .bndz-inline-rename-input {
   background: #fff !important;
@@ -19074,56 +19516,60 @@ html.theme-light .bndz-inline-rename-input {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-/* Floating transfer activity toast */
+/* Floating transfer activity — dense status plaque, not SaaS notification card */
 .bndz-xfer-toast {
   position: fixed;
-  right: 18px;
-  bottom: 72px;
+  right: 14px;
+  bottom: 56px;
   z-index: 12050;
-  width: min(320px, calc(100vw - 32px));
-  border-radius: 14px;
-  background:
-    linear-gradient(165deg, color-mix(in srgb, var(--accent, #0078d4) 18%, #121820) 0%, #0e1218 55%, #0a0d12 100%);
-  border: 1px solid color-mix(in srgb, var(--accent, #38bdf8) 35%, transparent);
+  width: min(268px, calc(100vw - 28px));
+  border-radius: 8px;
+  background: linear-gradient(180deg, #1e1e24 0%, #16161a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    0 10px 28px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   color: #e8eef6;
   overflow: hidden;
-  animation: bndz-xfer-toast-in 220ms ease-out;
+  animation: bndz-xfer-toast-in 160ms ease-out;
 }
 html.theme-light .bndz-xfer-toast {
-  background: linear-gradient(165deg, #f8fbff 0%, #eef3f9 100%);
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%);
   color: rgba(0, 0, 0, 0.88);
-  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, rgba(0, 0, 0, 0.12));
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
 }
 @keyframes bndz-xfer-toast-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .bndz-xfer-toast-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 7px 10px;
   text-align: left;
   background: transparent;
   border: 0;
   color: inherit;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 11.5px;
+  font-weight: 600;
 }
 .bndz-xfer-toast-orb {
   display: inline-flex;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent, #38bdf8) 18%, transparent);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+html.theme-light .bndz-xfer-toast-orb {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
 }
 .bndz-xfer-toast-spin {
   animation: bndz-xfer-spin 1.1s linear infinite;
@@ -19133,17 +19579,18 @@ html.theme-light .bndz-xfer-toast {
 }
 .bndz-xfer-toast-pct {
   font-size: 11px;
-  opacity: 0.8;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
 }
 .bndz-xfer-toast-body {
-  padding: 0 12px 12px;
+  padding: 0 10px 9px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .bndz-xfer-toast-track {
-  height: 5px;
-  border-radius: 999px;
+  height: 4px;
+  border-radius: 3px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
@@ -19154,30 +19601,30 @@ html.theme-light .bndz-xfer-toast-track {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--bndz-transfer-accent-dim, #094771), var(--bndz-transfer-accent, #0078d4), #3aa0f3);
-  transition: width 180ms ease;
+  transition: width 140ms ease;
 }
 .bndz-xfer-toast-line {
   font-size: 11px;
-  opacity: 0.85;
-  line-height: 1.35;
+  opacity: 0.82;
+  line-height: 1.3;
 }
 .bndz-xfer-toast-more {
   font-size: 10px;
-  opacity: 0.65;
+  opacity: 0.6;
 }
 .bndz-xfer-toast-cancel {
   align-self: flex-start;
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, #f87171 40%, transparent);
-  background: color-mix(in srgb, #f87171 12%, transparent);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, #f87171 35%, transparent);
+  background: color-mix(in srgb, #f87171 10%, transparent);
   color: inherit;
   cursor: pointer;
 }
 .bndz-xfer-toast-cancel:hover {
-  background: color-mix(in srgb, #f87171 22%, transparent);
+  background: color-mix(in srgb, #f87171 18%, transparent);
 }
 
 
@@ -19920,6 +20367,43 @@ html.theme-light .bndz-xfer-toast-track {
     radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #38bdf8 12%, transparent), transparent 55%),
     linear-gradient(180deg, #10161c, #0e1216);
 }
+.bndz-mesh-opsrail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #38bdf8 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #38bdf8 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #10161c, #0e1216);
+  flex-shrink: 0;
+}
+.bndz-mesh-opsrail-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  min-width: 0;
+}
+.bndz-mesh-opsrail-copy strong {
+  color: #e0f2fe;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.bndz-mesh-opsrail-copy em {
+  font-style: normal;
+  color: #64748b;
+}
+.bndz-mesh-opsrail-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .bndz-dropstack-opsrail-title,
 .bndz-capture-opsrail-title,
 .bndz-policy-opsrail-title,
@@ -20165,3 +20649,267 @@ html.theme-light .bndz-xfer-toast-track {
 }
 .bndz-batch-opsrail .bndz-plugin-toolbar-btn,
 .bndz-magnet-opsrail .bndz-plugin-toolbar-btn { flex-shrink: 0; }
+
+/* Fast Search mode strip — denser FM shapes with per-mode accent colors */
+.bndz-find-mode-chip {
+  border-radius: var(--bndz-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--bndz-surface-raised, #1e1e22) 92%, #000 8%);
+  color: rgba(255, 255, 255, 0.88);
+  --find-mode-accent: var(--accent, #99c9f0);
+}
+.bndz-find-mode-chip[data-mode='local'] { --find-mode-accent: #a78bfa; }
+.bndz-find-mode-chip[data-mode='global'] { --find-mode-accent: #38bdf8; }
+.bndz-find-mode-chip[data-mode='advanced'] { --find-mode-accent: #fbbf24; }
+.bndz-find-mode-chip[data-mode='duplicates'] { --find-mode-accent: #34d399; }
+.bndz-find-mode-chip:hover {
+  border-color: color-mix(in srgb, var(--find-mode-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--find-mode-accent) 12%, #1e1e22);
+}
+.bndz-find-mode-chip.is-active {
+  border-color: color-mix(in srgb, var(--find-mode-accent) 58%, transparent);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--find-mode-accent) 22%, transparent), transparent 70%),
+    color-mix(in srgb, var(--find-mode-accent) 14%, #1a1a1e);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--find-mode-accent) 28%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--find-mode-accent) 12%, transparent);
+  color: #fff;
+}
+.bndz-find-mode-chip.is-active .bndz-find-mode-chip-label {
+  color: color-mix(in srgb, var(--find-mode-accent) 55%, #fff);
+}
+.bndz-find-mode-chip.is-active .bndz-find-mode-chip-hint {
+  color: color-mix(in srgb, var(--find-mode-accent) 35%, rgba(255, 255, 255, 0.72));
+}
+.bndz-find-mode-chip-hint {
+  color: rgba(160, 175, 195, 0.72);
+}
+html.theme-light .bndz-find-mode-chip {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(0, 0, 0, 0.82);
+}
+html.theme-light .bndz-find-mode-chip:hover,
+html.theme-light .bndz-find-mode-chip.is-active {
+  border-color: color-mix(in srgb, var(--find-mode-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--find-mode-accent) 14%, #ffffff);
+  color: rgba(0, 0, 0, 0.88);
+}
+html.theme-light .bndz-find-mode-chip.is-active .bndz-find-mode-chip-label {
+  color: color-mix(in srgb, var(--find-mode-accent) 70%, #0f172a);
+}
+html.theme-light .bndz-find-mode-chip.is-active .bndz-find-mode-chip-hint {
+  color: rgba(15, 23, 42, 0.55);
+}
+
+/* ── Omnibar Command Hub + live suggest (native FM command bar) ── */
+.bndz-omnibar-hub {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 28%),
+    linear-gradient(180deg, #1c1c22 0%, #141418 100%);
+  box-shadow:
+    0 22px 56px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.bndz-omnibar-hub-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.bndz-omnibar-hub-mark {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent, #0078d4) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #0078d4) 28%, transparent);
+  color: #cce4f7;
+  flex-shrink: 0;
+}
+.bndz-omnibar-hub-esc {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.45);
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+.bndz-omnibar-hub-esc:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+.bndz-omnibar-hub-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 6px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+}
+.bndz-omnibar-hub-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #e8eef6;
+  font-size: 12.5px;
+}
+.bndz-omnibar-hub-input::placeholder {
+  color: rgba(148, 163, 184, 0.45);
+}
+.bndz-omnibar-hub-chip {
+  font-size: 10px;
+  font-weight: 650;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(226, 232, 240, 0.7);
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+.bndz-omnibar-hub-chip:hover {
+  background: color-mix(in srgb, var(--accent, #0078d4) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 35%, transparent);
+  color: #fff;
+}
+.bndz-omnibar-hub-meta {
+  display: flex;
+  gap: 10px;
+  padding: 0 14px 8px;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.4);
+}
+.bndz-omnibar-hub-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  text-align: left;
+  color: inherit;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+.bndz-omnibar-hub-row:hover,
+.bndz-omnibar-hub-row.is-active {
+  background: color-mix(in srgb, var(--accent, #0078d4) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 22%, transparent);
+}
+.bndz-omnibar-hub-row-ico {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+.bndz-omnibar-hub-row-ico--place {
+  background: color-mix(in srgb, #fbbf24 12%, transparent);
+  border-color: color-mix(in srgb, #fbbf24 22%, transparent);
+}
+.bndz-omnibar-hub-row-ico--recent {
+  background: rgba(255, 255, 255, 0.04);
+}
+.bndz-omnibar-hub-row-ico--command {
+  background: color-mix(in srgb, var(--accent, #0078d4) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 24%, transparent);
+}
+.bndz-omnibar-hub-kind {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.45);
+  flex-shrink: 0;
+}
+.bndz-omnibar-hub-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.45);
+  background: rgba(0, 0, 0, 0.18);
+}
+.bndz-omnibar-hub-foot kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  margin-right: 3px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 9px;
+  font-family: inherit;
+}
+
+.bndz-omni-suggest {
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, #1e1e24 0%, #16161a 100%);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+.bndz-omni-suggest-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 11px;
+  color: #d1d5db;
+  border: 0;
+  background: transparent;
+}
+.bndz-omni-suggest-row:hover,
+.bndz-omni-suggest-row.is-active {
+  background: color-mix(in srgb, var(--accent, #0078d4) 22%, #094771);
+  color: #cce4f7;
+}
+.bndz-omni-suggest-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(204, 228, 247, 0.75);
+  flex-shrink: 0;
+}
+html.theme-light .bndz-omnibar-hub {
+  background: linear-gradient(180deg, #f8f9fb 0%, #eef0f3 100%);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+html.theme-light .bndz-omnibar-hub-head .text-\[13px\],
+html.theme-light .bndz-omnibar-hub-row .text-\[12px\] {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+html.theme-light .bndz-omni-suggest {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+}
