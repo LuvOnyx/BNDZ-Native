@@ -4480,10 +4480,20 @@ namespace BNDZ.Services
                             }
                             else if (action == "openTerminal")
                             {
+                                // Native: never flash external cmd.exe — FE opens ConPTY→xterm in the bottom panel.
                                 var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-                                if (!string.IsNullOrEmpty(startPath)) {
-                                    try { StartShellProcess(startPath, null, shellElement); } catch { }
-                                }
+                                PostToUi(() =>
+                                {
+                                    try
+                                    {
+                                        DeliverIpcJson(JsonSerializer.Serialize(new
+                                        {
+                                            type = "OPEN_IN_APP_TERMINAL",
+                                            payload = new { cwd = startPath ?? "" },
+                                        }));
+                                    }
+                                    catch { /* ignore */ }
+                                });
                             }
                             else if (action == "runCommand")
                             {

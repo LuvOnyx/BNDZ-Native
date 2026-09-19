@@ -48,7 +48,7 @@ Flip ☐→☑ in [`fm-launch-readiness.md`](fm-launch-readiness.md) only after 
 |---|--------|---|
 | 2.1 | Normal RMB: BNDZ weave; **no duplicate** Open / Properties / Share | ☐ |
 | 2.2 | Shift+RMB: full OS menu still works | ☐ |
-| 2.3 | Open Terminal (toolbar / context) → bottom panel Local PowerShell TermControl first paint (no external `cmd` flash on Native) | ☐ |
+| 2.3 | Open Terminal (toolbar / context) → bottom panel Local PowerShell via ConPTY→xterm (no external `cmd` flash; no WinUI TermControl overlay) | ☐ |
 | 2.4 | Sidebar cold-boot LMB still works | ☐ |
 
 ---
