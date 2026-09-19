@@ -222,6 +222,16 @@ export const IPC = {
           this._meshSyncProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'MESH_TERMINAL_OUTPUT') {
           this._meshTerminalOutputListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'OPEN_IN_APP_TERMINAL') {
+          // Host SHELL_EXECUTE openTerminal fallback — same path as IPC.shellExecute on Native.
+          const cwd = typeof data.payload?.cwd === 'string' ? data.payload.cwd.trim() : '';
+          window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+            detail: {
+              id: 'remote-mesh',
+              tab: 'terminal',
+              ...(cwd ? { cwd } : {}),
+            },
+          }));
         } else if (data.type === 'MESH_HOSTS_CHANGED') {
           const hosts = Array.isArray(data.payload) ? data.payload : [];
           this._meshHostsChangedListeners.forEach(cb => cb(hosts));

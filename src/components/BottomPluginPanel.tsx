@@ -76,7 +76,7 @@ export type BottomPluginLaunchContext = {
   tab?: string;
   sessionId?: string;
   hostId?: string;
-  /** Working directory for Local terminal (Native TermControl / ConPTY). */
+  /** Working directory for Local terminal (ConPTY → xterm.js). */
   cwd?: string;
 };
 
@@ -119,7 +119,7 @@ export default function BottomPluginPanel(props: any & {
 
   const orderedPlugins = useMemo(() => {
     const installed = pluginRegistry.filter((p: any) => p.isInstalled === true);
-    // Core FM Open Terminal needs the Remote Mesh surface for the Native TermControl hole
+    // Core FM Open Terminal needs the Remote Mesh surface for ConPTY→xterm
     // even when the marketplace plugin is Uninstalled (does not change install state).
     let base = installed as any[];
     const needTerminalSurface =

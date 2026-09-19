@@ -277,6 +277,11 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const [liveShareOn, setLiveShareOn] = useState(false);
   const [livePeers, setLivePeers] = useState<any[]>([]);
+  /** Latched before BottomPluginPanel clears launchContext (parent effects run first). */
+  const pendingLocalCwdRef = useRef<string | undefined>(undefined);
+  const sessionIdRef = useRef<string | null>(null);
+  sessionIdRef.current = sessionId;
+  const autoLocalOpenedRef = useRef(false);
 
   const refreshRules = useCallback(async () => {
     const [h, r] = await Promise.all([IPC.meshListHosts(), IPC.meshGetSyncRules()]);
@@ -293,7 +298,21 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   useEffect(() => {
     if (!pluginLaunch) return;
-    if (pluginLaunch.tab === 'terminal') setTab('terminal');
+    if (pluginLaunch.tab === 'terminal') {
+      // Open Terminal / Open Terminal Here — latch cwd, (re)start Local ConPTY unless reconnecting a session.
+      const cwd = pluginLaunch.cwd ? String(pluginLaunch.cwd).trim() : '';
+      pendingLocalCwdRef.current = cwd || undefined;
+      setTab('terminal');
+      if (!pluginLaunch.sessionId) {
+        autoLocalOpenedRef.current = false;
+        const prev = sessionIdRef.current;
+        if (prev) {
+          try { IPC.meshTerminalClose(prev); } catch { /* ignore */ }
+          setSessionId(null);
+          setSessionLabel(null);
+        }
+      }
+    }
     if (pluginLaunch.tab === 'ephemeral') setTab('ephemeral');
     if (pluginLaunch.tab === 'hosts') setTab('hosts');
     if (pluginLaunch.tab === 'drop' || pluginLaunch.tab === 'mesh-drop') setTab('drop');
@@ -365,7 +384,10 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       let label = 'Local';
 
       if (local) {
-        const launchCwd = pluginLaunch?.cwd ? String(pluginLaunch.cwd).trim() : '';
+        // Prefer latched cwd from Open Terminal Here (survives launchContext clear).
+        const latched = pendingLocalCwdRef.current;
+        pendingLocalCwdRef.current = undefined;
+        const launchCwd = (latched ?? (pluginLaunch?.cwd ? String(pluginLaunch.cwd).trim() : '')).trim();
         cwd = launchCwd
           ? toWindowsPath(launchCwd)
           : (currentPath && !isMeshPath(currentPath) ? toWindowsPath(currentPath) : undefined);
@@ -429,8 +451,12 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     } finally { setBusy(false); }
   }, [currentPath, hosts, pluginLaunch?.cwd, sessionId]);
 
-  // First visit to Terminal tab → open Local so the prompt paints without an extra click.
-  const autoLocalOpenedRef = useRef(false);
+  // Leaving Terminal clears the one-shot gate so the next visit paints a prompt again.
+  useEffect(() => {
+    if (tab !== 'terminal') autoLocalOpenedRef.current = false;
+  }, [tab]);
+
+  // First visit / Open Terminal launch → Local ConPTY so the prompt paints without an extra click.
   useEffect(() => {
     if (tab !== 'terminal' || sessionId || busy) return;
     if (autoLocalOpenedRef.current) return;
