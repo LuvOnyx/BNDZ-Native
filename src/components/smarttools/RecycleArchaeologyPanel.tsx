@@ -128,7 +128,7 @@ export default function RecycleArchaeologyPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="bndz-plugin-card !p-3 bg-gradient-to-br from-rose-950/30 to-transparent border-rose-500/15">
+      <div className="bndz-plugin-card !p-3 border border-rose-500/20 bg-black/25">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-400/20 flex items-center justify-center shrink-0">
             <Icons8Icon id="trash_ui" size={18} />

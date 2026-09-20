@@ -483,7 +483,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
           {/* Dir mode results */}
           {mode === 'dirs' && dirResults.length > 0 && (
             <PluginCard className="flex-1 min-h-0 overflow-hidden !p-0 !py-0 flex flex-col">
-              <div className="px-3 py-2 border-b border-white/[0.06] flex flex-col gap-2 shrink-0 bg-[rgba(12,16,24,0.95)] backdrop-blur-sm z-10">
+              <div className="px-3 py-2 border-b border-white/[0.06] flex flex-col gap-2 shrink-0 bg-[#0c1018] z-10">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="bndz-plugin-section-title">Diff results</span>
                   <span className="bndz-plugin-kind-pill">{filteredDirResults.length}/{dirResults.length}</span>

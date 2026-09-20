@@ -91,7 +91,7 @@ export default function ColorsTabContent({ localConfig, updateLocalConfig }: Col
           return (
             <div
               key={section.id}
-              className="rounded-xl border border-[#333] bg-gradient-to-br from-[#1c1c22] to-[#141418] overflow-hidden shadow-lg"
+              className="bndz-native-dialog overflow-hidden"
             >
               <div className="px-4 py-3 border-b border-[#333] flex items-center justify-between gap-3">
                 <div>

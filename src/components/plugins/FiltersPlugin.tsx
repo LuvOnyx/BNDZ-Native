@@ -212,7 +212,7 @@ export default function FiltersPlugin({
                             key={tpl.name}
                             type="button"
                             onClick={() => applyQuickTemplate(tpl)}
-                            className="bndz-filters-template text-left rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent px-3 py-2.5 hover:border-violet-400/35 transition-all"
+                            className="bndz-filters-template bndz-mesh-tile text-left px-3 py-2.5 hover:border-[rgba(56,189,248,0.28)] transition-colors"
                         >
                             <div className="flex items-center gap-2">
                                 <span className="w-2.5 h-2.5 rounded-full ring-2 ring-white/10" style={{ background: tpl.badgeColor }} />

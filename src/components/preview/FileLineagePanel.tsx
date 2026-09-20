@@ -374,7 +374,7 @@ function DagNodeCard({ node, relation, revealPath }: {
 
   const hashColor = relation === 'focus' ? 'text-sky-300' : 'text-gray-400';
   const bgGradient = relation === 'focus'
-    ? 'bg-gradient-to-br from-sky-500/[0.06] to-transparent'
+    ? 'bg-sky-500/[0.05]'
     : 'bg-white/[0.02]';
 
   return (
