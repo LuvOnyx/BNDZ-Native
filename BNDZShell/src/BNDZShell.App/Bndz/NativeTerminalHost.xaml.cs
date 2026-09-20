@@ -122,6 +122,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		HorizontalAlignment = HorizontalAlignment.Left;
 		VerticalAlignment = VerticalAlignment.Top;
 		Visibility = Visibility.Visible;
+		Opacity = 1;
 		IsHitTestVisible = true;
 
 		if (_term is not null)
@@ -209,10 +210,13 @@ public sealed partial class NativeTerminalHost : UserControl
 
 	private void SoftCollapseHost()
 	{
+		// Keep Visibility.Visible: Collapsed + later Visible leaves TermControl HWND black
+		// after HWND_MESSAGE reparent until Close/New remounts the surface.
 		Width = 0;
 		Height = 0;
 		Margin = new Thickness(-10000, -10000, 0, 0);
-		Visibility = Visibility.Collapsed;
+		Visibility = Visibility.Visible;
+		Opacity = 0;
 		IsHitTestVisible = false;
 	}
 
@@ -729,6 +733,9 @@ public sealed partial class NativeTerminalHost : UserControl
 	[DllImport("user32.dll")]
 	private static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
 
+	[DllImport("user32.dll")]
+	private static extern bool UpdateWindow(IntPtr hWnd);
+
 	private const uint SwpNoZOrder = 0x0004;
 	private const uint SwpNoActivate = 0x0010;
 	private const uint SwpShowWindow = 0x0040;
@@ -736,6 +743,7 @@ public sealed partial class NativeTerminalHost : UserControl
 
 	private const int SwHide = 0;
 	private static readonly IntPtr HwndMessage = new(-3);
+	private static readonly IntPtr HwndTop = new(-1);
 
 	/// <summary>Pull TermControl HWNDs out of airspace without managed Dispose/DestroyWindow pump.</summary>
 		private const int SwShow = 5;
@@ -832,11 +840,13 @@ public sealed partial class NativeTerminalHost : UserControl
 				try { ShowWindow(hwnd, SwShow); } catch { /* ignore */ }
 				try
 				{
-					SetWindowPos(hwnd, IntPtr.Zero, 0, 0, pxW, pxH,
-						SwpNoZOrder | SwpNoActivate | SwpShowWindow | SwpFrameChanged);
+					// Bring above WebView2 airspace after HWND_MESSAGE reparent (NoZOrder left HWND blank).
+					SetWindowPos(hwnd, HwndTop, 0, 0, pxW, pxH,
+						SwpNoActivate | SwpShowWindow | SwpFrameChanged);
 				}
 				catch { /* ignore */ }
 				try { InvalidateRect(hwnd, IntPtr.Zero, true); } catch { /* ignore */ }
+				try { UpdateWindow(hwnd); } catch { /* ignore */ }
 			}
 			TermLog($"TryShowTermHwnds count={victims.Count} size={pxW}x{pxH}");
 		}
