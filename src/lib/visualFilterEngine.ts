@@ -98,11 +98,18 @@ export function applyVisualFilters(entity: any, filters?: VisualFilter[]): Visua
         break;
       }
       case 'emptyDir':
-        // Empty folder: directory with zero children or size of 0
+        // Only match when we positively know the folder is empty.
+        // Dir listings always send size=0 for directories (DirListingSharedBuffer),
+        // and itemCount is often null until a folder-size scan — treating that as
+        // empty greys every folder Name in the list (see visual filter seed-empty-dir).
         if (entity.type === 'directory') {
-          const isEmpty = entity.itemCount === 0
-            || (entity.size === 0 && entity.itemCount == null)
-            || entity.isEmpty === true;
+          const childCount =
+            typeof entity.itemCount === 'number' ? entity.itemCount
+            : typeof entity.childCount === 'number' ? entity.childCount
+            : null;
+          const isEmpty =
+            entity.isEmpty === true
+            || childCount === 0;
           if (isEmpty) return rule;
         }
         break;
@@ -138,4 +145,5 @@ export const FILTER_MATCH_HINTS: Record<VisualFilter['matchType'], string> = {
   age: 'e.g. >30 or <7 (days)',
   size: 'e.g. >100 or <5 (MB)',
   event: 'modifiedToday | createdWithin24Hours | isReadOnly',
+  emptyDir: 'directories with itemCount/childCount === 0 (or isEmpty)',
 };

@@ -2592,22 +2592,34 @@ html.theme-light .bndz-preview-contents-row.is-selected {
   color: rgba(0, 0, 0, 0.92) !important;
 }
 
-/* List sticky group headers (FOLDERS / PROGRAMS) */
-.bndz-list-sticky-group-header {
+/* List sticky / in-list group headers (FOLDERS / IMAGES / …) — flush to prior row */
+.bndz-list-sticky-group-header,
+.bndz-list-group-header {
   color: color-mix(in srgb, var(--accent, #0078d4) 78%, #ffffff 22%);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.12) 100%), var(--list-bg, #252526);
+  border-top: 0;
   border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: none;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.bndz-list-group-header {
+  /* Kill any leftover dark seam between last file row and next type strip */
+  margin-top: 0 !important;
 }
 
-html.theme-light .bndz-list-sticky-group-header {
+html.theme-light .bndz-list-sticky-group-header,
+html.theme-light .bndz-list-group-header {
   color: rgba(0, 0, 0, 0.88) !important;
   background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06) !important;
+  box-shadow: none !important;
 }
 
-html.theme-light .bndz-list-sticky-group-header .text-gray-500 {
+html.theme-light .bndz-list-sticky-group-header .text-gray-500,
+html.theme-light .bndz-list-group-header .text-gray-500,
+html.theme-light .bndz-list-group-header-count {
   color: rgba(0, 0, 0, 0.55) !important;
 }
 
@@ -3197,7 +3209,12 @@ html[data-bndz-shell="native-host"][data-bndz-nc-epoch] .bndz-chrome-omnibar {
 
 .bndz-vlist-row {
   content-visibility: auto;
-  contain-intrinsic-size: auto 26px;
+  /* Prefer last remembered size; 28px fallback matches typical details density better than 26 */
+  contain-intrinsic-size: auto 28px;
+}
+.bndz-vlist-row:has(.bndz-list-group-header) {
+  /* Group strips should not leave a reserved dark gap above the header chrome */
+  contain-intrinsic-size: auto var(--bndz-density-row, 28px);
 }
 
 .bndz-model-viewport canvas {

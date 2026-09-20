@@ -7,16 +7,21 @@ export type ListGroupHeaderRowProps = {
   sticky: boolean;
 };
 
+/**
+ * In-list type/date group strip (FOLDERS / IMAGES / …).
+ * Uses the same chrome as the sticky overlay (`.bndz-list-sticky-group-header`)
+ * and sits flush against the previous row — no top margin / top border gap.
+ */
 function ListGroupHeaderRow({ label, count, rowHeight, sticky }: ListGroupHeaderRowProps) {
   return (
     <div
-      className={`z-10 flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-wider text-[#99c9f0] bg-[#252526] border-y border-[#454545] ${
+      className={`bndz-list-group-header bndz-list-sticky-group-header z-10 flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-wider ${
         sticky ? 'sticky top-0' : ''
       }`}
-      style={{ height: rowHeight, boxSizing: 'border-box' }}
+      style={{ height: rowHeight, boxSizing: 'border-box', margin: 0 }}
     >
       <span>{label}</span>
-      <span className="text-gray-500 font-normal normal-case">({count})</span>
+      <span className="bndz-list-group-header-count text-gray-500 font-normal normal-case">({count})</span>
     </div>
   );
 }
