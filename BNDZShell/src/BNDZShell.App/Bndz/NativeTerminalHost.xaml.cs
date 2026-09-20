@@ -177,7 +177,7 @@ public sealed partial class NativeTerminalHost : UserControl
 				TryHideTermHwnds(_term, reparentToMessage: true, trackForRestore: true);
 				_softParked = true;
 				_ignoreShowUntilTick = Environment.TickCount64 + 120;
-				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=800ms reparent=True");
+				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=120ms reparent=True");
 				return;
 			}
 
@@ -853,7 +853,8 @@ public sealed partial class NativeTerminalHost : UserControl
 	{
 		try
 		{
-			InvalidateVisual();
+			InvalidateMeasure();
+			InvalidateArrange();
 			UpdateLayout();
 			if (_term is FrameworkElement fe)
 			{
@@ -867,7 +868,13 @@ public sealed partial class NativeTerminalHost : UserControl
 		// Deferred +/-1px size nudge so ConPTY/TermControl repaints after SetParent restore.
 		var w = width;
 		var h = height;
-		Dispatcher.BeginInvoke(new Action(() =>
+		var dq = DispatcherQueue;
+		if (dq is null)
+		{
+			TermLog("PulseTermPaintAfterUnpark: DispatcherQueue is null");
+			return;
+		}
+		dq.TryEnqueue(DispatcherQueuePriority.Normal, () =>
 		{
 			if (_term is null || _softParked) return;
 			if (w < 48 || h < 48) return;
@@ -887,7 +894,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			{
 				TermLog($"PulseTermPaintAfterUnpark: {ex.Message}");
 			}
-		}), System.Windows.Threading.DispatcherPriority.Render);
+		});
 	}
 
 	private static void CollectTermHwnds(DependencyObject? root, System.Collections.Generic.List<IntPtr> victims, int depth)
