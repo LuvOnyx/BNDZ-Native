@@ -29,6 +29,7 @@ import { ThumbnailIcon } from '../ThumbnailIcon';
 import ClipboardMarkBadge from '../ClipboardMarkBadge';
 import FolderColorIcon from '../FolderColorIcon';
 import { EmblemIcon } from '../EmblemIcon';
+import { CloudStatusIcon } from '../CloudStatusIcon';
 import { JobTicketOverdueBadge } from '../preview/JobTicketPanel';
 import { InlineRenameInput } from './InlineRenameInput';
 import { getPaneFileListBridge } from './fileListRowBridge';
@@ -202,6 +203,7 @@ function FileListRow(props: FileListRowProps) {
   const cloudBadge = cloudResolved
     ? { emblem: cloudResolved.emblem, title: cloudResolved.title, tone: (cloudResolved.kind === 'online-only' ? 'amber' : cloudResolved.kind === 'pinned' ? 'emerald' : cloudResolved.kind === 'error' ? 'gray' : 'sky') as 'sky' | 'amber' | 'emerald' | 'gray', label: '' }
     : cloudBadgeForPath(toWindowsPath(joinPanePath(panePath, entity)), cloudProviders);
+  const cloudKind = (cloudResolved?.kind || (cloudBadge?.tone === 'amber' ? 'online-only' : cloudBadge?.tone === 'emerald' ? 'pinned' : cloudBadge?.tone === 'gray' ? 'error' : cloudBadge ? 'available' : null)) as any;
   const jobTicketOverdue = isDir ? jobTicketOverdueMap[entityWinPath.toLowerCase()] : undefined;
   const healthBadge = healthProblemMap[entityWinPath.toLowerCase()]
     || healthProblemMap[toWindowsPath(entityWinPath).toLowerCase()];
@@ -643,7 +645,7 @@ function FileListRow(props: FileListRowProps) {
               </div>
               {cloudBadge && (
                 <span className="inline-flex items-center mr-1 shrink-0" title={cloudBadge.title}>
-                  <EmblemIcon id={cloudBadge.emblem} size={14} title={cloudBadge.title} />
+                  <CloudStatusIcon kind={cloudKind} size={14} title={cloudBadge.title} />
                 </span>
               )}
               {(entity as any).isGhostLink && (
@@ -714,7 +716,7 @@ function FileListRow(props: FileListRowProps) {
                 <div className="bndz-list-marquee-trail" aria-hidden />
               </div>
               {cloudBadge && (
-                <span className="inline-flex items-center px-1 shrink-0" title={cloudBadge.title}><EmblemIcon id={cloudBadge.emblem} size={14} title={cloudBadge.title} /></span>
+                <span className="inline-flex items-center px-1 shrink-0" title={cloudBadge.title}><CloudStatusIcon kind={cloudKind} size={14} title={cloudBadge.title} /></span>
               )}
             </>
           )}

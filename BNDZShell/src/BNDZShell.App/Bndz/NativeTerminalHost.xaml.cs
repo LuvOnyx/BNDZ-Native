@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Threading;
 using System.Diagnostics;
@@ -59,15 +59,15 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// <summary>Position over the React terminal hole (CSS/DIP coords from WebView).</summary>
 	public void ApplyBounds(double x, double y, double width, double height, bool visible)
 	{
-		if (!visible || width < 24 || height < 24)
+				if (!visible || width < 24 || height < 24)
 		{
-			// Undersized *show* during open grace: FE used to publish visible with 0×0 and park
-			// a fresh mount. Intentional hide (visible:false — plugin switch) always parks.
-			if (visible
-				&& Environment.TickCount64 < _ignoreHideUntilTick
+			// Open grace: FE remount / hole cleanup still fires visible:false ~1s after Open and
+			// SoftCollapses mid-mount (Term mounted size=0x0 ? Destroy StackOverflow). Ignore
+			// hide+undersized until grace ends; intentional plugin-switch after grace still parks.
+			if (Environment.TickCount64 < _ignoreHideUntilTick
 				&& !string.IsNullOrEmpty(_sessionId))
 			{
-				TermLog($"ApplyBounds undersized-show ignored (open grace) size={width:F0}x{height:F0}");
+				TermLog($"ApplyBounds hide ignored (open grace) visible={visible} size={width:F0}x{height:F0}");
 				return;
 			}
 			// HWND airspace: WinUI Margin/Visibility/size on this host do NOT move TermControl's
@@ -77,7 +77,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		}
 
 		// Dispose(HwndHost) / DestroyWindow pumps the UI queue. Stale NATIVE_TERMINAL_LAYOUT
-		// (visible:true) must not remount mid-park — that nested mount/park StackOverflows BNDZ.
+		// (visible:true) must not remount mid-park � that nested mount/park StackOverflows BNDZ.
 		if (Volatile.Read(ref _parkGate) != 0 || Volatile.Read(ref _teardownActive) != 0)
 		{
 			TermLog($"ApplyBounds ignore visible during teardown/park size={width:F0}x{height:F0}");
@@ -194,6 +194,8 @@ public sealed partial class NativeTerminalHost : UserControl
 		if (string.IsNullOrWhiteSpace(sessionId))
 			throw new ArgumentException("sessionId required", nameof(sessionId));
 
+		// Do NOT Close()/SoftCollapse here � that zeroed the host before ApplyBounds mount
+		// (black hole + Dispose race). Tear down prior UI/PTY without collapsing bounds.
 		CancelTermDebounce();
 		Interlocked.Increment(ref _createGen);
 		if (_term is not null)
@@ -203,7 +205,6 @@ public sealed partial class NativeTerminalHost : UserControl
 			try { _warmPty.StopExternalTermOnly(); } catch { /* ignore */ }
 			_warmPty = null;
 		}
-		// Avoid Close()/SoftCollapse here — MainWindow ApplyBounds sizes the host for mount.
 
 		_sessionId = sessionId;
 		_label = string.IsNullOrWhiteSpace(label) ? "Local" : label.Trim();
@@ -212,7 +213,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		_awaitingSizedStart = true;
 		// Arm remount for the new session (no SoftCollapse from Open).
 		_parkedInactive = false;
-		_ignoreHideUntilTick = Environment.TickCount64 + 2000;
+		_ignoreHideUntilTick = Environment.TickCount64 + 3000;
 
 		TermLog($"Open sid={_sessionId} label={_label} cwd={_pendingCwd ?? ""} cmd={_pendingCmd ?? "(default shell)"}");
 	}
@@ -373,7 +374,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			DisposeTerm(stopPty: true);
 		else if (_warmPty is not null)
 		{
-			// Already parked (LAYOUT hide raced ahead) — kill warm PTY only; do not
+			// Already parked (LAYOUT hide raced ahead) � kill warm PTY only; do not
 			// nest a second DestroyWindow under Park's teardown (StackOverflow @ Close).
 			try { _warmPty.StopExternalTermOnly(); } catch { /* ignore */ }
 			_warmPty = null;
@@ -389,7 +390,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	private void EnsureTermAtSize()
 	{
 		if (string.IsNullOrEmpty(_sessionId)) return;
-		if (Volatile.Read(ref _parkGate) != 0 || _parkedInactive) return;
+		if (Volatile.Read(ref _parkGate) != 0 || Volatile.Read(ref _teardownActive) != 0 || _parkedInactive) return;
 		if (Width < 48 || Height < 48) return;
 		if (_term is not null)
 		{
@@ -404,7 +405,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			return;
 		}
 
-		// Debounce on a DispatcherQueueTimer â€” Tick always runs on the UI thread.
+		// Debounce on a DispatcherQueueTimer — Tick always runs on the UI thread.
 		// Task.Delay continuations were hopping off-thread (RPC_E_WRONG_THREAD / 0x8001010E).
 		_debounceSeq = Interlocked.Increment(ref _ensureSeq);
 		_debounceTimer ??= dq.CreateTimer();
@@ -432,9 +433,9 @@ public sealed partial class NativeTerminalHost : UserControl
 		{
 			if (seq >= 0 && seq != Volatile.Read(ref _ensureSeq)) return _term is not null;
 			if (string.IsNullOrEmpty(_sessionId)) return false;
-			if (Volatile.Read(ref _parkGate) != 0 || _parkedInactive)
+			if (Volatile.Read(ref _parkGate) != 0 || Volatile.Read(ref _teardownActive) != 0 || _parkedInactive)
 			{
-				TermLog($"TryMountTermNow blocked parkGate={Volatile.Read(ref _parkGate)} inactive={_parkedInactive}");
+				TermLog($"TryMountTermNow blocked parkGate={Volatile.Read(ref _parkGate)} teardown={Volatile.Read(ref _teardownActive)} inactive={_parkedInactive}");
 				return false;
 			}
 			if (_term is not null)
@@ -471,7 +472,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			TermPTY? warm = _warmPty;
 			TermLog($"TryMountTermNow cmd={cmd} size={Width:F0}x{Height:F0} warm={warm is not null} uiThread={dq?.HasThreadAccess}");
 
-			// Drop any leftover UI control only â€” never StopExternalTermOnly while warm remounting.
+			// Drop any leftover UI control only — never StopExternalTermOnly while warm remounting.
 			DisposeTerm(stopPty: false);
 			warm ??= _warmPty;
 
@@ -525,7 +526,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	private void DisposeTerm(bool stopPty = true)
 	{
 		// Hold _parkGate through DestroyTermControlUiCore (even if enqueue). Releasing early
-		// let LAYOUT remount mid-DestroyWindow → StackOverflow on Close (00:57 CT).
+		// let LAYOUT remount mid-DestroyWindow ? StackOverflow on Close (00:57 CT).
 		if (Interlocked.CompareExchange(ref _parkGate, 1, 0) != 0)
 		{
 			TermLog($"DisposeTerm reentrant skip stopPty={stopPty}");
@@ -581,11 +582,11 @@ public sealed partial class NativeTerminalHost : UserControl
 
 	/// <summary>
 	/// Tear down EasyTerminalControl / TermControl HwndHost on the UI thread.
-	/// Never abandon an HwndHost to GC — its finalizer calls DestroyWindow via DispatcherQueue
+	/// Never abandon an HwndHost to GC � its finalizer calls DestroyWindow via DispatcherQueue
 	/// and throws ObjectDisposedException (CLR 0xe0434352), killing the whole process.
 	/// Call only after DisconnectConPTYTerm so a warm ConPTY is preserved.
 	/// Returns true if teardown finished synchronously (caller may release gates).
-	/// Returns false if work was enqueued — gates released in the queued finally.
+	/// Returns false if work was enqueued � gates released in the queued finally.
 	/// </summary>
 	private bool DestroyTermControlUi(EasyTerminalControl term, string reason, bool releaseGateAfter = false)
 	{
@@ -626,22 +627,122 @@ public sealed partial class NativeTerminalHost : UserControl
 			// a still-parented HwndHost. Then dispose nested TerminalContainer on the UI thread.
 			// Children.Clear alone orphans HwndHost for GC; Finalize -> DestroyWindow ->
 			// get_DispatcherQueue throws ObjectDisposedException (CLR 0xe0434352) and kills BNDZ.exe.
+			// Gates (_parkGate/_teardownActive) must stay held for this whole method � releasing
+			// before Dispose (9cd0b40b finally) lets FE visible:true remount mid-DestroyWindow = SO.
+			TermLog($"DestroyTermControlUiCore begin reason={reason}");
 			try
 			{
 				if (TermSlot.Children.Contains(term))
 					TermSlot.Children.Remove(term);
 			}
 			catch { /* ignore */ }
+			TermLog($"DestroyTermControlUiCore removed reason={reason}");
 			try { TermSlot.Children.Clear(); } catch { /* ignore */ }
 			try { term.Content = null; } catch { /* ignore */ }
 
-			DisposeNestedTermHwndHosts(term);
+			// Warm park (ApplyBounds-hide / DisposeTerm-warm): SoftCollapse + tree detach is enough
+			// for airspace. termContainer.Dispose()/DestroyWindow pumps the queue and StackOverflows
+			// when FE still has a live session (seen: begin+removed, never "disposed").
+			// Full HWND Dispose only when killing the session (DisposeTerm-stop / Close).
+			var fullDispose = reason.Contains("stop", StringComparison.OrdinalIgnoreCase)
+				|| reason.Contains("Close", StringComparison.OrdinalIgnoreCase)
+				|| reason.StartsWith("DisposeTerm-stop", StringComparison.Ordinal);
+			if (fullDispose)
+			{
+				TermLog($"DestroyTermControlUiCore fullDispose reason={reason}");
+				DisposeNestedTermHwndHosts(term);
+			}
+			else
+			{
+				// Hide Win32 HWND without HwndHost.Dispose (DestroyWindow pumps ? StackOverflow).
+				TermLog($"DestroyTermControlUiCore detachOnly reason={reason}");
+				TryHideTermHwnds(term);
+			}
 
 			TermLog($"DestroyTermControlUi disposed reason={reason}");
 		}
 		catch (Exception ex)
 		{
 			TermLog($"DestroyTermControlUiCore failed reason={reason}: {ex.Message}");
+		}
+	}
+
+[DllImport("user32.dll")]
+	private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+	[DllImport("user32.dll", SetLastError = true)]
+	private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+	private const int SwHide = 0;
+	private static readonly IntPtr HwndMessage = new(-3);
+
+	/// <summary>Pull TermControl HWNDs out of airspace without managed Dispose/DestroyWindow pump.</summary>
+	private static void TryHideTermHwnds(EasyTerminalControl term)
+	{
+		try
+		{
+			var victims = new System.Collections.Generic.List<IntPtr>(4);
+			CollectTermHwnds(term, victims, depth: 0);
+			// Also reflect termContainer Handle if visual tree walk misses it.
+			try
+			{
+				var terminal = term.Terminal;
+				if (terminal is not null)
+				{
+					var field = terminal.GetType().GetField(
+						"termContainer",
+						BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+					var container = field?.GetValue(terminal);
+					if (container is not null)
+						CollectTermHwnds(container as DependencyObject ?? term, victims, depth: 0);
+					// Null the field so a later GC finalizer is less likely to DestroyWindow.
+					try { field?.SetValue(terminal, null); } catch { /* ignore */ }
+				}
+			}
+			catch (Exception ex) { TermLog($"TryHideTermHwnds reflect: {ex.Message}"); }
+
+			foreach (var hwnd in victims)
+			{
+				if (hwnd == IntPtr.Zero) continue;
+				try { ShowWindow(hwnd, SwHide); } catch { /* ignore */ }
+				try { SetParent(hwnd, HwndMessage); } catch { /* ignore */ }
+			}
+			TermLog($"TryHideTermHwnds count={victims.Count}");
+		}
+		catch (Exception ex)
+		{
+			TermLog($"TryHideTermHwnds: {ex.Message}");
+		}
+	}
+
+	private static void CollectTermHwnds(DependencyObject? root, System.Collections.Generic.List<IntPtr> victims, int depth)
+	{
+		if (root is null || depth > 32) return;
+		try
+		{
+			var t = root.GetType();
+			foreach (var propName in new[] { "Handle", "Hwnd", "WindowHandle" })
+			{
+				var handleProp = t.GetProperty(propName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+				if (handleProp?.PropertyType == typeof(IntPtr))
+				{
+					var hwnd = (IntPtr)(handleProp.GetValue(root) ?? IntPtr.Zero);
+					if (hwnd != IntPtr.Zero && !victims.Contains(hwnd))
+						victims.Add(hwnd);
+				}
+			}
+		}
+		catch { /* ignore */ }
+
+		int n;
+		try { n = VisualTreeHelper.GetChildrenCount(root); }
+		catch { return; }
+		for (var i = 0; i < n; i++)
+		{
+			DependencyObject? child = null;
+			try { child = VisualTreeHelper.GetChild(root, i); } catch { continue; }
+			if (child is not null)
+				CollectTermHwnds(child, victims, depth + 1);
 		}
 	}
 
@@ -680,7 +781,7 @@ public sealed partial class NativeTerminalHost : UserControl
 
 	private static void WalkDisposeHwndHosts(DependencyObject root)
 	{
-		// Collect first, dispose after walk — disposing mid-walk can pump messages / mutate the
+		// Collect first, dispose after walk � disposing mid-walk can pump messages / mutate the
 		// visual tree and recurse back into park (StackOverflowException).
 		var victims = new System.Collections.Generic.List<IDisposable>(4);
 		CollectHwndHosts(root, victims, depth: 0);
@@ -745,7 +846,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	}
 
 	/// <summary>
-	/// Drive roots must keep a trailing slash â€” "C:" alone does not Set-Location / -WorkingDirectory correctly.
+	/// Drive roots must keep a trailing slash — "C:" alone does not Set-Location / -WorkingDirectory correctly.
 	/// </summary>
 	public static string? NormalizeLocalWorkingDirectory(string? workingDirectory)
 	{
@@ -831,7 +932,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		return h.Length >= 7 ? h.Substring(0, 7) : h;
 	}
 
-	/// <summary>COLORREF packer (0x00BBGGRR) â€” no System.Drawing dependency.</summary>
+	/// <summary>COLORREF packer (0x00BBGGRR) — no System.Drawing dependency.</summary>
 	private static uint ColorToVal(byte r, byte g, byte b) =>
 		(uint)(r | (g << 8) | (b << 16));
 

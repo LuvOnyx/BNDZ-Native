@@ -248,6 +248,7 @@ import {
   type WorkIntentId,
 } from '../lib/workIntent';
 import { EmblemIcon } from './EmblemIcon';
+import { CloudStatusIcon } from './CloudStatusIcon';
 import { isWorkspacePointerTarget } from '../lib/workspace/workspaceFocus';
 import { bindGlobalChromeCursorReset, bindGlobalSpatialCursorGuard } from '../lib/workspace/workspaceCursorGuard';
 import { pushGhostTrail, getGhostTrail } from '../lib/ghostTrail';
@@ -11583,7 +11584,7 @@ ${classified.detail}`,
           const cloud = resolveEntityCloudStatus(entity as any, panePath, cloudProviders);
           return (
             <div key={colId} className={`${metaColClass} flex items-center justify-center`} title={cloud?.title || ''}>
-              {cloud ? <EmblemIcon id={cloud.emblem} size={16} title={cloud.title} /> : <span className="opacity-20">â€”</span>}
+              {cloud ? <CloudStatusIcon kind={cloud.kind} size={16} title={cloud.title} /> : null}
             </div>
           );
         }
