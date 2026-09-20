@@ -47,6 +47,8 @@ public sealed partial class NativeTerminalHost : UserControl
 		private long _ignoreShowUntilTick;
 		/// <summary>KeepAlive soft-hide sticky: ignore visible:true until intentional unpark (Remote+Terminal).</summary>
 		private bool _softParked;
+		/// <summary>HWNDs reparented to HWND_MESSAGE on keepAlive park — restored on unpark.</summary>
+		private readonly System.Collections.Generic.List<(IntPtr Hwnd, IntPtr Parent)> _parkedHwnds = new(4);
 	public event EventHandler<bool>? TermMountFinished;
 
 	public event EventHandler<string>? SessionClosed;
@@ -164,10 +166,10 @@ public sealed partial class NativeTerminalHost : UserControl
 			// after a few cycles. Keep TermControl+ConPTY, SoftCollapse + Win32 SW_HIDE only.
 			if (keepAlive)
 			{
-				TryHideTermHwnds(_term, reparentToMessage: false);
+				TryHideTermHwnds(_term, reparentToMessage: true, trackForRestore: true);
 				_softParked = true;
 				_ignoreShowUntilTick = Environment.TickCount64 + 800;
-				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=800ms");
+				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=800ms reparent=True");
 				return;
 			}
 
@@ -567,6 +569,9 @@ public sealed partial class NativeTerminalHost : UserControl
 			SoftCollapseHost();
 			CancelTermDebounce();
 			_parkedInactive = true;
+			_softParked = false;
+			_ignoreShowUntilTick = 0;
+			_parkedHwnds.Clear();
 			Interlocked.Exchange(ref _teardownActive, 1);
 
 			var term = _term;
@@ -621,7 +626,11 @@ public sealed partial class NativeTerminalHost : UserControl
 		try
 		{
 			var dq = DispatcherQueue;
-			if (dq is not null && !dq.HasThreadAccess)
+			// Always defer stop Dispose one tick so SoftCollapse + LAYOUT ignore settle first.
+			// Sync Dispose/DestroyWindow on the Close click stack StackOverflow'd (log DisposeTerm-stop).
+			var defer = reason.Contains("stop", StringComparison.OrdinalIgnoreCase)
+				|| (dq is not null && !dq.HasThreadAccess);
+			if (dq is not null && defer)
 			{
 				TermLog($"DestroyTermControlUi enqueue reason={reason}");
 				dq.TryEnqueue(() =>
@@ -678,6 +687,8 @@ public sealed partial class NativeTerminalHost : UserControl
 			if (fullDispose)
 			{
 				TermLog($"DestroyTermControlUiCore fullDispose reason={reason}");
+				// Pull HWND out of airspace before managed Dispose/DestroyWindow.
+				try { TryHideTermHwnds(term, reparentToMessage: true, trackForRestore: false); } catch { /* ignore */ }
 				DisposeNestedTermHwndHosts(term);
 			}
 			else
@@ -701,16 +712,22 @@ public sealed partial class NativeTerminalHost : UserControl
 	[DllImport("user32.dll", SetLastError = true)]
 	private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
+	[DllImport("user32.dll", SetLastError = true)]
+	private static extern IntPtr GetParent(IntPtr hWnd);
+
 	private const int SwHide = 0;
 	private static readonly IntPtr HwndMessage = new(-3);
 
 	/// <summary>Pull TermControl HWNDs out of airspace without managed Dispose/DestroyWindow pump.</summary>
-	private const int SwShow = 5;
+		private const int SwShow = 5;
 
-	private static void TryHideTermHwnds(EasyTerminalControl term, bool reparentToMessage = false)
+	private void TryHideTermHwnds(EasyTerminalControl term, bool reparentToMessage = false, bool trackForRestore = false)
 	{
 		try
 		{
+			if (trackForRestore)
+				_parkedHwnds.Clear();
+
 			var victims = new System.Collections.Generic.List<IntPtr>(4);
 			CollectTermHwnds(term, victims, depth: 0);
 			try
@@ -724,8 +741,8 @@ public sealed partial class NativeTerminalHost : UserControl
 					var container = field?.GetValue(terminal);
 					if (container is DependencyObject dep)
 						CollectTermHwnds(dep, victims, depth: 0);
-					// keepAlive park: do NOT null termContainer — we will Show again.
-					if (reparentToMessage)
+					// Never null termContainer on keepAlive restore path — only on discard detachOnly.
+					if (reparentToMessage && !trackForRestore)
 					{
 						try { field?.SetValue(terminal, null); } catch { /* ignore */ }
 					}
@@ -736,13 +753,17 @@ public sealed partial class NativeTerminalHost : UserControl
 			foreach (var hwnd in victims)
 			{
 				if (hwnd == IntPtr.Zero) continue;
+				IntPtr prev = IntPtr.Zero;
+				try { prev = GetParent(hwnd); } catch { /* ignore */ }
 				try { ShowWindow(hwnd, SwHide); } catch { /* ignore */ }
 				if (reparentToMessage)
 				{
 					try { SetParent(hwnd, HwndMessage); } catch { /* ignore */ }
+					if (trackForRestore && prev != IntPtr.Zero && prev != HwndMessage)
+						_parkedHwnds.Add((hwnd, prev));
 				}
 			}
-			TermLog($"TryHideTermHwnds count={victims.Count} reparent={reparentToMessage}");
+			TermLog($"TryHideTermHwnds count={victims.Count} reparent={reparentToMessage} tracked={_parkedHwnds.Count}");
 		}
 		catch (Exception ex)
 		{
@@ -750,10 +771,23 @@ public sealed partial class NativeTerminalHost : UserControl
 		}
 	}
 
-	private static void TryShowTermHwnds(EasyTerminalControl term)
+	private void TryShowTermHwnds(EasyTerminalControl term)
 	{
 		try
 		{
+			// Restore parents captured at soft-park (HWND_MESSAGE ? original host).
+			if (_parkedHwnds.Count > 0)
+			{
+				foreach (var (hwnd, parent) in _parkedHwnds)
+				{
+					if (hwnd == IntPtr.Zero) continue;
+					try { SetParent(hwnd, parent); } catch { /* ignore */ }
+					try { ShowWindow(hwnd, SwShow); } catch { /* ignore */ }
+				}
+				TermLog($"TryShowTermHwnds restored tracked={_parkedHwnds.Count}");
+				_parkedHwnds.Clear();
+			}
+
 			var victims = new System.Collections.Generic.List<IntPtr>(4);
 			CollectTermHwnds(term, victims, depth: 0);
 			try
@@ -783,6 +817,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			TermLog($"TryShowTermHwnds: {ex.Message}");
 		}
 	}
+
 	private static void CollectTermHwnds(DependencyObject? root, System.Collections.Generic.List<IntPtr> victims, int depth)
 	{
 		if (root is null || depth > 32) return;
