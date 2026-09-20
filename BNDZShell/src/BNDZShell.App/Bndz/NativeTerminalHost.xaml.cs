@@ -49,6 +49,8 @@ public sealed partial class NativeTerminalHost : UserControl
 		private bool _softParked;
 		/// <summary>After keepAlive park, first intentional unpark remounts TermControl UI (ConPTY kept) — ShowWindow alone leaves a blank surface.</summary>
 		private bool _warmRemountOnUnpark;
+		/// <summary>Serialize warm remount so FE layout cannot nest Dispose/Destroy (crash after a few switches).</summary>
+		private int _remountBusy;
 		/// <summary>HWNDs reparented to HWND_MESSAGE on keepAlive park — restored on unpark.</summary>
 		private readonly System.Collections.Generic.List<(IntPtr Hwnd, IntPtr Parent)> _parkedHwnds = new(4);
 	public event EventHandler<bool>? TermMountFinished;
@@ -67,6 +69,11 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// <summary>Position over the React terminal hole (CSS/DIP coords from WebView).</summary>
 	public void ApplyBounds(double x, double y, double width, double height, bool visible, bool unpark = false)
 	{
+		if (Volatile.Read(ref _remountBusy) != 0)
+		{
+			TermLog($"ApplyBounds ignore during remount visible={visible} unpark={unpark} size={width:F0}x{height:F0}");
+			return;
+		}
 				if (!visible || width < 24 || height < 24)
 		{
 			// Undersized *show* during open grace only — never swallow intentional visible:false
@@ -228,25 +235,93 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// <summary>
 	/// Rebuild TermControl after keepAlive HWND_MESSAGE park while preserving ConPTY.
 	/// SoftCollapse + SetParent restore alone leave a blank surface (Mikey: Close/New required).
+	/// Deferred fullDispose + second-tick mount — sync remount StackOverflow'd after a few switches.
 	/// </summary>
 	private void RemountWarmSurfaceAfterUnpark(double x, double y, double width, double height)
 	{
-		TermLog($"RemountWarmSurfaceAfterUnpark begin size={width:F0}x{height:F0}");
-		try
+		if (Interlocked.CompareExchange(ref _remountBusy, 1, 0) != 0)
 		{
-			DisposeTerm(stopPty: false);
-		}
-		catch (Exception ex)
-		{
-			TermLog($"RemountWarmSurfaceAfterUnpark dispose: {ex.Message}");
+			TermLog("RemountWarmSurfaceAfterUnpark busy skip");
+			return;
 		}
 
-		_parkedInactive = false;
+		var w = Math.Max(48, width);
+		var h = Math.Max(48, height);
+		var mx = Math.Max(0, x);
+		var my = Math.Max(0, y);
+		TermLog($"RemountWarmSurfaceAfterUnpark begin size={w:F0}x{h:F0}");
+
+		SoftCollapseHost();
+		CancelTermDebounce();
 		_softParked = false;
+		_warmRemountOnUnpark = false;
 		_ignoreShowUntilTick = 0;
 		_parkedHwnds.Clear();
 
-		Margin = new Thickness(Math.Max(0, x), Math.Max(0, y), 0, 0);
+		var term = _term;
+		_term = null;
+		if (term is null)
+		{
+			try { FinishWarmRemount(mx, my, w, h); }
+			finally { Interlocked.Exchange(ref _remountBusy, 0); }
+			return;
+		}
+
+		try
+		{
+			var pty = term.DisconnectConPTYTerm();
+			if (pty is not null)
+				_warmPty = pty;
+		}
+		catch (Exception ex)
+		{
+			TermLog($"RemountWarmSurfaceAfterUnpark disconnect: {ex.Message}");
+		}
+
+		var dq = DispatcherQueue;
+		if (dq is null)
+		{
+			try { DestroyTermControlUiCore(term, "DisposeTerm-warm-remount"); }
+			catch (Exception ex) { TermLog($"RemountWarmSurfaceAfterUnpark destroy: {ex.Message}"); }
+			try { FinishWarmRemount(mx, my, w, h); }
+			finally { Interlocked.Exchange(ref _remountBusy, 0); }
+			return;
+		}
+
+		// Hold gates through deferred HWND Dispose so FE cannot remount mid-DestroyWindow.
+		Interlocked.Exchange(ref _parkGate, 1);
+		Interlocked.Exchange(ref _teardownActive, 1);
+		TermLog("RemountWarmSurfaceAfterUnpark enqueue dispose+remount");
+		dq.TryEnqueue(() =>
+		{
+			try
+			{
+				DestroyTermControlUiCore(term, "DisposeTerm-warm-remount");
+			}
+			catch (Exception ex)
+			{
+				TermLog($"RemountWarmSurfaceAfterUnpark destroy: {ex.Message}");
+			}
+			finally
+			{
+				Interlocked.Exchange(ref _teardownActive, 0);
+				Interlocked.Exchange(ref _parkGate, 0);
+			}
+
+			dq.TryEnqueue(() =>
+			{
+				try { FinishWarmRemount(mx, my, w, h); }
+				finally { Interlocked.Exchange(ref _remountBusy, 0); }
+			});
+		});
+	}
+
+	private void FinishWarmRemount(double x, double y, double width, double height)
+	{
+		_parkedInactive = false;
+		_softParked = false;
+		_ignoreShowUntilTick = 0;
+		Margin = new Thickness(x, y, 0, 0);
 		Width = width;
 		Height = height;
 		HorizontalAlignment = HorizontalAlignment.Left;
@@ -254,10 +329,11 @@ public sealed partial class NativeTerminalHost : UserControl
 		Visibility = Visibility.Visible;
 		Opacity = 1;
 		IsHitTestVisible = true;
+		try { UpdateLayout(); } catch { /* ignore */ }
 
 		if (!TryMountTermNow())
 		{
-			TermLog("RemountWarmSurfaceAfterUnpark mount failed");
+			TermLog($"RemountWarmSurfaceAfterUnpark mount failed size={Width:F0}x{Height:F0}");
 			return;
 		}
 		if (_term is not null)
@@ -265,7 +341,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			TryShowTermHwnds(_term);
 			PulseTermPaintAfterUnpark(width, height);
 		}
-		TermLog($"RemountWarmSurfaceAfterUnpark done warm={_warmPty is not null} term={_term is not null}");
+		TermLog($"RemountWarmSurfaceAfterUnpark done warm={_warmPty is not null} term={_term is not null} size={Width:F0}x{Height:F0}");
 	}
 
 	private void SoftCollapseHost()
@@ -756,6 +832,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			// Full HWND Dispose only when killing the session (DisposeTerm-stop / Close).
 			var fullDispose = reason.Contains("stop", StringComparison.OrdinalIgnoreCase)
 				|| reason.Contains("Close", StringComparison.OrdinalIgnoreCase)
+				|| reason.Contains("remount", StringComparison.OrdinalIgnoreCase)
 				|| reason.StartsWith("DisposeTerm-stop", StringComparison.Ordinal);
 			if (fullDispose)
 			{
