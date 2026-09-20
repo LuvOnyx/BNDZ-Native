@@ -401,6 +401,19 @@ export function compareEntities(
     if (cmp !== 0) return mul * cmp;
     return naturalCompare(entitySortName(a), entitySortName(b), config);
   }
+  if (col === 'cloudStatus') {
+    const cloudA = String(a.cloudStatus || '').toLowerCase();
+    const cloudB = String(b.cloudStatus || '').toLowerCase();
+    // Empty (local / non-cloud) after labeled statuses when ascending.
+    if (!cloudA && !cloudB) return naturalCompare(entitySortName(a), entitySortName(b), config);
+    if (!cloudA || !cloudB) {
+      if (!cloudA) return mul;
+      return -mul;
+    }
+    const cmp = cloudA.localeCompare(cloudB, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
   if (col === 'path') {
     const pathA = String(a.path || a.id || '');
     const pathB = String(b.path || b.id || '');
