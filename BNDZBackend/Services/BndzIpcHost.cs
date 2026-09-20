@@ -1,4 +1,4 @@
-// Headless in-process IPC host for BNDZShell — reconstructed from MainWindow brain
+﻿// Headless in-process IPC host for BNDZShell â€” reconstructed from MainWindow brain
 // (classic WPF Window / WebView2 chrome stripped; push via Action<string>).
 #nullable enable
 using System;
@@ -91,13 +91,13 @@ namespace BNDZ.Services
         // same operationId resolve immediately with this value instead of re-prompting the UI.
         private ConcurrentDictionary<string, string> _conflictBatchResolution = new();
         // Icon/thumb caches live in BndzHostCaches (BitFaster ConcurrentLru).
-        // private ConcurrentDictionary kept removed — use BndzHostCaches.Icons / Thumbnails.
+        // private ConcurrentDictionary kept removed â€” use BndzHostCaches.Icons / Thumbnails.
 
         private CoreWebView2Environment? _webViewEnvironment;
         /// <summary>Cached CDP SystemInfo.getInfo GPU report for Perf HUD (honest hardware vs software).</summary>
         private object? _gpuStatusCache;
         private readonly object _gpuStatusGate = new();
-        /// <summary>JS innerWidth / WebView ActualWidth — corrects WPF→clientX drift at 125%+ DPI.</summary>
+        /// <summary>JS innerWidth / WebView ActualWidth â€” corrects WPFâ†’clientX drift at 125%+ DPI.</summary>
         private double _webviewJsScaleX = 1.0;
         private double _webviewJsScaleY = 1.0;
         private SystemTrayService? _trayService;
@@ -122,7 +122,7 @@ namespace BNDZ.Services
         private Func<string, string?, string?, bool>? _openPluginWindowAction;
         private Action? _hostActivateMainAction;
 
-        // Headless: no real WebView2 — stub so leftover chrome helpers compile; IPC never uses it.
+        // Headless: no real WebView2 â€” stub so leftover chrome helpers compile; IPC never uses it.
         private sealed class HeadlessWebViewStub
         {
             public double ActualWidth => 0;
@@ -165,7 +165,7 @@ namespace BNDZ.Services
 
         private System.Windows.Controls.Grid? NativeShellChrome => null;
         private System.Windows.Controls.RowDefinition? NativeChromeRow => null;
-        // Shadow Window chrome so File→Exit / tray routes to WinUI host actions.
+        // Shadow Window chrome so Fileâ†’Exit / tray routes to WinUI host actions.
         private new void Hide() { _hostHideToTrayAction?.Invoke(); }
         private new void Show() { _hostRestoreFromTrayAction?.Invoke(); }
         private new void Close() { try { _hostCloseAction?.Invoke(); } catch { /* ignore */ } }
@@ -184,7 +184,7 @@ namespace BNDZ.Services
 
         /// <summary>
         /// WinUI shell STA invoke for OLE <c>DoDragDrop</c>. Must be the thread that owns the
-        /// mouse (CraftPaneHost DispatcherQueue) — NOT <see cref="BndzUiDispatcher"/>, which
+        /// mouse (CraftPaneHost DispatcherQueue) â€” NOT <see cref="BndzUiDispatcher"/>, which
         /// has no button-down state and instant-completes outbound drags.
         /// </summary>
         private Action<Action>? _hostStaInvoke;
@@ -192,7 +192,7 @@ namespace BNDZ.Services
         private Action<Action>? _hostStaInvokeNextTick;
         /// <summary>Run on WinUI dispatcher after N ms (lets WebView2 ExecuteScript + PostWebMessage finish).</summary>
         private Action<Action, int>? _hostStaInvokeDelayed;
-        /// <summary>Run FE ghost dismiss (fire-and-forget — never block-wait on UI thread).</summary>
+        /// <summary>Run FE ghost dismiss (fire-and-forget â€” never block-wait on UI thread).</summary>
         private Action? _oleEscalateFeDismiss;
         /// <summary>
         /// WinUI: dismiss FE ghost via ExecuteScript, then run OLE on the dispatcher once the
@@ -258,7 +258,7 @@ namespace BNDZ.Services
                 _hostStaInvokeDelayed(action, delayMs);
                 return;
             }
-            // Classic WPF fallback — coarse sleep off UI thread then marshal DoDragDrop.
+            // Classic WPF fallback â€” coarse sleep off UI thread then marshal DoDragDrop.
             _ = Task.Run(async () =>
             {
                 await Task.Delay(delayMs).ConfigureAwait(false);
@@ -266,7 +266,7 @@ namespace BNDZ.Services
             });
         }
 
-        /// <summary>Screen → WebView2 CSS client coords for headless WinUI hosts (BNDZShell).</summary>
+        /// <summary>Screen â†’ WebView2 CSS client coords for headless WinUI hosts (BNDZShell).</summary>
         public delegate System.Windows.Point HeadlessOleCoordMapper(double screenX, double screenY);
 
         private HeadlessOleCoordMapper? _headlessOleCoordMapper;
@@ -301,7 +301,7 @@ namespace BNDZ.Services
             _fileDragSessionActive = false;
             _fileDragSessionPaths = null;
             _fileDragButtonUpSinceMs = 0;
-            // Preview overlay is only for the armed FE→OLE gap; DoDragDrop owns Show/Hide after escalate.
+            // Preview overlay is only for the armed FEâ†’OLE gap; DoDragDrop owns Show/Hide after escalate.
             if (!_bndzOleDragActive)
             {
                 try { BndzOutboundDragGhostOverlay.Hide(); }
@@ -344,7 +344,7 @@ namespace BNDZ.Services
             catch (Exception ex) { Debug.WriteLine($"[BndzIpcHost] LayoutEmbeddedMeshTerminal: {ex.Message}"); }
         }
 
-        /// <summary>Deprecated — opaque top mask broke the React menubar; ghost hide is CSS-only now.</summary>
+        /// <summary>Deprecated â€” opaque top mask broke the React menubar; ghost hide is CSS-only now.</summary>
         public bool ShouldShowOleTopGhostMask() => false;
 
         /// <summary>
@@ -352,7 +352,7 @@ namespace BNDZ.Services
         /// leaves the host window (CSS coords cannot detect this under WebView2).
         /// </summary>
         /// <param name="force">
-        /// FE edge/pointercancel backup — WebView2 often cancels before the cursor reaches the
+        /// FE edge/pointercancel backup â€” WebView2 often cancels before the cursor reaches the
         /// host rim; escalate immediately while the session is still armed.
         /// </param>
         public bool TryEscalateOutboundOleDrag(bool force = false)
@@ -371,7 +371,7 @@ namespace BNDZ.Services
             }
 
             if (!_fileDragSessionActive || _fileDragSessionPaths == null || _fileDragSessionPaths.Length == 0)
-                return true; // idle — stop WinUI poll
+                return true; // idle â€” stop WinUI poll
 
             if (!GetCursorPos(out var pt)) return false;
 
@@ -400,7 +400,7 @@ namespace BNDZ.Services
                 shouldEscalate = true;
             }
 
-            // WebView2 cannot paint outside the HWND — arm the host layered ghost as soon as
+            // WebView2 cannot paint outside the HWND â€” arm the host layered ghost as soon as
             // the cursor leaves the deep interior (before modal DoDragDrop), so wallpaper
             // drags still show a card instead of only the finger cursor.
             var outsideDeep = !WebView2DropTargetService.IsCursorDeepInsideHost(pt.X, pt.Y, insetPx: 12);
@@ -415,7 +415,7 @@ namespace BNDZ.Services
                 catch { /* ignore */ }
             }
 
-            // Hide FE ghost only when escalate is committed — not while dragging over menubar/list.
+            // Hide FE ghost only when escalate is committed â€” not while dragging over menubar/list.
             if (shouldEscalate)
             {
                 var nowDismiss = Environment.TickCount64;
@@ -429,7 +429,7 @@ namespace BNDZ.Services
 
             if (!shouldEscalate)
             {
-                // Do NOT clear on short button-up flickers after pointercancel — that killed
+                // Do NOT clear on short button-up flickers after pointercancel â€” that killed
                 // outbound drags before the cursor left the window. Only disarm after a long
                 // idle (user abandoned) or FILE_DRAG_ACTIVE(false) / successful escalate.
                 // Side exits often lose the button bit before the cursor clears the host.
@@ -451,11 +451,11 @@ namespace BNDZ.Services
                 return false;
             }
 
-            // Do not require VK_LBUTTON — Chromium capture loss often clears the bit while the
+            // Do not require VK_LBUTTON â€” Chromium capture loss often clears the bit while the
             // user is still holding. QueryContinueDrag owns drop/cancel once DoDragDrop runs.
             _fileDragButtonUpSinceMs = 0;
             var paths = _fileDragSessionPaths;
-            // Latch OLE-active BEFORE ClearFileDragSession — otherwise Clear hides the host
+            // Latch OLE-active BEFORE ClearFileDragSession â€” otherwise Clear hides the host
             // ghost that was just Shown for the rim leave, and FollowCursor becomes a no-op
             // until DoDragDrop Show (ghost "plants" at the window edge).
             _bndzOleDragActive = true;
@@ -468,7 +468,7 @@ namespace BNDZ.Services
 
             WebView2DropTargetService.SuspendInboundDropTargetForOutboundDrag();
 
-            // 1) Kill FE ghost first — fire-and-forget ExecuteScript (never block-wait on UI thread).
+            // 1) Kill FE ghost first â€” fire-and-forget ExecuteScript (never block-wait on UI thread).
             try { _oleEscalateFeDismiss?.Invoke(); }
             catch (Exception dismissEx) { OleDndLog($"FE ghost dismiss error {dismissEx.Message}"); }
 
@@ -483,7 +483,7 @@ namespace BNDZ.Services
             }
             catch { /* best-effort FE handoff */ }
 
-            // 3) Time-based defer — dispatcher tick bursts finish before WebView2 runs script.
+            // 3) Time-based defer â€” dispatcher tick bursts finish before WebView2 runs script.
             var capturedPaths = paths;
             ScheduleOleDragAfterFeHandoff(() =>
             {
@@ -500,7 +500,7 @@ namespace BNDZ.Services
             return false;
         }
 
-        /// <summary>DoDragDrop on WinUI STA — Explorer requires the host message pump.</summary>
+        /// <summary>DoDragDrop on WinUI STA â€” Explorer requires the host message pump.</summary>
         private void ExecuteNativeFileDrag(string[] pathArray)
         {
             if (pathArray == null || pathArray.Length == 0) return;
@@ -514,7 +514,7 @@ namespace BNDZ.Services
             {
                 _bndzOleDragActive = false;
                 _oleDragArmedAtMs = 0;
-                // Re-register inbound drop target only after the outbound flag clears —
+                // Re-register inbound drop target only after the outbound flag clears â€”
                 // otherwise Register sees ole-active and skips (REGISTER skipped log).
                 try { WebView2DropTargetService.ResumeInboundDropTargetAfterOutboundDrag(); }
                 catch { /* ignore */ }
@@ -554,7 +554,7 @@ namespace BNDZ.Services
                             }
                             finally
                             {
-                                // Do not Resume here — FinishOleDrag clears ole-active first, then resumes.
+                                // Do not Resume here â€” FinishOleDrag clears ole-active first, then resumes.
                             }
                             ok = dragResult.Dropped && dragResult.EffectBits is 1 or 2 or 4;
                             if (!ok && dragResult.Dropped && string.IsNullOrEmpty(errMsg))
@@ -585,7 +585,7 @@ namespace BNDZ.Services
                     }
                     else
                     {
-                        // Classic WPF DragDrop path — WPF DataObject; native path uses ShellDataObject above.
+                        // Classic WPF DragDrop path â€” WPF DataObject; native path uses ShellDataObject above.
                         var dataObject = new System.Windows.DataObject();
                         dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
                         dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(1 | 2 | 4)));
@@ -606,7 +606,7 @@ namespace BNDZ.Services
         }
 
         /// <summary>
-        /// WebView2 DragStarting — synchronous DoDragDrop with IDataObject from the page (official path).
+        /// WebView2 DragStarting â€” synchronous DoDragDrop with IDataObject from the page (official path).
         /// Runs on WinUI STA; no boundary START_DRAG / FE ghost handoff.
         /// </summary>
         public void HandleWebView2DragStarting(object dataObject)
@@ -652,7 +652,7 @@ namespace BNDZ.Services
 
             if (paths.Length == 0)
             {
-                OleDndLog("DragStarting skip — no CF_HDROP paths in WebView2 IDataObject");
+                OleDndLog("DragStarting skip â€” no CF_HDROP paths in WebView2 IDataObject");
                 return;
             }
 
@@ -749,7 +749,7 @@ namespace BNDZ.Services
             var effectBits = dragResult.EffectBits;
             var effectLabel = DropEffectLabel(effectBits);
             string[]? sourceDirs = null;
-            // Never File.Exists / Directory.Exists on the STA path here — folder AV scans
+            // Never File.Exists / Directory.Exists on the STA path here â€” folder AV scans
             // freeze the shell for a beat after wallpaper drops. Probe off-thread.
             if (paths is { Length: > 0 })
             {
@@ -829,7 +829,7 @@ namespace BNDZ.Services
                                         try { NotifyOutboundOleListingSync(watchPaths, 2); } catch { /* ignore */ }
                                         return;
                                     }
-                                    _fileTransferQueue.MarkFailed(watchOp, "Move did not finish — sources still on disk.");
+                                    _fileTransferQueue.MarkFailed(watchOp, "Move did not finish â€” sources still on disk.");
                                 }
                                 catch { try { _fileTransferQueue.MarkFailed(watchOp, "Move watch failed."); } catch { /* ignore */ } }
                             });
@@ -880,7 +880,7 @@ namespace BNDZ.Services
                                             sourcesGone = true,
                                             recover = "move",
                                         };
-                                        // Marshal to UI thread — DeliverIpcJson must not hitch the worker.
+                                        // Marshal to UI thread â€” DeliverIpcJson must not hitch the worker.
                                         void PostRecover()
                                         {
                                             try
@@ -910,7 +910,7 @@ namespace BNDZ.Services
                 }
             }
 
-            // Unblock FE immediately — probe sourcesGone asynchronously.
+            // Unblock FE immediately â€” probe sourcesGone asynchronously.
             void DeliverImmediate() => DeliverEnded(sourcesGone: false);
             if (_hostStaInvokeNextTick != null)
                 _hostStaInvokeNextTick(DeliverImmediate);
@@ -1019,7 +1019,7 @@ namespace BNDZ.Services
         }
 
         /// <summary>
-        /// START_DRAG from FE boundary handoff — defer one dispatcher tick so WebView2 can
+        /// START_DRAG from FE boundary handoff â€” defer one dispatcher tick so WebView2 can
         /// process pointer release, then ReleaseCapture + modal DoDragDrop.
         /// </summary>
         private void QueueStartDragOnNextTick(string[] paths)
@@ -1043,7 +1043,7 @@ namespace BNDZ.Services
                     OleDndLog("START_DRAG skip already-active (dispatch)");
                     return;
                 }
-                // Do not ReleaseCapture here — that synthesizes WM_LBUTTONUP and poisons wallpaper release.
+                // Do not ReleaseCapture here â€” that synthesizes WM_LBUTTONUP and poisons wallpaper release.
 
                 OleDndLog("START_DRAG dispatch DoDragDrop");
                 _bndzOleDragActive = true;
@@ -1099,7 +1099,7 @@ namespace BNDZ.Services
             PostNavigationFileDrop(localPath);
         }
 
-        /// <summary>Wire real WinUI Window.Close so File→Exit / Restart / confirm-quit actually quit.</summary>
+        /// <summary>Wire real WinUI Window.Close so Fileâ†’Exit / Restart / confirm-quit actually quit.</summary>
         public void SetHostCloseAction(Action? closeAction)
         {
             _hostCloseAction = closeAction;
@@ -1154,7 +1154,7 @@ namespace BNDZ.Services
             _meshDropService = new MeshDropService(_fileTransferQueue);
             _ghostLinkService = new GhostLinkService(_linkService, _fileTransferQueue);
             _ghostLinkService.SetActionLog(_actionLogService);
-            // Idle scanner deferred below (post-construction Task.Run) — first list paint must
+            // Idle scanner deferred below (post-construction Task.Run) â€” first list paint must
             // not wait behind the 2-minute-delayed background scan loop spinning up.
             _ramStagingService = new RamStagingService(_fileTransferQueue);
             ProjFsSandboxHost.BindRamStaging(_ramStagingService);
@@ -1272,7 +1272,7 @@ namespace BNDZ.Services
             // Settings/action-log/transfer-history load is file I/O that first GET_DIR_CONTENTS
             // does not depend on (listing uses live FS enumeration + tag/reparse enrich only, not
             // FileOperationPreferences/hotkeys/QuickLook/media-cache/action-log/queue-history).
-            // Deferred post-construction so first list paint is not blocked behind disk reads —
+            // Deferred post-construction so first list paint is not blocked behind disk reads â€”
             // matches RestorePersistedWatchers / UsnHealthWatcherService.Start() pattern above.
             _ = Task.Run(() =>
             {
@@ -1389,7 +1389,7 @@ namespace BNDZ.Services
 
 #if DEBUG
         /// <summary>
-        /// Auto-open DevTools only for local `dotnet run` / bin builds — never for
+        /// Auto-open DevTools only for local `dotnet run` / bin builds â€” never for
         /// Program Files / Local\Programs installs (Debug test installers define DEBUG).
         /// </summary>
         private static bool ShouldOpenDebugDevTools()
@@ -1406,7 +1406,7 @@ namespace BNDZ.Services
                 if (dir.IndexOf(@"\Program Files", StringComparison.OrdinalIgnoreCase) >= 0)
                     return false;
                 // Typical local outputs: ...\bin\Debug\... or ...\dist\publish\...
-                // Staged FilesMerge bndz-host also lives under \bin\ — never auto-open there.
+                // Staged FilesMerge bndz-host also lives under \bin\ â€” never auto-open there.
                 if (dir.IndexOf(@"bndz-host", StringComparison.OrdinalIgnoreCase) >= 0)
                     return false;
                 if (dir.IndexOf(@"\bin\", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -1500,8 +1500,8 @@ namespace BNDZ.Services
                 : stickyMode
                     ? "Sticky"
                     : (!string.IsNullOrWhiteSpace(_pendingPluginId) ? _pendingPluginId : "Plugin");
-            Title = $"BNDZ · {label}";
-            // Sticky widgets behave like desktop notes — stay above other windows, no caption chrome.
+            Title = $"BNDZ Â· {label}";
+            // Sticky widgets behave like desktop notes â€” stay above other windows, no caption chrome.
             Topmost = stickyMode;
             if (stickyMode)
             {
@@ -1587,7 +1587,7 @@ namespace BNDZ.Services
         /// </summary>
         private void ApplyNativeShellMode_Legacy()
         {
-            Title = "BNDZ · Native Shell";
+            Title = "BNDZ Â· Native Shell";
             if (NativeShellChrome != null)
             {
                 NativeShellChrome?.Visibility = Visibility.Visible;
@@ -1686,7 +1686,7 @@ namespace BNDZ.Services
                     {
                         var id = idEl.GetString();
                         // Never complete the pipe waiter on push/stream side-channels that reuse
-                        // the request id (SHELL_GLYPH_MAP was stealing GET_DIR_CONTENTS waiters →
+                        // the request id (SHELL_GLYPH_MAP was stealing GET_DIR_CONTENTS waiters â†’
                         // 60s FE "Folder load timed out").
                         if (!string.IsNullOrEmpty(id)
                             && IsBackendHostWaiterCompletingType(msgType)
@@ -1694,7 +1694,7 @@ namespace BNDZ.Services
                         {
                             System.Diagnostics.Debug.WriteLine($"[BackendHost] waiter complete id={id} type={msgType}");
                             tcs.TrySetResult(json);
-                            // Invoke/CraftPaneHost delivers this RESULT — do not also PushToUi
+                            // Invoke/CraftPaneHost delivers this RESULT â€” do not also PushToUi
                             // (was double-posting every DIR_CONTENTS_RESULT and freezing the WebView).
                             return;
                         }
@@ -1703,7 +1703,7 @@ namespace BNDZ.Services
                             && _backendHostReplies.ContainsKey(id!))
                         {
                             System.Diagnostics.Debug.WriteLine($"[BackendHost] skip non-RESULT push id={id} type={msgType}");
-                            // Side-channel reusing request id — do not also fan-out as a push duplicate.
+                            // Side-channel reusing request id â€” do not also fan-out as a push duplicate.
                             return;
                         }
                     }
@@ -1777,7 +1777,7 @@ namespace BNDZ.Services
         }
 
         /// <summary>
-        /// Fire-and-forget FE posts — must ACK immediately so CraftPaneHost does not wait 60s.
+        /// Fire-and-forget FE posts â€” must ACK immediately so CraftPaneHost does not wait 60s.
         /// </summary>
         private static bool IsNotifyOnlyIpcType(string? type)
         {
@@ -1836,12 +1836,12 @@ namespace BNDZ.Services
         };
 
         /// <summary>
-        /// Named-pipe host IPC — full WebView message surface via <see cref="ProcessIncomingIpcMessageAsync"/>.
+        /// Named-pipe host IPC â€” full WebView message surface via <see cref="ProcessIncomingIpcMessageAsync"/>.
         /// </summary>
         public Task<string> HandleIpcAsync(string requestJson) => HandleBackendHostIpcCoreAsync(requestJson);
         public Task<string> HandleBackendHostIpcAsync(string requestJson) => HandleIpcAsync(requestJson);
 
-        /// <summary>Sync fast-path for drag notify IPC — must not block on async pump (WinUI STA).</summary>
+        /// <summary>Sync fast-path for drag notify IPC â€” must not block on async pump (WinUI STA).</summary>
         public void HandleDragNotifySync(string requestJson)
         {
             try
@@ -1855,7 +1855,7 @@ namespace BNDZ.Services
                 {
                     if (_bndzOleDragActive && !TryClearStaleOleDrag())
                     {
-                        OleDndLog("FILE_DRAG_ACTIVE ignored — native DoDragDrop in progress");
+                        OleDndLog("FILE_DRAG_ACTIVE ignored â€” native DoDragDrop in progress");
                         return;
                     }
                     var payload = root.TryGetProperty("payload", out var p) ? p : default;
@@ -1876,7 +1876,7 @@ namespace BNDZ.Services
                     LogFileDragFeRejects(payload);
                     if (!active)
                     {
-                        OleDndLog("FILE_DRAG_ACTIVE disarm — active=false from FE");
+                        OleDndLog("FILE_DRAG_ACTIVE disarm â€” active=false from FE");
                         ClearFileDragSession();
                         return;
                     }
@@ -1891,14 +1891,14 @@ namespace BNDZ.Services
                     }
                     if (paths.Count == 0)
                     {
-                        OleDndLog("FILE_DRAG_ACTIVE disarm — FE sent zero paths after filter");
+                        OleDndLog("FILE_DRAG_ACTIVE disarm â€” FE sent zero paths after filter");
                         ClearFileDragSession();
                         return;
                     }
                     var filtered = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejected);
                     if (filtered.Length == 0)
                     {
-                        OleDndLog($"FILE_DRAG_ACTIVE disarm — no valid paths (rejected {rejected})");
+                        OleDndLog($"FILE_DRAG_ACTIVE disarm â€” no valid paths (rejected {rejected})");
                         ClearFileDragSession();
                         return;
                     }
@@ -1983,7 +1983,7 @@ namespace BNDZ.Services
                     messageStr = JsonSerializer.Serialize(new { type, id, payload });
                 }
 
-                // Notify-only / fire-and-forget — acknowledge without waiting on a RESULT.
+                // Notify-only / fire-and-forget â€” acknowledge without waiting on a RESULT.
                 // Opening apps/files and navigate side-channels post these without expecting a reply;
                 // waiting 60s for a RESULT that never comes freezes the host pipe.
                 if (IsNotifyOnlyIpcType(type))
@@ -2000,7 +2000,7 @@ namespace BNDZ.Services
                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _backendHostReplies[id!] = tcs;
 
-                // Backend-host has no product WebView — avoid WPF Dispatcher marshalling on every RPC
+                // Backend-host has no product WebView â€” avoid WPF Dispatcher marshalling on every RPC
                 // (that was serializing cold-load GET_DIR_CONTENTS / settings / icons).
                 _ = ProcessIncomingIpcMessageAsync(messageStr);
 
@@ -2215,7 +2215,7 @@ namespace BNDZ.Services
         private static string NormalizeFsPath(string path)
         {
             if (string.IsNullOrEmpty(path)) return "";
-            // Preserve Remote Mesh virtual paths (/mesh/…) — never mangle to Windows FS shape.
+            // Preserve Remote Mesh virtual paths (/mesh/â€¦) â€” never mangle to Windows FS shape.
             var trimmed = path.Trim().Trim('"');
             var meshProbe = trimmed.Replace('\\', '/');
             if (!meshProbe.StartsWith('/')) meshProbe = "/" + meshProbe;
@@ -2352,12 +2352,12 @@ namespace BNDZ.Services
 
         private DateTime _lastExternalDropUtc = DateTime.MinValue;
         private string? _lastExternalDropFingerprint;
-        /// <summary>Last real folder the browser listed — host inbound commit fallback target.</summary>
+        /// <summary>Last real folder the browser listed â€” host inbound commit fallback target.</summary>
         private string? _lastBrowserFolderWinPath;
         private int _inboundHostFallbackSeq;
         private double? _lastExternalDragWebViewX;
         private double? _lastExternalDragWebViewY;
-        /// <summary>Environment.TickCount64 at the last PostExternalFileDragHover call — throttle guard.</summary>
+        /// <summary>Environment.TickCount64 at the last PostExternalFileDragHover call â€” throttle guard.</summary>
         private long _lastHoverTickMs;
         /// <summary>C4.2 inbound hover enrichment cached across throttled posts.</summary>
         private string[]? _inboundHoverSample;
@@ -2514,7 +2514,7 @@ namespace BNDZ.Services
                     else
                     {
                         comData = original;
-                        OleDndLog("shell drag image attach skipped/failed — continuing with owned-hdrop IDataObject");
+                        OleDndLog("shell drag image attach skipped/failed â€” continuing with owned-hdrop IDataObject");
                     }
                     return comData;
                 }
@@ -2633,7 +2633,7 @@ namespace BNDZ.Services
             }
             catch { /* never break drop on log */ }
 
-            // Dedicated drop path — must not rely on PushTargets alone (push=True ≠ targets>0).
+            // Dedicated drop path â€” must not rely on PushTargets alone (push=True â‰  targets>0).
             try { BndzEmbeddedBackendHost.DeliverExternalDropJson(json); }
             catch (Exception ex)
             {
@@ -2686,7 +2686,7 @@ namespace BNDZ.Services
                         try
                         {
                             WebView2DropTargetService.AppendOleDndLogPublic(
-                                $"inbound-host-fallback skip — no dest folder (seq={seq})");
+                                $"inbound-host-fallback skip â€” no dest folder (seq={seq})");
                         }
                         catch { /* ignore */ }
                         return;
@@ -2717,7 +2717,7 @@ namespace BNDZ.Services
                         try
                         {
                             WebView2DropTargetService.AppendOleDndLogPublic(
-                                $"inbound-host-fallback skip — FE already committed (seq={seq})");
+                                $"inbound-host-fallback skip â€” FE already committed (seq={seq})");
                         }
                         catch { /* ignore */ }
                         return;
@@ -2768,7 +2768,7 @@ namespace BNDZ.Services
                         PostToUi(() => DeliverIpcJson(fsJson));
                     }
 
-                    // Explicit FE nudge — guarantees list refresh even if FS watcher debounce lags.
+                    // Explicit FE nudge â€” guarantees list refresh even if FS watcher debounce lags.
                     try
                     {
                         var destPane = dest.Replace("\\", "/");
@@ -2829,7 +2829,7 @@ namespace BNDZ.Services
             AllowDrop = true;
             MainWebView.AllowDrop = true;
 
-            // ── WPF fallback: handles drops over non-WebView2 areas (sidebar, tabs, toolbar).
+            // â”€â”€ WPF fallback: handles drops over non-WebView2 areas (sidebar, tabs, toolbar).
             // The native OLE path below owns drops over the WebView2 HWND; these handlers
             // are the safety net for anything outside it (and for the rare case where
             // RegisterDragDrop on the Chrome HWND could not be completed).
@@ -2843,7 +2843,7 @@ namespace BNDZ.Services
                     return "move";
                 if (_bndzOleDragActive && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
                     return "move";
-                // Same-volume desktop/Explorer drops offer Move — prefer it (Explorer default).
+                // Same-volume desktop/Explorer drops offer Move â€” prefer it (Explorer default).
                 if ((e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
                     return "move";
                 return "copy";
@@ -2905,7 +2905,7 @@ namespace BNDZ.Services
             AddHandler(System.Windows.DragDrop.PreviewDragOverEvent,  new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
             AddHandler(System.Windows.DragDrop.PreviewDropEvent,       new System.Windows.DragEventHandler(OnWpfDrop), true);
 
-            // ── Native OLE path: register our IDropTarget on the WebView2 child HWND.
+            // â”€â”€ Native OLE path: register our IDropTarget on the WebView2 child HWND.
             // Must run after CoreWebView2 is initialized (HWND exists).
             RegisterWebView2OleDropTarget();
 
@@ -2918,7 +2918,7 @@ namespace BNDZ.Services
 
         /// <summary>
         /// (Re)register BNDZ's native OLE <c>IDropTarget</c> on the WebView2 child HWND.
-        /// Safe to call multiple times — revokes any previous registration first.
+        /// Safe to call multiple times â€” revokes any previous registration first.
         /// Must be called on the UI thread after CoreWebView2 is initialized.
         /// </summary>
         private void RegisterWebView2OleDropTarget()
@@ -2926,7 +2926,7 @@ namespace BNDZ.Services
             var windowHwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
             if (windowHwnd == IntPtr.Zero) return;
 
-            // Screen-coords → WebView2-client-coords (handles DPI + ZoomFactor + JS scale).
+            // Screen-coords â†’ WebView2-client-coords (handles DPI + ZoomFactor + JS scale).
             System.Windows.Point OleScreenToWebViewClient(double screenX, double screenY)
             {
                 System.Windows.Point wvPt;
@@ -2965,8 +2965,8 @@ namespace BNDZ.Services
             }
 
             // onDrop: convert coords, apply dedup guard, post EXTERNAL_FILES_DROPPED.
-            // Always marshal onto WinUI STA — OLE Drop may run off the dispatcher and
-            // PostWebMessageAsJson then silently fails (desktop→list never reaches React).
+            // Always marshal onto WinUI STA â€” OLE Drop may run off the dispatcher and
+            // PostWebMessageAsJson then silently fails (desktopâ†’list never reaches React).
             void OleDrop(string[] paths, double screenX, double screenY, uint grfEffect, bool fromBndzOle)
             {
                 void Deliver()
@@ -3061,6 +3061,7 @@ namespace BNDZ.Services
             comment = e.Comment,
             tags = e.Tags,
             isShellItem = e.IsShellItem,
+        cloudStatus = e.CloudStatus,
         };
 
         private void PostDirContentsJson(string? id, List<DirListingSharedBuffer.DirEntryDto> entries)
@@ -3261,7 +3262,7 @@ namespace BNDZ.Services
 
         private async Task PostDirListingPageAsync(string? idProp, string path, List<DirListingSharedBuffer.DirEntryDto> page, bool partial)
         {
-            // Backend-host pipe: single-line RPC — DIR_CONTENTS_RESULT must win the waiter before
+            // Backend-host pipe: single-line RPC â€” DIR_CONTENTS_RESULT must win the waiter before
             // SHELL_GLYPH_MAP (glyphs use null id so they cannot steal correlation).
             if (App.IsBackendHost)
             {
@@ -3433,7 +3434,7 @@ namespace BNDZ.Services
 
                 try
                 {
-                    // First page ASAP — enough rows to fill the viewport without waiting on MORE.
+                    // First page ASAP â€” enough rows to fill the viewport without waiting on MORE.
                     // Glyphs deferred so C:\ / Videos unblock in ms.
                     const int pipeFirstPaint = 48;
                     var pipeAll = new List<DirListingSharedBuffer.DirEntryDto>();
@@ -3447,7 +3448,7 @@ namespace BNDZ.Services
                         {
                             pipeFirstPosted = true;
                             var page = pipeAll.ToList();
-                            // Defer Enrich (tags / reparse) until full list — first paint must be raw rows only.
+                            // Defer Enrich (tags / reparse) until full list â€” first paint must be raw rows only.
                             _backendHostListingFirstPaintCounts[key] = page.Count;
                             await PostBackendHostDirPageAsync(idProp, path, page, partial: true, skipGlyphs: true)
                                 .ConfigureAwait(false);
@@ -3607,7 +3608,7 @@ namespace BNDZ.Services
                 batch.Add(ev);
             }
 
-            // Deliver to FE first — ApplyFsEvent can block on the index write lock for a long time
+            // Deliver to FE first â€” ApplyFsEvent can block on the index write lock for a long time
             // and previously delayed OLE MOVE list updates by ~50s.
             var payload = new { type = "FS_EVENT_BATCH", payload = batch };
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
@@ -3635,7 +3636,7 @@ namespace BNDZ.Services
         }
 
         /// <summary>
-        /// Honest GPU report via Chromium CDP SystemInfo.getInfo — distinguishes D3D11/iGPU/dGPU
+        /// Honest GPU report via Chromium CDP SystemInfo.getInfo â€” distinguishes D3D11/iGPU/dGPU
         /// from SwiftShader / Basic Render Driver. Flags alone do not prove hardware paint.
         /// </summary>
         private async Task ProbeAndCacheGpuStatusAsync()
@@ -3834,7 +3835,7 @@ namespace BNDZ.Services
                 : "unknown";
 
             var detail = software
-                ? "Software path (SwiftShader / Basic Render) — not the user GPU"
+                ? "Software path (SwiftShader / Basic Render) â€” not the user GPU"
                 : hardware
                     ? $"Hardware GPU via {(string.IsNullOrEmpty(angleBackend) ? "Chromium compositor" : "ANGLE " + angleBackend)}"
                     : "GPU info present; hardware status unclear";
@@ -3865,7 +3866,7 @@ namespace BNDZ.Services
             // --disable-frame-rate-limit unlocks Chromium's internal 60fps cap so the compositor follows monitor Hz.
             // --disable-smooth-scrolling keeps wheel input 1:1 (Explorer-like), not eased browser smooth-scroll.
             // CanvasOopRasterization / gpu-compositing keep paint off the UI thread when the adapter allows it.
-            // Custom scheme for local file streaming — WebResourceRequested does NOT fire on SetVirtualHostNameToFolderMapping hosts.
+            // Custom scheme for local file streaming â€” WebResourceRequested does NOT fire on SetVirtualHostNameToFolderMapping hosts.
             var streamScheme = new CoreWebView2CustomSchemeRegistration(LocalStreamService.CustomScheme)
             {
                 TreatAsSecure = true,
@@ -3909,12 +3910,12 @@ namespace BNDZ.Services
             var coreWv = MainWebView.CoreWebView2
                 ?? throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
 
-            // Suppress Edge/WebView2 default context menus — BNDZ uses custom React menus only
+            // Suppress Edge/WebView2 default context menus â€” BNDZ uses custom React menus only
             coreWv.Settings.AreDefaultContextMenusEnabled = false;
             coreWv.Settings.AreBrowserAcceleratorKeysEnabled = false;
             // Match chrome so compositor never flashes white behind the UI (native feel).
             try { MainWebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 22, 24, 31); } catch { /* older runtimes */ }
-            // Probe Chromium GPU/compositor status once — Perf HUD reports real adapter, not assumed flags.
+            // Probe Chromium GPU/compositor status once â€” Perf HUD reports real adapter, not assumed flags.
             _ = ProbeAndCacheGpuStatusAsync();
             MainWebView.ZoomFactor = 1.0;
             MainWebView.ZoomFactorChanged += (_, _) =>
@@ -3958,7 +3959,7 @@ namespace BNDZ.Services
                 "https://bndz.local/local-stream/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
-            // Legacy native-icon under folder map — intercept if Chromium still requests them from stale L1.
+            // Legacy native-icon under folder map â€” intercept if Chromium still requests them from stale L1.
             coreWv.AddWebResourceRequestedFilter(
                 "http://bndz.local/assets/native-icon/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
@@ -3993,7 +3994,7 @@ namespace BNDZ.Services
             };
 
 #if DEBUG
-            // Debug packaging (test installers) still defines DEBUG — don't pop DevTools for
+            // Debug packaging (test installers) still defines DEBUG â€” don't pop DevTools for
             // installed launches. Opt-in: set BNDZ_DEVTOOLS=1, or run from a local build output.
             if (ShouldOpenDebugDevTools())
                 MainWebView.CoreWebView2.OpenDevToolsWindow();
@@ -4092,7 +4093,7 @@ namespace BNDZ.Services
                 var reqId = root.TryGetProperty("id", out var earlyIdEl) ? earlyIdEl.GetString() : null;
 
                 // Fast-path: keep the WebView message pump responsive. Never block here on
-                // DriveInfo / license IO — those hangs cascade into mass IPC timeouts.
+                // DriveInfo / license IO â€” those hangs cascade into mass IPC timeouts.
                 if (TryHandleFastIpc(type, reqId, root))
                     return;
 
@@ -4309,7 +4310,7 @@ namespace BNDZ.Services
                 {
                     if (_bndzOleDragActive && !TryClearStaleOleDrag())
                     {
-                        OleDndLog("FILE_DRAG_ACTIVE ignored (async) — native DoDragDrop in progress");
+                        OleDndLog("FILE_DRAG_ACTIVE ignored (async) â€” native DoDragDrop in progress");
                         return;
                     }
                     var payload = root.TryGetProperty("payload", out var p) ? p : default;
@@ -4330,7 +4331,7 @@ namespace BNDZ.Services
                     LogFileDragFeRejects(payload);
                     if (!active)
                     {
-                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) — active=false from FE");
+                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) â€” active=false from FE");
                         ClearFileDragSession();
                         return;
                     }
@@ -4345,14 +4346,14 @@ namespace BNDZ.Services
                     }
                     if (paths.Count == 0)
                     {
-                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) — FE sent zero paths after filter");
+                        OleDndLog("FILE_DRAG_ACTIVE disarm (async) â€” FE sent zero paths after filter");
                         ClearFileDragSession();
                         return;
                     }
                     var filteredAsync = BndzOutboundDragHelper.FilterExistingPaths(paths, out var rejectedAsync);
                     if (filteredAsync.Length == 0)
                     {
-                        OleDndLog($"FILE_DRAG_ACTIVE disarm (async) — no valid paths (rejected {rejectedAsync})");
+                        OleDndLog($"FILE_DRAG_ACTIVE disarm (async) â€” no valid paths (rejected {rejectedAsync})");
                         ClearFileDragSession();
                         return;
                     }
@@ -4437,7 +4438,7 @@ namespace BNDZ.Services
                     }
                     else
                     {
-                        Console.WriteLine($"[RESOLVE_CONFLICT] No pending resolver for key '{conflictKey}' — the conflict prompt UI likely sent a stale or missing operationId.");
+                        Console.WriteLine($"[RESOLVE_CONFLICT] No pending resolver for key '{conflictKey}' â€” the conflict prompt UI likely sent a stale or missing operationId.");
                     }
                 }
                 else if (type == "SHELL_EXECUTE")
@@ -4463,7 +4464,7 @@ namespace BNDZ.Services
                     if (workingDir.StartsWith("/")) workingDir = workingDir.Substring(1);
                     workingDir = workingDir.Replace("/", "\\");
                     
-                    // Off the IPC message pump — ShellExecute/COM must not contend with folder open.
+                    // Off the IPC message pump â€” ShellExecute/COM must not contend with folder open.
                     _ = Task.Run(() =>
                     {
                         try
@@ -4502,7 +4503,7 @@ namespace BNDZ.Services
                             }
                             else if (action == "runCommand")
                             {
-                                // Raw user command from Shell Menus plugin — must not be path-normalized
+                                // Raw user command from Shell Menus plugin â€” must not be path-normalized
                                 string rawCmd = pathElement.ValueKind == JsonValueKind.String
                                     ? pathElement.GetString() ?? ""
                                     : path;
@@ -4674,7 +4675,7 @@ namespace BNDZ.Services
                             }
                             else
                             {
-                                // Cache miss — full re-enumerate
+                                // Cache miss â€” full re-enumerate
                                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                                 all = new List<DirListingSharedBuffer.DirEntryDto>();
                                 await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, cts.Token).ConfigureAwait(false))
@@ -4894,7 +4895,7 @@ namespace BNDZ.Services
                 }
                 else if (type == "PREFETCH_CONTEXT_MENU_ITEMS")
                 {
-                    // Fire-and-forget warm — no reply. Host shape-cache fills so the next GET is instant.
+                    // Fire-and-forget warm â€” no reply. Host shape-cache fills so the next GET is instant.
                     var paths = new List<string>();
                     try {
                         var payload = root.GetProperty("payload");
@@ -4988,7 +4989,7 @@ namespace BNDZ.Services
                     string? sendToTarget = payload.TryGetProperty("sendToTarget", out var stEl) ? stEl.GetString() : null;
                     var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
 
-                    // Never block the IPC pump on ShellExecute / COM — app open felt like a freeze.
+                    // Never block the IPC pump on ShellExecute / COM â€” app open felt like a freeze.
                     _ = Task.Run(() =>
                     {
                         try
@@ -5003,7 +5004,7 @@ namespace BNDZ.Services
                 }
                 else if (type == "SET_SHELL_CLIPBOARD")
                 {
-                    // Explorer-compatible CF_HDROP cut/copy so BNDZ ↔ Explorer paste works.
+                    // Explorer-compatible CF_HDROP cut/copy so BNDZ â†” Explorer paste works.
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
                     var payload = root.GetProperty("payload");
                     var paths = new List<string>();
@@ -5317,7 +5318,7 @@ namespace BNDZ.Services
                 }
                 else if (type == "MESH_TERMINAL_LAYOUT")
                 {
-                    // No-op: never SetParent into WebView2. Local shell is ConPTY → xterm.js.
+                    // No-op: never SetParent into WebView2. Local shell is ConPTY â†’ xterm.js.
                 }
                 else if (type == "MESH_STAT")
                 {
@@ -6346,7 +6347,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Phase 9+ selling-pillar IPC: Sandbox ──
+                // â”€â”€ Phase 9+ selling-pillar IPC: Sandbox â”€â”€
                 else if (type == "SANDBOX_START")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -6481,7 +6482,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Branching Time (content-addressed time machine) ──
+                // â”€â”€ Branching Time (content-addressed time machine) â”€â”€
                 else if (type == "BRANCH_WATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -6582,7 +6583,7 @@ namespace BNDZ.Services
                         PostMeshIpcResult(idProp, "BRANCH_DELETE_RESULT", new { ok });
                     });
                 }
-                // ── Drop Magnet Recipes ──
+                // â”€â”€ Drop Magnet Recipes â”€â”€
                 else if (type == "MAGNET_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -6594,7 +6595,7 @@ namespace BNDZ.Services
                 else if (type == "MAGNET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    // Copy before Task.Run â€” JsonDocument is disposed when this handler returns.
                     var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
@@ -6639,7 +6640,7 @@ namespace BNDZ.Services
                     var operationId = payload.TryGetProperty("operationId", out var opEl) ? opEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
                     _ = HandleMagnetApplyDropAsync(operationId, magnetId, sources, action, idProp);
                 }
-                // ── Temporal Diff Pane ──
+                // â”€â”€ Temporal Diff Pane â”€â”€
                 else if (type == "TEMPORAL_DIFF_SNAPSHOT")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -6696,7 +6697,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Phase 9+ selling-pillar IPC: Health ──
+                // â”€â”€ Phase 9+ selling-pillar IPC: Health â”€â”€
                 else if (type == "HEALTH_SCAN")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -6970,7 +6971,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Phase 9+ selling-pillar IPC: Lineage ──
+                // â”€â”€ Phase 9+ selling-pillar IPC: Lineage â”€â”€
                 else if (type == "LINEAGE_GET")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7028,7 +7029,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Phase 9+ selling-pillar IPC: Capacity Solver ──
+                // â”€â”€ Phase 9+ selling-pillar IPC: Capacity Solver â”€â”€
                 else if (type == "CAPACITY_BUILD_PLAN")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7206,7 +7207,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Policy Packs ──
+                // â”€â”€ Policy Packs â”€â”€
                 else if (type == "POLICY_PACK_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7294,7 +7295,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Path Healer ──
+                // â”€â”€ Path Healer â”€â”€
                 else if (type == "PATH_HEALER_SCAN")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7353,7 +7354,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Zero-Knowledge Vault ──
+                // â”€â”€ Zero-Knowledge Vault â”€â”€
                 else if (type == "ZK_VAULT_CREATE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7427,7 +7428,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── ACL Drama ──
+                // â”€â”€ ACL Drama â”€â”€
                 else if (type == "ACL_DRAMA_SNAPSHOT")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7465,7 +7466,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Namespace Portal ──
+                // â”€â”€ Namespace Portal â”€â”€
                 else if (type == "NAMESPACE_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7481,7 +7482,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Shell Verb Forge ──
+                // â”€â”€ Shell Verb Forge â”€â”€
                 else if (type == "VERB_FORGE_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7555,7 +7556,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Format Transcode Rack ──
+                // â”€â”€ Format Transcode Rack â”€â”€
                 else if (type == "TRANSCODE_ENQUEUE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7601,7 +7602,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Semantic Desk ──
+                // â”€â”€ Semantic Desk â”€â”€
                 else if (type == "SEMANTIC_DESK_CLUSTER")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7636,7 +7637,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Semantic rank (embedding rerank for Fast Search) ──
+                // â”€â”€ Semantic rank (embedding rerank for Fast Search) â”€â”€
                 else if (type == "SEMANTIC_RANK")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl2) ? idEl2.GetString() : null;
@@ -7672,7 +7673,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Embedding model status ──
+                // â”€â”€ Embedding model status â”€â”€
                 else if (type == "EMBEDDING_STATUS")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl3) ? idEl3.GetString() : null;
@@ -7682,7 +7683,7 @@ namespace BNDZ.Services
                         status = BndzEmbeddingService.Instance.GetStatus(),
                     });
                 }
-                // ── Content DNA ──
+                // â”€â”€ Content DNA â”€â”€
                 else if (type == "CONTENT_DNA_SCAN")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7721,7 +7722,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Twin Volume Chess ──
+                // â”€â”€ Twin Volume Chess â”€â”€
                 else if (type == "TWIN_VOLUME_COMPARE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7763,7 +7764,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Job Tickets ──
+                // â”€â”€ Job Tickets â”€â”€
                 else if (type == "JOB_TICKET_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7809,7 +7810,7 @@ namespace BNDZ.Services
                 else if (type == "JOB_TICKET_SAVE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    // Copy before Task.Run — JsonDocument is disposed when this handler returns.
+                    // Copy before Task.Run â€” JsonDocument is disposed when this handler returns.
                     var payloadJson = root.GetProperty("payload").GetRawText();
                     _ = Task.Run(() =>
                     {
@@ -7836,7 +7837,7 @@ namespace BNDZ.Services
                         PostMeshIpcResult(idProp, "JOB_TICKET_DELETE_RESULT", new { ok });
                     });
                 }
-                // ── Phase 9+ selling-pillar IPC: Inbound Volume ──
+                // â”€â”€ Phase 9+ selling-pillar IPC: Inbound Volume â”€â”€
                 else if (type == "INBOUND_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -7935,7 +7936,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Capture Inbox (screenshot/clipboard → named PNG via OCR) ──
+                // â”€â”€ Capture Inbox (screenshot/clipboard â†’ named PNG via OCR) â”€â”€
                 else if (type == "CAPTURE_INBOX_STATUS")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -8011,7 +8012,7 @@ namespace BNDZ.Services
                         });
                     });
                 }
-                // ── Reality Check Mode (project refs vs on-disk) ──
+                // â”€â”€ Reality Check Mode (project refs vs on-disk) â”€â”€
                 else if (type == "REALITY_CHECK_SCAN")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -8584,7 +8585,7 @@ namespace BNDZ.Services
                         }
                         catch (OperationCanceledException)
                         {
-                            var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = new { error = "Lens timed out — try Retry." } };
+                            var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = new { error = "Lens timed out â€” try Retry." } };
                             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                             PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                         }
@@ -9132,7 +9133,7 @@ namespace BNDZ.Services
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var payload = root.GetProperty("payload");
                     string action = payload.GetProperty("action").GetString() ?? "";
-                    // Copy values before Task.Run — JsonDocument is disposed when this handler returns.
+                    // Copy values before Task.Run â€” JsonDocument is disposed when this handler returns.
                     bool enable = payload.TryGetProperty("enable", out var enableEl)
                         && enableEl.ValueKind == JsonValueKind.True;
                     bool allUsers = payload.TryGetProperty("allUsers", out var allUsersEl)
@@ -9208,7 +9209,7 @@ namespace BNDZ.Services
                 else if (type == "REFRESH_WORKSPACE")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    // Reply immediately — drive rescans can hang on flaky volumes and must not block IPC.
+                    // Reply immediately â€” drive rescans can hang on flaky volumes and must not block IPC.
                     var response = new { type = "REFRESH_WORKSPACE_RESULT", id = idProp, payload = true };
                     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() =>
@@ -9452,7 +9453,7 @@ namespace BNDZ.Services
                 {
                     var payload = root.GetProperty("payload");
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    // Extract before Task.Run — JsonDocument is disposed when handler returns
+                    // Extract before Task.Run â€” JsonDocument is disposed when handler returns
                     string targetPathRaw = payload.GetProperty("targetPath").GetString() ?? "";
                     string targetTypeRaw = payload.GetProperty("targetType").GetString() ?? "file";
                     string customIcoPathRaw = payload.GetProperty("customIcoPath").GetString() ?? "";
@@ -9500,7 +9501,7 @@ namespace BNDZ.Services
                                 _iconStudioService.ApplyFolderIcon(targetPath, customIcoPath, icoIndex);
                                 var iniPath = Path.Combine(targetPath, "desktop.ini");
                                 success = Directory.Exists(targetPath) && File.Exists(iniPath);
-                                if (!success) error = "Could not apply folder icon — check folder permissions.";
+                                if (!success) error = "Could not apply folder icon â€” check folder permissions.";
                             } else if (targetType == "shortcut" || targetPath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) {
                                 _iconStudioService.ApplyFileIcon(targetPath, customIcoPath);
                                 success = File.Exists(targetPath);
@@ -9525,7 +9526,7 @@ namespace BNDZ.Services
                                 BNDZ.Services.FolcolorPort.ResetIconCache();
                                 BndzHostCaches.ClearAll();
                             } else if (error == null) {
-                                error = "Apply failed — check permissions (OneDrive folders may need to be available offline).";
+                                error = "Apply failed â€” check permissions (OneDrive folders may need to be available offline).";
                             }
                         } catch (Exception ex) {
                             success = false;
@@ -9556,7 +9557,7 @@ namespace BNDZ.Services
                             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
                             await Task.Run(() =>
                             {
-                                // Directory check first — handles dotted folder names regardless of declared type
+                                // Directory check first â€” handles dotted folder names regardless of declared type
                                 if (Directory.Exists(targetPath))
                                 {
                                     BNDZ.Services.FolcolorPort.RestoreFolder(targetPath);
@@ -9841,7 +9842,7 @@ namespace BNDZ.Services
                             const string DirRoot = @"Directory\shell\BNDZ";
                             const string BgRoot = @"Directory\Background\shell\BNDZ";
 
-                            // Per-user registry — no admin rights required, Explorer merges HKCU classes
+                            // Per-user registry â€” no admin rights required, Explorer merges HKCU classes
                             using var classes = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes");
 
                             // Remove previous deployment entirely so deleted items don't linger
@@ -9849,7 +9850,7 @@ namespace BNDZ.Services
                             {
                                 try { classes.DeleteSubKeyTree(r, false); } catch { }
                             }
-                            // Legacy cleanup: older builds wrote to HKCR (machine-wide) — best effort
+                            // Legacy cleanup: older builds wrote to HKCR (machine-wide) â€” best effort
                             try { Microsoft.Win32.Registry.ClassesRoot.DeleteSubKeyTree(AllRoot, false); } catch { }
                             try { Microsoft.Win32.Registry.ClassesRoot.DeleteSubKeyTree(DirRoot, false); } catch { }
 
@@ -9901,7 +9902,7 @@ namespace BNDZ.Services
                                         byRoot[DirRoot].Add((actionLabel, commandStr, iconPath));
                                         break;
                                     case "background":
-                                        // Folder background has no selected item — %V is the folder path
+                                        // Folder background has no selected item â€” %V is the folder path
                                         byRoot[BgRoot].Add((actionLabel, commandStr.Replace("\"%1\"", "\"%V\"").Replace("%1", "\"%V\""), iconPath));
                                         break;
                                     default:
@@ -10220,7 +10221,7 @@ namespace BNDZ.Services
                     _ = Task.Run(() =>
                     {
                         var svc = BndzFileIndexService.Instance;
-                        // Media/audio smart views are thumbnail-heavy — hard-cap so EnrichDirResults +
+                        // Media/audio smart views are thumbnail-heavy â€” hard-cap so EnrichDirResults +
                         // UI prefetch cannot OOM the hosted WebView2 (blank native shell).
                         var safeLimit = view is "media" or "audio"
                             ? Math.Clamp(limit, 1, 250)
@@ -10263,7 +10264,7 @@ namespace BNDZ.Services
                             "portal-capture" => BndzNamespaceService.Instance.ResolvePortalView("capture", safeLimit),
                             _ => [],
                         };
-                        // Skip tag sidecar enrich for media/audio and synthetic smart views —
+                        // Skip tag sidecar enrich for media/audio and synthetic smart views â€”
                         // serialize-per-row adds latency with no user-visible tags on first paint.
                         object itemsPayload = view is "media" or "audio" or "problems" or "inbound"
                             ? rawItems
@@ -10701,7 +10702,7 @@ namespace BNDZ.Services
                             }
                         }
                     }
-                    // Ack immediately — RunGraph can take minutes and must not block IPC (timeout).
+                    // Ack immediately â€” RunGraph can take minutes and must not block IPC (timeout).
                     var armedCount = _automationEventTriggers.CountArmedSpatialPins();
                     {
                         var ack = new
@@ -10714,7 +10715,7 @@ namespace BNDZ.Services
                                 fired = armedCount,
                                 queued = true,
                                 log = new[] { armedCount == 0
-                                    ? "No armed spatialPin pipelines — paths queued for editor seed only."
+                                    ? "No armed spatialPin pipelines â€” paths queued for editor seed only."
                                     : $"Queued {armedCount} armed spatialPin pipeline(s)." },
                                 error = (string?)null,
                             },
@@ -10910,7 +10911,7 @@ namespace BNDZ.Services
                     }
                     _ = HandlePurgeRecycleItemsAsync(idProp, purgePaths);
                 }
-                // ── Recycle Archaeology ──
+                // â”€â”€ Recycle Archaeology â”€â”€
                 else if (type == "RECYCLE_ARCH_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -10944,7 +10945,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Hello-Gated Paths ──
+                // â”€â”€ Hello-Gated Paths â”€â”€
                 else if (type == "HELLO_GATE_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -11017,7 +11018,7 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                // ── Live Share Cursor ──
+                // â”€â”€ Live Share Cursor â”€â”€
                 else if (type == "LIVE_SHARE_START")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -11290,7 +11291,7 @@ namespace BNDZ.Services
                         var oldKey = payload.TryGetProperty("oldKey", out var oEl) ? oEl.GetString() ?? "" : "";
                         var newKey = payload.TryGetProperty("newKey", out var nEl) ? nEl.GetString() ?? "" : "";
                         var renamed = _tagSidecarStore.RenameTagKey(oldKey, newKey);
-                        System.Diagnostics.Debug.WriteLine($"[Tags] Renamed '{oldKey}'→'{newKey}' on {renamed} entries");
+                        System.Diagnostics.Debug.WriteLine($"[Tags] Renamed '{oldKey}'â†’'{newKey}' on {renamed} entries");
                     }
                     catch { /* non-critical */ }
                 }
@@ -11616,7 +11617,7 @@ namespace BNDZ.Services
 
             if (type == "GET_NETWORK_LOCATIONS")
             {
-                // DriveInfo.IsReady / WSL UNC / portable COM must never run on the UI thread —
+                // DriveInfo.IsReady / WSL UNC / portable COM must never run on the UI thread â€”
                 // that was freezing the host on startup ("BNDZ is not responding") and blocking
                 // DRIVES_RESULT delivery so This PC / Drives showed empty.
                 _ = Task.Run(() =>
@@ -11719,7 +11720,7 @@ namespace BNDZ.Services
         private void PostFileTransferQueueChanged()
         {
             // Queue notifications fire from worker threads; DeliverIpcJson is transport-safe.
-            // Never suppress during OLE — paste/copy progress must reach the toast + bottom panel.
+            // Never suppress during OLE â€” paste/copy progress must reach the toast + bottom panel.
             PostToUi(() =>
             {
                 if (!HasLiveUiTransport()) return;
@@ -12091,7 +12092,7 @@ namespace BNDZ.Services
             bool recreateSourceStructure = false,
             string? idProp = null)
         {
-            // Remote Mesh FS ops — FileSSH-class CRUD routed through SFTP/S3 providers.
+            // Remote Mesh FS ops â€” FileSSH-class CRUD routed through SFTP/S3 providers.
             var meshSources = sources.Where(BndzMeshOrchestrator.LooksLikeMeshFsPath).Select(BndzMeshOrchestrator.ToMeshPanePath).ToList();
             var targetIsMesh = BndzMeshOrchestrator.LooksLikeMeshFsPath(target);
             if (meshSources.Count > 0 || (targetIsMesh && action is "create-dir" or "create-file"))
@@ -12209,7 +12210,7 @@ namespace BNDZ.Services
 
                 try
                 {
-                    // Snapshot destinations BEFORE execute — after a move, sources no longer exist
+                    // Snapshot destinations BEFORE execute â€” after a move, sources no longer exist
                     // and Plan() would return empty (missing Action History destinations).
                     IReadOnlyList<(string Src, string Dest)>? plannedTargets = null;
                     if (action is "copy" or "move" or "rename")
@@ -12231,7 +12232,7 @@ namespace BNDZ.Services
                     catch { }
 
                     // Record BEFORE execute so Ctrl+Z works as soon as the optimistic UI hides the row
-                    // (native IFileOperation can take seconds — late Record left "Nothing to undo").
+                    // (native IFileOperation can take seconds â€” late Record left "Nothing to undo").
                     var recordedEarly = false;
                     if (engine is "native" or "teracopy" || action is "delete" or "copy" or "move" or "rename" or "create-dir" or "create-file")
                     {
@@ -12375,7 +12376,7 @@ namespace BNDZ.Services
                                 }
                                 return await tcs.Task.ConfigureAwait(false);
                             },
-                            // Already recorded above — avoid duplicate undo entries.
+                            // Already recorded above â€” avoid duplicate undo entries.
                             recordActionLog: !recordedEarly,
                             onAccessDenied: OnAccessDenied,
                             recreateSourceStructure: recreateSourceStructure,
@@ -12488,7 +12489,7 @@ namespace BNDZ.Services
                     }
 
                     // Precise Created/Deleted so FE can patch the open listing immediately.
-                    // "Changed" on wrong paths left wallpaper→list drops invisible until F5.
+                    // "Changed" on wrong paths left wallpaperâ†’list drops invisible until F5.
                     if (action == "delete" || action == "move")
                     {
                         foreach (var src in sources)
@@ -12573,7 +12574,7 @@ namespace BNDZ.Services
                 }
                 catch (Exception ex)
                 {
-                    // Partial batch failure — some items succeeded (already in the action log);
+                    // Partial batch failure â€” some items succeeded (already in the action log);
                     // expose only failed source paths so queue Retry resubmits those.
                     var failedPaths = ex is PartialTransferException partialEx
                         ? partialEx.FailedItems.Select(f => f.Path).ToList()
@@ -12604,7 +12605,7 @@ namespace BNDZ.Services
             }
 
             // Deletes go to the fast-lane so they are never blocked by an in-progress copy/move.
-            // Instant create-dir/create-file wait for a real result (finalPath) — background ack
+            // Instant create-dir/create-file wait for a real result (finalPath) â€” background ack
             // left New Folder looking successful while nothing landed on disk.
             var isDeleteOp = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase);
             await ScheduleTransferWorkAsync(
@@ -12687,7 +12688,7 @@ namespace BNDZ.Services
         private async Task HandleArchiveAddFilesAsync(string? idProp, string archivePath, List<string> sources, List<string>? entryNames)
         {
             var operationId = $"archive-add-{DateTime.UtcNow.Ticks}";
-            var label = $"Add to archive · {Path.GetFileName(archivePath)}";
+            var label = $"Add to archive Â· {Path.GetFileName(archivePath)}";
             _fileTransferQueue.RegisterJob(operationId, "archive-add", label, "bndz", Math.Max(sources.Count, 1), "archive", FileTransferPriority.Low);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
@@ -12727,7 +12728,7 @@ namespace BNDZ.Services
         private async Task HandleArchiveExtractEntryAsync(string? idProp, string archivePath, string entryPath, string destination)
         {
             var operationId = $"archive-extract-{DateTime.UtcNow.Ticks}";
-            var label = $"Extract · {Path.GetFileName(entryPath.TrimEnd('/', '\\'))}";
+            var label = $"Extract Â· {Path.GetFileName(entryPath.TrimEnd('/', '\\'))}";
             _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Low, destination);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
@@ -12766,7 +12767,7 @@ namespace BNDZ.Services
 
         private async Task HandleCreateArchiveAsync(string operationId, List<string> sources, string target, string format, string? idProp = null)
         {
-            var label = $"Create archive · {Path.GetFileName(target)}";
+            var label = $"Create archive Â· {Path.GetFileName(target)}";
             _fileTransferQueue.RegisterJob(operationId, "archive-create", label, "bndz", Math.Max(sources.Count, 1), "archive", FileTransferPriority.Normal, target);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
@@ -12828,7 +12829,7 @@ namespace BNDZ.Services
 
         private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest, string? idProp = null)
         {
-            var label = $"Extract archive · {Path.GetFileName(archivePath)}";
+            var label = $"Extract archive Â· {Path.GetFileName(archivePath)}";
             _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Normal, dest);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
@@ -12890,7 +12891,7 @@ namespace BNDZ.Services
                 var ok = RecycleBinService.Empty(hwnd);
                 if (ok) _fileTransferQueue.MarkCompleted(operationId);
                 else _fileTransferQueue.MarkFailed(operationId, "Could not empty Recycle Bin");
-                // Always post — forceWait path. BackgroundProcessing makes ShouldPostDeferredIpcResult()
+                // Always post â€” forceWait path. BackgroundProcessing makes ShouldPostDeferredIpcResult()
                 // false, which previously swallowed the RESULT and left FE timed out / "doesn't work".
                 await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok }).ConfigureAwait(false);
             }
@@ -12960,7 +12961,7 @@ namespace BNDZ.Services
         private async Task HandleUndoRedoAsync(bool undo, string? idProp, string? entryId = null)
         {
             // Ctrl+Z / redo always run against the undo stack. "Show action history" only
-            // controls the Action Log panel UI — it must not disable undo.
+            // controls the Action Log panel UI â€” it must not disable undo.
             var operationId = $"{(undo ? "undo" : "redo")}-{DateTime.UtcNow.Ticks}";
             var label = !string.IsNullOrWhiteSpace(entryId)
                 ? (undo ? "Undo to selected action" : "Redo to selected action")
@@ -13198,7 +13199,7 @@ namespace BNDZ.Services
             }
 
             var move = string.Equals(action, "move", StringComparison.OrdinalIgnoreCase);
-            var label = $"Magnet · {magnet.Name}";
+            var label = $"Magnet Â· {magnet.Name}";
             _fileTransferQueue.RegisterJob(operationId, move ? "move" : "copy", label, "bndz", plan.Entries.Count, "magnet", FileTransferPriority.High, magnet.TargetPath);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
@@ -13300,8 +13301,8 @@ namespace BNDZ.Services
         private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp, bool mirrorMode = false)
         {
             var label = mirrorMode
-                ? $"Mirror sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}"
-                : $"Update sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}";
+                ? $"Mirror sync Â· {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}"
+                : $"Update sync Â· {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}";
             _fileTransferQueue.RegisterJob(operationId, "folder-sync", label, "bndz", 1, "folder-sync", FileTransferPriority.Low, targetDir);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
@@ -13361,7 +13362,7 @@ namespace BNDZ.Services
 
         private async Task HandleCreateLinkAsync(string operationId, string linkPath, string targetPath, string linkType, string? idProp)
         {
-            var label = $"Create {linkType} · {Path.GetFileName(linkPath)}";
+            var label = $"Create {linkType} Â· {Path.GetFileName(linkPath)}";
             _fileTransferQueue.RegisterJob(operationId, "create-link", label, "bndz", 1, "fs", FileTransferPriority.Normal);
 
             async Task ExecuteCoreAsync(CancellationToken ct)

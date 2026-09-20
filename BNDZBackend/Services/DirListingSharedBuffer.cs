@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -9,7 +9,7 @@ namespace BNDZ.Services;
 
 /// <summary>
 /// High-speed directory listing wire format for WebView2 SharedBuffer handoff.
-/// Avoids JSON IPC entirely — host writes a compact binary blob into shared memory;
+/// Avoids JSON IPC entirely â€” host writes a compact binary blob into shared memory;
 /// React decodes the ArrayBuffer in place.
 ///
 /// Layout (little-endian), magic "BND1":
@@ -20,7 +20,7 @@ namespace BNDZ.Services;
 ///     i64 size | i64 modifiedUtcTicks | i64 createdUtcTicks
 ///     u16 nameLen | u16 pathLen | u16 extLen | u16 labelLen | u16 commentLen | u16 tagCount
 ///     utf8 name | path | extension | label | comment
-///     tagCount × (u16 len + utf8)
+///     tagCount Ã— (u16 len + utf8)
 /// </summary>
 public static class DirListingSharedBuffer
 {
@@ -272,24 +272,29 @@ public static class DirListingSharedBuffer
         }
     }
 
-    private static string PackComment(DirEntryDto e)
-    {
-        var userComment = e.Comment ?? "";
-        if (string.IsNullOrEmpty(e.LinkType) && !e.IsGhostLink) return userComment;
-        var meta = JsonSerializer.Serialize(new Dictionary<string, object?>
-        {
-            ["linkType"] = e.LinkType,
-            ["linkTarget"] = e.LinkTarget,
-            ["isGhostLink"] = e.IsGhostLink,
-        });
-        var packed = LinkMetaPrefix + meta;
-        return string.IsNullOrEmpty(userComment) ? packed : $"{userComment}\n{packed}";
-    }
 
     /// <summary>
     /// Posts directory listing via SharedBuffer. Returns false if SharedBuffer is unavailable
     /// (caller should fall back to JSON).
     /// </summary>
+
+    private static string PackComment(DirEntryDto e)
+    {
+        var userComment = e.Comment ?? "";
+        var hasLink = !string.IsNullOrEmpty(e.LinkType) || e.IsGhostLink;
+        var hasCloud = !string.IsNullOrEmpty(e.CloudStatus);
+        if (!hasLink && !hasCloud) return userComment;
+        var meta = new Dictionary<string, object?>();
+        if (hasLink)
+        {
+            meta["linkType"] = e.LinkType;
+            meta["linkTarget"] = e.LinkTarget;
+            meta["isGhostLink"] = e.IsGhostLink;
+        }
+        if (hasCloud) meta["cloudStatus"] = e.CloudStatus;
+        var packed = LinkMetaPrefix + JsonSerializer.Serialize(meta);
+        return string.IsNullOrEmpty(userComment) ? packed : string.Concat(userComment, "\n", packed);
+    }
     public static bool TryPost(
         CoreWebView2Environment environment,
         CoreWebView2 webView,
@@ -312,7 +317,7 @@ public static class DirListingSharedBuffer
                 stream.Flush();
             }
 
-            // Tiny JSON envelope only — payload lives in shared memory.
+            // Tiny JSON envelope only â€” payload lives in shared memory.
             var metaObj = new Dictionary<string, object?>
             {
                 ["type"] = responseType,

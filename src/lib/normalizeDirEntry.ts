@@ -1,4 +1,4 @@
-/** Normalize backend directory entries so UI sort/display never sees missing `name`. */
+﻿/** Normalize backend directory entries so UI sort/display never sees missing `name`. */
 function inferExtensionFromName(name: string): string | undefined {
   const dot = name.lastIndexOf('.');
   if (dot <= 0 || dot === name.length - 1) return undefined;
@@ -48,6 +48,7 @@ export function normalizeDirEntry(item: any, index = 0): any {
     modified: normalizeModified(item.modified ?? item.Modified),
     created: normalizeDateField(item.created ?? item.Created ?? item.createdAt ?? item.CreatedAt),
     tags: Array.isArray(item.tags) ? item.tags : (Array.isArray(item.Tags) ? item.Tags : []),
+    cloudStatus: item.cloudStatus ?? item.CloudStatus ?? undefined,
   };
 }
 

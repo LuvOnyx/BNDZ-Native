@@ -1,6 +1,6 @@
-/**
- * BND1 directory listing binary codec — mirrors BNDZBackend/Services/DirListingSharedBuffer.cs
- * Decode SharedBuffer ArrayBuffer → plain file-list objects for the React UI.
+﻿/**
+ * BND1 directory listing binary codec â€” mirrors BNDZBackend/Services/DirListingSharedBuffer.cs
+ * Decode SharedBuffer ArrayBuffer â†’ plain file-list objects for the React UI.
  */
 
 const MAGIC = 0x31444e42; // 'BND1' LE
@@ -111,6 +111,7 @@ export function decodeBnd1DirListing(buffer: ArrayBuffer): any[] {
           if (meta.linkType) item.linkType = meta.linkType;
           if (meta.linkTarget) item.linkTarget = meta.linkTarget;
           if (meta.isGhostLink) item.isGhostLink = true;
+          if (meta.cloudStatus) item.cloudStatus = meta.cloudStatus;
         } catch { /* ignore */ }
         if (userComment) item.comment = userComment;
       } else {
@@ -125,7 +126,7 @@ export function decodeBnd1DirListing(buffer: ArrayBuffer): any[] {
 }
 
 // ---------------------------------------------------------------------------
-// BNG1 — shell glyph map shared buffer codec
+// BNG1 â€” shell glyph map shared buffer codec
 // mirrors BNDZBackend/Services/IconGlyphSharedBuffer.cs
 // ---------------------------------------------------------------------------
 
