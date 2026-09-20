@@ -17,7 +17,7 @@ interface VirtualizedFileListProps<T> {
   className?: string;
   renderItem: (item: T, index: number) => React.ReactNode;
   emptyState?: React.ReactNode;
-  /** Visible (+overscan) item index range for icon/thumb warm — no UI change. */
+  /** Visible (+overscan) item index range for icon/thumb warm -- no UI change. */
   onVisibleRangeChange?: (range: { startIndex: number; endIndex: number }) => void;
 }
 
@@ -50,7 +50,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
   }));
   const useVirtual = enabled && items.length >= threshold;
 
-  // Discover the overflow scroll parent once — never use setState in parent ref callbacks.
+  // Discover the overflow scroll parent once -- never use setState in parent ref callbacks.
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -66,7 +66,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
       const style = getComputedStyle(scrollEl);
       const padY =
         (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
-      // Content box only — matching clientHeight would always overflow by padding
+      // Content box only -- matching clientHeight would always overflow by padding
       // and leave the scrollbar active on short lists.
       const h = Math.max(0, scrollEl.clientHeight - padY);
       if (h > 0) setScrollMinHeight(prev => (prev === h ? prev : h));
@@ -189,7 +189,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
   /**
    * Fill the viewport when the list is short (empty area stays clickable),
    * but only grow past the viewport when content actually needs the trailing
-   * folder-context pad — otherwise overflow-y:auto always shows a scrollbar
+   * folder-context pad -- otherwise overflow-y:auto always shows a scrollbar
    * and the list "scrolls" even when it isn't full.
    */
   const withFolderPad = (contentHeight: number) => {
@@ -208,7 +208,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
             className="grid w-full justify-start content-start"
             style={{
               gap,
-              // Equal-stretch tracks from packGridTracks — no early wrap, no right clip.
+              // Equal-stretch tracks from packGridTracks -- no early wrap, no right clip.
               gridTemplateColumns: gridTemplate,
               minHeight: contentMin || undefined,
               paddingBottom: LIST_FOLDER_CONTEXT_PAD_PX,

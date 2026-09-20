@@ -98,7 +98,7 @@ export default function BndzNotesManager({ onClose, initialView }: Props) {
           className="bndz-search-input flex-1"
           value={query}
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-          placeholder="Search notes…"
+          placeholder="Search notes..."
         />
         <button type="button" className="bndz-icon-btn" title="New note" onClick={openCreate}><Icons8Icon id="plus_ui" size={14} /></button>
       </div>

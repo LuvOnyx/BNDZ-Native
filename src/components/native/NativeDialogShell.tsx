@@ -45,7 +45,7 @@ const TONE_ICON: Record<NativeDialogTone, string> = {
   conflict: 'copy',
 };
 
-/** Prefer PNG plaques for alert heroes — Icons8 only when iconId is forced. */
+/** Prefer PNG plaques for alert heroes -- Icons8 only when iconId is forced. */
 const TONE_PLAQUE: Record<NativeDialogTone, BndzPlaqueTone> = {
   info: 'idle',
   warning: 'warn',

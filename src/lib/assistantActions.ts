@@ -24,11 +24,11 @@ export function extractAssistantActions(text: string, contextPaths: string[]): A
   if (/\b(index|search index|build index|re-?index)\b/.test(lower)) {
     actions.push({ id: 'index', label: 'Build search index', verb: 'index' });
   }
-  const findMatch = text.match(/(?:find|search for|look for)\s+["“']([^"”']+)["”']/i);
+  const findMatch = text.match(/(?:find|search for|look for)\s+[""']([^""']+)[""']/i);
   if (findMatch || /\b(finding tab|search results)\b/.test(lower)) {
     actions.push({
       id: 'find',
-      label: findMatch ? `Find “${findMatch[1]}”` : 'New finding tab',
+      label: findMatch ? `Find "${findMatch[1]}"` : 'New finding tab',
       verb: 'find',
       query: findMatch?.[1],
     });

@@ -141,7 +141,7 @@ export default function ZkVaultPlugin({
                 {folder ? formatUiPath(folder) : 'Select a folder in the list'}
               </div>
             </div>
-            <span className="bndz-vault-count">{vaultCount} vault · {sessions.length} open</span>
+            <span className="bndz-vault-count">{vaultCount} vault | {sessions.length} open</span>
           </div>
 
           <input
@@ -185,7 +185,7 @@ export default function ZkVaultPlugin({
             <PluginEmptyState
               icon="lock_ui"
               title="No open mounts"
-              description="Unlock a vault to browse decrypted files in a temporary mount — like an encrypted volume."
+              description="Unlock a vault to browse decrypted files in a temporary mount -- like an encrypted volume."
             />
           ) : (
             <ul className="bndz-vault-sessions">
@@ -197,7 +197,7 @@ export default function ZkVaultPlugin({
                       <span className="truncate">{formatUiPath(s.sourcePath)}</span>
                     </div>
                     <div className="bndz-vault-session-mount" title={formatUiPath(s.mountPath)}>
-                      Mount · {formatUiPath(s.mountPath)}
+                      Mount | {formatUiPath(s.mountPath)}
                     </div>
                     {s.mode ? <div className="bndz-vault-session-mode">{s.mode}</div> : null}
                   </div>

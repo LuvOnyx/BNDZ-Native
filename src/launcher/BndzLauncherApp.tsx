@@ -47,7 +47,7 @@ function hexToRgbCsv(hex: string): string {
   return `${r}, ${g}, ${b}`;
 }
 
-/** SuperCmd App.tsx orchestration — BNDZ Launcher multi-view shell */
+/** SuperCmd App.tsx orchestration -- BNDZ Launcher multi-view shell */
 export default function BndzLauncherApp() {
   const views = useBndzLauncherViews();
   const ai = useBndzAiChat({ onExitAiMode: views.resetToMain });
@@ -418,7 +418,7 @@ export default function BndzLauncherApp() {
         >
           <LauncherSearchHeader
             value={query}
-            placeholder={loadingExtensions ? 'Loading apps and extensions…' : 'Search apps, files, notes, snippets, AI…'}
+            placeholder={loadingExtensions ? 'Loading apps and extensions...' : 'Search apps, files, notes, snippets, AI...'}
             inputRef={inputRef}
             onChange={setQuery}
             onKeyDown={handleKeyDown}

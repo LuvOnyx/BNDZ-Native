@@ -18,7 +18,7 @@ export function isPointerInsideMenuTree(x: number, y: number, root: PointRoot = 
 
 /**
  * Close a context menu on outside pointer-down or Escape.
- * Do NOT close on window blur — WebView2 / WinUI non-client hit-testing fires
+ * Do NOT close on window blur -- WebView2 / WinUI non-client hit-testing fires
  * spurious blur on right-click and instantly kills tab / list menus.
  */
 export function useContextMenuDismissOnLeave(active: boolean, onClose: () => void, _graceMs = 180) {

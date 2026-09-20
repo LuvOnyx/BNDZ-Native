@@ -18,7 +18,7 @@ export const DropMagnetPluginDef = {
   id: 'drop-magnet',
   name: 'Drop Magnets',
   icon: 'magnet_ui',
-  description: 'Named landing pads — drop files to rename, tag, and route in one release.',
+  description: 'Named landing pads -- drop files to rename, tag, and route in one release.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -60,7 +60,7 @@ export default function DropMagnetPlugin({
 }: {
   currentPath?: string;
   selectedPaths?: string[];
-  /** When hosted inside Batch Rename Magnets tab — skip outer chrome. */
+  /** When hosted inside Batch Rename Magnets tab -- skip outer chrome. */
   embedded?: boolean;
 }) {
   const [magnets, setMagnets] = useState<MagnetRow[]>([]);
@@ -157,7 +157,7 @@ export default function DropMagnetPlugin({
         pushToast({
           kind: 'success',
           title: magnet.name,
-          message: 'Magnet route queued — see transfer panel.',
+          message: 'Magnet route queued -- see transfer panel.',
         });
         return;
       }
@@ -184,8 +184,8 @@ export default function DropMagnetPlugin({
           <div className="bndz-magnet-opsrail-title">Magnets</div>
           <div className="bndz-magnet-opsrail-meta">
             {magnets.length
-              ? `${magnets.length} pad${magnets.length === 1 ? '' : 's'} · Explorer → BNDZ release`
-              : 'Landing pads — rename, tag, and route on drop'}
+              ? `${magnets.length} pad${magnets.length === 1 ? '' : 's'} | Explorer → BNDZ release`
+              : 'Landing pads -- rename, tag, and route on drop'}
           </div>
         </div>
         <div className="bndz-magnet-opsrail-actions">
@@ -219,13 +219,13 @@ export default function DropMagnetPlugin({
             />
             <input
               className={PLUGIN_INPUT_CLASS}
-              placeholder="Target folder (C:\…)"
+              placeholder="Target folder (C:\...)"
               value={editing.targetPath}
               onChange={e => setEditing({ ...editing, targetPath: e.target.value })}
             />
             <input
               className={PLUGIN_INPUT_CLASS}
-              placeholder={`Rename pattern — ${PATTERN_HINTS}`}
+              placeholder={`Rename pattern -- ${PATTERN_HINTS}`}
               value={editing.renamePattern}
               onChange={e => setEditing({ ...editing, renamePattern: e.target.value })}
             />
@@ -258,7 +258,7 @@ export default function DropMagnetPlugin({
                 checked={editing.enabled}
                 onChange={e => setEditing({ ...editing, enabled: e.target.checked })}
               />
-              Enabled — show during external drag
+              Enabled -- show during external drag
             </label>
             <div className="flex gap-2 pt-1">
               <PluginToolbarButton onClick={() => void saveMagnet()} disabled={busy}>
@@ -337,7 +337,7 @@ export default function DropMagnetPlugin({
   return (
     <PluginPanelShell
       title="Magnets"
-      subtitle="Landing pads — rename, tag, and route on Explorer → BNDZ release"
+      subtitle="Landing pads -- rename, tag, and route on Explorer → BNDZ release"
       icon="magnet_ui"
       variant="default"
     >

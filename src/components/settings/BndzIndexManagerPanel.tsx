@@ -73,7 +73,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
     setProgress(null);
     try {
       const res = await IPC.reindexBndzDefaults();
-      notify(res.ok ? (res.skipped ? 'Indexing already in progress.' : 'Re-indexing default libraries…') : (res.error || 'Re-index failed'));
+      notify(res.ok ? (res.skipped ? 'Indexing already in progress.' : 'Re-indexing default libraries...') : (res.error || 'Re-index failed'));
       if (!res.ok) setIndexing(false);
     } catch {
       setIndexing(false);
@@ -108,7 +108,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
       <div className="flex items-center gap-2 text-[12px] text-gray-300">
         <Icons8Icon id="database_ui" size={14} />
         <span>
-          {(status?.fileCount ?? 0).toLocaleString()} files · {(status?.folderCount ?? 0).toLocaleString()} folders indexed
+          {(status?.fileCount ?? 0).toLocaleString()} files | {(status?.folderCount ?? 0).toLocaleString()} folders indexed
         </span>
         <button
           type="button"
@@ -128,8 +128,8 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
             {progress?.done
               ? `Indexed ${progress.filesIndexed.toLocaleString()} entries`
               : progress
-                ? `${progress.filesIndexed.toLocaleString()} indexed — ${formatUiPath(progress.currentPath).split(/[/\\]/).pop() || '…'}`
-                : 'Starting index…'}
+                ? `${progress.filesIndexed.toLocaleString()} indexed -- ${formatUiPath(progress.currentPath).split(/[/\\]/).pop() || '...'}`
+                : 'Starting index...'}
           </span>
         </div>
       )}

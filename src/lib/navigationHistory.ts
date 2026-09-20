@@ -1,4 +1,4 @@
-/** XYplorer Mini Tree + GoTo autocomplete — visited path store */
+/** XYplorer Mini Tree + GoTo autocomplete -- visited path store */
 
 export type NavVisit = { path: string; at: number; label: string };
 

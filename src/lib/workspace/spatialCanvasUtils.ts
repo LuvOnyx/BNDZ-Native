@@ -160,7 +160,7 @@ function writeLocalSnapshots(list: SnapshotEntry[]) {
   } catch { /* */ }
 }
 
-/** Sync read for UI mount — local cache; native meta is merged async via hydrateSnapshotsFromMeta. */
+/** Sync read for UI mount -- local cache; native meta is merged async via hydrateSnapshotsFromMeta. */
 export function loadSnapshots(): SnapshotEntry[] {
   return readLocalSnapshots();
 }

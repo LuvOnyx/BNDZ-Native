@@ -100,7 +100,7 @@ export function applyVisualFilters(entity: any, filters?: VisualFilter[]): Visua
       case 'emptyDir':
         // Only match when we positively know the folder is empty.
         // Dir listings always send size=0 for directories (DirListingSharedBuffer),
-        // and itemCount is often null until a folder-size scan — treating that as
+        // and itemCount is often null until a folder-size scan -- treating that as
         // empty greys every folder Name in the list (see visual filter seed-empty-dir).
         if (entity.type === 'directory') {
           const childCount =

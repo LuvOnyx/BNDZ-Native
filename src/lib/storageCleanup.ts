@@ -125,12 +125,12 @@ export function buildExecutePayload(categories: CleanupScanCategory[]): Array<{
 }
 
 export function formatAppSize(bytes: number): string {
-  if (!bytes) return '—';
+  if (!bytes) return '--';
   return formatStorageSize(bytes);
 }
 
 export function formatInstallDate(raw?: string): string {
-  if (!raw || raw.length < 8) return raw || '—';
+  if (!raw || raw.length < 8) return raw || '--';
   if (/^\d{8}$/.test(raw)) {
     return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
   }

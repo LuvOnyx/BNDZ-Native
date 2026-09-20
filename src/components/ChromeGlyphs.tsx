@@ -5,7 +5,7 @@ type GlyphProps = {
   className?: string;
 };
 
-/** Flat stroke SVGs for window chrome and small inline UI — never Icons8 3D PNGs. */
+/** Flat stroke SVGs for window chrome and small inline UI -- never Icons8 3D PNGs. */
 export function MinimizeGlyph({ size = 14, className = '' }: GlyphProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" className={className} aria-hidden>

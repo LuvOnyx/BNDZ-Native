@@ -47,17 +47,17 @@ export default function LauncherFooter({
         <span>open</span>
         {showBndzHint && (
           <>
-            <span className="mx-1 opacity-30">·</span>
+            <span className="mx-1 opacity-30">|</span>
             <span className="bndz-kbd">^↵</span>
             <span>BNDZ</span>
           </>
         )}
-        <span className="mx-1 opacity-30">·</span>
+        <span className="mx-1 opacity-30">|</span>
         <span className="bndz-kbd">esc</span>
         <span>hide</span>
         {!compact && (
           <>
-            <span className="mx-1 opacity-30">·</span>
+            <span className="mx-1 opacity-30">|</span>
             <span className="bndz-kbd">↑↓</span>
             <span>navigate</span>
           </>

@@ -1,4 +1,4 @@
-/** Neutral slot while native shell / Iconify icons load — no Lucide/Hero fallbacks */
+/** Neutral slot while native shell / Iconify icons load -- no Lucide/Hero fallbacks */
 export function IconPlaceholder({ size = 16, className = '' }: { size?: number; className?: string }) {
   return (
     <div

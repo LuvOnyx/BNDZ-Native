@@ -6,7 +6,7 @@ type Props = {
   viewport: AutomationViewport;
 };
 
-/** Applies saved pan/zoom after graph load — React Flow only reads defaultViewport on first mount. */
+/** Applies saved pan/zoom after graph load -- React Flow only reads defaultViewport on first mount. */
 export default function AutomationViewportRestore({ viewport }: Props) {
   const { setViewport } = useReactFlow();
   const lastKey = useRef('');

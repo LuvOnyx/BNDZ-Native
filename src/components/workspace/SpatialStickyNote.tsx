@@ -45,7 +45,7 @@ function SpatialStickyNoteInner({
       el.select();
     }, 0);
     return () => clearTimeout(t);
-    // sticky.text intentionally omitted — draft owns in-progress edits while focused.
+    // sticky.text intentionally omitted -- draft owns in-progress edits while focused.
   }, [editing, sticky.id]);
 
   return (
@@ -109,7 +109,7 @@ function SpatialStickyNoteInner({
           className="bndz-spatial-sticky-input"
           value={draft}
           aria-label="Sticky note text"
-          placeholder="Write a note…"
+          placeholder="Write a note..."
           onChange={e => setDraft(e.target.value)}
           onBlur={() => onCommitText(sticky.id, draft)}
           onPointerDown={e => e.stopPropagation()}
@@ -128,7 +128,7 @@ function SpatialStickyNoteInner({
         />
       ) : (
         <div className={`bndz-spatial-sticky-text${sticky.text ? '' : ' is-empty'}`}>
-          {sticky.text || 'Double-click to write…'}
+          {sticky.text || 'Double-click to write...'}
         </div>
       )}
       <div className="bndz-spatial-sticky-chip" style={{ background: color }} aria-hidden />

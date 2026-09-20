@@ -25,7 +25,7 @@ export default function FolderSizeSyncChip({ current, total, path, percent = 0, 
       <span className="bndz-status-bar-chip-label truncate">
         Size map {current}/{total}
         <span className="bndz-status-bar-chip-muted"> ({pct}%)</span>
-        {folder ? <span className="bndz-status-bar-chip-muted"> · {folder}</span> : null}
+        {folder ? <span className="bndz-status-bar-chip-muted"> | {folder}</span> : null}
       </span>
       <span className="bndz-status-bar-chip-track hidden sm:inline-flex" aria-hidden>
         <span className="bndz-status-bar-chip-fill" style={{ width: `${pct}%` }} />

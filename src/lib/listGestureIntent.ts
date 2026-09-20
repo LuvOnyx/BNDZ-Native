@@ -1,5 +1,5 @@
 /**
- * Explicit list pointer-gesture intent — staged rules, no implicit preference between
+ * Explicit list pointer-gesture intent -- staged rules, no implicit preference between
  * marquee and file drag. Surfaces and modifiers commit intent; movement only resolves
  * when still undecided.
  */

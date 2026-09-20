@@ -31,7 +31,7 @@ function ThroughputRing({ pct, speedBps }: { pct: number; speedBps: number }) {
   const clamped = Math.max(0, Math.min(100, pct));
   const dash = (clamped / 100) * c;
   return (
-    <div className="bndz-meshdrop-ring relative w-11 h-11 shrink-0" title={`${clamped.toFixed(0)}% · ${formatBytes(speedBps)}/s`}>
+    <div className="bndz-meshdrop-ring relative w-11 h-11 shrink-0" title={`${clamped.toFixed(0)}% | ${formatBytes(speedBps)}/s`}>
       <svg width="44" height="44" viewBox="0 0 44 44" className="block -rotate-90">
         <circle cx="22" cy="22" r={r} fill="none" stroke="rgba(34,211,238,0.15)" strokeWidth="3" />
         <circle
@@ -143,9 +143,9 @@ export default function MeshDropSessionPanel() {
               <div className="text-[11px] text-gray-200 truncate">{s.label || id}</div>
               <div className="text-[10px] text-gray-500 truncate">
                 {s.state}
-                {total > 0 ? ` · ${formatBytes(moved)} / ${formatBytes(total)}` : ''}
-                {speed ? ` · ${formatBytes(speed)}/s` : ''}
-                {s.error ? ` · ${s.error}` : ''}
+                {total > 0 ? ` | ${formatBytes(moved)} / ${formatBytes(total)}` : ''}
+                {speed ? ` | ${formatBytes(speed)}/s` : ''}
+                {s.error ? ` | ${s.error}` : ''}
               </div>
             </div>
             <button

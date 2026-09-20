@@ -34,7 +34,7 @@ export default function LaunchSplash({ onDone }: { onDone: () => void }) {
             </div>
             <div className="text-center">
               <h1 className="text-2xl font-bold text-white tracking-tight">BNDZ</h1>
-              <p className="text-[11px] text-gray-500 mt-1 font-mono">v{APP_VERSION} · 64-bit</p>
+              <p className="text-[11px] text-gray-500 mt-1 font-mono">v{APP_VERSION} | 64-bit</p>
             </div>
             <motion.div
               className="w-32 h-0.5 rounded-full bg-white/10 overflow-hidden mt-2"

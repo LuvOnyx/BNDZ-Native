@@ -37,5 +37,5 @@ export function formatTabCaption(
   const regex = String(extras?.filterRegex || '').trim();
   if (regex) filterBits.push(`/${regex}/`);
   if (!filterBits.length) return base;
-  return `${base} · ${filterBits.join(' ')}`;
+  return `${base} | ${filterBits.join(' ')}`;
 }

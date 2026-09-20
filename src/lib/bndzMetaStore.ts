@@ -9,7 +9,7 @@ type PendingEntry = {
 const pending = new Map<string, PendingEntry>();
 let metaWriteChain: Promise<boolean> = Promise.resolve(true);
 const lastFlushed = new Map<string, string>();
-/** Latest value per key — coalesces bursts so only the newest payload hits SQLite. */
+/** Latest value per key -- coalesces bursts so only the newest payload hits SQLite. */
 const latestQueued = new Map<string, string>();
 
 function cacheLocal(key: string, value: string) {
@@ -30,7 +30,7 @@ function metaUpdatedAt(raw: string | null): number {
   }
 }
 
-/** Read meta from local cache + native store — prefers the newest `updatedAt` payload. */
+/** Read meta from local cache + native store -- prefers the newest `updatedAt` payload. */
 export async function readBndzMeta(key: string): Promise<string | null> {
   const localRaw = readLocalMeta(key);
   if (!IPC.isNative) return localRaw;
@@ -55,7 +55,7 @@ export async function readBndzMeta(key: string): Promise<string | null> {
   return winner;
 }
 
-/** Serialize all meta IPC writes — prevents burst timeouts from overlapping SET_BNDZ_META calls. */
+/** Serialize all meta IPC writes -- prevents burst timeouts from overlapping SET_BNDZ_META calls. */
 function enqueueMetaFlush(key: string, value: string): Promise<boolean> {
   cacheLocal(key, value);
   if (!IPC.isNative) return Promise.resolve(true);
@@ -92,7 +92,7 @@ function enqueueMetaFlush(key: string, value: string): Promise<boolean> {
   return metaWriteChain;
 }
 
-/** Debounced meta write — coalesces rapid saves (spatial zoom, automation edits). */
+/** Debounced meta write -- coalesces rapid saves (spatial zoom, automation edits). */
 export function writeBndzMetaDebounced(
   key: string,
   value: string,
@@ -121,7 +121,7 @@ export function writeBndzMetaDebounced(
   });
 }
 
-/** Immediate meta write — still serialized through the global chain. */
+/** Immediate meta write -- still serialized through the global chain. */
 export async function flushBndzMeta(key: string, value: string): Promise<boolean> {
   const prev = pending.get(key);
   if (prev) {

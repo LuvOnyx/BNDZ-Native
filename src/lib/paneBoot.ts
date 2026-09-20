@@ -73,7 +73,7 @@ export function paneTitle(boot: BndzPaneBoot): string {
     case 'canvas':
       return 'Spatial Canvas';
     case 'plugins':
-      return boot.plugin ? `Plugin · ${boot.plugin}` : 'Plugins & Command Deck';
+      return boot.plugin ? `Plugin | ${boot.plugin}` : 'Plugins & Command Deck';
     case 'preview':
       return 'Preview';
     case 'smart-tools':

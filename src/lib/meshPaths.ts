@@ -1,4 +1,4 @@
-/** BNDZ remote mesh pane paths — /mesh/{hostId}/remote/path */
+/** BNDZ remote mesh pane paths -- /mesh/{hostId}/remote/path */
 
 export const MESH_ROOT = '/mesh';
 

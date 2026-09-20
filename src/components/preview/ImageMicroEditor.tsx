@@ -183,7 +183,7 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
     return (
       <div className="bndz-image-editor flex items-center justify-center h-full gap-2 text-gray-500">
         <Icons8Icon id="loading" size={20} spin />
-        <span className="text-xs">Loading image…</span>
+        <span className="text-xs">Loading image...</span>
       </div>
     );
   }
@@ -213,7 +213,7 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
         {/* Instrument row */}
         <div className="bndz-image-editor-instrument-row">
 
-          {/* Transform rack — rotate & flip wells */}
+          {/* Transform rack -- rotate & flip wells */}
           <div className="bndz-image-editor-rack" role="group" aria-label="Transform">
             <span className="bndz-image-editor-rack-label">Transform</span>
             <div className="bndz-image-editor-rack-wells">
@@ -319,7 +319,7 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
                 disabled={busy}
               >
                 <Icons8Icon id="emblem_checked" size={13} />
-                <span>{busy ? 'Saving…' : 'Save copy'}</span>
+                <span>{busy ? 'Saving...' : 'Save copy'}</span>
               </button>
             </div>
           </div>

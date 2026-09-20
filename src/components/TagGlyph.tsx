@@ -8,7 +8,7 @@ type Props = {
   title?: string;
 };
 
-/** Module cache — build a white-on-transparent mask once from the tag PNG. */
+/** Module cache -- build a white-on-transparent mask once from the tag PNG. */
 let maskUrlPromise: Promise<string> | null = null;
 
 function getTagMaskUrl(): Promise<string> {
@@ -58,7 +58,7 @@ function getTagMaskUrl(): Promise<string> {
 }
 
 /**
- * Tintable tag glyph — recolors tag_manager.png per tag color via a cached alpha mask.
+ * Tintable tag glyph -- recolors tag_manager.png per tag color via a cached alpha mask.
  */
 export function TagGlyph({ color = '#FACC15', size = 14, className = '', title }: Props) {
   const [maskUrl, setMaskUrl] = useState<string | null>(null);

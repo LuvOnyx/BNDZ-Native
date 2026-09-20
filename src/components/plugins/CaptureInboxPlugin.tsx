@@ -73,7 +73,7 @@ export default function CaptureInboxPlugin({
 }: {
   selectedPaths?: string[];
   currentPath?: string;
-  /** When nested under Drop Stack / Intake — skip second shell + SaaS stats. */
+  /** When nested under Drop Stack / Intake -- skip second shell + SaaS stats. */
   embedded?: boolean;
 }) {
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
@@ -188,11 +188,11 @@ export default function CaptureInboxPlugin({
   };
 
   const statusHint = watching
-    ? 'Watching clipboard images — file copy/cut is ignored.'
-    : 'Manual capture only — enable Watch to auto-save new screenshots.';
+    ? 'Watching clipboard images -- file copy/cut is ignored.'
+    : 'Manual capture only -- enable Watch to auto-save new screenshots.';
   const refreshedLabel = lastRefreshedAt
     ? (Date.now() - lastRefreshedAt < 60_000 ? 'Synced just now' : `Synced ${relativeTime(new Date(lastRefreshedAt).toISOString())}`)
-    : 'Syncing…';
+    : 'Syncing...';
 
   const body = (
     <>
@@ -200,7 +200,7 @@ export default function CaptureInboxPlugin({
         <div className="bndz-capture-opsrail-copy min-w-0">
           <div className="bndz-capture-opsrail-title">Captures</div>
           <div className="bndz-capture-opsrail-meta">
-            {captures.length} saved · watcher {watching ? 'on' : 'off'} · {refreshedLabel}
+            {captures.length} saved | watcher {watching ? 'on' : 'off'} | {refreshedLabel}
           </div>
           <p className="bndz-capture-opsrail-hint">{statusHint}</p>
         </div>
@@ -232,7 +232,7 @@ export default function CaptureInboxPlugin({
               onFocus={() => { folderEditingRef.current = true; }}
               onBlur={() => { folderEditingRef.current = false; }}
               onChange={e => setFolderDraft(e.target.value)}
-              placeholder="Folder for saved captures…"
+              placeholder="Folder for saved captures..."
             />
             <button type="button" className="bndz-plugin-btn shrink-0" onClick={useCurrentFolder} disabled={!currentPath}>
               Use pane
@@ -252,7 +252,7 @@ export default function CaptureInboxPlugin({
         <PluginEmptyState
           icon="clipboard_ui"
           title="No captures yet"
-          message="Copy a screenshot, then click Capture — watching is off until you enable it, and only new clipboard images are saved."
+          message="Copy a screenshot, then click Capture -- watching is off until you enable it, and only new clipboard images are saved."
         />
       ) : (
         <div className="flex flex-col gap-1.5">

@@ -216,7 +216,7 @@ function FileListRow(props: FileListRowProps) {
         setInlineRename(null);
         return;
       }
-      // Extension confirm cancelled / validation failed — keep editing and restore focus.
+      // Extension confirm cancelled / validation failed -- keep editing and restore focus.
       requestAnimationFrame(() => {
         const el = document.querySelector('.bndz-inline-rename-input') as HTMLInputElement | null;
         el?.focus();
@@ -399,7 +399,7 @@ function FileListRow(props: FileListRowProps) {
         handleEntityClicked(e, entity.id);
       }}
       onDoubleClick={() => {
-        // Gesture pointerup already opened this item — native dblclick would hit the
+        // Gesture pointerup already opened this item -- native dblclick would hit the
         // *new* row under the cursor after navigate (folder+1) or ShellExecute twice.
         if (performance.now() < (suppressNativeDblUntilRef.current || 0)) {
           return;
@@ -603,7 +603,7 @@ function FileListRow(props: FileListRowProps) {
                     <div className="bndz-grid-caption-meta truncate">
                       {typeof entity.size === 'number' ? formatSize(entity.size) : ''}
                       {(entity as any).width && (entity as any).height
-                        ? ` · ${(entity as any).width}×${(entity as any).height}`
+                        ? ` | ${(entity as any).width}×${(entity as any).height}`
                         : ''}
                     </div>
                   )}

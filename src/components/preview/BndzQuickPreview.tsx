@@ -171,11 +171,11 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const extractArchive = useCallback(async () => {
     if (!current?.path) return;
     const win = toWindowsPath(current.path);
-    const dest = await IPC.openFolderDialog('Extract archive to…');
+    const dest = await IPC.openFolderDialog('Extract archive to...');
     if (!dest) return;
     const res = await IPC.extractArchive(win, dest);
     if (isQueuedIpcResult(res)) {
-      pushToast({ message: 'Extract queued — see transfer panel.', kind: 'info', title: 'Archive' });
+      pushToast({ message: 'Extract queued -- see transfer panel.', kind: 'info', title: 'Archive' });
       return;
     }
     if (!res.ok) {
@@ -190,7 +190,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     setImageEditMode('studio');
   }, [current?.path, open]);
 
-  // Same SVG path as docked inspector — virtual stream alone often paints blank.
+  // Same SVG path as docked inspector -- virtual stream alone often paints blank.
   useEffect(() => {
     if (!open || !current?.path || !isSvg) {
       setSvgPreviewUrl(null);
@@ -213,7 +213,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   }, [open, current?.path, isSvg, virtualUrl]);
 
   const handleClose = useCallback(() => {
-    // Audio uses a shared decoder — leave it playing when Quick Look closes.
+    // Audio uses a shared decoder -- leave it playing when Quick Look closes.
     // Video still handoffs timeline back to the docked panel player.
     if (!editMode && current?.path) {
       if (isVideo) {
@@ -253,7 +253,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
         if (editMode) setEditMode(false);
         else handleClose();
       } else if (e.code === 'Space' && !e.repeat && !mediaFocused) {
-        // Space is Hand tool in Photo Studio / audio edit — don't dismiss preview.
+        // Space is Hand tool in Photo Studio / audio edit -- don't dismiss preview.
         // Also ignore while an editable field or waveform control is focused.
         if (editMode) return;
         const t = e.target as HTMLElement | null;
@@ -287,7 +287,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
 
   const copyPath = () => {
     if (!windowsPath) return;
-    // Native clipboard via shell IPC — navigator.clipboard often fails in WebView2.
+    // Native clipboard via shell IPC -- navigator.clipboard often fails in WebView2.
     import('../../lib/ipcBridge').then(({ IPC }) => {
       IPC.shellExecute('copyPath', windowsPath);
     });
@@ -327,7 +327,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
             {svgLoading ? (
               <>
                 <Icons8Icon id="loading" size={20} spin />
-                <span className="text-[12px]">Loading vector…</span>
+                <span className="text-[12px]">Loading vector...</span>
               </>
             ) : (
               <>
@@ -388,7 +388,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
         return (
           <div className="flex flex-col items-center justify-center gap-3 text-[#9ca3af] p-8">
             <PreviewHeroIcon path={current.path} isDir={false} size={72} extension={ext} />
-            <span className="text-[12px]">{ext.toUpperCase()} is a 3D/RAGE asset — open externally for full tooling</span>
+            <span className="text-[12px]">{ext.toUpperCase()} is a 3D/RAGE asset -- open externally for full tooling</span>
           </div>
         );
       }
@@ -396,7 +396,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
         return (
           <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
             <Icons8Icon id="loading" size={20} spin />
-            <span className="text-[12px]">Preparing {ext.toUpperCase()} mesh…</span>
+            <span className="text-[12px]">Preparing {ext.toUpperCase()} mesh...</span>
           </div>
         );
       }
@@ -415,7 +415,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
           </Suspense>
           {(modelPreview.vertices || modelPreview.triangles) ? (
             <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
-              {modelPreview.vertices?.toLocaleString()} verts · {modelPreview.triangles?.toLocaleString()} tris
+              {modelPreview.vertices?.toLocaleString()} verts | {modelPreview.triangles?.toLocaleString()} tris
             </div>
           ) : null}
         </div>
@@ -430,7 +430,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
             The quick brown fox jumps over the lazy dog
           </div>
           <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[22px] text-white/70 text-center">
-            0123456789 · ABCDEFGHIJKLMNOPQRSTUVWXYZ
+            0123456789 | ABCDEFGHIJKLMNOPQRSTUVWXYZ
           </div>
           <div className="text-[12px] text-white/40">{current.entity.name}</div>
         </div>
@@ -440,7 +440,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       return (
         <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
           <Icons8Icon id="loading" size={20} spin />
-          <span className="text-[12px]">Loading preview…</span>
+          <span className="text-[12px]">Loading preview...</span>
         </div>
       );
     }
@@ -568,7 +568,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
                       if (!editMode && canOpenStudio) setImageEditMode('studio');
                       setEditMode(v => !v);
                     }}
-                    title={editMode ? 'Back to preview' : canOpenStudio ? 'Open Photo Studio (OpenShop)' : 'Edit — audio tools'}
+                    title={editMode ? 'Back to preview' : canOpenStudio ? 'Open Photo Studio (OpenShop)' : 'Edit -- audio tools'}
                   >
                     <Icons8Icon id="pencil_ui" size={14} />
                     {editMode ? 'Preview' : canOpenStudio ? 'Studio' : 'Edit'}

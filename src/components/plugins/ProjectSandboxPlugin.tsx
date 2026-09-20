@@ -184,7 +184,7 @@ export default function ProjectSandboxPlugin({
       const r = await IPC.sandboxCommit(sessionId) as any;
       if (r.error) {
         const details = Array.isArray(r.details) && r.details.length > 0
-          ? ` — ${r.details[0]}` : '';
+          ? ` -- ${r.details[0]}` : '';
         pushToast({ kind: 'error', title: 'Commit refused', message: `${r.error}${details}` });
         return;
       }
@@ -205,7 +205,7 @@ export default function ProjectSandboxPlugin({
       const opsMsg = typeof r.opsProcessed === 'number' ? `${r.opsProcessed} operation(s) reversed` : 'Original files unchanged';
       if (r.error) {
         const detailStr = Array.isArray(r.details) && r.details.length > 0
-          ? ` — ${r.details.slice(0, 3).join('; ')}` : '';
+          ? ` -- ${r.details.slice(0, 3).join('; ')}` : '';
         pushToast({ kind: 'warning', title: 'Partial discard', message: `${opsMsg}. ${r.error}${detailStr}` });
       } else {
         pushToast({ kind: 'success', title: 'Discarded', message: `${opsMsg}.` });
@@ -266,7 +266,7 @@ export default function ProjectSandboxPlugin({
       icon="layers_ui"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Safe work folders · restore points · locked vault"
+      subtitle="Safe work folders | restore points | locked vault"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -356,9 +356,9 @@ export default function ProjectSandboxPlugin({
                         <div className="min-w-0">
                           <div className="bndz-sandbox-stage-name">{primary.name}</div>
                           <div className="bndz-sandbox-stage-meta">
-                            Started {relativeTime(primary.createdUtc) || '—'}
+                            Started {relativeTime(primary.createdUtc) || '--'}
                             {typeof primary.fileCount === 'number' && primary.fileCount > 0
-                              ? ` · ${primary.fileCount.toLocaleString()} files`
+                              ? ` | ${primary.fileCount.toLocaleString()} files`
                               : ''}
                           </div>
                         </div>
@@ -440,7 +440,7 @@ export default function ProjectSandboxPlugin({
                         className={`${PLUGIN_INPUT_CLASS} flex-1 bndz-sandbox-composer-input`}
                         value={cpName}
                         onChange={e => setCpName(e.target.value)}
-                        placeholder="Name this restore point…"
+                        placeholder="Name this restore point..."
                         onKeyDown={e => { if (e.key === 'Enter') void createCheckpoint(expandedSession); }}
                       />
                       <button

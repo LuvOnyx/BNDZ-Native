@@ -81,7 +81,7 @@ export default function HelloGateOverlay({ folderPath, gatePath, onUnlocked, onC
             onClick={() => void tryUnlock(needsPassphrase ? passphrase : undefined)}
             className="bndz-hub-btn-primary px-4 py-1.5 text-[12px] font-semibold disabled:opacity-40"
           >
-            {busy ? 'Verifying…' : needsPassphrase ? 'Unlock with passphrase' : 'Unlock with Hello'}
+            {busy ? 'Verifying...' : needsPassphrase ? 'Unlock with passphrase' : 'Unlock with Hello'}
           </button>
         </div>
       </div>

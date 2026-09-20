@@ -178,7 +178,7 @@ export function PluginHeroActionButton({
   );
 }
 
-/** Premium hero strip — large icon, metadata, and vertical quick actions. */
+/** Premium hero strip -- large icon, metadata, and vertical quick actions. */
 export function PluginHeroStrip({
   icon,
   name,
@@ -272,7 +272,7 @@ export function PluginEmptyState({
   );
 }
 
-/** Map plugin empty icons to FM plaque tones — stop every surface sharing "unable-display". */
+/** Map plugin empty icons to FM plaque tones -- stop every surface sharing "unable-display". */
 function toneFromPluginIcon(icon: string): BndzPlaqueTone {
   const id = String(icon || '').toLowerCase();
   if (/search|find|filter|magnif/.test(id)) return 'search';
@@ -310,7 +310,7 @@ export function PluginStatCard({
   );
 }
 
-/** Compact host-ops meter row — prefer over PluginStatCard SaaS farms in absorb embeds. */
+/** Compact host-ops meter row -- prefer over PluginStatCard SaaS farms in absorb embeds. */
 export function PluginOpsMeter({
   items,
 }: {

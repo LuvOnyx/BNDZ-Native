@@ -8,7 +8,7 @@ export type ListGroupHeaderRowProps = {
 };
 
 /**
- * In-list type/date group strip (FOLDERS / IMAGES / …).
+ * In-list type/date group strip (FOLDERS / IMAGES / ...).
  * Uses the same chrome as the sticky overlay (`.bndz-list-sticky-group-header`).
  */
 function ListGroupHeaderRow({ label, count, rowHeight, sticky }: ListGroupHeaderRowProps) {

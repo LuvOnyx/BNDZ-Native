@@ -455,7 +455,7 @@ export function sortEntities(items: any[], config: AppConfig, pane?: PaneSortSta
 
 /** Display name respecting showFileExtensions and virtual locations (e.g. Recycle Bin) */
 export function getDisplayName(entity: any, config: AppConfig, panePath?: string): string {
-  // Lazy import avoided — inline recycle-bin strip to keep bundle simple
+  // Lazy import avoided -- inline recycle-bin strip to keep bundle simple
   const isDir = entity.type === 'directory';
   let name = entitySortName(entity);
   const inRecycle = entity.isRecycleItem || (panePath && (
@@ -477,7 +477,7 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
   if (config.truncateFilenamesInTheMiddle && name.length > 28) {
     const head = Math.ceil((28 - 1) / 2);
     const tail = Math.floor((28 - 1) / 2);
-    name = `${name.slice(0, head)}…${name.slice(name.length - tail)}`;
+    name = `${name.slice(0, head)}...${name.slice(name.length - tail)}`;
   }
   if (config.showLocalizedFolderNames && isDir) {
     const localized = entity.localizedName || entity.displayName || entity.friendlyName;
@@ -587,7 +587,7 @@ export function wrapListIndex(current: number, delta: number, length: number, co
 export function shouldFetchNativeShellIcon(_entity: any, config: AppConfig, pathHint?: string): boolean {
   if (config.showCachedIconsOnly) return false;
   const probe = pathHint || String((_entity as any)?.path || '');
-  // Mesh / VF / cloud / smart views — still "fetch" so FE commits __folder__ / type glyphs
+  // Mesh / VF / cloud / smart views -- still "fetch" so FE commits __folder__ / type glyphs
   // (requestNativeIcon short-circuits; never hits Windows shell).
   if (probe && isNonFsShellIconPath(probe)) return true;
   if (config.useGenericIconsForSuperFastBrowsing) {
@@ -754,7 +754,7 @@ export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean 
   const formats = Array.isArray(config.previewFormats) ? config.previewFormats : [];
 
   const textExts = Array.from(new Set<string>([...TEXT_EDIT_EXTENSIONS, ...CODE_EXTENSIONS]));
-  // Document / office / pdf — align with docked PDF / DOCX / Office handlers.
+  // Document / office / pdf -- align with docked PDF / DOCX / Office handlers.
   const documentExts = [
     'pdf', 'docx', 'docm', 'xlsx', 'xlsm', 'xlsb', 'odt', 'ods', 'odp',
     'doc', 'xls', 'ppt', 'pptx', 'rtf', 'epub', 'mobi', 'azw', 'cbz', 'cbr', 'vsd', 'vsdx',
@@ -1044,7 +1044,7 @@ function clearColorCssVars(root: HTMLElement): void {
   root.style.removeProperty('--status-neon-soft');
   root.style.removeProperty('--status-neon-mid');
   root.style.removeProperty('--status-neon-glow');
-  // Do NOT clear --plugin-hero-fill / edge — that flattened heroes to a solid panel.
+  // Do NOT clear --plugin-hero-fill / edge -- that flattened heroes to a solid panel.
 }
 
 /**
@@ -1062,7 +1062,7 @@ function lockLightThemeChromeContrast(root: HTMLElement): void {
   const chromeText = 'rgba(255,255,255,0.9)';
   const chromeMuted = 'rgba(255,255,255,0.55)';
 
-  // Pale popup menus (white/off-white) + black text — not dark chrome leftovers.
+  // Pale popup menus (white/off-white) + black text -- not dark chrome leftovers.
   root.style.setProperty('--menu-bg', '#ffffff');
   root.style.setProperty('--menu-text', 'rgba(0,0,0,0.88)');
   root.style.setProperty('--menu-muted', 'rgba(0,0,0,0.55)');
@@ -1086,7 +1086,7 @@ function lockLightThemeChromeContrast(root: HTMLElement): void {
   root.style.setProperty('--toolbar-bg', '#1a1a1f');
   root.style.setProperty('--toolbar-text', chromeText);
 
-  // File tabstrip is pale in light themes — lock chips to dark ink (not dark chips + white ink).
+  // File tabstrip is pale in light themes -- lock chips to dark ink (not dark chips + white ink).
   // Menubar/toolbar/address stay dark via --chrome-dark-* / --toolbar-* above.
   root.style.setProperty('--tab-active-bg', '#ffffff');
   root.style.setProperty('--tab-active-text', 'rgba(15, 23, 42, 0.95)');
@@ -1249,7 +1249,7 @@ export function applySettingsRuntime(config: AppConfig): void {
   if (rt.ui.applyColors) {
     if (config.theme) applyThemeByName(config.theme);
     else {
-      // No named theme — still paint classic hero and mark themed off so CSS hardcode shows.
+      // No named theme -- still paint classic hero and mark themed off so CSS hardcode shows.
       root.dataset.pluginHeroThemed = 'false';
     }
     applyColorCssVars(config, root);
@@ -1260,7 +1260,7 @@ export function applySettingsRuntime(config: AppConfig): void {
     applyStatusNeonAndPluginHeroVars(config, root);
   }
 
-  // Selection highlight must stay magenta/purple even when the color pack is off —
+  // Selection highlight must stay magenta/purple even when the color pack is off --
   // otherwise list CSS falls through to :root --accent (#0078d4 Explorer blue).
   {
     const listSel = typeof config.listSelectionHighlightColor === 'string'
@@ -1277,7 +1277,7 @@ export function applySettingsRuntime(config: AppConfig): void {
   }
 
   // Light themes keep dark top/bottom chrome. Color packs often overwrite those
-  // tokens with pale/dark-theme leftovers — re-lock contrast-critical vars.
+  // tokens with pale/dark-theme leftovers -- re-lock contrast-critical vars.
   lockLightThemeChromeContrast(root);
 
   // Column header accents stay personalizable even when the global color pack is off.

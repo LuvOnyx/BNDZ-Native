@@ -1,5 +1,5 @@
 /**
- * Colors tab field schema — maps to Settings colorConfig1–49.
+ * Colors tab field schema -- maps to Settings colorConfig1-49.
  * Values are solid hex (#rrggbb[aa]) or gradient JSON (see colorFill.ts).
  */
 
@@ -25,7 +25,7 @@ export interface ColorConfigField {
 
 export const COLOR_CONFIG_SECTIONS: { id: string; title: string; description?: string }[] = [
   { id: 'tree', title: 'Navigation Tree', description: 'Sidebar tree text and background' },
-  { id: 'tabs', title: 'Tabs', description: 'List tabs — active/inactive text and backgrounds' },
+  { id: 'tabs', title: 'Tabs', description: 'List tabs -- active/inactive text and backgrounds' },
   { id: 'list', title: 'File List', description: 'List view foreground, background, and selection' },
   { id: 'breadcrumb', title: 'Breadcrumb & Toolbar', description: 'Path bar and toolbar chrome' },
   { id: 'details', title: 'Details & Preview', description: 'Column headers, per-column accents, and preview panel' },
@@ -45,7 +45,7 @@ export const COLOR_CONFIG_SECTIONS: { id: string; title: string; description?: s
   },
 ];
 
-/** Default plugin hero — classic left wash → mid → cyan veil (visible over panel bg). */
+/** Default plugin hero -- classic left wash → mid → cyan veil (visible over panel bg). */
 export const PLUGIN_HERO_DEFAULT =
   '{"mode":"gradient","angle":90,"stops":[{"color":"#0c1220f7","pos":0},{"color":"#080a1094","pos":52},{"color":"#38bdf812","pos":100}]}';
 

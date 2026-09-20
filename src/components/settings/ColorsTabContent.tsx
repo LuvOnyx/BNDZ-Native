@@ -59,7 +59,7 @@ export default function ColorsTabContent({ localConfig, updateLocalConfig }: Col
           Colors
         </h1>
         <p className="text-[12px] text-[#a0a0a0] max-w-[560px]">
-          Every color uses one picker — Solid or Gradient. Gradients edit as steps inside the picker. Plugin heroes are gradient-only. Changes paint the live workspace immediately when Apply colors is on.
+          Every color uses one picker -- Solid or Gradient. Gradients edit as steps inside the picker. Plugin heroes are gradient-only. Changes paint the live workspace immediately when Apply colors is on.
         </p>
       </div>
 

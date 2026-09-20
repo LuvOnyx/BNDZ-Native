@@ -2,7 +2,7 @@
  * Staged imports from Figma file BNDZ-ASSETS
  * https://www.figma.com/design/dPUE5dJeIpm5KKwIxJkUN3/BNDZ-ASSETS
  *
- * Not wired into the live FM yet — decide placement later.
+ * Not wired into the live FM yet -- decide placement later.
  */
 
 import searchAiPanelsUrl from './search-ai-panels.svg';

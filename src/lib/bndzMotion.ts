@@ -2,7 +2,7 @@ import { animate } from 'animejs';
 
 /** Shared motion tokens for BNDZ File Manager chrome. Keep chrome snappy (native FM). */
 export const MOTION = {
-  /** Tab close / micro chrome — Explorer-feel, not web modal fade. */
+  /** Tab close / micro chrome -- Explorer-feel, not web modal fade. */
   snap: 90,
   fast: 140,
   normal: 220,
@@ -45,7 +45,7 @@ export function motionExit(
   });
 }
 
-/** Tab strip close — collapse width + fade so siblings slide in immediately. */
+/** Tab strip close -- collapse width + fade so siblings slide in immediately. */
 export function motionTabClose(
   el: HTMLElement | null | undefined,
   onComplete?: () => void,

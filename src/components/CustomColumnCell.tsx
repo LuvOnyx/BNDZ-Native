@@ -48,7 +48,7 @@ export default function CustomColumnCell({
     }
 
     let active = true;
-    if (!peek) setValue('…');
+    if (!peek) setValue('...');
 
     void getExtendedMetadataCached(path, {
       includeMd5: propertyKey === 'md5',

@@ -42,7 +42,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-/** Workspace-specific context menu — separate from file-list Open Space menus. */
+/** Workspace-specific context menu -- separate from file-list Open Space menus. */
 export default function WorkspaceMenuPanel({ variant, x, y, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: y, left: x });

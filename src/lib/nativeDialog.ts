@@ -113,7 +113,7 @@ export async function promptElevationIfNeeded(
   if (!approved) return false;
 
   const args = relaunchArgs || '';
-  // Only stamp shell-apply when this relaunch is for Shell Integration — transfer UAC
+  // Only stamp shell-apply when this relaunch is for Shell Integration -- transfer UAC
   // must not force-apply shell settings on the elevated boot.
   if (/\b--apply-shell\b/i.test(args)) {
     try {

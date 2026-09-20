@@ -122,7 +122,7 @@ export const DEFAULT_PREVIEW_CATEGORIES: AppConfig["previewCategories"] = [
     {n:"Audio Files", d:"flac, mp3, ogg, wav ...", c:true},
     {n:"Video Files", d:"avi, mp4, mpg, wmv ...", c:true},
     {n:"Archive Files", d:"zip, rar, 7z, tar, gz, torrent ...", c:true},
-    {n:"3D Model Files", d:"glb, obj, stl, ydr, yft, ydd, ybn, fbx …", c:true},
+    {n:"3D Model Files", d:"glb, obj, stl, ydr, yft, ydd, ybn, fbx ...", c:true},
     {n:"Preview as Thumbnail", d:"afphoto, slddrw, webp ...", c:true},
     {n:"User-Defined Preview Handlers", d:"", c:true}
 ];
@@ -189,7 +189,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if ('showTopMenuBar' in raw) merged.showTopMenubar = !!raw.showTopMenuBar;
     if ('enableSubmenus' in raw) merged.enableContextSubmenus = !!raw.enableSubmenus;
     // BNDZ custom menu is always primary. Legacy native flags only control shell-verb
-    // merge into that menu — never switch to Explorer launch.
+    // merge into that menu -- never switch to Explorer launch.
     merged.useCustomContextMenu = true;
     if ('useNativeOSContextMenu' in raw && !('useCustomContextMenu' in raw))
         merged.useCustomContextMenu = true;
@@ -226,7 +226,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.tooltipBehaviorVersion = 2;
     }
     if ((merged.tooltipBehaviorVersion ?? 0) < 3) {
-        // v2 incorrectly forced filename-hover tooltips always on — restore shift-gated defaults.
+        // v2 incorrectly forced filename-hover tooltips always on -- restore shift-gated defaults.
         merged.whenHoveringOverTheFilename = false;
         merged.onlyWhileTheShiftKeyIsHeldDown = merged.onlyWhileTheShiftKeyIsHeldDown !== false;
         merged.tooltipBehaviorVersion = 3;
@@ -238,7 +238,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.customColumnsVersion = 1;
     }
     if ((merged.customColumnsVersion ?? 0) < 2) {
-        // v2: metadata columns must stay in Choose Columns only — never on by default.
+        // v2: metadata columns must stay in Choose Columns only -- never on by default.
         const cols = resolveCustomColumns(merged);
         merged.customColumns = cols.map(c => ({ ...c, enabled: false }));
         merged.customColumnsVersion = 2;
@@ -293,7 +293,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.startupPane = 'Last active panel';
     }
     if ((merged.folderColorFilterVersion ?? 0) < 2) {
-        // v2: drop auto green folder icons on recent-change filters — keep row chrome only.
+        // v2: drop auto green folder icons on recent-change filters -- keep row chrome only.
         const rows = Array.isArray(merged.colorFilters) ? merged.colorFilters : [];
         merged.colorFilters = rows.map((row: any) => {
             const t = String(row?.t || '').toLowerCase();
@@ -445,7 +445,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
     allowGlobalIconOverwrite: false,
     autoConvertIcons: true,
     highResNativeWindowsThumbnails: true,
-    // Off by default — folder collage/shell thumbs on system roots (C:\Windows etc.) hang IPC.
+    // Off by default -- folder collage/shell thumbs on system roots (C:\Windows etc.) hang IPC.
     showFolderThumbnails: false,
     showCachedThumbnailsOnly: false,
     showThumbnailsForRawFiles: true,
@@ -531,7 +531,7 @@ export function discardPendingSettingsSave() {
 
 /**
  * Flush any pending settings write and wait until it hits disk.
- * Critical before quit / tray — otherwise remember-decision races the process exit.
+ * Critical before quit / tray -- otherwise remember-decision races the process exit.
  */
 export function flushPendingSettingsSave(): Promise<void> {
     if (settingsSaveTimer) {
@@ -584,7 +584,7 @@ const ConfigContext = createContext<{ config: AppConfig; updateConfig: (v: Parti
 
 export const ConfigProvider = ({ children }: { children: ReactNode }) => {
     const [config, setConfig] = useState<AppConfig>(defaultConfig);
-    // Paint immediately with defaults — native settings hydrate async (filesHost boot must not block).
+    // Paint immediately with defaults -- native settings hydrate async (filesHost boot must not block).
     const [loaded, setLoaded] = useState(true);
 
     useEffect(() => {
@@ -621,7 +621,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
             const merged = normalizeConfig({ ...prev, ...newVals });
             scheduleSettingsSave(merged);
             // applySettingsRuntime already soft-schedules shell sync via fingerprint.
-            // Never call applyBackendSettings(force) here — that rewrote HKCU shell verbs
+            // Never call applyBackendSettings(force) here -- that rewrote HKCU shell verbs
             // on every column/intent/plugin tweak and hung the WPF host after first paint.
             applySettingsRuntime(merged);
             return merged;
@@ -634,7 +634,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         return (
             <div className="w-screen h-screen flex flex-col items-center justify-center bg-[#111114] text-gray-400 gap-3 select-none">
                 <div className="w-8 h-8 rounded-full border-2 border-[#0078d4]/30 border-t-[#0078d4] animate-spin" />
-                <span className="text-[11px] tracking-wide text-gray-500">Loading BNDZ…</span>
+                <span className="text-[11px] tracking-wide text-gray-500">Loading BNDZ...</span>
             </div>
         );
     }

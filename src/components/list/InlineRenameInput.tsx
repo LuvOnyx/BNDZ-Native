@@ -25,7 +25,7 @@ export function InlineRenameInput({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cancelledRef = useRef(false);
-  /** True while the user is drag-selecting text — blur must not commit mid-highlight. */
+  /** True while the user is drag-selecting text -- blur must not commit mid-highlight. */
   const selectingRef = useRef(false);
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

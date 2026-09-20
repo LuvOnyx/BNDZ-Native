@@ -38,7 +38,7 @@ function ClipboardPreview({ item }: { item: ClipboardRecord }) {
   );
 }
 
-/** SuperCmd ClipboardManager port — Raycast 40/60 split with rich preview. */
+/** SuperCmd ClipboardManager port -- Raycast 40/60 split with rich preview. */
 export default function BndzClipboardManager({ onClose }: Props) {
   const [items, setItems] = useState<ClipboardRecord[]>([]);
   const [query, setQuery] = useState('');
@@ -97,7 +97,7 @@ export default function BndzClipboardManager({ onClose }: Props) {
           className="bndz-search-input flex-1"
           value={query}
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-          placeholder="Search clipboard history…"
+          placeholder="Search clipboard history..."
         />
       </div>
       <div className="flex-1 grid grid-cols-[2fr_3fr] min-h-0">

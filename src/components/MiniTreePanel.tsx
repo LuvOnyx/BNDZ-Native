@@ -9,7 +9,7 @@ type Props = {
   onNavigate: (path: string) => void;
 };
 
-/** XYplorer Mini Tree — folders you've visited, newest first */
+/** XYplorer Mini Tree -- folders you've visited, newest first */
 export default function MiniTreePanel({ nodes, activePath, onNavigate }: Props) {
   if (!nodes.length) {
     return (
@@ -21,7 +21,7 @@ export default function MiniTreePanel({ nodes, activePath, onNavigate }: Props) 
 
   const normActive = activePath?.replace(/\\/g, '/');
 
-  // No module scrollbar — items show fully; the left sidebar panel scrolls.
+  // No module scrollbar -- items show fully; the left sidebar panel scrolls.
   return (
     <div className="flex flex-col gap-0.5 px-1.5 mx-1.5">
       {nodes.map(node => {

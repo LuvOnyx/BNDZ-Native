@@ -40,7 +40,7 @@ export function advanceTypeAheadPrefix(
 
 /**
  * Pick the list row for the current prefix / repeat cycle.
- * Walks `listItems` in view order from the focused row (wraps) — Explorer behavior.
+ * Walks `listItems` in view order from the focused row (wraps) -- Explorer behavior.
  */
 export function pickTypeAheadMatch<T extends TypeAheadItem>(
   listItems: T[],
@@ -71,7 +71,7 @@ export function pickTypeAheadMatch<T extends TypeAheadItem>(
   return matches[0];
 }
 
-/** True for a printable key that can appear in a Windows file name (not Space — reserved). */
+/** True for a printable key that can appear in a Windows file name (not Space -- reserved). */
 export function isTypeAheadKey(key: string): boolean {
   if (!key || key.length !== 1) return false;
   if (key === ' ') return false;

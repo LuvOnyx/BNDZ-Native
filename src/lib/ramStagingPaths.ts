@@ -61,7 +61,7 @@ export async function resolveRamZoneMountPath(zoneId: string): Promise<string | 
 
 export async function resolveRamStagingFsPath(panePath: string): Promise<string | null> {
   if (!panePath) return null;
-  // Tolerate mangled "bndz\ram\…" from accidental toWindowsPath on virtual paths.
+  // Tolerate mangled "bndz\ram\..." from accidental toWindowsPath on virtual paths.
   let n = normalizePanePath(panePath).replace(/\/+$/, '');
   const slashed = panePath.replace(/\\/g, '/').replace(/\/+$/, '');
   if (!n.startsWith('/bndz/') && (slashed === 'bndz/ram' || slashed.startsWith('bndz/ram/'))) {
@@ -96,7 +96,7 @@ export function joinRamVirtualPath(zoneId: string, relativeWinPath: string, moun
 
 /**
  * Resolve any pane path to a Windows FS path for copy/move/paste/drop.
- * RAM virtual paths → mount; mesh paths stay as /mesh/…; others → toWindowsPath.
+ * RAM virtual paths → mount; mesh paths stay as /mesh/...; others → toWindowsPath.
  */
 export async function resolvePanePathForFs(panePath: string): Promise<string> {
   if (isMeshPath(panePath)) return normalizeMeshPath(panePath);
@@ -171,7 +171,7 @@ export function remapRamListingEntries(
 export function entityFsPath(entity: { path?: string; fsPath?: string; name?: string }, panePath: string): string {
   if (entity.fsPath) return entity.fsPath.replace(/\//g, '\\');
   if (entity.path && isBndzRamPath(entity.path)) {
-    // Never mangle /bndz/ram/... via toWindowsPath — callers must resolve async for writes.
+    // Never mangle /bndz/ram/... via toWindowsPath -- callers must resolve async for writes.
     return '';
   }
   if (entity.path) return toWindowsPath(entity.path);

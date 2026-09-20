@@ -28,7 +28,7 @@ export default function IconConfiguratorTab() {
            const { clearIconCache: clearClientCache } = await import('../lib/nativeIconService');
            clearClientCache();
            IPC.refreshWorkspace?.().catch(() => {});
-           setCacheStatus('Cache cleared — icons are re-fetching now.');
+           setCacheStatus('Cache cleared -- icons are re-fetching now.');
            setTimeout(() => setCacheStatus(null), 3000);
        });
    };

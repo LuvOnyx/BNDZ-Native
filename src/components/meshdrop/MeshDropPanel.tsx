@@ -13,7 +13,7 @@ type Props = {
 };
 
 /**
- * Remote · Mesh Drop — P2P send/receive (separate from SSH hosts and Mesh VPS).
+ * Remote | Mesh Drop -- P2P send/receive (separate from SSH hosts and Mesh VPS).
  */
 export default function MeshDropPanel({ selectionPaths = [], onStatus }: Props) {
   const [open, setOpen] = useState(false);
@@ -25,13 +25,13 @@ export default function MeshDropPanel({ selectionPaths = [], onStatus }: Props) 
     setPaths(next);
     setMode('host');
     setOpen(true);
-    onStatus?.(next.length ? `Mesh Drop · sending ${next.length} path(s)` : 'Mesh Drop · pick files to send');
+    onStatus?.(next.length ? `Mesh Drop | sending ${next.length} path(s)` : 'Mesh Drop | pick files to send');
   };
 
   const openReceive = () => {
     setMode('receive');
     setOpen(true);
-    onStatus?.('Mesh Drop · receive');
+    onStatus?.('Mesh Drop | receive');
   };
 
   return (
@@ -39,10 +39,10 @@ export default function MeshDropPanel({ selectionPaths = [], onStatus }: Props) 
       <PluginHeroStrip
         icon={<EmblemIcon id="share-check" size={40} />}
         name="Mesh Drop"
-        typeLabel="P2P stream · not your VPS host"
+        typeLabel="P2P stream | not your VPS host"
         meta={
           <span className="text-[10px] text-gray-500">
-            Pair two BNDZ desktops with a Mesh Code · files stream direct (WebRTC) · separate from Hosts SSH and Mesh VPS
+            Pair two BNDZ desktops with a Mesh Code | files stream direct (WebRTC) | separate from Hosts SSH and Mesh VPS
           </span>
         }
         actions={
@@ -67,7 +67,7 @@ export default function MeshDropPanel({ selectionPaths = [], onStatus }: Props) 
           </ol>
           <p className="text-[10px] text-gray-500 leading-relaxed">
             Same LAN is easiest. Cross-internet needs TURN in Settings → Workspace Tools → Mesh Drop.
-            Purchased hosts (e.g. BandzVPS) stay under Hosts — Mesh Drop is peer-to-peer only.
+            Purchased hosts (e.g. BandzVPS) stay under Hosts -- Mesh Drop is peer-to-peer only.
           </p>
           <div className="flex flex-wrap gap-1.5 pt-1">
             <PluginToolbarButton onClick={() => openSend(selectionPaths)}>

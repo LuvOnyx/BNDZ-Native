@@ -30,7 +30,7 @@ export function isContextMenuBackground(menu: ContextMenuState): boolean {
   return menu.entityId === null && !menu.entityName;
 }
 
-/** Recycle Bin location (tree root / list background) — not a selected recycled item. */
+/** Recycle Bin location (tree root / list background) -- not a selected recycled item. */
 export function isRecycleBinLocationMenu(menu: ContextMenuState): boolean {
   if (!isRecycleBinPath(menu.path)) return false;
   if (isContextMenuBackground(menu)) return true;
@@ -96,7 +96,7 @@ export function resolveSingleTargetPath(menu: ContextMenuState): string {
   return resolveShellPropertiesPath(raw) || toWindowsPath(raw);
 }
 
-/** Native shell verbs already rendered in the custom BNDZ menu — skip duplicates.
+/** Native shell verbs already rendered in the custom BNDZ menu -- skip duplicates.
  *  Keep aligned with ShellContextMenuEnumerator.IsBuiltinVerb (C#). */
 export const BUILT_IN_CONTEXT_VERBS = new Set([
   'open', 'edit', 'openas', 'openwith', 'cut', 'copy', 'paste', 'delete', 'trash',
@@ -106,14 +106,14 @@ export const BUILT_IN_CONTEXT_VERBS = new Set([
   'windows.modernshare', 'windows.share',
 ]);
 
-/** Labels BNDZ already paints — skip shell duplicates by display name too. */
+/** Labels BNDZ already paints -- skip shell duplicates by display name too. */
 const BUILT_IN_CONTEXT_LABELS = new Set([
   'open', 'open with', 'open with...', 'edit', 'cut', 'copy', 'paste', 'delete',
-  'rename', 'properties', 'share', 'share…', 'share with', 'share with…',
-  'give access to', 'give access to…', 'give access to...',
-  'send to', 'send to…', 'copy path', 'copy as path', 'copy as path…',
+  'rename', 'properties', 'share', 'share...', 'share with', 'share with...',
+  'give access to', 'give access to...', 'give access to...',
+  'send to', 'send to...', 'copy path', 'copy as path', 'copy as path...',
   'open in new tab', 'pin to quick access', 'pin to start', 'pin to taskbar',
-  'run as administrator', 'extract', 'extract…', 'quick extract',
+  'run as administrator', 'extract', 'extract...', 'quick extract',
 ]);
 
 /** Strip Shell32/WinRT namespace prefixes so Windows.ModernShare matches modernshare. */
@@ -179,7 +179,7 @@ function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem
     if (!kids.length) return null;
     return { ...item, children: kids };
   }
-  // Live IContextMenu extensions — keep unless they collide with a BNDZ-painted builtin.
+  // Live IContextMenu extensions -- keep unless they collide with a BNDZ-painted builtin.
   if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId >= 0)) {
     if (isBuiltInNativeLeaf(item)) return null;
     return item;
@@ -231,7 +231,7 @@ export function takeShellCascadeByLabel(
 
 /**
  * Explorer-style buckets for weaving shell verbs into the BNDZ menu.
- * Cascades keep their own names (7-Zip, Send to, …) — never a dump "Shell extensions" folder.
+ * Cascades keep their own names (7-Zip, Send to, ...) -- never a dump "Shell extensions" folder.
  */
 export type ShellMergeSlot = 'open' | 'clipboard' | 'cascades' | 'tools' | 'footer';
 
@@ -270,7 +270,7 @@ export function partitionShellMergeItems(items: NativeContextMenuItem[]): Record
       buckets.clipboard.push(item);
       continue;
     }
-    // Remaining leaves = third-party / vendor tools (Scan with…, Upload to…, etc.)
+    // Remaining leaves = third-party / vendor tools (Scan with..., Upload to..., etc.)
     buckets.tools.push(item);
   }
 

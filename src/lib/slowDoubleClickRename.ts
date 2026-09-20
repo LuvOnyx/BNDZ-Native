@@ -1,7 +1,7 @@
 /** Minimum gap between clicks before a slow double-click can arm rename (ms). */
 export const SLOW_DOUBLE_CLICK_MIN_MS = 1000;
 
-/** Maximum gap — faster than this is a normal double-click (open), not rename (ms). */
+/** Maximum gap -- faster than this is a normal double-click (open), not rename (ms). */
 export const SLOW_DOUBLE_CLICK_MAX_MS = 2200;
 
 /** Hold period after the second click before rename field appears (ms). */

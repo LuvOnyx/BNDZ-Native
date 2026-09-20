@@ -56,7 +56,7 @@ export type TabHostContextMenuOpts = {
 
 /**
  * Host-owned WPF/WinUI tab context menu (native). Maps selected id → callbacks.
- * Color presets are omitted in v1 — use Reset Color or the React menu when not native.
+ * Color presets are omitted in v1 -- use Reset Color or the React menu when not native.
  * @returns true if the host menu was presented (selection or dismiss); false if caller should show React fallback.
  */
 export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Promise<boolean> {
@@ -99,7 +99,7 @@ export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Prom
     return false;
   }
 
-  // Host presented the menu. null = dismissed — do NOT open a second React menu.
+  // Host presented the menu. null = dismissed -- do NOT open a second React menu.
   if (!id) return true;
 
   switch (id) {

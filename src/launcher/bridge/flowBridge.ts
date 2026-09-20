@@ -224,7 +224,7 @@ function mockQuery(query: string): LauncherQueryResult {
     { id: 'system-clipboard-manager', title: 'Clipboard History', subtitle: 'Raycast-style pasteboard', category: 'system', iconGlyph: '📋' },
     { id: 'system-file-search', title: 'Search Files', subtitle: 'Find files on disk', category: 'system', iconGlyph: '🔍' },
     { id: 'system-open-extensions', title: 'Extension Hub', subtitle: 'Manage launcher extensions', category: 'extension', iconGlyph: '🧩' },
-    { id: 'system-open-plugin-store', title: 'BNDZ Plugin Store', subtitle: 'Properties, Find, Catalog…', category: 'bndz', iconGlyph: '🛒' },
+    { id: 'system-open-plugin-store', title: 'BNDZ Plugin Store', subtitle: 'Properties, Find, Catalog...', category: 'bndz', iconGlyph: '🛒' },
     { id: 'bndz-open', title: 'Open BNDZ File Manager', subtitle: 'Dual-pane workspace', category: 'bndz', iconGlyph: '📁' },
   ];
   const commands = q

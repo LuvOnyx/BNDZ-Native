@@ -219,7 +219,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         });
       }
       if (!dataUrl) {
-        setStatus('Export failed — empty image');
+        setStatus('Export failed -- empty image');
         return;
       }
       const ext = opts.ext === 'jpg' || opts.ext === 'jpeg'
@@ -277,7 +277,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     const fromPaths = !fromFiles.length && paths?.length ? await pathsToStudioDropImages(paths) : [];
     const images = fromFiles.length ? fromFiles : fromPaths;
     if (!images.length) {
-      setStatus('Drop an image (PNG, JPG, WEBP, SVG, ICO…)');
+      setStatus('Drop an image (PNG, JPG, WEBP, SVG, ICO...)');
       return;
     }
     postOpenShop({
@@ -447,7 +447,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     return (
       <div className="bndz-photo-studio bndz-photo-studio--status">
         <Icons8Icon id="loading" size={20} spin />
-        <span>Loading into Photo Studio…</span>
+        <span>Loading into Photo Studio...</span>
       </div>
     );
   }
@@ -476,7 +476,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         <button type="button" className="bndz-lens-chip bndz-lens-chip--accent" onClick={onSave} disabled={busy} title="Save PNG beside original">Save PNG</button>
         <button type="button" className="bndz-lens-chip" onClick={() => requestExport('sibling', null, 'jpeg')} disabled={busy} title="Save JPG beside original">Save JPG</button>
         <button type="button" className="bndz-lens-chip" onClick={onSaveOverwrite} disabled={busy} title="Overwrite original">Overwrite</button>
-        <button type="button" className="bndz-lens-chip" onClick={() => void onSaveAs()} disabled={busy} title="Save As…">Save As…</button>
+        <button type="button" className="bndz-lens-chip" onClick={() => void onSaveAs()} disabled={busy} title="Save As...">Save As...</button>
         {onRequestClose && (
           <button type="button" className="bndz-lens-chip" onClick={onRequestClose} title="Close studio">Close</button>
         )}
@@ -517,7 +517,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
       </div>
       {(status || busy) && (
         <div className={`bndz-photo-studio-toast${status?.toLowerCase().includes('fail') ? ' is-error' : ''}`}>
-          {busy ? 'Saving…' : status}
+          {busy ? 'Saving...' : status}
         </div>
       )}
     </div>

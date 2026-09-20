@@ -89,7 +89,7 @@ function hitTestTabByRect(clientX: number, clientY: number): TabHoverTarget | nu
 
 /** Hit-test a tab strip row at screen coordinates (tolerant of small gaps / icon-only hits). */
 export function hitTestTabAtPoint(clientX: number, clientY: number): TabHoverTarget | null {
-  // Rect first — WebView2 pointer capture poisons elementsFromPoint for tab chrome.
+  // Rect first -- WebView2 pointer capture poisons elementsFromPoint for tab chrome.
   const fromRect = hitTestTabByRect(clientX, clientY);
   if (fromRect) return fromRect;
   const tabEl = hitTestClosestAtPoint(clientX, clientY, '[data-tab-id]');
@@ -149,7 +149,7 @@ export function hitTestListBodyAtPoint(clientX: number, clientY: number): HTMLEl
     ?? hitTestSelectorByRect(clientX, clientY, '[data-list-body]');
 }
 
-/** Spatial Canvas / Automation — drops here must not fall through to the file list. */
+/** Spatial Canvas / Automation -- drops here must not fall through to the file list. */
 export function hitTestWorkspaceSurfaceAtPoint(clientX: number, clientY: number): HTMLElement | null {
   return hitTestClosestAtPoint(clientX, clientY, '[data-bndz-workspace-surface]')
     ?? hitTestSelectorByRect(clientX, clientY, '[data-bndz-workspace-surface]');
@@ -157,7 +157,7 @@ export function hitTestWorkspaceSurfaceAtPoint(clientX: number, clientY: number)
 
 /**
  * Only exclusive workspace canvases own inbound file drops.
- * Preview loupe also stamps data-bndz-workspace-surface — must not swallow desktop→list.
+ * Preview loupe also stamps data-bndz-workspace-surface -- must not swallow desktop→list.
  */
 export function hitTestExclusiveWorkspaceDropSurface(clientX: number, clientY: number): HTMLElement | null {
   const el = hitTestWorkspaceSurfaceAtPoint(clientX, clientY);
@@ -179,13 +179,13 @@ export function hitTestListFolderAtPoint<T extends ListFolderTarget>(
     ?? hitTestSelectorByRect(clientX, clientY, '.fs-item-wrapper');
   const dropId = dropRow?.getAttribute('data-id');
   if (!dropId) return null;
-  // Miller items carry a full pane path — prefer that when present.
+  // Miller items carry a full pane path -- prefer that when present.
   const millerPath = dropRow?.getAttribute('data-miller-path');
   const isDirAttr = dropRow?.getAttribute('data-is-dir');
   if (millerPath && isDirAttr === 'true') {
     const ent = contents?.find(c => c.id === dropId);
     if (ent?.type === 'directory') return ent;
-    // Contents may be for a different column — return a synthetic folder target.
+    // Contents may be for a different column -- return a synthetic folder target.
     return { id: dropId, type: 'directory', name: millerPath.split('/').pop() || millerPath } as T;
   }
   const dropEnt = contents?.find(c => c.id === dropId);
@@ -195,7 +195,7 @@ export function hitTestListFolderAtPoint<T extends ListFolderTarget>(
 
 /**
  * Absolute drop destination for Columns (Miller) view.
- * Folder item → that folder’s path; empty column chrome → that column’s folder.
+ * Folder item → that folder's path; empty column chrome → that column's folder.
  */
 export function hitTestMillerDropPathAtPoint(clientX: number, clientY: number): string | null {
   const item = hitTestClosestAtPoint(clientX, clientY, '[data-miller-path][data-is-dir="true"]')
@@ -233,7 +233,7 @@ export function getFileDragSession(): FileDragSessionState | null {
 
 export function endFileDragSession() {
   activeSession = null;
-  // Keep pendingOleSession — OLE DoDragDrop may still complete after pointer-up.
+  // Keep pendingOleSession -- OLE DoDragDrop may still complete after pointer-up.
   try {
     window.dispatchEvent(new CustomEvent('bndz-pointer-file-drag-active', { detail: { active: false } }));
   } catch { /* ignore */ }
@@ -252,7 +252,7 @@ export function stashOleDragSession(state?: FileDragSessionState | null) {
   }
 }
 
-/** Read OLE stash without clearing — used when OLE_DRAG_ENDED omits paths. */
+/** Read OLE stash without clearing -- used when OLE_DRAG_ENDED omits paths. */
 export function peekOleDragSession(): FileDragSessionState | null {
   return pendingOleSession ?? activeSession;
 }
@@ -292,7 +292,7 @@ const INTERNAL_DRAG_CHROME_SELECTORS = [
 
 /**
  * Selectors used only for OLE edge-band veto. Full-bleed workspace/pane wrappers are
- * excluded — they cover the entire viewport including the 10px edge and blocked escalate.
+ * excluded -- they cover the entire viewport including the 10px edge and blocked escalate.
  */
 const OLE_EDGE_CHROME_SELECTORS = [
   '[data-tab-id]',
@@ -338,7 +338,7 @@ export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number
       if (el.closest(selector)) return true;
     }
   }
-  // Rect fallbacks — WebView2 pointer drags often return empty/poisoned hit stacks.
+  // Rect fallbacks -- WebView2 pointer drags often return empty/poisoned hit stacks.
   if (hitTestTabByRect(clientX, clientY)) return true;
   if (hitTestListBodyAtPoint(clientX, clientY)) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-nav-path]')) return true;
@@ -372,14 +372,14 @@ export function isOleEdgeChromeAtPoint(clientX: number, clientY: number): boolea
   return false;
 }
 
-/** True when the pointer left the WebView CSS viewport (desktop / other apps) — OLE escalate. */
+/** True when the pointer left the WebView CSS viewport (desktop / other apps) -- OLE escalate. */
 export function isPointerOutsideWebViewViewport(clientX: number, clientY: number, marginPx = 8): boolean {
   const w = typeof window !== 'undefined' ? window.innerWidth : 0;
   const h = typeof window !== 'undefined' ? window.innerHeight : 0;
   return clientX < -marginPx || clientY < -marginPx || clientX > w + marginPx || clientY > h + marginPx;
 }
 
-/** WebView2 clamps client coords — desktop drags usually hit the viewport edge first. */
+/** WebView2 clamps client coords -- desktop drags usually hit the viewport edge first. */
 export function isPointerNearWebViewViewportEdge(clientX: number, clientY: number, edgePx = 10): boolean {
   const w = typeof window !== 'undefined' ? window.innerWidth : 0;
   const h = typeof window !== 'undefined' ? window.innerHeight : 0;
@@ -388,7 +388,7 @@ export function isPointerNearWebViewViewportEdge(clientX: number, clientY: numbe
 }
 
 /**
- * Side/bottom viewport rim only — never the top band (React menubar lives there).
+ * Side/bottom viewport rim only -- never the top band (React menubar lives there).
  * Top exit must use screen-space leave (isPointerOutsideScreenWindow) so OLE does not
  * start DoDragDrop while the cursor is still over the menubar / WinUI caption.
  */
@@ -412,7 +412,7 @@ export function isPointerOverMenubar(clientX: number, clientY: number): boolean 
 
 /**
  * True when an in-app drag should hand off to native OLE at the WebView rim.
- * WebView2 clamps clientX/Y — use side/bottom edge + screen leave, not outside-viewport.
+ * WebView2 clamps clientX/Y -- use side/bottom edge + screen leave, not outside-viewport.
  * Never escalate while over real in-app drop chrome (sidebar / preview / Drop Stack / etc.).
  */
 export function shouldTriggerOutboundOleBoundaryHandoff(
@@ -424,13 +424,13 @@ export function shouldTriggerOutboundOleBoundaryHandoff(
   screenY?: number,
   edgePx = 4,
 ): boolean {
-  // True desktop/other-app leave — always escalate (chrome veto does not apply off-window).
+  // True desktop/other-app leave -- always escalate (chrome veto does not apply off-window).
   if (typeof screenX === 'number' && typeof screenY === 'number'
     && isPointerOutsideScreenWindow(screenX, screenY, 2)) {
     return true;
   }
   if (isPointerOverMenubar(clientX, clientY)) return false;
-  // Sidebar / bottom / preview / Drop Stack / RAM — keep FE ghosts + in-app drop.
+  // Sidebar / bottom / preview / Drop Stack / RAM -- keep FE ghosts + in-app drop.
   if (isOleEdgeChromeAtPoint(clientX, clientY)) return false;
   const w = typeof window !== 'undefined' ? window.innerWidth : 0;
   const h = typeof window !== 'undefined' ? window.innerHeight : 0;
@@ -446,7 +446,7 @@ export function shouldTriggerOutboundOleBoundaryHandoff(
   return atLeft || atRight || atBottom;
 }
 
-/** Screen-space leave check — works when clientX/Y are clamped by WebView2. */
+/** Screen-space leave check -- works when clientX/Y are clamped by WebView2. */
 export function isPointerOutsideScreenWindow(screenX: number, screenY: number, marginPx = 4): boolean {
   if (typeof window === 'undefined') return false;
   const left = window.screenX;
@@ -490,7 +490,7 @@ export function shouldEscalateFileDragToOle(
   screenY?: number,
 ): boolean {
   // True leave of the OS window → host OLE. Do NOT treat "outside WebView viewport"
-  // alone as escalate — that killed FluidDragStack tooltips while still inside BNDZ.
+  // alone as escalate -- that killed FluidDragStack tooltips while still inside BNDZ.
   if (typeof screenX === 'number' && typeof screenY === 'number'
     && isPointerOutsideScreenWindow(screenX, screenY)) {
     return true;
@@ -522,13 +522,13 @@ export function shouldArchiveEscalateToOle(
 
 /** True when pointer is over an in-app drop target for archive extract-and-copy. */
 export function isArchiveInternalDropTargetAtPoint(clientX: number, clientY: number): boolean {
-  // Still inside archive preview — not an FM list drop.
+  // Still inside archive preview -- not an FM list drop.
   if (hitTestArchiveRootAtPoint(clientX, clientY)) return false;
   if (hitTestListBodyAtPoint(clientX, clientY)) return true;
   if (hitTestTabAtPoint(clientX, clientY)) return true;
   if (hitTestNavTreeAtPoint(clientX, clientY)) return true;
   if (hitTestBreadcrumbAtPoint(clientX, clientY)) return true;
-  // Extra rect fallbacks — WebView2 poisons elementsFromPoint during pointer drags.
+  // Extra rect fallbacks -- WebView2 poisons elementsFromPoint during pointer drags.
   if (hitTestSelectorByRect(clientX, clientY, '[data-list-body]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-nav-path]')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-breadcrumb-path]')) return true;
@@ -540,7 +540,7 @@ export function isArchiveInternalDropTargetAtPoint(clientX: number, clientY: num
     && !hitTestArchiveRootAtPoint(clientX, clientY);
 }
 
-/** Default tab auto-switch delay (ms) — short hover before switching. */
+/** Default tab auto-switch delay (ms) -- short hover before switching. */
 export const DEFAULT_TAB_HOVER_DELAY_MS = 120;
 
 export type PaneTabSnapshot = {

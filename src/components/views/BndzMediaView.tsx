@@ -1,5 +1,5 @@
 /**
- * BNDZ media grid — virtualized photo/video grid with date sections.
+ * BNDZ media grid -- virtualized photo/video grid with date sections.
  */
 import React, { useMemo } from 'react';
 import { ThumbnailIcon } from '../ThumbnailIcon';
@@ -83,7 +83,7 @@ function MediaTile({
       onDoubleClick={() => onItemDoubleClick(entity)}
       onContextMenu={e => onContextMenu(e, entity)}
     >
-      {/* size drives native extract px — keep under 72 so we stay in medium band (≤256), not jumbo 384+. */}
+      {/* size drives native extract px -- keep under 72 so we stay in medium band (≤256), not jumbo 384+. */}
       <ThumbnailIcon entity={entity} isDir={false} path={path} size={64} />
       <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/75 to-transparent opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
         <span className="text-[10px] text-white truncate block">{entity.name}</span>

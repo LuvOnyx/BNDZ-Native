@@ -13,7 +13,7 @@ interface IconPreviewImageProps {
   className?: string;
 }
 
-/** IPC-backed icon preview — supports filesystem paths and iconify: virtual library entries */
+/** IPC-backed icon preview -- supports filesystem paths and iconify: virtual library entries */
 export default function IconPreviewImage({ path, size = 48, className = '' }: IconPreviewImageProps) {
   const [src, setSrc] = useState<string | null>(previewCache.get(path) || null);
   const [loading, setLoading] = useState(!src);

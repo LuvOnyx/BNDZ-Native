@@ -292,7 +292,7 @@ export default function LibraryHealthPlugin({
       icon="shield_ui"
       iconColor="#f59e0b"
       variant="embedded"
-      subtitle="Integrity scan · broken links · missing project refs"
+      subtitle="Integrity scan | broken links | missing project refs"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -322,7 +322,7 @@ export default function LibraryHealthPlugin({
             </div>
           }
           name="Health"
-          typeLabel="Integrity · refs · repair"
+          typeLabel="Integrity | refs | repair"
           meta={
             <span className="bndz-panel-muted text-xs">
               {summary.total} issue{summary.total === 1 ? '' : 's'}
@@ -367,7 +367,7 @@ export default function LibraryHealthPlugin({
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                Scanning…
+                Scanning...
               </span>
               <span className="text-[10px] text-gray-500 truncate">{scanRoot}</span>
             </div>
@@ -381,13 +381,13 @@ export default function LibraryHealthPlugin({
                 <div className="bndz-cleanup-meter-row">
                   <strong>{summary.total}</strong>
                   <span>issues</span>
-                  <em>·</em>
+                  <em>|</em>
                   <strong className="text-rose-300">{summary.critical}</strong>
                   <span>critical</span>
-                  <em>·</em>
+                  <em>|</em>
                   <strong className="text-amber-300">{summary.warning}</strong>
                   <span>warnings</span>
-                  <em>·</em>
+                  <em>|</em>
                   <strong>{summary.info}</strong>
                   <span>info</span>
                 </div>
@@ -504,7 +504,7 @@ export default function LibraryHealthPlugin({
                             disabled={isFixing || busy}
                             title={`Auto-fix: ${p.fixHint || p.kind}`}
                           >
-                            {isFixing ? 'Fixing…' : 'Fix'}
+                            {isFixing ? 'Fixing...' : 'Fix'}
                           </PluginToolbarButton>
                         )}
                       </div>
@@ -546,7 +546,7 @@ export default function LibraryHealthPlugin({
                     onClick={() => void approvePlan()}
                     disabled={!planId || planActions.length === 0 || approving}
                   >
-                    {approving ? 'Approving…' : `Approve (${planActions.length})`}
+                    {approving ? 'Approving...' : `Approve (${planActions.length})`}
                   </PluginHeroActionButton>
                 </div>
               </PluginCard>

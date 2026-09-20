@@ -42,7 +42,7 @@ const SCRIPTS: ScriptDef[] = [
   { names: ['settings', 'config'], hint: 'Open settings', run: (_, h) => h.openSettings() },
   {
     names: ['findtab', 'finding', 'searchtab'],
-    hint: 'New finding tab — ::findtab photos',
+    hint: 'New finding tab -- ::findtab photos',
     run: (args, h) => {
       const q = args.trim();
       if (!q) { h.toast('Usage: ::findtab <query>'); return; }
@@ -52,7 +52,7 @@ const SCRIPTS: ScriptDef[] = [
   },
   {
     names: ['go', 'cd'],
-    hint: 'Navigate — ::go C:/Users',
+    hint: 'Navigate -- ::go C:/Users',
     run: (args, h) => {
       const p = args.trim().replace(/\\/g, '/');
       if (!p) { h.toast('Usage: ::go <path>'); return; }
@@ -61,7 +61,7 @@ const SCRIPTS: ScriptDef[] = [
   },
   {
     names: ['filter-set', 'grep'],
-    hint: 'Set list filter — ::grep .pdf',
+    hint: 'Set list filter -- ::grep .pdf',
     run: (args, h) => {
       h.setFilter(args.trim());
       if (args.trim()) h.toast(`Filter: ${args.trim()}`);
@@ -71,13 +71,13 @@ const SCRIPTS: ScriptDef[] = [
     names: ['help', '?'],
     hint: 'List quick scripts',
     run: (_, h) => {
-      const list = SCRIPTS.map(s => `::${s.names[0]} — ${s.hint}`).join(' · ');
-      h.toast(list.slice(0, 240) + (list.length > 240 ? '…' : ''));
+      const list = SCRIPTS.map(s => `::${s.names[0]} -- ${s.hint}`).join(' | ');
+      h.toast(list.slice(0, 240) + (list.length > 240 ? '...' : ''));
     },
   },
   {
     names: ['pvar', 'var', 'setvar'],
-    hint: 'Permanent variable — ::pvar name=value | ::pvar name | ::pvar -name',
+    hint: 'Permanent variable -- ::pvar name=value | ::pvar name | ::pvar -name',
     run: (args, h) => {
       const raw = args.trim();
       if (!raw) {
@@ -112,7 +112,7 @@ const SCRIPTS: ScriptDef[] = [
   },
   {
     names: ['vf', 'catalog', 'collection'],
-    hint: 'Open catalog — ::vf photos',
+    hint: 'Open catalog -- ::vf photos',
     run: (args, h) => {
       const slug = args.trim();
       if (!slug) {
@@ -125,7 +125,7 @@ const SCRIPTS: ScriptDef[] = [
   },
   {
     names: ['run', 'ps', 'script'],
-    hint: 'Run PowerShell — ::run Get-Date',
+    hint: 'Run PowerShell -- ::run Get-Date',
     run: (args, h) => {
       if (!args.trim()) { h.toast('Usage: ::run <powershell>'); return; }
       void import('./ipcBridge').then(({ IPC }) => {
@@ -193,7 +193,7 @@ export function runAddressQuickScript(raw: string, handlers: QuickScriptHandlers
   const script = SCRIPTS.find(s => s.names.includes(cmd));
   if (!script) {
     if (tryNavigateCatalogSlug(cmd, handlers)) return true;
-    handlers.toast(`Unknown: ::${cmd} — try ::help`);
+    handlers.toast(`Unknown: ::${cmd} -- try ::help`);
     return true;
   }
   script.run(args, handlers);

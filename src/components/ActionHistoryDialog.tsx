@@ -125,7 +125,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
         ? await IPC.executeUndo({ entryId: selected.id })
         : await IPC.executeRedo({ entryId: selected.id });
       if (isQueuedIpcResult(r)) {
-        pushToast({ kind: 'info', title: mode === 'undo' ? 'Undo queued' : 'Redo queued', message: 'Running in the transfer panel…' });
+        pushToast({ kind: 'info', title: mode === 'undo' ? 'Undo queued' : 'Redo queued', message: 'Running in the transfer panel...' });
       } else {
         pushToast({
           kind: r.ok ? 'success' : 'warning',
@@ -143,7 +143,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
   return (
     <BndzWindowFrame
       title="History"
-      subtitle={`Action Log · ${undoItems.length} undo · ${redoItems.length} redo`}
+      subtitle={`Action Log | ${undoItems.length} undo | ${redoItems.length} redo`}
       iconId="clock_ui"
       onClose={onClose}
       widthClass="w-[min(640px,calc(100vw-2rem))]"
@@ -157,7 +157,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
             <div className="min-w-0">
               <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70 font-semibold">BNDZ Action Log</div>
               <div className="text-[13px] text-white/55 mt-1 leading-snug truncate">
-                Select a step — undo rewinds through everything above it.
+                Select a step -- undo rewinds through everything above it.
               </div>
             </div>
             <div className="bndz-history-segment" role="tablist" aria-label="History stack">
@@ -188,7 +188,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
         <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar px-4 pb-3">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-16 text-white/40 text-sm">
-              <Icons8Icon id="loading" size={16} spin /> Loading history…
+              <Icons8Icon id="loading" size={16} spin /> Loading history...
             </div>
           )}
           {!loading && pool.length === 0 && (

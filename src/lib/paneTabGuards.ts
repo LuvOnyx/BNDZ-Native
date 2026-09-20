@@ -1,4 +1,4 @@
-/** Safe access to the active tab on a pane — prevents crashes when tabs[] is empty. */
+/** Safe access to the active tab on a pane -- prevents crashes when tabs[] is empty. */
 
 import type { TabState } from '../components/tabTypes';
 

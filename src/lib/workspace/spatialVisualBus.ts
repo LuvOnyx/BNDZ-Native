@@ -1,4 +1,4 @@
-/** Imperative invalidation for spatial canvas overlays (wires, halos) — no React per frame. */
+/** Imperative invalidation for spatial canvas overlays (wires, halos) -- no React per frame. */
 type Listener = () => void;
 const listeners = new Set<Listener>();
 

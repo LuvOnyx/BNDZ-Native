@@ -1,4 +1,4 @@
-/** Paste completion helpers — Explorer-parity dest optimism + select/tint. */
+/** Paste completion helpers -- Explorer-parity dest optimism + select/tint. */
 
 import { normalizePanePath } from './pathUtils';
 
@@ -63,7 +63,7 @@ export function buildPasteProvisionalRows(
       type: looksDir ? 'directory' : 'file',
       isDirectory: looksDir,
       size: 0,
-      // Color filters (`ageM:`) read `modified` — must be ISO for green "recent" tint.
+      // Color filters (`ageM:`) read `modified` -- must be ISO for green "recent" tint.
       modified: nowIso,
       dateModified: nowMs,
       __optimisticDrop: true as const,

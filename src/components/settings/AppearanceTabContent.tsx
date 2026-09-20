@@ -64,7 +64,7 @@ function VariantSelect<T extends string>({
           onChange={e => onChange(e.target.value as T)}
         >
           {options.map(o => (
-            <option key={o.id} value={o.id}>{o.label} — {o.hint}</option>
+            <option key={o.id} value={o.id}>{o.label} -- {o.hint}</option>
           ))}
         </select>
       </div>
@@ -82,7 +82,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
     <div className="p-1">
       <SettingsTabHeader
         title="Appearance"
-        description="Global UI variants — selection chrome, surfaces, density. Inspired by XYplorer / FilePilot (file manager) and Raycast (launcher)."
+        description="Global UI variants -- selection chrome, surfaces, density. Inspired by XYplorer / FilePilot (file manager) and Raycast (launcher)."
       />
 
       <SettingsSection title="Selection & focus">
@@ -177,7 +177,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           value={(localConfig.systemBackdropKind as 'mica' | 'micaAlt' | 'acrylic') || 'mica'}
           options={[
             { id: 'mica', label: 'Mica', hint: 'Standard Windows 11 material' },
-            { id: 'micaAlt', label: 'Mica Alt', hint: 'BaseAlt — stronger tint' },
+            { id: 'micaAlt', label: 'Mica Alt', hint: 'BaseAlt -- stronger tint' },
             { id: 'acrylic', label: 'Acrylic', hint: 'Desktop Acrylic / Fluent blur' },
           ]}
           onChange={v => patch({ systemBackdropKind: v, micaBackdrop: true })}
@@ -249,7 +249,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         />
         <VariantSelect<CornerRadius>
           label="Corner radius"
-          description="Rectangle-rounded — not pills"
+          description="Rectangle-rounded -- not pills"
           value={localConfig.appearanceCornerRadius || 'rounded'}
           options={CORNER_RADIUS_OPTIONS}
           onChange={v => patch({ appearanceCornerRadius: v })}
@@ -262,7 +262,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
             <>
               Place preview above the bottom plugin panel
               <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-                Off (default): classic layout — preview is full-height on the right; bottom plugins span only under the file list.
+                Off (default): classic layout -- preview is full-height on the right; bottom plugins span only under the file list.
                 On: preview shares the list row and sits above the bottom plugin panel.
               </span>
             </>
@@ -295,7 +295,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
             <>
               Show cards on List &amp; Grid
               <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-                Off (default): icons and names only — like File Explorer. On: mica/glass tiles; Grid auto-sizes so captions fit.
+                Off (default): icons and names only -- like File Explorer. On: mica/glass tiles; Grid auto-sizes so captions fit.
               </span>
             </>
           }

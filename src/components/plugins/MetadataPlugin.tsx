@@ -21,7 +21,7 @@ export const MetadataPluginDef = {
     id: 'metadata',
     name: 'Metadata',
     icon: 'metadata',
-    description: 'Details, tags, checksums, and image convert — one place',
+    description: 'Details, tags, checksums, and image convert -- one place',
     isNative: true,
     targetPanel: 'bottom' as const,
 };
@@ -214,7 +214,7 @@ export default function MetadataPlugin({
             await navigator.clipboard.writeText(text);
             flashCopied(key);
         } catch {
-            // Clipboard may be unavailable in some host contexts — fail silently.
+            // Clipboard may be unavailable in some host contexts -- fail silently.
         }
     };
 
@@ -255,7 +255,7 @@ export default function MetadataPlugin({
                 icon="metadata"
                 iconColor="#38bdf8"
                 variant="embedded"
-                subtitle={activeTab === 'encode' ? 'Convert images in bulk' : 'Details · tags · checksums · convert'}
+                subtitle={activeTab === 'encode' ? 'Convert images in bulk' : 'Details | tags | checksums | convert'}
                 toolbar={(
                     <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
                         <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>
@@ -277,7 +277,7 @@ export default function MetadataPlugin({
                     <PluginEmptyState
                         icon="metadata"
                         title="Select a file"
-                        description="Inspect extended metadata, media tags, and hashes — or open Encode for batch image convert."
+                        description="Inspect extended metadata, media tags, and hashes -- or open Encode for batch image convert."
                     />
                 )}
             </PluginPanelShell>
@@ -326,7 +326,7 @@ export default function MetadataPlugin({
             variant="embedded"
             subtitle={displayName}
             status={loading ? (
-                <span className="flex items-center gap-2 text-slate-500"><Icons8Icon id="loading" size={12} spin /> Loading metadata…</span>
+                <span className="flex items-center gap-2 text-slate-500"><Icons8Icon id="loading" size={12} spin /> Loading metadata...</span>
             ) : undefined}
         >
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -335,7 +335,7 @@ export default function MetadataPlugin({
                         <div className="bndz-metadata-opsrail-title">{displayName}</div>
                         <div className="bndz-metadata-opsrail-meta">
                             {ext ? `${ext.toUpperCase()} file` : entity?.type === 'directory' ? 'Folder' : 'Item'}
-                            {path ? ` · ${path}` : ''}
+                            {path ? ` | ${path}` : ''}
                         </div>
                     </div>
                     <div className="bndz-metadata-opsrail-actions">
@@ -448,7 +448,7 @@ export default function MetadataPlugin({
                                     ))}
                                     <div className="flex items-center gap-2 pt-1">
                                         <PluginToolbarButton icon="pencil_ui" onClick={() => void saveMediaTags()} disabled={savingTags}>
-                                            {savingTags ? 'Saving…' : 'Save tags'}
+                                            {savingTags ? 'Saving...' : 'Save tags'}
                                         </PluginToolbarButton>
                                         {tagSaveMsg && <span className="text-[11px] text-[#9aa3ad]">{tagSaveMsg}</span>}
                                     </div>
@@ -516,7 +516,7 @@ export default function MetadataPlugin({
                                             type="search"
                                             value={fieldFilter}
                                             onChange={e => setFieldFilter(e.target.value)}
-                                            placeholder="Filter fields by name or value…"
+                                            placeholder="Filter fields by name or value..."
                                             className={`${PLUGIN_INPUT_CLASS} !pl-8`}
                                             aria-label="Filter metadata fields"
                                         />

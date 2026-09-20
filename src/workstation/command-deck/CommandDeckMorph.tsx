@@ -14,7 +14,7 @@ import ContextToolRail from './ContextToolRail';
 type Props = {
   signature: SelectionSignature;
   onTool: (id: ContextToolId) => void;
-  /** Installed bottom-plugin ids — tools requiring a missing plugin are hidden. */
+  /** Installed bottom-plugin ids -- tools requiring a missing plugin are hidden. */
   installedPluginIds?: readonly string[];
   /** Current pane path (reserved for path-gated deck tools). */
   currentPath?: string;

@@ -52,7 +52,7 @@ export default function ConditionalFormattingDialog({
   return (
     <BndzWindowFrame
       title="Conditional Formatting"
-      subtitle={`${rules.length} rule${rules.length === 1 ? '' : 's'} · tint rows by pattern`}
+      subtitle={`${rules.length} rule${rules.length === 1 ? '' : 's'} | tint rows by pattern`}
       iconId="filters"
       onClose={() => onOpenChange(false)}
       widthClass="w-[min(820px,calc(100vw-2rem))]"
@@ -66,7 +66,7 @@ export default function ConditionalFormattingDialog({
               <Icons8Icon id="filters" size={22} className="opacity-40" />
               <div className="text-sm text-gray-300 font-medium">No formatting rules yet</div>
               <div className="text-[11px] text-gray-500 max-w-sm">
-                Color-code list rows by time, extension, regex, or size — same engine as Visual Filters.
+                Color-code list rows by time, extension, regex, or size -- same engine as Visual Filters.
               </div>
             </div>
           )}

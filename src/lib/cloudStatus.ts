@@ -13,7 +13,7 @@ export type CloudProvider = {
 };
 
 export type CloudBadge = {
-  /** @deprecated Prefer emblem — kept for tone styling */
+  /** @deprecated Prefer emblem -- kept for tone styling */
   label: string;
   tone: 'sky' | 'amber' | 'emerald' | 'gray';
   title: string;
@@ -53,7 +53,7 @@ export function cloudBadgeForPath(fullPath: string, providers: CloudProvider[]):
     return {
       label: '',
       tone: 'amber',
-      title: `${match.name} — online-only (not downloaded)`,
+      title: `${match.name} -- online-only (not downloaded)`,
       emblem: 'state-download',
     };
   }
@@ -61,7 +61,7 @@ export function cloudBadgeForPath(fullPath: string, providers: CloudProvider[]):
     return {
       label: '',
       tone: 'emerald',
-      title: `${match.name} — always keep on device`,
+      title: `${match.name} -- always keep on device`,
       emblem: 'state-ok',
     };
   }
@@ -69,7 +69,7 @@ export function cloudBadgeForPath(fullPath: string, providers: CloudProvider[]):
     return {
       label: '',
       tone: 'gray',
-      title: `${match.name} — unavailable`,
+      title: `${match.name} -- unavailable`,
       emblem: 'state-error',
     };
   }
@@ -104,19 +104,19 @@ export function resolveEntityCloudStatus(
 
   const name = provider?.name || 'Cloud';
   if (raw === 'online-only' || raw === 'offline') {
-    return { kind: 'online-only', title: `${name} — online-only`, emblem: 'state-download' };
+    return { kind: 'online-only', title: `${name} -- online-only`, emblem: 'state-download' };
   }
   if (raw === 'pinned') {
-    return { kind: 'pinned', title: `${name} — always keep on this device`, emblem: 'state-ok' };
+    return { kind: 'pinned', title: `${name} -- always keep on this device`, emblem: 'state-ok' };
   }
   if (raw === 'missing' || raw === 'error') {
-    return { kind: 'error', title: `${name} — unavailable`, emblem: 'state-error' };
+    return { kind: 'error', title: `${name} -- unavailable`, emblem: 'state-error' };
   }
   if (raw === 'syncing') {
-    return { kind: 'syncing', title: `${name} — syncing`, emblem: 'state-sync' };
+    return { kind: 'syncing', title: `${name} -- syncing`, emblem: 'state-sync' };
   }
   if (provider || raw === 'available') {
-    return { kind: 'available', title: `${name} — available locally`, emblem: 'cloud-sync' };
+    return { kind: 'available', title: `${name} -- available locally`, emblem: 'cloud-sync' };
   }
   return null;
 }

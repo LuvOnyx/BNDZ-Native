@@ -1,6 +1,6 @@
 import type { NavTreeSourceNode } from './navTreeModel';
 
-/** Default root-level navigation tree order — Workspace Tools stays at the bottom. */
+/** Default root-level navigation tree order -- Workspace Tools stays at the bottom. */
 export const NAV_TREE_ORDER_DEFAULT = [
   'continuum-home',
   'libraries',
@@ -30,7 +30,7 @@ export function migrateNavTreeOrder(saved: string[] | undefined): string[] {
   }
   const deprecated = new Set(['rapid-access', 'cloud-drives', 'spatial-canvas', 'automation']);
   const filtered = out.filter(k => !deprecated.has(k));
-  // Exactly one Workspace Tools entry — keep the last occurrence (bottom preference).
+  // Exactly one Workspace Tools entry -- keep the last occurrence (bottom preference).
   const wtIdx = filtered.lastIndexOf('workspace-tools');
   if (wtIdx >= 0) {
     for (let i = filtered.length - 1; i >= 0; i--) {

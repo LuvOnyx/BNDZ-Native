@@ -1,4 +1,4 @@
-﻿// Reference copy from SuperCmd (MIT) â€” https://github.com/SuperCmdLabs/SuperCmd
+﻿// Reference copy from SuperCmd (MIT) -- https://github.com/SuperCmdLabs/SuperCmd
 // BNDZ-adapted implementations live alongside in src/launcher/components/
 // Re-sync: .\scripts\sync-supercmd-launcher-ui.ps1
 /**
@@ -12,7 +12,7 @@
  * Key exports:
  * - resetAllViews(): sets all view flags back to their default (hidden) state
  * - open*() transition functions: each calls resetAllViews() first, then
- *   activates the target view — guarantees only one view is ever visible
+ *   activates the target view -- guarantees only one view is ever visible
  * - Individual setters exposed for rare partial updates
  *
  * App.tsx wires the returned values to child components; nothing else should
@@ -262,7 +262,7 @@ export function useAppViewManager(): AppViewManager {
   }, [resetAllViews]);
 
   const openAppUninstall = useCallback((appPath: string) => {
-    // Don't call resetAllViews() — it can trigger side effects in menubar
+    // Don't call resetAllViews() -- it can trigger side effects in menubar
     // extensions that cause SIGTRAP crashes. Just set the uninstall view directly.
     setShowAppUninstall(appPath);
   }, []);

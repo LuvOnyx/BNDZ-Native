@@ -87,7 +87,7 @@ function KeybindingRow({
         ].join(' ')}
         title={conflict ? 'Conflicts with another action' : 'Click, then press a key combination'}
       >
-        {recording ? 'Press keys…' : formatShortcut(value)}
+        {recording ? 'Press keys...' : formatShortcut(value)}
       </button>
       <button
         onClick={onReset}

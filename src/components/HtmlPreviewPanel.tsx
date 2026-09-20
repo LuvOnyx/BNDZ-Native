@@ -12,7 +12,7 @@ type Props = {
  * through bndz-stream. Uses srcDoc (not blob:) to avoid WebView2 sandbox warnings
  * about blocked script execution in blob frames.
  *
- * Scripts stay disabled — many local HTML files ship incomplete helpers that
+ * Scripts stay disabled -- many local HTML files ship incomplete helpers that
  * throw into the WebView console. Use Open for full interactive pages.
  */
 export default function HtmlPreviewPanel({ path, title }: Props) {
@@ -65,7 +65,7 @@ export default function HtmlPreviewPanel({ path, title }: Props) {
   if (loading) {
     return (
       <div className="flex-1 min-h-0 flex items-center justify-center text-xs text-gray-400 animate-pulse p-4">
-        Loading HTML preview…
+        Loading HTML preview...
       </div>
     );
   }

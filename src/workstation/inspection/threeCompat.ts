@@ -2,7 +2,7 @@
  * Silence THREE.Clock deprecation until @react-three/fiber migrates to THREE.Timer (three ≥ r183).
  * Import this before any Canvas / R3F usage.
  *
- * Do NOT mutate the `three` ESM namespace — production bundles make exports read-only
+ * Do NOT mutate the `three` ESM namespace -- production bundles make exports read-only
  * (`Cannot assign to read only property 'warn'`). Filter via console instead.
  */
 const PATCH_KEY = '__bndzThreeClockWarnPatched';

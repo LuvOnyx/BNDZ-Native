@@ -19,7 +19,7 @@ export const BranchingTimePluginDef = {
   id: 'branching-time',
   name: 'Branching Time',
   icon: 'history_ui',
-  description: 'Save folder snapshots you can preview and restore later — like undo for a whole folder',
+  description: 'Save folder snapshots you can preview and restore later -- like undo for a whole folder',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -165,7 +165,7 @@ export default function BranchingTimePlugin({
     }
     const name = branchName.trim() || `snapshot-${new Date().toISOString().slice(0, 16).replace('T', '-')}`;
     setBusy(true);
-    setCreateProgress('Hashing files…');
+    setCreateProgress('Hashing files...');
     try {
       const res = await IPC.branchCreate(root, name);
       if (!res.ok) {
@@ -244,7 +244,7 @@ export default function BranchingTimePlugin({
     try {
       const res = await IPC.branchCreateVss(root, name);
       if (!res.ok) {
-        pushToast(res.error || 'Named snapshot failed — try running BNDZ as administrator.');
+        pushToast(res.error || 'Named snapshot failed -- try running BNDZ as administrator.');
         return;
       }
       pushToast(`Snapshot "${name}" created.`);
@@ -310,7 +310,7 @@ export default function BranchingTimePlugin({
       icon="history_ui"
       iconColor="#c4a35a"
       variant="embedded"
-      subtitle="Folder snapshots · preview · restore"
+      subtitle="Folder snapshots | preview | restore"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={activeTab === 'branches'} onClick={() => setActiveTab('branches')}>

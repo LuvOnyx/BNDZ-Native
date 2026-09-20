@@ -56,7 +56,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
     <NativeDialogShell
       open
       title="Register BNDZ"
-      subtitle="Online activation — one Windows PC per serial"
+      subtitle="Online activation -- one Windows PC per serial"
       variant="sheet"
       iconId=""
       onClose={onClose}
@@ -67,13 +67,13 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       footerButtons={
         status?.activated
           ? [
-              { label: busy ? 'Releasing…' : 'Deactivate this PC', style: 'secondary', onClick: deactivate },
+              { label: busy ? 'Releasing...' : 'Deactivate this PC', style: 'secondary', onClick: deactivate },
               { label: 'Done', style: 'primary', onClick: onClose },
             ]
           : [
               { label: 'Cancel', style: 'secondary', onClick: onClose },
               {
-                label: busy ? 'Activating…' : 'Activate online',
+                label: busy ? 'Activating...' : 'Activate online',
                 style: 'primary',
                 onClick: () => { if (canActivate) void activate(); },
               },

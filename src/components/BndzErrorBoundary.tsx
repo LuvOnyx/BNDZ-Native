@@ -5,7 +5,7 @@ type Props = {
   label?: string;
   /**
    * Soft isolate for leaf surfaces (preview / 3D). Catch the error, notify,
-   * and render fallback — do NOT blank the whole native shell.
+   * and render fallback -- do NOT blank the whole native shell.
    */
   isolate?: boolean;
   fallback?: React.ReactNode;

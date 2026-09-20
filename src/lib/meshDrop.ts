@@ -1,4 +1,4 @@
-/** Mesh Drop pairing helpers — mirrors BNDZBackend/Services/MeshDrop/MeshDropSignaling.cs */
+/** Mesh Drop pairing helpers -- mirrors BNDZBackend/Services/MeshDrop/MeshDropSignaling.cs */
 
 const PREFIX = 'BNDZMD:';
 
@@ -37,7 +37,7 @@ function inflateGzip(bytes: Uint8Array): Uint8Array | null {
     const writer = ds.writable.getWriter();
     void writer.write(bytes);
     void writer.close();
-    // sync path unavailable — caller uses backend round-trip in tests
+    // sync path unavailable -- caller uses backend round-trip in tests
     return null;
   } catch {
     return null;

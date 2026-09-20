@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { motionEnter } from '../lib/bndzMotion';
 
 /**
- * Tab strip enter/exit — native FM feel.
+ * Tab strip enter/exit -- native FM feel.
  * Close commits immediately (waiting on width-collapse felt clunky).
  * Enter is a tiny opacity wink only.
  */
@@ -24,7 +24,7 @@ export function useBndzTabMotion(paneRevision: unknown) {
   }, [paneRevision]);
 
   const animateTabClose = useCallback((_tabId: string, onComplete: () => void) => {
-    // Instant remove — Explorer / Terminal style. Anime width collapse lagged siblings.
+    // Instant remove -- Explorer / Terminal style. Anime width collapse lagged siblings.
     onComplete();
   }, []);
 

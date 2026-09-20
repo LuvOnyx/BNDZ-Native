@@ -10,7 +10,7 @@ type Props = {
   widthClass?: string;
 };
 
-/** macOS-style folder size indicators — slightly rounded, never pill-shaped. */
+/** macOS-style folder size indicators -- slightly rounded, never pill-shaped. */
 export function SizeBar({
   percent,
   isDir = true,
@@ -61,6 +61,6 @@ export function SizeBar({
 
 export const SIZE_BAR_STYLE_OPTIONS: { id: SizeBarStyle; label: string; hint: string }[] = [
   { id: 'bar', label: 'Bar', hint: 'macOS-style rounded fill (default)' },
-  { id: 'segment', label: 'Segments', hint: 'Discrete blocks — XYplorer-style at a glance' },
+  { id: 'segment', label: 'Segments', hint: 'Discrete blocks -- XYplorer-style at a glance' },
   { id: 'meter', label: 'Meter', hint: 'Thin line with position marker' },
 ];

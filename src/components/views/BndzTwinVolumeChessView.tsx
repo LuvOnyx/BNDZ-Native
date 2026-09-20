@@ -26,16 +26,16 @@ const STATUS_META: Record<TwinStatus, { label: string; tone: string; icon: strin
 };
 
 function formatBytes(n: number): string {
-  if (!n) return '—';
+  if (!n) return '--';
   const u = ['B', 'KB', 'MB', 'GB'];
   const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
   return `${(n / 1024 ** i).toFixed(i ? 1 : 0)} ${u[i]}`;
 }
 
 function formatWhen(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '--';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? '--' : d.toLocaleString();
 }
 
 export default function BndzTwinVolumeChessView() {
@@ -59,7 +59,7 @@ export default function BndzTwinVolumeChessView() {
   }, []);
 
   const pickFolder = useCallback(async (side: 'left' | 'right') => {
-    const picked = await IPC.openFolderDialog(side === 'left' ? 'Twin Volume — Left root' : 'Twin Volume — Right root');
+    const picked = await IPC.openFolderDialog(side === 'left' ? 'Twin Volume -- Left root' : 'Twin Volume -- Right root');
     if (!picked) return;
     if (side === 'left') setLeftRoot(picked);
     else setRightRoot(picked);
@@ -125,7 +125,7 @@ export default function BndzTwinVolumeChessView() {
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight text-white">Cross-volume board</h1>
-            <p className="text-[11px] text-gray-500 mt-0.5">Folder Sync · compare two roots and resolve conflicts</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Folder Sync | compare two roots and resolve conflicts</p>
           </div>
         </div>
 
@@ -139,7 +139,7 @@ export default function BndzTwinVolumeChessView() {
                 onChange={e => setLeftRoot(e.target.value)}
                 placeholder="D:\Projects\Master"
               />
-              <button type="button" className="px-2 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 hover:bg-white/10" onClick={() => void pickFolder('left')}>…</button>
+              <button type="button" className="px-2 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 hover:bg-white/10" onClick={() => void pickFolder('left')}>...</button>
             </div>
           </label>
           <span className="hidden lg:block text-gray-600 text-xl pb-1">⇄</span>
@@ -152,7 +152,7 @@ export default function BndzTwinVolumeChessView() {
                 onChange={e => setRightRoot(e.target.value)}
                 placeholder="E:\Mirror\Master"
               />
-              <button type="button" className="px-2 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 hover:bg-white/10" onClick={() => void pickFolder('right')}>…</button>
+              <button type="button" className="px-2 py-1.5 text-xs rounded-lg bg-white/5 border border-white/10 hover:bg-white/10" onClick={() => void pickFolder('right')}>...</button>
             </div>
           </label>
           <button
@@ -161,7 +161,7 @@ export default function BndzTwinVolumeChessView() {
             disabled={busy}
             onClick={() => void runCompare()}
           >
-            {busy ? 'Comparing…' : 'Compare'}
+            {busy ? 'Comparing...' : 'Compare'}
           </button>
         </div>
 
@@ -179,7 +179,7 @@ export default function BndzTwinVolumeChessView() {
                   style={{ borderColor: `${meta.tone}55`, color: meta.tone, background: `${meta.tone}15` }}
                   onClick={() => setFilter(f => f === st ? 'all' : st)}
                 >
-                  {meta.label} · {count}
+                  {meta.label} | {count}
                 </button>
               );
             })}
@@ -218,13 +218,13 @@ export default function BndzTwinVolumeChessView() {
                 <div className="grid grid-cols-2 divide-x divide-white/[0.05]">
                   <div className="p-3 min-w-0">
                     <div className="text-[9px] uppercase tracking-wider text-[#60a5fa] mb-1">Left</div>
-                    <div className="text-[11px] font-mono truncate text-gray-300">{item.leftPath ? toWindowsPath(item.leftPath).split(/[/\\]/).pop() : '—'}</div>
-                    <div className="text-[9px] text-gray-500 mt-1">{formatBytes(item.leftSize ?? 0)} · {formatWhen(item.leftModifiedUtc)}</div>
+                    <div className="text-[11px] font-mono truncate text-gray-300">{item.leftPath ? toWindowsPath(item.leftPath).split(/[/\\]/).pop() : '--'}</div>
+                    <div className="text-[9px] text-gray-500 mt-1">{formatBytes(item.leftSize ?? 0)} | {formatWhen(item.leftModifiedUtc)}</div>
                   </div>
                   <div className="p-3 min-w-0">
                     <div className="text-[9px] uppercase tracking-wider text-[#a78bfa] mb-1">Right</div>
-                    <div className="text-[11px] font-mono truncate text-gray-300">{item.rightPath ? toWindowsPath(item.rightPath).split(/[/\\]/).pop() : '—'}</div>
-                    <div className="text-[9px] text-gray-500 mt-1">{formatBytes(item.rightSize ?? 0)} · {formatWhen(item.rightModifiedUtc)}</div>
+                    <div className="text-[11px] font-mono truncate text-gray-300">{item.rightPath ? toWindowsPath(item.rightPath).split(/[/\\]/).pop() : '--'}</div>
+                    <div className="text-[9px] text-gray-500 mt-1">{formatBytes(item.rightSize ?? 0)} | {formatWhen(item.rightModifiedUtc)}</div>
                   </div>
                 </div>
                 {isConflict && item.status !== 'Same' && (

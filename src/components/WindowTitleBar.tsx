@@ -7,7 +7,7 @@ const DRAG_THRESHOLD_PX = 5;
 
 interface WindowTitleBarProps {
   title?: string;
-  /** When true (plugin pop-out), prefer native Caption — avoid IPC drag on every mousedown. */
+  /** When true (plugin pop-out), prefer native Caption -- avoid IPC drag on every mousedown. */
   nativeCaptionDrag?: boolean;
 }
 
@@ -61,7 +61,7 @@ export default function WindowTitleBar({ title = 'BNDZ', nativeCaptionDrag = fal
       onPointerDown={e => {
         if ((e.target as HTMLElement).closest('[data-window-btn]')) return;
         if (e.button !== 0) return;
-        // Plugin windows use native Caption regions — bare click must not arm IPC drag.
+        // Plugin windows use native Caption regions -- bare click must not arm IPC drag.
         if (nativeCaptionDrag) return;
         e.preventDefault();
         dragArmedRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };

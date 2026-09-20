@@ -28,12 +28,12 @@ async function buildEnrichedContext(paths: string[], currentPath?: string, userT
     for (const p of paths.slice(0, 6)) {
       const win = toWindowsPath(p);
       const name = win.split(/[/\\]/).pop() || win;
-      let detail = `  • ${name} — ${win}`;
+      let detail = `  * ${name} -- ${win}`;
       try {
         const meta = await IPC.getIndexedEntry(p);
-        if (meta?.size) detail += ` · ${meta.size} bytes`;
-        if (meta?.mediaKind) detail += ` · ${meta.mediaKind}`;
-        if (meta?.modified) detail += ` · modified ${new Date(Number(meta.modified) * 1000).toLocaleString()}`;
+        if (meta?.size) detail += ` | ${meta.size} bytes`;
+        if (meta?.mediaKind) detail += ` | ${meta.mediaKind}`;
+        if (meta?.modified) detail += ` | modified ${new Date(Number(meta.modified) * 1000).toLocaleString()}`;
       } catch { /* ignore */ }
       const ext = name.split('.').pop()?.toLowerCase() || '';
       if (TEXT_SNIPPET_EXTS.has(ext) || isTextEditableExt(ext)) {
@@ -41,13 +41,13 @@ async function buildEnrichedContext(paths: string[], currentPath?: string, userT
           const res = await IPC.readTextFile(win);
           if (res.content && !res.error) {
             const snippet = res.content.slice(0, 1500).replace(/\r\n/g, '\n');
-            detail += `\n    --- content ---\n${snippet}${res.content.length > 1500 ? '\n    …' : ''}`;
+            detail += `\n    --- content ---\n${snippet}${res.content.length > 1500 ? '\n    ...' : ''}`;
           }
         } catch { /* ignore */ }
       }
       lines.push(detail);
     }
-    if (paths.length > 6) lines.push(`  … and ${paths.length - 6} more`);
+    if (paths.length > 6) lines.push(`  ... and ${paths.length - 6} more`);
   }
 
   if (userText) lines.push(`\nUser question: ${userText}`);
@@ -134,7 +134,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
       }
 
       if (streamGenRef.current !== gen) return;
-      const finalText = reply || 'No response — try downloading the local model below.';
+      const finalText = reply || 'No response -- try downloading the local model below.';
       setMessages(prev => {
         const next = [...prev];
         const last = next[next.length - 1];
@@ -221,7 +221,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
 
       <div ref={scrollRef} className="flex-1 min-h-[180px] max-h-[340px] overflow-y-auto bndz-scrollbar border border-[#454545] bg-[#252525] p-2 space-y-2">
         {messages.length === 0 && !busy && (
-          <p className="text-[11px] text-gray-500 px-1">Ask about your selection — file contents and metadata are included when available.</p>
+          <p className="text-[11px] text-gray-500 px-1">Ask about your selection -- file contents and metadata are included when available.</p>
         )}
         {messages.map((m, i) => {
           const actions = m.role === 'assistant' && !m.streaming && m.text
@@ -257,7 +257,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
         {busy && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex items-center gap-2 text-[11px] text-gray-400 px-1">
             <Icons8Icon id="loading" size={12} spin />
-            Reading context…
+            Reading context...
           </div>
         )}
       </div>
@@ -276,7 +276,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
           }
         }}
         onAttachPaths={paths => setExtraPaths(prev => [...new Set([...prev, ...paths])])}
-        placeholder="Ask about selected files…"
+        placeholder="Ask about selected files..."
       />
 
       {contextPaths.length > 0 && (

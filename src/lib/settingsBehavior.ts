@@ -1,5 +1,5 @@
 /**
- * Typed settings consumers — every ConfigurationDialog key must be read here
+ * Typed settings consumers -- every ConfigurationDialog key must be read here
  * (or in a dedicated helper) so audit harness can verify non-UI consumption.
  * applySettingsBehavior() pushes values into CSS vars / dataset for live UI.
  */

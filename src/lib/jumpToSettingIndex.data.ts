@@ -5962,7 +5962,7 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Thumbnails",
-    "label": "Show cached thumbnails only (leave off — blocks first-visit extract)",
+    "label": "Show cached thumbnails only (leave off -- blocks first-visit extract)",
     "key": "showCachedThumbnailsOnly",
     "keywords": [
       "show",

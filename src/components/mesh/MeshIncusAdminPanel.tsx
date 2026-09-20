@@ -24,7 +24,7 @@ export default function MeshIncusAdminPanel({ endpoint, onClose }: Props) {
       <PluginCard className="!p-3 space-y-2 bndz-mesh-ephemeral-editor">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white truncate">VPS Admin · {endpoint.alias}</div>
+            <div className="text-sm font-semibold text-white truncate">VPS Admin | {endpoint.alias}</div>
             <div className="text-[10px] text-gray-500 truncate mt-0.5">{adminUrl || 'Set a valid API URL on the host'}</div>
           </div>
           <div className="flex flex-wrap gap-1.5 shrink-0">
@@ -44,14 +44,14 @@ export default function MeshIncusAdminPanel({ endpoint, onClose }: Props) {
         )}
         <p className="text-[10px] text-gray-500 leading-relaxed">
           Opens the host&apos;s web console when enabled on the server.
-          Native Create / inventory / snapshots / Mesh SSH stay in this tab — use Admin for full console control.
+          Native Create / inventory / snapshots / Mesh SSH stay in this tab -- use Admin for full console control.
         </p>
         {adminUrl ? (
           <div className="relative rounded-xl overflow-hidden border border-white/[0.08] bg-[#07090e] min-h-[320px] h-[min(52vh,520px)]">
             <iframe
               key={frameKey}
               src={adminUrl}
-              title={`VPS admin — ${endpoint.alias}`}
+              title={`VPS admin -- ${endpoint.alias}`}
               className="absolute inset-0 w-full h-full border-0 bg-[#07090e]"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
               referrerPolicy="no-referrer"

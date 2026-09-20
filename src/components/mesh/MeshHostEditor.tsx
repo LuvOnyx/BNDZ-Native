@@ -168,7 +168,7 @@ export default function MeshHostEditor({ host, onSave, onCancel, busy }: Props) 
           onClick={() => void onSave(draft)}
           className="px-4 py-1.5 text-xs font-bold text-white rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-40"
         >
-          {busy ? 'Saving…' : host ? 'Save changes' : 'Add host'}
+          {busy ? 'Saving...' : host ? 'Save changes' : 'Add host'}
         </button>
       </div>
     </div>

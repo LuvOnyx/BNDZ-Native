@@ -1,4 +1,4 @@
-/** Session cache for Home deck — instant repaint, no full resync on every tab visit. */
+/** Session cache for Home deck -- instant repaint, no full resync on every tab visit. */
 
 export type HomeDeckSnapshot = {
   continuum: any[];

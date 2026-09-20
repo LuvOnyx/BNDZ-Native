@@ -103,7 +103,7 @@ export default function TagStudioPanel({
         <input
           className="bndz-tagstudio-input"
           value={draft}
-          placeholder={multi ? `Tag ${paths.length} items…` : 'Add tag…'}
+          placeholder={multi ? `Tag ${paths.length} items...` : 'Add tag...'}
           aria-label="Tag name"
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => {

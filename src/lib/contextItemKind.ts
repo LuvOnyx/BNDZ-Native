@@ -1,6 +1,6 @@
 import { normalizePanePath } from './pathUtils';
 
-/** Primary kind for list/item context menus — drives Open / Open file location / Run as admin. */
+/** Primary kind for list/item context menus -- drives Open / Open file location / Run as admin. */
 export type ContextItemKind = 'folder' | 'file' | 'shortcut' | 'app';
 
 const APP_EXTS = new Set([
@@ -54,7 +54,7 @@ export type OpenLocationTarget = {
   label: string;
 };
 
-/** Cross-folder item location (search / virtual) — parent of the item itself. */
+/** Cross-folder item location (search / virtual) -- parent of the item itself. */
 export function openLocationForItemParent(itemWin: string, cwdWin: string): OpenLocationTarget | null {
   const parentWin = windowsParentFolder(itemWin);
   if (!parentWin) return null;

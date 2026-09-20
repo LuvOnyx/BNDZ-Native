@@ -7,7 +7,7 @@ export type WorkIntentApplyResult = {
   toast: string;
 };
 
-/** Session overlay keys — intent recompiles chrome without permanently wiping user column prefs baseline. */
+/** Session overlay keys -- intent recompiles chrome without permanently wiping user column prefs baseline. */
 export function applyWorkIntentPack(
   intentId: WorkIntentId,
   options?: { fromContract?: boolean; installedPluginIds?: ReadonlySet<string> | readonly string[] | null },
@@ -27,7 +27,7 @@ export function applyWorkIntentPack(
   if (pack.sortColumn) patch.listSortColumn = pack.sortColumn;
   if (pack.sortDirection) patch.listSortDirection = pack.sortDirection;
 
-  // Only set bottom-panel defaults to a plugin that is actually installed — never toast-spam.
+  // Only set bottom-panel defaults to a plugin that is actually installed -- never toast-spam.
   const installed = !options?.installedPluginIds
     ? null
     : options.installedPluginIds instanceof Set
@@ -45,7 +45,7 @@ export function applyWorkIntentPack(
   return {
     patch,
     pack,
-    toast: `Intent · ${pack.label} (${src})`,
+    toast: `Intent | ${pack.label} (${src})`,
   };
 }
 

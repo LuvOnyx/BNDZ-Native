@@ -16,7 +16,7 @@ export type WorkspaceLaunchCardProps = {
 };
 
 /**
- * Workspace launch tiles — Aceternity/Magic-UI inspired bloom + spotlight,
+ * Workspace launch tiles -- Aceternity/Magic-UI inspired bloom + spotlight,
  * adapted into BNDZ glass tokens (no third-party dump).
  */
 export default function WorkspaceLaunchCard({

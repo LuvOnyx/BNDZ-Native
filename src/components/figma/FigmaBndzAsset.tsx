@@ -11,7 +11,7 @@ type Props = {
 
 /**
  * Reference renderer for staged Figma BNDZ assets.
- * Not used in production chrome yet — import when wiring a surface.
+ * Not used in production chrome yet -- import when wiring a surface.
  */
 export function FigmaBndzAsset({ id, className, alt, intrinsic }: Props) {
   const asset = FIGMA_BNDZ_ASSET_BY_ID[id];

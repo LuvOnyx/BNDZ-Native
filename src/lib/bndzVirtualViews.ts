@@ -1,4 +1,4 @@
-/** BNDZ-native smart views — backed by local file cache, not external engines. */
+/** BNDZ-native smart views -- backed by local file cache, not external engines. */
 
 export const BNDZ_VIEWS_ROOT = '/bndz';
 export const BNDZ_HOME = '/bndz/home';
@@ -93,7 +93,7 @@ export function isBndzWorkspacePath(path: string): boolean {
   return isBndzCanvasPath(path) || isBndzAutomationPath(path) || isBndzTwinVolumePath(path) || isBndzTemporalDiffPath(path);
 }
 
-/** Home + workspace tools — hide FM chrome (bottom dock, breadcrumbs, column bars) for full canvas. */
+/** Home + workspace tools -- hide FM chrome (bottom dock, breadcrumbs, column bars) for full canvas. */
 export function isBndzImmersiveWorkspacePath(path: string): boolean {
   return isBndzHomePath(path) || isBndzWorkspacePath(path);
 }

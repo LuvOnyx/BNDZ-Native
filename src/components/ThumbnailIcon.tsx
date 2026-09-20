@@ -33,7 +33,7 @@ function entityExt(entity: FSEntity): string {
   return name.slice(dot + 1).toLowerCase();
 }
 
-/** Request native icons at display resolution — avoids upscaling tiny shell glyphs in zoomed grid. */
+/** Request native icons at display resolution -- avoids upscaling tiny shell glyphs in zoomed grid. */
 function iconRequestPx(displaySize: number): number {
   const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1;
   const largeTile = displaySize >= 72;
@@ -44,7 +44,7 @@ function iconRequestPx(displaySize: number): number {
   const listPx = getRuntimeListThumbPx();
   const hiPx = getRuntimeHiResThumbPx();
   if (heroTile) {
-    // Files Extra Large / jumbo: prefer 256–512 native extract, never soft-upscale a 32px glyph.
+    // Files Extra Large / jumbo: prefer 256-512 native extract, never soft-upscale a 32px glyph.
     return Math.min(512, Math.max(192, Math.ceil(displaySize * 1.5), want, hiPx));
   }
   if (largeTile) {
@@ -53,7 +53,7 @@ function iconRequestPx(displaySize: number): number {
   if (mediumTile) {
     return Math.min(256, Math.max(64, displaySize, want));
   }
-  // Details / small icons — band to list preset, not full jumbo.
+  // Details / small icons -- band to list preset, not full jumbo.
   return Math.min(128, Math.max(32, listPx, displaySize * dpr));
 }
 
@@ -86,7 +86,7 @@ type ThumbnailIconProps = {
 };
 
 /**
- * List/grid icon — CAS thumb first, shell glyph second.
+ * List/grid icon -- CAS thumb first, shell glyph second.
  * Virtualized rows are already viewport-culled, so we fetch eagerly (no IntersectionObserver).
  */
 const ThumbnailIconInner = memo(function ThumbnailIconInner({
@@ -176,7 +176,7 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
       }
     }, { rootMargin: '160px', threshold: 0 });
     observer.observe(el);
-    // Synchronous check — IO callbacks are async and can miss already-visible rows in WebView2.
+    // Synchronous check -- IO callbacks are async and can miss already-visible rows in WebView2.
     if (typeof observer.takeRecords === 'function') {
       const hits = observer.takeRecords();
       if (hits.some(h => h.isIntersecting)) {
@@ -198,7 +198,7 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
   // Always fetch shell glyphs for first paint; thumbs upgrade afterward (Explorer model).
   const shellFetchEnabled = !forceGeneric && isVisible && shouldFetchNativeShellIcon(entity, config, path);
 
-  // Direct fetch — shell first (high priority), then thumbs. Viewport shells fill before offscreen thumbs.
+  // Direct fetch -- shell first (high priority), then thumbs. Viewport shells fill before offscreen thumbs.
   const requestPx = iconRequestPx(size);
   useEffect(() => {
     if (!isVisible || !path) return;
@@ -235,7 +235,7 @@ const ThumbnailIconInner = memo(function ThumbnailIconInner({
   }, [isVisible, path, dirFlag, folderThumbs, usableThumb, shellFetchEnabled, requestPx]);
 
   const isSvgFile = ext === 'svg' || ext === 'svgz';
-  // Shell-first paint; upgrade to CAS thumb when ready — except SVG, which stays
+  // Shell-first paint; upgrade to CAS thumb when ready -- except SVG, which stays
   // on inline vector so we never show upside-down Skia PNGs in the list.
   const nativeSrc = (isSvgFile && svgInline)
     || usableThumb

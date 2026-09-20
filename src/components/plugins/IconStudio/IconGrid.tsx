@@ -189,7 +189,7 @@ export default function IconGrid({
                         setFocusIndex(index);
                         setSelectedIcon(icon);
                     }}
-                    title={canApply ? `Apply to ${selectedItems.length} item(s) · Enter` : 'Select targets in file list'}
+                    title={canApply ? `Apply to ${selectedItems.length} item(s) | Enter` : 'Select targets in file list'}
                     disabled={isApplying}
                     className={`${styles.iconTile} w-full flex flex-col items-center gap-2 p-2.5 transition-colors ${
                         isFocused || isSelected ? styles.iconTileSelected : ''
@@ -237,7 +237,7 @@ export default function IconGrid({
                                 type="text"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                placeholder="Filter icons…"
+                                placeholder="Filter icons..."
                                 className={`${PLUGIN_INPUT_CLASS} !pl-7 !py-1`}
                             />
                         </div>
@@ -253,7 +253,7 @@ export default function IconGrid({
                                 type="text"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                placeholder="Filter icons…"
+                                placeholder="Filter icons..."
                                 className={`${PLUGIN_INPUT_CLASS} !pl-7 !py-1`}
                             />
                         </div>
@@ -273,7 +273,7 @@ export default function IconGrid({
                                 <div className="flex flex-col items-center gap-4">
                                     <div className={styles.spinnerRing} />
                                     <span className="text-xs bndz-panel-muted">
-                                        {isImporting ? 'Importing icons…' : 'Applying icon…'}
+                                        {isImporting ? 'Importing icons...' : 'Applying icon...'}
                                     </span>
                                 </div>
                             </div>

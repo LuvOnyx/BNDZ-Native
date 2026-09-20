@@ -1,4 +1,4 @@
-/** Spring physics engine — ported from Physics-Toast (MIT-style reference). */
+/** Spring physics engine -- ported from Physics-Toast (MIT-style reference). */
 
 export class Spring {
   current: number;

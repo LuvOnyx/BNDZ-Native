@@ -1,5 +1,5 @@
 /**
- * BNDZ recents list — date-grouped, virtualized for large indexes.
+ * BNDZ recents list -- date-grouped, virtualized for large indexes.
  */
 import React, { useMemo } from 'react';
 import { ThumbnailIcon } from '../ThumbnailIcon';

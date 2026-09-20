@@ -63,7 +63,7 @@ function entityChildPath(colPath: string, entity: Entity): string {
   return normalizePanePath(joinPanePath(colPath, entity as { name: string; path?: string }));
 }
 
-/** File Pilot / macOS Miller columns — keyboard + mouse + column drag. */
+/** File Pilot / macOS Miller columns -- keyboard + mouse + column drag. */
 export default function MillerColumnsView({
   rootPath,
   selectedPath,
@@ -309,7 +309,7 @@ export default function MillerColumnsView({
   ) => {
     if (!onMoveOrCopyPaths) return;
     if (e.button !== 0) return;
-    // Don't steal pure click — threshold separates click from drag.
+    // Don't steal pure click -- threshold separates click from drag.
     const startX = e.clientX;
     const startY = e.clientY;
     const pointerId = e.pointerId;
@@ -434,7 +434,7 @@ export default function MillerColumnsView({
               </div>
               <div className="flex-1 overflow-y-auto bndz-scrollbar">
                 {loading ? (
-                  <div className="px-2 py-4 text-[11px] text-gray-500 text-center">Loading…</div>
+                  <div className="px-2 py-4 text-[11px] text-gray-500 text-center">Loading...</div>
                 ) : (
                   <VirtualizedFileList
                     items={items}

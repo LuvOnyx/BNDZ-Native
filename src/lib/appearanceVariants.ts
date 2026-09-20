@@ -11,11 +11,11 @@ export type NavTreeColorMode = 'off' | 'subtle' | 'vivid';
 export type SizeBarStyle = 'bar' | 'segment' | 'meter';
 
 export const SELECTION_STYLE_OPTIONS: { id: SelectionStyle; label: string; hint: string }[] = [
-  { id: 'classic', label: 'Classic', hint: 'Solid row fill (Windows Explorer–like)' },
+  { id: 'classic', label: 'Classic', hint: 'Solid row fill (Windows Explorer-like)' },
   { id: 'inset', label: 'Inset border', hint: 'Thin inset ring, no glow (default)' },
   { id: 'xyplorer', label: 'XYplorer', hint: 'Flat blue row, high contrast, no shadow' },
   { id: 'filepilot', label: 'FilePilot', hint: 'Accent left bar + soft fill' },
-  { id: 'minimal', label: 'Minimal', hint: 'Outline only — best for dense grids' },
+  { id: 'minimal', label: 'Minimal', hint: 'Outline only -- best for dense grids' },
   { id: 'glow', label: 'Glow', hint: 'Accent halo (previous neon style)' },
 ];
 
@@ -56,19 +56,19 @@ export const SURFACE_STYLE_OPTIONS: { id: SurfaceStyle; label: string; hint: str
 ];
 
 export const CORNER_RADIUS_OPTIONS: { id: CornerRadius; label: string; hint: string }[] = [
-  { id: 'sharp', label: 'Sharp', hint: '2–4px corners' },
+  { id: 'sharp', label: 'Sharp', hint: '2-4px corners' },
   { id: 'rounded', label: 'Rounded', hint: '6px corners (recommended)' },
   { id: 'soft', label: 'Soft', hint: '8px corners' },
 ];
 
 export const DENSITY_OPTIONS: { id: DensityStyle; label: string; hint: string }[] = [
-  { id: 'compact', label: 'Compact', hint: 'XYplorer density — tighter rows' },
+  { id: 'compact', label: 'Compact', hint: 'XYplorer density -- tighter rows' },
   { id: 'comfortable', label: 'Comfortable', hint: 'Balanced default' },
   { id: 'spacious', label: 'Spacious', hint: 'More padding in lists & tree' },
 ];
 
 export const TAB_STYLE_OPTIONS: { id: TabStyle; label: string; hint: string }[] = [
-  { id: 'explorer', label: 'Classic Explorer', hint: 'Compact rectangular tabs, subtle edge — snappy close' },
+  { id: 'explorer', label: 'Classic Explorer', hint: 'Compact rectangular tabs, subtle edge -- snappy close' },
   { id: 'soft', label: 'Soft Modern', hint: 'Rounded squircles with calm depth' },
   { id: 'underline', label: 'Underline', hint: 'Active tab accent line' },
   { id: 'segment', label: 'Segment', hint: 'Raised segment (macOS-like)' },
@@ -76,13 +76,13 @@ export const TAB_STYLE_OPTIONS: { id: TabStyle; label: string; hint: string }[] 
 ];
 
 export const CHROME_PALETTE_OPTIONS: { id: ChromePalette; label: string; hint: string }[] = [
-  { id: 'cool', label: 'Cool slate', hint: '#16181f family — no brown tint' },
+  { id: 'cool', label: 'Cool slate', hint: '#16181f family -- no brown tint' },
   { id: 'neutral', label: 'Neutral gray', hint: 'Balanced gray workspace' },
   { id: 'warm', label: 'Warm dark', hint: 'Slightly warm panels' },
 ];
 
 export const GRID_SELECTION_OPTIONS: { id: GridSelectionStyle; label: string; hint: string }[] = [
-  { id: 'subtle', label: 'Subtle', hint: 'Light border — no full tile fill' },
+  { id: 'subtle', label: 'Subtle', hint: 'Light border -- no full tile fill' },
   { id: 'filled', label: 'Filled', hint: 'Tinted tile background' },
   { id: 'border', label: 'Border only', hint: 'Accent outline on grid items' },
 ];

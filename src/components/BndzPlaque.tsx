@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
  * Native FM plaque art for static surfaces (empties, alert tones, panel idle, tabs).
  * Not for list rows, DnD ghosts, or live transfer chrome.
  *
- * Assets are keepers promoted from public/plaques/ after QUALITY pass —
+ * Assets are keepers promoted from public/plaques/ after QUALITY pass --
  * object/chrome art only (no people illustrations).
  * High-visibility empties + modal heroes prefer PNG for glass depth.
  */
@@ -30,19 +30,19 @@ export const PLAQUE_CONTEXT_MENU_ENABLED = false;
 type ThemePair = { dark: string; light?: string };
 
 const PLAQUE_SRC: Record<BndzPlaqueTone, ThemePair> = {
-  // System Properties / generic empty tray — PNG glass folder + platter
+  // System Properties / generic empty tray -- PNG glass folder + platter
   idle: { dark: '/plaques/fm-glass-idle-dark.png', light: '/plaques/fm-glass-idle-light.png' },
-  // Delete / warning modals — PNG glass warning shield
+  // Delete / warning modals -- PNG glass warning shield
   warn: { dark: '/plaques/fm-modal-warn-dark.png', light: '/plaques/fm-modal-warn-light.png' },
-  // Destructive / permanent-delete modals — PNG glass alert
+  // Destructive / permanent-delete modals -- PNG glass alert
   error: { dark: '/plaques/fm-modal-error-dark.png', light: '/plaques/fm-modal-error-light.png' },
   brand: { dark: '/plaques/brand-mark.png', light: '/plaques/brand-mark.png' },
-  // Conflict / help — Fluent red question mark (not prohibited/deny)
+  // Conflict / help -- Fluent red question mark (not prohibited/deny)
   question: { dark: '/plaques/fm-question-dark.png', light: '/plaques/fm-question-light.png' },
-  // Preview Inspector idle — Fluent framed picture (distinct from search loupe)
+  // Preview Inspector idle -- Fluent framed picture (distinct from search loupe)
   panel: { dark: '/plaques/fm-glass-panel-dark.png', light: '/plaques/fm-glass-panel-light.png' },
   folder: { dark: '/plaques/fm-folder-empty-dark.png', light: '/plaques/fm-folder-empty-light.png' },
-  // Fast Search empty — Fluent magnifier only
+  // Fast Search empty -- Fluent magnifier only
   search: { dark: '/plaques/fm-search-empty-dark.png', light: '/plaques/fm-search-empty-light.png' },
   tabs: { dark: '/plaques/tab-empty.svg', light: '/plaques/tab-empty.svg' },
   transfer: { dark: '/plaques/fm-transfer-dark.svg', light: '/plaques/fm-transfer-light.svg' },
@@ -72,7 +72,7 @@ export type BndzPlaqueProps = {
   size?: BndzPlaqueSize;
   className?: string;
   alt?: string;
-  /** Optional decorative float / entrance — keep subtle. */
+  /** Optional decorative float / entrance -- keep subtle. */
   animate?: boolean;
 };
 

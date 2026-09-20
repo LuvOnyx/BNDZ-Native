@@ -1,6 +1,6 @@
 /** Shared archive extract destination helpers. */
 
-/** `<parent>\<archiveBaseName>\` — Quick Extract target. */
+/** `<parent>\<archiveBaseName>\` -- Quick Extract target. */
 export function archiveQuickExtractDest(winArchivePath: string): string {
   const normalized = winArchivePath.replace(/\//g, '\\');
   const parent = normalized.replace(/\\[^\\]+$/, '');

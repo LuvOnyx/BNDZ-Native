@@ -1,5 +1,5 @@
 /**
- * WebView2 often drops click synthesis — commit simple actions on pointerdown/mousedown.
+ * WebView2 often drops click synthesis -- commit simple actions on pointerdown/mousedown.
  */
 
 export function isPrimaryPointerButton(e: { button: number }): boolean {

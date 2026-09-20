@@ -140,7 +140,7 @@ export function IconStudioProvider({
     }, [updateConfig]);
 
     const flushNativeSync = useCallback(async (libs: IconLibrary[]) => {
-        // Empty array is a valid payload — "delete all libraries" must persist too
+        // Empty array is a valid payload -- "delete all libraries" must persist too
         if (nativeSyncInFlight.current) return;
         const payload = formatLibrariesForConfig(libs);
         const json = JSON.stringify(payload);
@@ -156,7 +156,7 @@ export function IconStudioProvider({
                 dirtyRef.current = false;
             }
         } catch {
-            /* timeout — keep dirty, retry on next edit */
+            /* timeout -- keep dirty, retry on next edit */
         } finally {
             nativeSyncInFlight.current = false;
         }

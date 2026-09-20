@@ -1,6 +1,6 @@
 /**
  * Unified file-drag hover tracking for pointer sessions and native OLE drags.
- * WebView2 file surfaces use pointer + host OLE — not HTML5 DnD.
+ * WebView2 file surfaces use pointer + host OLE -- not HTML5 DnD.
  */
 
 import { isFsDropTargetPath } from './bndzVirtualViews';
@@ -24,7 +24,7 @@ export type FileDragHoverState = {
   htmlDropTarget: { paneId: string; tabPath: string } | null;
 };
 
-/** Last OLE drag-hover coords from WPF — used when drop coords are missing/invalid. */
+/** Last OLE drag-hover coords from WPF -- used when drop coords are missing/invalid. */
 export const recordExternalDragHover = {
   last: { clientX: 0, clientY: 0, valid: false as boolean },
 };
@@ -49,7 +49,7 @@ const emptyDragHoverMemory = (): DragHoverMemory => ({
   listFolderId: null,
 });
 
-/** Last in-app pointer-drag coords (archive / list) — mirrors external hover for drop commit. */
+/** Last in-app pointer-drag coords (archive / list) -- mirrors external hover for drop commit. */
 export const recordPointerDragHover = {
   last: emptyDragHoverMemory(),
 };
@@ -87,7 +87,7 @@ export function clearPointerDragHover() {
   recordPointerDragHover.last = emptyDragHoverMemory();
 }
 
-/** WebView2 often poisons elementsFromPoint on pointer-up — recall last hover within slop. */
+/** WebView2 often poisons elementsFromPoint on pointer-up -- recall last hover within slop. */
 export function recallPointerDragHover(clientX: number, clientY: number, slopPx = 96): DragHoverMemory | null {
   const r = recordPointerDragHover.last;
   if (!r.valid) return null;

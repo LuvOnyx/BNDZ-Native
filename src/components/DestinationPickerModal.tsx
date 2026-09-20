@@ -110,7 +110,7 @@ export default function DestinationPickerModal({
     navigateTo(parsed);
     const exists = await IPC.checkPathExists(parsed);
     if (!exists && parsed !== '/') {
-      setPathError('Path not found — check spelling or paste a full folder path');
+      setPathError('Path not found -- check spelling or paste a full folder path');
     }
   };
 
@@ -200,7 +200,7 @@ export default function DestinationPickerModal({
                   }}
                   spellCheck={false}
                   aria-label="Destination folder path"
-                  placeholder="C:\Users\… or paste a path"
+                  placeholder="C:\Users\... or paste a path"
                 />
                 <button
                   type="button"
@@ -239,11 +239,11 @@ export default function DestinationPickerModal({
                 </button>
               )}
               {loading ? (
-                <div className="px-3 py-10 text-center text-[11px] bndz-destination-muted">Loading folders…</div>
+                <div className="px-3 py-10 text-center text-[11px] bndz-destination-muted">Loading folders...</div>
               ) : listRows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 bndz-destination-muted gap-2">
                   <Icons8Icon id="folder_open_ui" size={28} className="opacity-30" />
-                  <span className="text-[11px]">No subfolders — select this folder as destination</span>
+                  <span className="text-[11px]">No subfolders -- select this folder as destination</span>
                 </div>
               ) : (
                 listRows.map(row => (

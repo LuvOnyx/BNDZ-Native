@@ -7,7 +7,7 @@ export interface ThemePreset {
   category?: 'imported' | 'aesthetic';
 }
 
-/** Full workspace themes — applied via theme name + CSS variables */
+/** Full workspace themes -- applied via theme name + CSS variables */
 export const IMPORTED_THEMES: ThemePreset[] = [
   { name: 'Dark', bg: '#0D0B0E', surface: '#2b292e', accent: '#007acc', text: '#ffffff', category: 'imported' },
   { name: 'DarkMica', bg: '#2D2B2E', surface: 'Transparent', accent: '#007acc', text: '#ffffff', category: 'imported' },
@@ -20,7 +20,7 @@ export const IMPORTED_THEMES: ThemePreset[] = [
   { name: 'Nortorn', bg: '#000000', surface: '#0402ac', accent: '#008181', text: '#54fefc', category: 'imported' },
 ];
 
-/** Aesthetic presets — also map to colorConfig slots */
+/** Aesthetic presets -- also map to colorConfig slots */
 export const AESTHETIC_THEMES: ThemePreset[] = [
   { name: 'Slate Workstation', bg: '#1e2124', surface: '#282b30', accent: '#7289da', text: '#e5e7eb', category: 'aesthetic' },
   { name: 'Studio Obsidian', bg: '#000000', surface: '#111111', accent: '#fbbf24', text: '#f3f4f6', category: 'aesthetic' },
@@ -191,7 +191,7 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--bndz-surface-raised', isLight ? '#f5f5f7' : elevated);
   root.style.setProperty('--bndz-surface-chrome', isLight ? '#f2f2f7' : menubar);
   root.style.setProperty('--bndz-surface-panel', isLight ? '#ffffff' : surface);
-  // Dark top strip (menubar/tabs/omnibar/address) — separate from pale panel surfaces.
+  // Dark top strip (menubar/tabs/omnibar/address) -- separate from pale panel surfaces.
   root.style.setProperty('--chrome-dark-bg', isLight ? chromeDarkBg : menubar);
   root.style.setProperty('--chrome-dark-raised', isLight ? chromeDarkRaised : elevated);
   root.style.setProperty('--chrome-dark-text', isLight ? chromeDarkText : preset.text);
@@ -204,7 +204,7 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--status-neon-soft', `${preset.accent}28`);
   root.style.setProperty('--status-neon-mid', `${preset.accent}0a`);
   root.style.setProperty('--status-neon-glow', `${preset.accent}59`);
-  // Classic hero shape, theme-tinted — mark html so CSS applies the override.
+  // Classic hero shape, theme-tinted -- mark html so CSS applies the override.
   root.style.setProperty('--plugin-hero-fill', buildThemePluginHeroFill(preset.bg, preset.accent, isLight));
   root.style.setProperty('--plugin-hero-edge', hexToRgba(preset.accent, 0.16));
   root.dataset.pluginHeroThemed = 'true';
@@ -240,7 +240,7 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--menu-border', isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)');
   root.style.setProperty('--menu-accent', preset.accent);
   root.style.setProperty('--statusbar-bg', isLight ? '#eef0f4' : mixHex(preset.bg, '#000000', 0.2));
-  // Pale footer on light themes — black ink (never white-on-pale).
+  // Pale footer on light themes -- black ink (never white-on-pale).
   root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(236, 240, 246, 0.94)');
   root.style.setProperty('--list-header-bg', isLight ? '#eef0f3' : elevated);
   root.style.setProperty('--list-header-text', isLight ? 'rgba(0,0,0,0.82)' : 'rgba(255,255,255,0.55)');

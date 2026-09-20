@@ -118,12 +118,12 @@ const PRESETS: Array<{ name: string; description: string; rule: Partial<Rule> }>
   },
   {
     name: '808 libraries',
-    description: '808-named folders · 30 day idle',
+    description: '808-named folders | 30 day idle',
     rule: { extensions: 'wav,mp3', pathGlob: '**/*808*', minSizeBytes: 5 * 1024 * 1024, idleDays: 30 },
   },
   {
     name: 'FiveM backups',
-    description: 'Archive backups · 7 day idle',
+    description: 'Archive backups | 7 day idle',
     rule: { extensions: 'zip,rar,7z', pathGlob: '**/*fivem*', minSizeBytes: 100 * 1024 * 1024, idleDays: 7 },
   },
 ];
@@ -189,7 +189,7 @@ function RuleEditor({
               Browse
             </PluginToolbarButton>
           </div>
-          {rootsMissing && <p className="text-[10px] text-amber-400/80 mt-1">Required — semicolon-separated folders to watch.</p>}
+          {rootsMissing && <p className="text-[10px] text-amber-400/80 mt-1">Required -- semicolon-separated folders to watch.</p>}
         </div>
 
         <div>
@@ -206,7 +206,7 @@ function RuleEditor({
               Browse
             </PluginToolbarButton>
           </div>
-          {coldMissing && <p className="text-[10px] text-amber-400/80 mt-1">Required — offloaded bytes land here; originals become symlinks.</p>}
+          {coldMissing && <p className="text-[10px] text-amber-400/80 mt-1">Required -- offloaded bytes land here; originals become symlinks.</p>}
         </div>
 
         <div>
@@ -469,7 +469,7 @@ export default function GhostLinkPlugin({
       icon="emblem_symbolic_link"
       iconColor="#a78bfa"
       variant="embedded"
-      subtitle="Cold tier — reclaim space while keeping a link at the old path"
+      subtitle="Cold tier -- reclaim space while keeping a link at the old path"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -497,7 +497,7 @@ export default function GhostLinkPlugin({
           typeLabel="Symlink offloading"
           meta={
             <span className="bndz-panel-muted text-xs">
-              {stats.ghostCount} ghost{stats.ghostCount === 1 ? '' : 's'} · {formatBytes(stats.bytesReclaimed)} reclaimed · {enabledRules.length} active rule{enabledRules.length === 1 ? '' : 's'}
+              {stats.ghostCount} ghost{stats.ghostCount === 1 ? '' : 's'} | {formatBytes(stats.bytesReclaimed)} reclaimed | {enabledRules.length} active rule{enabledRules.length === 1 ? '' : 's'}
             </span>
           }
           actions={
@@ -532,8 +532,8 @@ export default function GhostLinkPlugin({
         {scanPct != null && (
           <div className="bndz-ghostlink-progress shrink-0 px-5 py-2 border-b border-white/[0.06]">
             <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-wide text-violet-200/70 mb-1.5">
-              <span>Scanning cold candidates…</span>
-              <span>{scanProgress?.done ?? 0}/{scanProgress?.total ?? '…'} · {formatBytes(scanProgress?.reclaimed ?? 0)}</span>
+              <span>Scanning cold candidates...</span>
+              <span>{scanProgress?.done ?? 0}/{scanProgress?.total ?? '...'} | {formatBytes(scanProgress?.reclaimed ?? 0)}</span>
             </div>
             <div className="bndz-ghostlink-progress-track">
               <div className="bndz-ghostlink-progress-fill" style={{ width: `${scanPct}%` }} />
@@ -559,7 +559,7 @@ export default function GhostLinkPlugin({
                 <PluginSectionTitle icon="zap_ui">How Ghost-Link works</PluginSectionTitle>
                 <ol className="mt-3 space-y-2 text-xs text-gray-400 leading-relaxed list-decimal list-inside">
                   <li>Define rules with <strong className="text-gray-300">source roots</strong>, size/idle filters, and a <strong className="text-gray-300">cold storage vault</strong>.</li>
-                  <li>Run a scan — matching files move to the vault; the original path becomes a symlink (ghost link).</li>
+                  <li>Run a scan -- matching files move to the vault; the original path becomes a symlink (ghost link).</li>
                   <li>Apps still open the same path; BNDZ tracks ghosts for one-click restore.</li>
                 </ol>
               </PluginCard>

@@ -29,7 +29,7 @@ export const DEFAULT_MAIN_ROW_LAYOUT: Layout = {
     preview: 30,
 };
 
-/** Bottom plugin panel start height — full heroes + usable content. */
+/** Bottom plugin panel start height -- full heroes + usable content. */
 export const DEFAULT_INNER_LAYOUT: Layout = {
     main: 73,
     bottom: 27,
@@ -74,7 +74,7 @@ export const MIN_INNER_LAYOUT: Layout = {
 };
 
 /**
- * Immersive snap only when dragged nearly to the top of the list —
+ * Immersive snap only when dragged nearly to the top of the list --
  * mirror of collapsing by pulling all the way to the bottom.
  */
 export const MAX_BOTTOM_DOCKED = 92;
@@ -96,7 +96,7 @@ export const MAX_MAIN_ROW_LAYOUT: Layout = {
     preview: 42,
 };
 
-/** Bare numbers on Panel size props are pixels in react-resizable-panels v4 — always use %. */
+/** Bare numbers on Panel size props are pixels in react-resizable-panels v4 -- always use %. */
 export function panelPct(n: number): string {
     return `${n}%`;
 }
@@ -125,7 +125,7 @@ function layoutFromArray(
 }
 
 /**
- * Repair persisted outer layouts. Prefer the user's sidebar/preview sizes —
+ * Repair persisted outer layouts. Prefer the user's sidebar/preview sizes --
  * never wipe a wide preview back to a skinny default just because the sum drifted.
  */
 export function normalizeOuterLayout(raw: unknown): Layout {
@@ -260,7 +260,7 @@ export function normalizeInnerLayout(raw: unknown): Layout {
         bottom = (bottom / sum) * 100;
     }
 
-    // Near-collapsed bottoms are almost always a bad persist — restore usable default.
+    // Near-collapsed bottoms are almost always a bad persist -- restore usable default.
     if (bottom < 14) {
         return { ...DEFAULT_INNER_LAYOUT };
     }

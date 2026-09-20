@@ -67,7 +67,7 @@ export default function CeaEditorTab({ actions, onChange }: Props) {
                         value={row.script || ''}
                         disabled={row.action !== 'run-script'}
                         onChange={e => setAction(ev.id, { script: e.target.value, shell: 'powershell' })}
-                        placeholder={row.action === 'run-script' ? 'PowerShell…' : ''}
+                        placeholder={row.action === 'run-script' ? 'PowerShell...' : ''}
                         className="w-full bg-transparent text-[11px] font-mono text-[#aaa] outline-none disabled:opacity-30 px-1"
                       />
                     </div>

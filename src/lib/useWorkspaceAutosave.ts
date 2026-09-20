@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 
-/** Debounced save — coalesces bursts; skips identical serialized payloads. */
+/** Debounced save -- coalesces bursts; skips identical serialized payloads. */
 export function useWorkspaceAutosave(
   serialize: () => string,
   save: (payload: string) => Promise<boolean>,
@@ -37,7 +37,7 @@ export function useWorkspaceAutosave(
     if (snap && snap !== 'null') lastSaved.current = snap;
   }, []);
 
-  /** Flush pending edits when leaving the workspace — runs before unmount paint. */
+  /** Flush pending edits when leaving the workspace -- runs before unmount paint. */
   useLayoutEffect(() => {
     return () => {
       if (timer.current) {

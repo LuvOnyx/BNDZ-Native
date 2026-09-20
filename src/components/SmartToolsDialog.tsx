@@ -28,7 +28,7 @@ interface SmartToolsDialogProps {
   selectedFiles?: Array<{ path?: string; name?: string }>;
   currentPath?: string;
   initialPrompt?: string;
-  /** Legacy aliases map to assistant — agent/tasks/memories tabs are not separate surfaces yet. */
+  /** Legacy aliases map to assistant -- agent/tasks/memories tabs are not separate surfaces yet. */
   initialTab?: SmartToolsTab | 'agent' | 'organize' | 'tasks' | 'memories' | 'music';
   onNavigate?: (path: string) => void;
 }
@@ -162,12 +162,12 @@ export default function SmartToolsDialog({
       const next = buildOrganizePlanForMode(mode, root, entries);
       if (!next.length) {
         setError(mode === 'flatten'
-          ? 'Nothing to flatten — no nested files found.'
+          ? 'Nothing to flatten -- no nested files found.'
           : 'No files to organize in this scope.');
         return;
       }
       setPlan(next);
-      setStatus(`Preview ready · ${next.length} file(s)`);
+      setStatus(`Preview ready | ${next.length} file(s)`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Preview failed.');
     } finally {
@@ -185,7 +185,7 @@ export default function SmartToolsDialog({
       );
       setStatus(
         queued > 0
-          ? `Organize queued (${plan.length} ops) — see transfer panel.`
+          ? `Organize queued (${plan.length} ops) -- see transfer panel.`
           : `Organized ${moved} file(s).`,
       );
       setPlan([]);
@@ -246,11 +246,11 @@ export default function SmartToolsDialog({
         )}
         {paths.length > 0 ? (
           <span className="text-[11px] text-emerald-300/90 truncate flex-1 min-w-0" title={paths.join('\n')}>
-            {paths.length} selected · {paths.slice(0, 2).map(p => p.split(/[/\\]/).pop()).join(', ')}
+            {paths.length} selected | {paths.slice(0, 2).map(p => p.split(/[/\\]/).pop()).join(', ')}
             {paths.length > 2 ? ` +${paths.length - 2}` : ''}
           </span>
         ) : (
-          <span className="text-[11px] text-white/30 flex-1">No selection — organize the open folder</span>
+          <span className="text-[11px] text-white/30 flex-1">No selection -- organize the open folder</span>
         )}
       </div>
 
@@ -307,7 +307,7 @@ export default function SmartToolsDialog({
                 disabled={analyzing || applying}
                 className="bndz-hub-btn-primary px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40"
               >
-                {analyzing ? 'Building preview…' : 'Dry-run preview'}
+                {analyzing ? 'Building preview...' : 'Dry-run preview'}
               </button>
               <button
                 type="button"
@@ -315,7 +315,7 @@ export default function SmartToolsDialog({
                 disabled={!plan.length || applying || analyzing}
                 className="px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-200 disabled:opacity-40"
               >
-                {applying ? 'Applying…' : `Apply${plan.length ? ` (${plan.length})` : ''}`}
+                {applying ? 'Applying...' : `Apply${plan.length ? ` (${plan.length})` : ''}`}
               </button>
               <div className="flex-1" />
               <button
@@ -369,7 +369,7 @@ export default function SmartToolsDialog({
                         style={{ color: cfg?.color || '#94a3b8' }}
                       >
                         <Icons8Icon id={cfg?.icon || 'folder_ui'} size={10} />
-                        {bucket} · {items.length}
+                        {bucket} | {items.length}
                       </span>
                     );
                   })}
@@ -385,7 +385,7 @@ export default function SmartToolsDialog({
                     </div>
                   ))}
                   {plan.length > 80 && (
-                    <div className="px-3 py-2 text-[10px] text-white/35">+{plan.length - 80} more…</div>
+                    <div className="px-3 py-2 text-[10px] text-white/35">+{plan.length - 80} more...</div>
                   )}
                 </div>
               </div>

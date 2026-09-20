@@ -54,7 +54,7 @@ export function readSettingString(config: AppConfig, key: string, fallback = '')
   return typeof def === 'string' ? def : fallback;
 }
 
-/** Keyboard shortcut map from config keys — respects customKeyboardShortcuts toggle. */
+/** Keyboard shortcut map from config keys -- respects customKeyboardShortcuts toggle. */
 export function buildKeyboardMap(config: AppConfig): Record<string, string> {
   const useCustom = readSettingBool(config, 'customKeyboardShortcuts', true);
   const map: Record<string, string> = {};
@@ -234,12 +234,12 @@ export function buildUiRuntime(config: AppConfig) {
   };
 }
 
-/** Keys that only exist for dataset dump / future work — not product behavior. */
+/** Keys that only exist for dataset dump / future work -- not product behavior. */
 export const DATASET_ONLY_KEY_HINT =
   'Many Configuration keys sync to document.dataset for diagnostics; only keys consumed by settingsRuntime / feature code affect behavior.';
 
-/** Count of keys that have defaults — NOT proof they are behavior-wired. */
+/** Count of keys that have defaults -- NOT proof they are behavior-wired. */
 export const SETTINGS_DEFAULT_KEY_COUNT = Object.keys(SETTINGS_DEFAULTS).length;
 
-/** @deprecated Use WIRED_SETTING_COUNT from settingsRegistry — default count ≠ wired. */
+/** @deprecated Use WIRED_SETTING_COUNT from settingsRegistry -- default count ≠ wired. */
 export const WIRED_KEY_COUNT = SETTINGS_DEFAULT_KEY_COUNT;

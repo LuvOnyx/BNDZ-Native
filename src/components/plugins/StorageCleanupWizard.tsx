@@ -187,7 +187,7 @@ export default function StorageCleanupWizard({
       setResultOk(true);
       setResultMessage(
         queued > 0
-          ? `Organize queued (${organizePlan.length} ops) — see transfer panel.`
+          ? `Organize queued (${organizePlan.length} ops) -- see transfer panel.`
           : `Organized ${moved} file(s) into category subfolders.`,
       );
       setStep('done');
@@ -216,7 +216,7 @@ export default function StorageCleanupWizard({
       setResultOk(true);
       setResultMessage(
         queued > 0
-          ? `Duplicate cleanup queued (${queued} deletes) — see transfer panel.`
+          ? `Duplicate cleanup queued (${queued} deletes) -- see transfer panel.`
           : `Removed ${deleted} duplicate file(s). Reclaimed ~${formatStorageSize(totalReclaimable)}.`,
       );
       setStep('done');
@@ -254,7 +254,7 @@ export default function StorageCleanupWizard({
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-white tracking-tight">{title}</h2>
           <p className="text-xs bndz-panel-muted mt-0.5">
-            {stepLabel(step, mode)} · Step {Math.min(stepIndex + 1, 3)} of 3
+            {stepLabel(step, mode)} | Step {Math.min(stepIndex + 1, 3)} of 3
           </p>
         </div>
         <button
@@ -298,7 +298,7 @@ export default function StorageCleanupWizard({
                   {folderWin || <span className="bndz-panel-muted italic">No folder selected</span>}
                 </div>
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <PluginToolbarButton icon="folder_open_ui" onClick={() => void pickFolder()}>Browse…</PluginToolbarButton>
+                  <PluginToolbarButton icon="folder_open_ui" onClick={() => void pickFolder()}>Browse...</PluginToolbarButton>
                   {initialFolderPanePath && (
                     <PluginToolbarButton onClick={useCurrentFolder}>Use current folder</PluginToolbarButton>
                   )}
@@ -357,7 +357,7 @@ export default function StorageCleanupWizard({
             <motion.div key="analyze" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-20 gap-4">
               <Icons8Icon id="loading" size={36} spin />
               <p className="text-[13px] text-gray-400">
-                {mode === 'organize' ? 'Building organization plan…' : 'Scanning for duplicate files…'}
+                {mode === 'organize' ? 'Building organization plan...' : 'Scanning for duplicate files...'}
               </p>
               {dupProgress && (
                 <div className="bndz-plugin-card w-full max-w-md border border-violet-500/25 p-4">
@@ -401,7 +401,7 @@ export default function StorageCleanupWizard({
                         </div>
                       ))}
                       {entries.length > 24 && (
-                        <div className="px-4 py-2 text-[10px] text-gray-600">+ {entries.length - 24} more…</div>
+                        <div className="px-4 py-2 text-[10px] text-gray-600">+ {entries.length - 24} more...</div>
                       )}
                     </div>
                   </PluginCard>
@@ -418,7 +418,7 @@ export default function StorageCleanupWizard({
                     {totalDeleteCount} duplicate files will be removed
                   </div>
                   <div className="text-[11px] text-emerald-400/90 mt-1">
-                    Reclaim ~{formatStorageSize(totalReclaimable)} · {dupPreview.length} groups
+                    Reclaim ~{formatStorageSize(totalReclaimable)} | {dupPreview.length} groups
                   </div>
                 </div>
                 <Icons8Icon id="shield_ui" size={20} className="text-[#7eb8e8]/50" />
@@ -427,7 +427,7 @@ export default function StorageCleanupWizard({
                 {dupPreview.map(group => (
                   <PluginCard key={group.hash} className="border border-white/[0.06] !p-4">
                     <div className="text-[11px] font-semibold text-gray-200 mb-2">
-                      {group.paths.length} copies · {formatStorageSize(group.size)} each
+                      {group.paths.length} copies | {formatStorageSize(group.size)} each
                     </div>
                     <div className="text-[10px] text-emerald-400/90 mb-1">Keep: {group.keepPath}</div>
                     {group.deletePaths.map(p => (
@@ -485,7 +485,7 @@ export default function StorageCleanupWizard({
               disabled={executing}
               active
             >
-              {executing ? 'Working…' : mode === 'cleanup' ? `Delete ${totalDeleteCount} duplicates` : `Organize ${organizePlan.length} files`}
+              {executing ? 'Working...' : mode === 'cleanup' ? `Delete ${totalDeleteCount} duplicates` : `Organize ${organizePlan.length} files`}
             </PluginToolbarButton>
           )}
           {step === 'done' && resultOk && (

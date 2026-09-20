@@ -1,4 +1,4 @@
-/** Virtual catalog paths — `/vf` and `/vf/{id}` */
+/** Virtual catalog paths -- `/vf` and `/vf/{id}` */
 
 export const VF_ROOT = '/vf';
 export const VF_PREFIX = '/vf/';

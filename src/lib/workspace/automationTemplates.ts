@@ -14,7 +14,7 @@ function uid(prefix: string) {
 }
 
 function profileRoot(): string {
-  // Vite/browser — USERPROFILE is not available; use a clear placeholder the user can edit.
+  // Vite/browser -- USERPROFILE is not available; use a clear placeholder the user can edit.
   return '%USERPROFILE%';
 }
 
@@ -23,7 +23,7 @@ function picturesShots() { return `${profileRoot()}\\Pictures\\Screenshots`; }
 function documentsPath() { return `${profileRoot()}\\Documents`; }
 function desktopPath() { return `${profileRoot()}\\Desktop`; }
 
-/** Everyday recipes so Automation is useful on first open — not a blank canvas. */
+/** Everyday recipes so Automation is useful on first open -- not a blank canvas. */
 export const AUTOMATION_RECIPES: AutomationRecipe[] = [
   {
     id: 'downloads-tidy',

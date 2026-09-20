@@ -98,10 +98,17 @@ public sealed partial class NativeTerminalHost : UserControl
 		// (Remote+Terminal intentional). Stale hole/open pulses were un-hiding HWND over the next plugin.
 		if (_softParked)
 		{
-			// FE sometimes still sends unpark:true ~200ms after leave (Mesh effect race). Hold both.
-			if (!unpark || Environment.TickCount64 < _ignoreShowUntilTick)
+			// Without unpark: stay sticky (stale hole pulses must not cover the next plugin).
+			if (!unpark)
 			{
-				TermLog($"ApplyBounds show ignored (softParked sticky) unpark={unpark} size={width:F0}x{height:F0}");
+				TermLog($"ApplyBounds show ignored (softParked sticky) unpark=False size={width:F0}x{height:F0}");
+				return;
+			}
+			// Brief leave-race window only. The old 800ms gate swallowed warm-return
+			// unpark pulses at 0/32/160ms so the HWND stayed blank until Close/New.
+			if (Environment.TickCount64 < _ignoreShowUntilTick)
+			{
+				TermLog($"ApplyBounds show deferred (softParked leave-race) unpark=True size={width:F0}x{height:F0}");
 				return;
 			}
 			_softParked = false;
@@ -120,6 +127,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		if (_term is not null)
 		{
 			TryShowTermHwnds(_term);
+			PulseTermPaintAfterUnpark(width, height);
 			TermLog($"ApplyBounds unpark show size={width:F0}x{height:F0}");
 			return;
 		}
@@ -168,7 +176,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			{
 				TryHideTermHwnds(_term, reparentToMessage: true, trackForRestore: true);
 				_softParked = true;
-				_ignoreShowUntilTick = Environment.TickCount64 + 800;
+				_ignoreShowUntilTick = Environment.TickCount64 + 120;
 				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=800ms reparent=True");
 				return;
 			}
@@ -715,6 +723,17 @@ public sealed partial class NativeTerminalHost : UserControl
 	[DllImport("user32.dll", SetLastError = true)]
 	private static extern IntPtr GetParent(IntPtr hWnd);
 
+	[DllImport("user32.dll", SetLastError = true)]
+	private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+	[DllImport("user32.dll")]
+	private static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
+
+	private const uint SwpNoZOrder = 0x0004;
+	private const uint SwpNoActivate = 0x0010;
+	private const uint SwpShowWindow = 0x0040;
+	private const uint SwpFrameChanged = 0x0020;
+
 	private const int SwHide = 0;
 	private static readonly IntPtr HwndMessage = new(-3);
 
@@ -805,17 +824,70 @@ public sealed partial class NativeTerminalHost : UserControl
 			}
 			catch { /* ignore */ }
 
+			var pxW = Math.Max(1, (int)Math.Round(ActualWidth > 0 ? ActualWidth : Width));
+			var pxH = Math.Max(1, (int)Math.Round(ActualHeight > 0 ? ActualHeight : Height));
 			foreach (var hwnd in victims)
 			{
 				if (hwnd == IntPtr.Zero) continue;
 				try { ShowWindow(hwnd, SwShow); } catch { /* ignore */ }
+				try
+				{
+					SetWindowPos(hwnd, IntPtr.Zero, 0, 0, pxW, pxH,
+						SwpNoZOrder | SwpNoActivate | SwpShowWindow | SwpFrameChanged);
+				}
+				catch { /* ignore */ }
+				try { InvalidateRect(hwnd, IntPtr.Zero, true); } catch { /* ignore */ }
 			}
-			TermLog($"TryShowTermHwnds count={victims.Count}");
+			TermLog($"TryShowTermHwnds count={victims.Count} size={pxW}x{pxH}");
 		}
 		catch (Exception ex)
 		{
 			TermLog($"TryShowTermHwnds: {ex.Message}");
 		}
+	}
+
+	/// <summary>
+	/// After HWND reparent from HWND_MESSAGE, TermControl often stays black until a layout/size pulse.
+	/// </summary>
+	private void PulseTermPaintAfterUnpark(double width, double height)
+	{
+		try
+		{
+			InvalidateVisual();
+			UpdateLayout();
+			if (_term is FrameworkElement fe)
+			{
+				fe.InvalidateMeasure();
+				fe.InvalidateArrange();
+				fe.UpdateLayout();
+			}
+		}
+		catch { /* ignore */ }
+
+		// Deferred +/-1px size nudge so ConPTY/TermControl repaints after SetParent restore.
+		var w = width;
+		var h = height;
+		Dispatcher.BeginInvoke(new Action(() =>
+		{
+			if (_term is null || _softParked) return;
+			if (w < 48 || h < 48) return;
+			try
+			{
+				Width = Math.Max(48, w - 1);
+				Height = Math.Max(48, h - 1);
+				UpdateLayout();
+				TryShowTermHwnds(_term);
+				Width = w;
+				Height = h;
+				UpdateLayout();
+				TryShowTermHwnds(_term);
+				TermLog($"PulseTermPaintAfterUnpark nudged size={w:F0}x{h:F0}");
+			}
+			catch (Exception ex)
+			{
+				TermLog($"PulseTermPaintAfterUnpark: {ex.Message}");
+			}
+		}), System.Windows.Threading.DispatcherPriority.Render);
 	}
 
 	private static void CollectTermHwnds(DependencyObject? root, System.Collections.Generic.List<IntPtr> victims, int depth)

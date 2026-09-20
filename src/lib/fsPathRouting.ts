@@ -17,7 +17,7 @@ export const MESH_DROP_INBOX_DEST = '__bndz_mesh_drop_inbox__';
 
 /**
  * Preserve mesh + RAM virtual pane paths; normalize other local paths to Windows shape.
- * CRITICAL: never run toWindowsPath on /bndz/ram/… — that yields unbound bndz\ram\… garbage.
+ * CRITICAL: never run toWindowsPath on /bndz/ram/... -- that yields unbound bndz\ram\... garbage.
  */
 export function canonicalDropPath(path: string): string {
   if (!path) return '';
@@ -41,7 +41,7 @@ function isAbsoluteListingPath(path: string): boolean {
   return /^\/[A-Za-z]:\//.test(n) || /^\/\/[^/]/.test(n);
 }
 
-/** Resolve a listing entity to a drag path — Rain-Explorer uses FileItem.FullPath verbatim. */
+/** Resolve a listing entity to a drag path -- Rain-Explorer uses FileItem.FullPath verbatim. */
 export function resolveEntityDragPath(
   entity: { name: string; path?: string; id?: string; fsPath?: string },
   panePath: string,
@@ -107,7 +107,7 @@ export function resolveDropRoute(
   if (!destMesh && srcMesh) {
     const hostId = meshHostIdFromSources(sourcePaths);
     if (!hostId) return { kind: 'local', op };
-    // Dest must be a real local folder — never a virtual smart view.
+    // Dest must be a real local folder -- never a virtual smart view.
     return { kind: 'mesh-download', hostId, localDestDir: destCanon };
   }
 

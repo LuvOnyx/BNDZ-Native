@@ -69,7 +69,7 @@ export function setPathCacheEntry<T>(
       dropped = true;
       break;
     }
-    // Remaining keys are all pinned (or the key being written) — stop.
+    // Remaining keys are all pinned (or the key being written) -- stop.
     if (!dropped) break;
   }
   return next;

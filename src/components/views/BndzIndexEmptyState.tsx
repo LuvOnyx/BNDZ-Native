@@ -41,7 +41,7 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
     setCurrentFile(null);
     try {
       const res = await IPC.reindexBndzDefaults();
-      setMessage(res.ok ? 'Indexing started — files will appear as the cache builds.' : (res.error || 'Indexing failed.'));
+      setMessage(res.ok ? 'Indexing started -- files will appear as the cache builds.' : (res.error || 'Indexing failed.'));
       if (!res.ok) setIndexing(false);
     } catch (err: any) {
       setMessage(err?.message || 'Indexing failed.');

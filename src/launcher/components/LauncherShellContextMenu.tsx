@@ -9,7 +9,7 @@ type Props = {
 };
 
 const ITEMS = [
-  { id: 'settings', label: 'BNDZ Launcher Settings…' },
+  { id: 'settings', label: 'BNDZ Launcher Settings...' },
   { id: 'filemanager', label: 'Open BNDZ File Manager' },
   { id: 'hide', label: 'Hide Launcher' },
 ] as const;

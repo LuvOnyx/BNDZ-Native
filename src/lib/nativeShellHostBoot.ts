@@ -1,6 +1,6 @@
 /**
  * BNDZShell greenfield host: full BNDZUI (`?nativeShell=1`) + native WinUI list in the workspace slot.
- * Mirrors filesHostBoot — React owns chrome; host owns folder enumeration for the primary list.
+ * Mirrors filesHostBoot -- React owns chrome; host owns folder enumeration for the primary list.
  */
 
 import { toWindowsPath, normalizePanePath } from './pathUtils';
@@ -15,7 +15,7 @@ export function isNativeShellHostBoot(): boolean {
   }
 }
 
-/** Chrome/sidebar craft islands — full BNDZUI regions in WinUI split; host owns FS list. */
+/** Chrome/sidebar craft islands -- full BNDZUI regions in WinUI split; host owns FS list. */
 export function isNativeShellCraftIslandBoot(): boolean {
   try {
     const sp = new URLSearchParams(window.location.search);
@@ -49,7 +49,7 @@ function postToHost(type: string, payload: Record<string, unknown>): void {
 function toHostNavPath(path: string): string {
   const norm = normalizePanePath(path);
   if (!norm) return path;
-  // This PC sentinel — ShellPathResolver maps literal "/" (toWindowsPath('/') wrongly yields "").
+  // This PC sentinel -- ShellPathResolver maps literal "/" (toWindowsPath('/') wrongly yields "").
   if (norm === '/') return '/';
   if (norm.toLowerCase().startsWith('/shell:')) return norm.slice(1);
   if (norm.startsWith('/bndz/')) return norm;

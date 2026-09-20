@@ -1,6 +1,6 @@
 import React from 'react';
 
-/** Soft Windows-FM checkbox — accent check, no SaaS ping animation. */
+/** Soft Windows-FM checkbox -- accent check, no SaaS ping animation. */
 export const Checkbox: React.FC<{
   label: React.ReactNode;
   checked?: boolean;

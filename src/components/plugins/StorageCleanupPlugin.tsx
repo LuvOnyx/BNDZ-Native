@@ -214,7 +214,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Clean up · free space · duplicates · library health"
+      subtitle="Clean up | free space | duplicates | library health"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -242,13 +242,13 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       <PluginHeroStrip
         icon={<Icons8Icon id="storage_cleanup" size={52} className="opacity-90" />}
         name="Storage Cleanup"
-        typeLabel="Clean · reclaim · repair"
+        typeLabel="Clean | reclaim | repair"
         path={currentPath && currentPath !== '/' ? currentPath : undefined}
         meta={
           <span className="bndz-panel-muted text-xs">
             {folderLabel}
-            {largeCandidates[0] ? ` · largest ${formatStorageSize(largeCandidates[0].computedSize)}` : ''}
-            {duplicateWaste > 0 ? ` · ${formatStorageSize(duplicateWaste)} duplicate waste` : ''}
+            {largeCandidates[0] ? ` | largest ${formatStorageSize(largeCandidates[0].computedSize)}` : ''}
+            {duplicateWaste > 0 ? ` | ${formatStorageSize(duplicateWaste)} duplicate waste` : ''}
           </span>
         }
         actions={
@@ -393,7 +393,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
               {dupProgress && (
                 <PluginCard>
                   <div className="flex justify-between text-xs mb-2">
-                    <span className="text-violet-300 font-medium">{dupProgress.percent}% — hashing files</span>
+                    <span className="text-violet-300 font-medium">{dupProgress.percent}% -- hashing files</span>
                     <span className="bndz-panel-muted bndz-mono">{dupProgress.filesScanned}/{dupProgress.totalFiles}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-black/30 overflow-hidden mb-2">
@@ -406,7 +406,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
               {dupGroups.length > 0 && !dupScanning && (
                 <PluginCard className="flex items-center justify-between border-emerald-500/25 bg-emerald-950/15 !py-3">
                   <div className="text-xs text-emerald-200">
-                    <strong>{dupGroups.length}</strong> duplicate groups · reclaim up to <strong>{formatStorageSize(duplicateWaste)}</strong>
+                    <strong>{dupGroups.length}</strong> duplicate groups | reclaim up to <strong>{formatStorageSize(duplicateWaste)}</strong>
                   </div>
                   <Icons8Icon id="shield_ui" size={16} className="text-emerald-500/60" />
                 </PluginCard>
@@ -431,7 +431,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                           {expanded ? <Icons8Icon id="chevron_down" size={14} className="text-gray-500 shrink-0" /> : <Icons8Icon id="chevron_right" size={14} className="text-gray-500 shrink-0" />}
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-semibold text-gray-200">{group.paths.length} identical copies</div>
-                            <div className="text-xs bndz-panel-muted">{formatStorageSize(group.size)} each · {formatStorageSize(waste)} recoverable</div>
+                            <div className="text-xs bndz-panel-muted">{formatStorageSize(group.size)} each | {formatStorageSize(waste)} recoverable</div>
                           </div>
                         </button>
                         <PluginToolbarButton

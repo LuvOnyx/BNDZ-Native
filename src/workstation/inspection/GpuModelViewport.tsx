@@ -116,7 +116,7 @@ function ModelScene({ url, kind }: ModelSceneProps) {
 }
 
 function detectKind(src: string): ModelKind {
-  // Prefer the path basename so cached RAGE GLBs (…/hash_name.glb) never fall through wrongly.
+  // Prefer the path basename so cached RAGE GLBs (.../hash_name.glb) never fall through wrongly.
   const path = (src.split('?')[0] || '').toLowerCase();
   const base = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path.includes('\\') ? path.slice(path.lastIndexOf('\\') + 1) : path;
   if (base.endsWith('.glb') || base.endsWith('.gltf')) return 'gltf';
@@ -198,7 +198,7 @@ export default function GpuModelViewport({ src, title, badge }: GpuModelViewport
           <ambientLight intensity={0.55} />
           <directionalLight position={[6, 10, 4]} intensity={1.15} castShadow={false} />
           <directionalLight position={[-4, 2, -6]} intensity={0.35} />
-          <Suspense fallback={<Html center><span className="text-xs text-gray-400 animate-pulse">Loading model…</span></Html>}>
+          <Suspense fallback={<Html center><span className="text-xs text-gray-400 animate-pulse">Loading model...</span></Html>}>
             <ModelScene url={src} kind={kind} />
           </Suspense>
           <Environment preset="studio" environmentIntensity={0.45} />
@@ -206,7 +206,7 @@ export default function GpuModelViewport({ src, title, badge }: GpuModelViewport
         </Canvas>
       </BndzErrorBoundary>
       <div className="absolute left-2 bottom-2 text-[10px] text-white/45 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-        Drag to orbit · scroll to zoom · {(badge || kind).toUpperCase()}
+        Drag to orbit | scroll to zoom | {(badge || kind).toUpperCase()}
       </div>
       {title ? <span className="sr-only">{title}</span> : null}
     </div>

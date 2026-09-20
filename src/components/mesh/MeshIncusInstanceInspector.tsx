@@ -126,7 +126,7 @@ export default function MeshIncusInstanceInspector({
   const restoreSnap = async (name: string) => {
     const ok = await requestNativeConfirm({
       title: 'Restore snapshot',
-      message: `Restore ${instanceName} to snapshot “${name}”? Running state will change.`,
+      message: `Restore ${instanceName} to snapshot "${name}"? Running state will change.`,
       type: 'warning',
       confirmLabel: 'Restore',
       cancelLabel: 'Cancel',
@@ -150,7 +150,7 @@ export default function MeshIncusInstanceInspector({
   const deleteSnap = async (name: string) => {
     const ok = await requestNativeConfirm({
       title: 'Delete snapshot',
-      message: `Permanently delete snapshot “${name}”?`,
+      message: `Permanently delete snapshot "${name}"?`,
       type: 'warning',
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
@@ -185,8 +185,8 @@ export default function MeshIncusInstanceInspector({
               {instanceName}
             </div>
             <div className="text-[10px] text-sky-300/70 mt-0.5">
-              {(detail?.status || detail?.Status || '…')} · {(detail?.type || detail?.Type || 'instance')}
-              {(detail?.ephemeral ?? detail?.Ephemeral) ? ' · ephemeral' : ' · persistent'}
+              {(detail?.status || detail?.Status || '...')} | {(detail?.type || detail?.Type || 'instance')}
+              {(detail?.ephemeral ?? detail?.Ephemeral) ? ' | ephemeral' : ' | persistent'}
             </div>
           </div>
           <button type="button" className="text-xs text-gray-400 hover:text-white px-2 py-1" onClick={onClose} disabled={busy}>Close</button>
@@ -222,7 +222,7 @@ export default function MeshIncusInstanceInspector({
                   <div key={name} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5">
                     <div className="text-[11px] text-white font-medium">{name}</div>
                     <div className="text-[9px] text-gray-500 bndz-mono truncate">
-                      {Object.entries(props).map(([k, v]) => `${k}=${v}`).join(' · ')}
+                      {Object.entries(props).map(([k, v]) => `${k}=${v}`).join(' | ')}
                     </div>
                   </div>
                 ))}
@@ -247,7 +247,7 @@ export default function MeshIncusInstanceInspector({
             </label>
             {snapshots.length === 0 ? (
               <div className="text-[10px] text-gray-500 py-4 text-center rounded-xl border border-dashed border-white/10">
-                No snapshots yet — create a checkpoint before risky changes.
+                No snapshots yet -- create a checkpoint before risky changes.
               </div>
             ) : (
               <div className="space-y-1.5 max-h-64 overflow-y-auto bndz-scrollbar">
@@ -259,7 +259,7 @@ export default function MeshIncusInstanceInspector({
                       <div className="min-w-0 flex-1">
                         <div className="text-[11px] text-white font-medium truncate">{name}</div>
                         <div className="text-[9px] text-gray-500">
-                          {s.stateful ? 'stateful · ' : ''}{created ? new Date(created).toLocaleString() : '—'}
+                          {s.stateful ? 'stateful | ' : ''}{created ? new Date(created).toLocaleString() : '--'}
                         </div>
                       </div>
                       <PluginToolbarButton onClick={() => void restoreSnap(name)} disabled={busy}>Restore</PluginToolbarButton>

@@ -148,7 +148,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
         <div className="bndz-encode-opsrail-copy min-w-0">
           <div className="bndz-encode-opsrail-title">Encode</div>
           <div className="bndz-encode-opsrail-meta">
-            {status?.queued ?? 0} queued · {status?.running ?? 0} running · {status?.completed ?? 0} done · {imagePaths.length} selected
+            {status?.queued ?? 0} queued | {status?.running ?? 0} running | {status?.completed ?? 0} done | {imagePaths.length} selected
           </div>
         </div>
         <div className="bndz-encode-opsrail-actions">
@@ -194,7 +194,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
           />
 
           <div className="text-[10px] text-gray-500 mt-1">
-            {imagePaths.length} image(s) selected · outputs named *_transcoded.ext
+            {imagePaths.length} image(s) selected | outputs named *_transcoded.ext
           </div>
         </PluginCard>
 
@@ -223,7 +223,7 @@ export default function TranscodeRackPlugin({ selectedItems, focusedPath, curren
             {doneJobs.slice(0, 8).map(job => (
               <div key={job.id} className="text-[10px] text-gray-500 truncate px-1">
                 {job.status === 'completed' ? '✓' : '✗'} {job.sourcePath.split('\\').pop()}
-                {job.error ? ` — ${job.error}` : ''}
+                {job.error ? ` -- ${job.error}` : ''}
               </div>
             ))}
           </div>

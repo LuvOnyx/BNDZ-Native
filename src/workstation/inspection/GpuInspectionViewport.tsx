@@ -21,7 +21,7 @@ type SceneProps = {
 /**
  * R3F orthographic camera: left/right = ±width/2 (pixel units).
  * Visible world width = size.width / zoom → fit zoom = size.width / planeW.
- * NEVER floor to a tiny constant — that makes the plane a speck and pan flies away.
+ * NEVER floor to a tiny constant -- that makes the plane a speck and pan flies away.
  * baseZoomRef stays 0 until a real fit is published (OrthoCameraController waits).
  */
 function FitCamera({
@@ -45,7 +45,7 @@ function FitCamera({
     const planeH = (ih / maxDim) * 2;
     planeHalfRef.current = { x: planeW / 2, y: planeH / 2 };
 
-    // Wait for a real viewport — fitting at 0×0 stamps zoom≈0 and shrinks to a dot.
+    // Wait for a real viewport -- fitting at 0×0 stamps zoom≈0 and shrinks to a dot.
     if (size.width < 16 || size.height < 16) return;
 
     const fitZoom = Math.min(size.width / planeW, size.height / planeH) * 0.92;
@@ -56,7 +56,7 @@ function FitCamera({
     // Ignore sub-pixel resize chatter; still refit when the stage actually changes.
     if (!first && key === lastFitKey.current) return;
     if (!first && Math.abs(baseZoomRef.current - fitZoom) < 0.75 && lastFitKey.current) {
-      // Tiny layout jitter — keep user zoom/pan; only refresh half extents above.
+      // Tiny layout jitter -- keep user zoom/pan; only refresh half extents above.
       return;
     }
     lastFitKey.current = key;
@@ -190,8 +190,8 @@ type Props = {
 };
 
 /**
- * Prefer a blob:// URL for TextureLoader — bndz-stream + CORS/crossOrigin=anonymous
- * throws "Could not load …: undefined" and used to blank the whole shell via the root boundary.
+ * Prefer a blob:// URL for TextureLoader -- bndz-stream + CORS/crossOrigin=anonymous
+ * throws "Could not load ...: undefined" and used to blank the whole shell via the root boundary.
  */
 async function resolveTextureSrc(src: string, filePath?: string | null): Promise<string> {
   if (!src) return '';
@@ -263,7 +263,7 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
         className="w-full h-full flex items-center justify-center text-xs text-gray-500"
         style={{ background: '#0b0e14' }}
       >
-        {failed ? 'GPU preview unavailable' : 'Loading GPU preview…'}
+        {failed ? 'GPU preview unavailable' : 'Loading GPU preview...'}
       </div>
     );
   }
@@ -301,7 +301,7 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
             gl.setClearColor('#0b0e14', 1);
             const canvas = gl.domElement;
             const onLost = (e: Event) => {
-              // Do NOT dispose — that leaves a dead black/empty canvas and blocks restore.
+              // Do NOT dispose -- that leaves a dead black/empty canvas and blocks restore.
               e.preventDefault();
             };
             const onRestored = () => {

@@ -1,5 +1,5 @@
 /**
- * Spacedrive SizeView port — d3 pack bubble chart for folder size visualization.
+ * Spacedrive SizeView port -- d3 pack bubble chart for folder size visualization.
  * Craft adapted to BNDZ glass/squircle FM language (not a raw vendor dump).
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';

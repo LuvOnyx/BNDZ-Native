@@ -1,5 +1,5 @@
 /**
- * SuperCmd useAiChat.ts port — BNDZ Launcher / flowBridge backend.
+ * SuperCmd useAiChat.ts port -- BNDZ Launcher / flowBridge backend.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AiConversation, AiMessage } from '../types';
@@ -20,7 +20,7 @@ const MAX_CONVERSATIONS = 50;
 function makeTitle(text: string): string {
   const t = (text || '').trim().replace(/\s+/g, ' ');
   if (!t) return 'New Chat';
-  return t.length > 48 ? `${t.slice(0, 48)}…` : t;
+  return t.length > 48 ? `${t.slice(0, 48)}...` : t;
 }
 
 function uid(prefix: string) {

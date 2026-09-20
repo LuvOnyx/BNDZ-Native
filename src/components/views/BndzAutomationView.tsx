@@ -91,7 +91,7 @@ function BndzNode({ data, selected }: NodeProps<Node<NodeData>>) {
           <div key={f.key} className="bndz-rack-lcd-row">
             <span className="bndz-rack-lcd-key">{f.label}</span>
             <span className={`bndz-rack-lcd-val${data.fields[f.key]?.trim() ? '' : ' is-empty'}`}>
-              {data.fields[f.key]?.trim() || f.placeholder || '—'}
+              {data.fields[f.key]?.trim() || f.placeholder || '--'}
             </span>
           </div>
         ))}
@@ -150,7 +150,7 @@ type AutomationFlowPaneProps = {
   onPaneClick: () => void;
   onViewportMoveStart: () => void;
   onViewportMoveEnd: (event: MouseEvent | TouchEvent | null, viewport: Viewport) => void;
-  /** Stable ref callback — must not change identity during fit. */
+  /** Stable ref callback -- must not change identity during fit. */
   onLoadRecipe: (id: string) => void;
 };
 
@@ -166,7 +166,7 @@ const AutomationEmptyOverlay = React.memo(function AutomationEmptyOverlay({
     <div className="bndz-automation-empty-overlay">
       <div className="bndz-automation-empty nodrag nopan nowheel">
         <h3>Start with a recipe</h3>
-        <p>Pick an everyday job — then edit the folder paths and press Run.</p>
+        <p>Pick an everyday job -- then edit the folder paths and press Run.</p>
         <div className="bndz-automation-empty-grid">
           {EVERYDAY_RECIPES.map(r => (
             <button
@@ -191,7 +191,7 @@ const AutomationEmptyOverlay = React.memo(function AutomationEmptyOverlay({
   );
 });
 
-/** Isolated React Flow tree — keeps palette/inspector from re-reconciling every drag frame. */
+/** Isolated React Flow tree -- keeps palette/inspector from re-reconciling every drag frame. */
 const AutomationFlowPane = React.memo(function AutomationFlowPane({
   nodes,
   edges,
@@ -292,7 +292,7 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
           />
         )}
         <Panel position="bottom-center" className="bndz-flow-hint-panel">
-          Drag empty canvas to marquee · middle-drag pan · Ctrl+scroll zoom · Ctrl+C/V blocks
+          Drag empty canvas to marquee | middle-drag pan | Ctrl+scroll zoom | Ctrl+C/V blocks
         </Panel>
       </ReactFlow>
       {showEmpty && <AutomationEmptyOverlay onLoadRecipe={onLoadRecipe} />}
@@ -309,7 +309,7 @@ const AutomationPalette = React.memo(function AutomationPalette({ onAddNode }: A
     <aside className="bndz-automation-palette shrink-0 overflow-y-auto bndz-scrollbar">
       <div className="bndz-automation-palette-head">
         <span className="bndz-automation-palette-title">Block library</span>
-        <span className="bndz-automation-palette-sub">Click to add · right-click canvas</span>
+        <span className="bndz-automation-palette-sub">Click to add | right-click canvas</span>
       </div>
       {PALETTE_GROUPS.map(group => (
         <div key={group.id} className="bndz-automation-palette-group">
@@ -421,7 +421,7 @@ const AutomationInspector = React.memo(function AutomationInspector({
             onChange={e => updateSelectedField(f.key, e.target.value)}
           />
           {(f.type === 'folder' || FOLDER_FIELD_KEYS.has(f.key)) && IPC.isNative && (
-            <button type="button" className="bndz-lens-chip shrink-0" onClick={() => void pickFolder(f.key)}>…</button>
+            <button type="button" className="bndz-lens-chip shrink-0" onClick={() => void pickFolder(f.key)}>...</button>
           )}
         </div>
       </label>
@@ -458,7 +458,7 @@ const AutomationInspector = React.memo(function AutomationInspector({
             <button type="button" className="bndz-lens-chip" onClick={() => copySelectedNode()}>Copy</button>
             <button type="button" className="bndz-lens-chip" onClick={() => disconnectNode(selectedNode.id)}>Disconnect</button>
           </div>
-          <p className="bndz-automation-inspector-kbd">Press <kbd>Delete</kbd> to remove · <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy/paste</p>
+          <p className="bndz-automation-inspector-kbd">Press <kbd>Delete</kbd> to remove | <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy/paste</p>
         </div>
         );
       })()}
@@ -467,7 +467,7 @@ const AutomationInspector = React.memo(function AutomationInspector({
           <div className="bndz-automation-log-head">
             Pipeline lint
             <span className="bndz-automation-lint-count">
-              {lintErrorCount(lintIssues)} err · {lintIssues.length - lintErrorCount(lintIssues)} warn
+              {lintErrorCount(lintIssues)} err | {lintIssues.length - lintErrorCount(lintIssues)} warn
             </span>
           </div>
           <ul className="bndz-automation-lint-list">
@@ -578,7 +578,7 @@ const AutomationInspector = React.memo(function AutomationInspector({
                   <span>{run.pipelineName}</span>
                   <span>{new Date(run.triggeredAt).toLocaleTimeString()}</span>
                 </div>
-                <div className="text-[10px] text-gray-400 truncate">{formatUiPath(run.triggerPath)} · {run.fileCount} file(s)</div>
+                <div className="text-[10px] text-gray-400 truncate">{formatUiPath(run.triggerPath)} | {run.fileCount} file(s)</div>
                 {run.error && <div className="bndz-automation-history-error">{run.error}</div>}
                 {run.log.length > 0 && (
                   <pre className="bndz-automation-log-body bndz-mono text-[10px]">{run.log.slice(-4).join('\n')}</pre>
@@ -716,7 +716,7 @@ export default function BndzAutomationView() {
   const [runHistory, setRunHistory] = useState<AutomationRunRecord[]>(() => loadAutomationRunHistory());
   const [showRunHistory, setShowRunHistory] = useState(false);
   const [savedViewport, setSavedViewport] = useState<AutomationViewport>(defaultAutomationViewport());
-  /** Recipe/seed spawn: fitView owns viewport — do not also restore. */
+  /** Recipe/seed spawn: fitView owns viewport -- do not also restore. */
   const [skipViewportRestore, setSkipViewportRestore] = useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const graphMetaRef = useRef({ id: pipelineId, name: graphName, armed });
@@ -788,7 +788,7 @@ export default function BndzAutomationView() {
     if (opts?.preferFit) {
       skipViewportRestoreRef.current = true;
       setSkipViewportRestore(true);
-      // Do not setSavedViewport — restore would fight fitView on first paint.
+      // Do not setSavedViewport -- restore would fight fitView on first paint.
     } else {
       skipViewportRestoreRef.current = false;
       setSkipViewportRestore(false);
@@ -797,7 +797,7 @@ export default function BndzAutomationView() {
     seedAutosave(stableGraphJson({ id: g.id, name: g.name, armed: !!g.armed }, n, e, vp));
   }, [setNodes, setEdges, seedAutosave]);
 
-  // Declared before applySeed — dep array must not read addNode while still in TDZ.
+  // Declared before applySeed -- dep array must not read addNode while still in TDZ.
   const addNode = useCallback((type: AutomationNodeType, at?: { x: number; y: number }, fields?: Record<string, string>) => {
     const id = `n_${Date.now()}`;
     const pos = at ?? viewportCenterPosition(rfInstanceRef.current, surfaceRef.current);
@@ -918,7 +918,7 @@ export default function BndzAutomationView() {
   const loadGraphIntoEditorRef = useRef(loadGraphIntoEditor);
   loadGraphIntoEditorRef.current = loadGraphIntoEditor;
 
-  // Mount-once hydrate — must NOT depend on applySeed (recipe rename recreates it and
+  // Mount-once hydrate -- must NOT depend on applySeed (recipe rename recreates it and
   // re-loads the empty saved graph, wiping the just-applied recipe back to intro).
   useEffect(() => {
     let active = true;
@@ -950,7 +950,7 @@ export default function BndzAutomationView() {
       const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : window.innerHeight / 2;
       const surface = document.elementFromPoint(clientX, clientY)?.closest('[data-bndz-workspace-surface]');
       if (!surface) return;
-      setStatus('Drop files on Spatial Canvas or the file list — Automation graph does not accept file drops.');
+      setStatus('Drop files on Spatial Canvas or the file list -- Automation graph does not accept file drops.');
     };
     window.addEventListener('bndz-external-drop', onExternalDrop);
     return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
@@ -1012,10 +1012,10 @@ export default function BndzAutomationView() {
     return bindWorkspaceCursorGuard(el);
   }, [graphReady]);
 
-  /** Fingerprint of graph *data* only — ignores node positions so drag does not re-lint. */
+  /** Fingerprint of graph *data* only -- ignores node positions so drag does not re-lint. */
   const lintKeyRef = useRef('');
   const lintGraphKey = useMemo(() => {
-    // Skip expensive stringify while dragging — positions change every frame but data does not.
+    // Skip expensive stringify while dragging -- positions change every frame but data does not.
     if (nodeDraggingRef.current) return lintKeyRef.current;
     const next = nodes.map(n => `${n.id}\0${n.data.nodeType}\0${JSON.stringify(n.data.fields)}`).join('\n')
       + '|' + edges.map(e => `${e.id}:${e.source}:${e.target}:${e.sourceHandle || ''}`).join(';');
@@ -1082,8 +1082,8 @@ export default function BndzAutomationView() {
     setDryRunMode(true);
     const errs = lintErrorCount(lintAutomationGraph(currentGraph()));
     setStatus(errs
-      ? `Dry-run preview · ${errs} error${errs === 1 ? '' : 's'} — fix before Run`
-      : 'Dry-run preview — no files touched');
+      ? `Dry-run preview | ${errs} error${errs === 1 ? '' : 's'} -- fix before Run`
+      : 'Dry-run preview -- no files touched');
   }, [currentGraph]);
 
   const onConnect = useCallback((conn: Connection) => {
@@ -1152,7 +1152,7 @@ export default function BndzAutomationView() {
       nodeType: node.data.nodeType,
       fields: { ...node.data.fields },
     });
-    setStatus('Block copied — Ctrl+V to paste');
+    setStatus('Block copied -- Ctrl+V to paste');
   }, [nodes, selectedNodeId]);
 
   const pasteNode = useCallback(() => {
@@ -1241,7 +1241,7 @@ export default function BndzAutomationView() {
     if (IPC.isNative) {
       const status = await syncAutomationLive(g);
       if (status) setLiveStatus(status);
-      setStatus(next ? 'Pipeline armed — live watchers active' : 'Pipeline disarmed');
+      setStatus(next ? 'Pipeline armed -- live watchers active' : 'Pipeline disarmed');
     } else {
       setStatus(next ? 'Armed (native host required for live run)' : 'Disarmed');
     }
@@ -1394,7 +1394,7 @@ export default function BndzAutomationView() {
       reader.onload = () => {
         const graph = importPipelineFromJson(String(reader.result), file.name.replace(/\.[^.]+$/, ''));
         if (!graph) {
-          setStatus('Import failed — invalid pipeline JSON');
+          setStatus('Import failed -- invalid pipeline JSON');
           return;
         }
         void addPipelineToLibrary(graph).then(lib => {
@@ -1415,8 +1415,8 @@ export default function BndzAutomationView() {
     g.armed = false;
     loadGraphIntoEditor(g, { preferFit: true });
     setSelectedNodeId(null);
-    setStatus(`${g.name} ready — edit folder paths then Arm / Run`);
-    // Defer persist + lint until fit settles — avoids competing restore/autosave/fit.
+    setStatus(`${g.name} ready -- edit folder paths then Arm / Run`);
+    // Defer persist + lint until fit settles -- avoids competing restore/autosave/fit.
     fitThenSettle(g);
   }, [pipelineId, loadGraphIntoEditor, fitThenSettle]);
 
@@ -1561,7 +1561,7 @@ export default function BndzAutomationView() {
     scheduleSave();
   }, [scheduleSave, setNodes, setFlowDraggingClass, flushDragTransforms]);
 
-  /** Mid-drag: refs + rAF translate3d for position/dimensions — select changes pass through to React state. */
+  /** Mid-drag: refs + rAF translate3d for position/dimensions -- select changes pass through to React state. */
   const onNodesChange = useCallback<OnNodesChange<Node<NodeData>>>((changes) => {
     if (nodeDraggingRef.current) {
       const dragChanges: NodeChange<Node<NodeData>>[] = [];
@@ -1619,7 +1619,7 @@ export default function BndzAutomationView() {
           workspaceId="automation"
           eyebrow="Circuit studio"
           title="Automation"
-          subtitle="Wire file pipelines — watch, filter, branch, deploy. Arm pipelines for live folder watchers and schedules."
+          subtitle="Wire file pipelines -- watch, filter, branch, deploy. Arm pipelines for live folder watchers and schedules."
           icon="zap_ui"
           accent="#38bdf8"
           features={[
@@ -1690,15 +1690,15 @@ export default function BndzAutomationView() {
               )}
             </div>
             <p className="bndz-ws-chrome-desc">
-              {chromeNodeCount} block{chromeNodeCount === 1 ? '' : 's'} · {chromeEdgeCount} wire{chromeEdgeCount === 1 ? '' : 's'}
+              {chromeNodeCount} block{chromeNodeCount === 1 ? '' : 's'} | {chromeEdgeCount} wire{chromeEdgeCount === 1 ? '' : 's'}
               {armed && (liveWatchers > 0 || liveSchedules > 0) && (
                 <span className="bndz-automation-live-badge">
-                  {' '}· {liveWatchers} watcher{liveWatchers === 1 ? '' : 's'}{liveSchedules > 0 ? ` · ${liveSchedules} schedule${liveSchedules === 1 ? '' : 's'}` : ''}
+                  {' '}| {liveWatchers} watcher{liveWatchers === 1 ? '' : 's'}{liveSchedules > 0 ? ` | ${liveSchedules} schedule${liveSchedules === 1 ? '' : 's'}` : ''}
                 </span>
               )}
               {liveStatus?.watchers?.some(w => w.lastError) && (
                 <span className="bndz-automation-live-badge bndz-automation-live-badge--error">
-                  {' '}· watcher error
+                  {' '}| watcher error
                 </span>
               )}
             </p>
@@ -1724,14 +1724,14 @@ export default function BndzAutomationView() {
             onClick={() => void run()}
             title={lintErrorCount(lintIssues) > 0 ? 'Fix pipeline lint errors before running' : undefined}
           >
-            {running ? 'Running…' : 'Run pipeline'}
+            {running ? 'Running...' : 'Run pipeline'}
           </button>
         </div>
       </header>
 
       <WorkspaceCommandBar
         variant="automation"
-        hint="Del removes · Ctrl+C/V block · middle-drag pan"
+        hint="Del removes | Ctrl+C/V block | middle-drag pan"
         commands={[
           { id: 'new', label: 'New pipeline', iconSrc: '/Ui/plugin.svg', onClick: () => void newPipeline() },
           { id: 'dup-pipe', label: 'Duplicate pipeline', iconSrc: '/launcher-icons/copy.png', onClick: () => void clonePipeline() },

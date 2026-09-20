@@ -35,7 +35,7 @@ function isOverdue(dueUtc: string, status: string): boolean {
 
 function slaLabel(dueUtc: string): string {
   const due = new Date(dueUtc);
-  if (Number.isNaN(due.getTime())) return '—';
+  if (Number.isNaN(due.getTime())) return '--';
   const diff = due.getTime() - Date.now();
   if (diff < 0) {
     const hrs = Math.floor(-diff / 3_600_000);
@@ -141,7 +141,7 @@ export default function JobTicketPanel({ folderPath, onChanged }: Props) {
         {hasOverdue && (
           <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30 font-bold">OVERDUE</span>
         )}
-        {loading && <span className="text-[10px] text-gray-600 ml-auto animate-pulse">…</span>}
+        {loading && <span className="text-[10px] text-gray-600 ml-auto animate-pulse">...</span>}
         {!editing && (
           <button
             type="button"

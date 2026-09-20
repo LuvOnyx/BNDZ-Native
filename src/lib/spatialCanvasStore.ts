@@ -148,7 +148,7 @@ function isLegacyContinuumBoardLabel(name: string | undefined): boolean {
 }
 
 /**
- * Continuum is Home branding — never a Spatial board title.
+ * Continuum is Home branding -- never a Spatial board title.
  * - id continuum-home → always "Pillar Board"
  * - any other board still named Continuum → "Spatial Canvas"
  */
@@ -337,7 +337,7 @@ export async function duplicateSpatialBoard(boardId: string): Promise<SpatialCan
 export async function renameSpatialBoard(boardId: string, name: string): Promise<SpatialCanvasDoc> {
   const lib = await loadLibrary();
   let trimmed = name.trim() || 'Untitled board';
-  // Continuum is Home — never allow it as a Spatial board title.
+  // Continuum is Home -- never allow it as a Spatial board title.
   if (/^continuum$/i.test(trimmed)) {
     trimmed = boardId === PILLAR_BOARD_ID ? PILLAR_BOARD_NAME : FREEFORM_SPATIAL_NAME;
   }
@@ -372,7 +372,7 @@ export async function saveSpatialCanvas(doc: SpatialCanvasDoc, delayMs = 400): P
   return persistLibrary({ version: 1, activeBoardId: nextDoc.id, boards }, delayMs);
 }
 
-/** Immediate persist of an empty spatial board — clears stale local cache. */
+/** Immediate persist of an empty spatial board -- clears stale local cache. */
 export async function resetSpatialCanvasPersisted(): Promise<SpatialCanvasDoc> {
   const empty = defaultCanvas();
   const lib: SpatialBoardLibrary = { version: 1, activeBoardId: empty.id, boards: [empty] };
@@ -478,7 +478,7 @@ export async function pinPathsToSpatialCanvas(paths: string[]): Promise<number> 
   const existing = new Set(doc.items.map(it => it.path));
   const toAdd = normalized.filter(p => !existing.has(p));
   if (!toAdd.length) return 0;
-  // Place near world origin in a tidy grid — Spatial view will fitBoard on `fit: true`.
+  // Place near world origin in a tidy grid -- Spatial view will fitBoard on `fit: true`.
   const startX = 0;
   const startY = 0;
   const added = toAdd.map((path, i) => makeCanvasPin(

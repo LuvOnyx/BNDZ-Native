@@ -1,4 +1,4 @@
-﻿// Reference copy from SuperCmd (MIT) â€” https://github.com/SuperCmdLabs/SuperCmd
+﻿// Reference copy from SuperCmd (MIT) -- https://github.com/SuperCmdLabs/SuperCmd
 // BNDZ-adapted implementations live alongside in src/launcher/components/
 // Re-sync: .\scripts\sync-supercmd-launcher-ui.ps1
 /**
@@ -153,7 +153,7 @@ function loadCommandsDiskCache(): CommandInfo[] | null {
 
 function saveCommandsDiskCache(commands: CommandInfo[]): void {
   try {
-    // Strip icon data — icons are persisted separately in icon-cache/.
+    // Strip icon data -- icons are persisted separately in icon-cache/.
     const stripped = commands.map(({ iconDataUrl: _drop, ...rest }) => rest);
     fs.writeFileSync(
       getCommandsDiskCachePath(),
@@ -295,7 +295,7 @@ async function getIconFromIcns(bundlePath: string): Promise<string | undefined> 
 
 /**
  * Batch-extract icons for bundles that don't have .icns files.
- * Uses macOS NSWorkspace API via osascript/JXA — gets the real icon for ANY bundle.
+ * Uses macOS NSWorkspace API via osascript/JXA -- gets the real icon for ANY bundle.
  * Results are written to temp PNGs, resized, and converted to base64 data URLs.
  */
 async function batchGetIconsViaWorkspace(
@@ -400,7 +400,7 @@ async function getIconDataUrl(bundlePath: string): Promise<string | undefined> {
     return icnsResult;
   }
 
-  // No .icns found — return undefined.
+  // No .icns found -- return undefined.
   // NSWorkspace batch extraction will run later for app/settings bundles.
   return undefined;
 }
@@ -1243,7 +1243,7 @@ async function discoverSystemSettings(): Promise<CommandInfo[]> {
 async function openAppByPath(appPath: string): Promise<void> {
   // open(1) is supposed to return quickly after dispatching to
   // LaunchServices, but can block 1-3s on first launch (Gatekeeper,
-  // sealed-package validation — Microsoft Office is a frequent offender).
+  // sealed-package validation -- Microsoft Office is a frequent offender).
   // The launch is dispatched async either way, so fire-and-forget.
   const child = spawn('/usr/bin/open', [appPath], {
     detached: true,
@@ -1275,7 +1275,7 @@ async function openSettingsPane(identifier: string): Promise<void> {
 
 async function discoverAndBuildCommands(): Promise<CommandInfo[]> {
   const t0 = Date.now();
-  console.log('Discovering applications and settings…');
+  console.log('Discovering applications and settings...');
 
   // Run discovery sequentially to reduce startup process churn.
   // On some systems, launching too many plist/icon subprocesses in parallel can
@@ -1946,7 +1946,7 @@ async function discoverAndBuildCommands(): Promise<CommandInfo[]> {
   );
 
   if (bundlesNeedingIcon.length > 0) {
-    console.log(`Extracting ${bundlesNeedingIcon.length} app/settings icons via NSWorkspace…`);
+    console.log(`Extracting ${bundlesNeedingIcon.length} app/settings icons via NSWorkspace...`);
     const bundlePaths = Array.from(new Set(bundlesNeedingIcon.map((c) => c._bundlePath!)));
     const iconMap = await batchGetIconsViaWorkspace(bundlePaths);
 

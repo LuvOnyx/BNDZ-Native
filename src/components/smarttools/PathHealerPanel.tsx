@@ -99,7 +99,7 @@ export default function PathHealerPanel({
             onClick={() => void scan()}
             disabled={scanning}
           >
-            {scanning ? 'Scanning…' : 'Scan tree'}
+            {scanning ? 'Scanning...' : 'Scan tree'}
           </button>
           <button
             type="button"

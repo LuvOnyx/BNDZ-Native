@@ -26,7 +26,7 @@ type Props = {
   onFolderContextMenu?: (e: React.MouseEvent) => void;
 };
 
-/** Secondary kind filters — soft squircle chips with per-kind accent colors. */
+/** Secondary kind filters -- soft squircle chips with per-kind accent colors. */
 export default function ListFilterChips({ value, onChange, onFolderContextMenu }: Props) {
   return (
     <div

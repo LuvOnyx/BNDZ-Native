@@ -39,7 +39,7 @@ type Props = {
   onAddStickyBeside?: (item: CanvasItem) => void;
 };
 
-/** Spatial v2 board — same glass constellation cards as v1 (`SpatialCanvasCard`). */
+/** Spatial v2 board -- same glass constellation cards as v1 (`SpatialCanvasCard`). */
 export default function SpatialSpringBoard({
   items,
   relations,

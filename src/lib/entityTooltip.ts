@@ -28,7 +28,7 @@ import { hideFloatingTooltip, isShiftKeyHeld, setHoverPending, subscribeShiftKey
 import type { HoverTooltipTheme } from '../components/HoverTooltip';
 
 function formatSize(bytes?: number): string {
-  if (bytes == null || bytes === 0) return '—';
+  if (bytes == null || bytes === 0) return '--';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let v = bytes;
   let i = 0;
@@ -38,7 +38,7 @@ function formatSize(bytes?: number): string {
 
 const AUDIO_META_KEYS = ['Duration', 'Audio Bitrate', 'Sample Rate', 'Bit Depth', 'Channels'];
 
-/** Cool slate accent — not the legacy brown DIR badge. */
+/** Cool slate accent -- not the legacy brown DIR badge. */
 export const DIR_BADGE_COLOR = '#38bdf8';
 
 export type EntityTooltipBuildOpts = {
@@ -78,7 +78,7 @@ export function buildEntityTooltipContent(
   ];
 
   const pushLine = (label: string, value: string, accent?: string, mono?: boolean) => {
-    if (!value || value === '—') return;
+    if (!value || value === '--') return;
     lines.push({ label, value, accent, mono });
   };
 
@@ -94,7 +94,7 @@ export function buildEntityTooltipContent(
             cacheFolderSizes: config.cacheFolderSizes,
             showCachedFolderSizesOnly: config.showCachedFolderSizesOnly,
           }, formatSizeFn);
-          pushLine(field.label, sizeLabel || '—');
+          pushLine(field.label, sizeLabel || '--');
         } else if (entity.size != null) {
           pushLine(field.label, formatSizeFn(entity.size));
         }

@@ -201,7 +201,7 @@ export function groupCloudProvidersForNav(
       icon: cloudProviderNavIcon(p),
       iconColor: p.syncStatus === 'online-only' ? '#fbbf24' : '#0078d4',
       syncStatus: p.syncStatus,
-      // OneDrive FS path alone returns a generic yellow folder — use the shell CLSID glyph.
+      // OneDrive FS path alone returns a generic yellow folder -- use the shell CLSID glyph.
       shellIconPath: isOneDrive ? SHELL_CLSID.oneDrive : panePath,
     });
   }

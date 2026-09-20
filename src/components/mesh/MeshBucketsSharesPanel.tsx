@@ -174,7 +174,7 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
           <PluginEmptyState
             icon="cloud_ui"
             title="No buckets yet"
-            description="Add an S3-compatible bucket below — it opens in the file list like a drive."
+            description="Add an S3-compatible bucket below -- it opens in the file list like a drive."
           />
         ) : (
           <div className="space-y-2">
@@ -187,7 +187,7 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
                 <div className="min-w-0 flex-1">
                   <div className="text-[12px] font-semibold text-white/90 truncate">{b.alias}</div>
                   <div className="text-[10px] text-white/45 truncate">
-                    {MESH_PROVIDER_LABEL[b.provider]} · {b.s3Bucket || 'bucket'} · {MESH_STATE_LABEL[b.state] || 'Offline'}
+                    {MESH_PROVIDER_LABEL[b.provider]} | {b.s3Bucket || 'bucket'} | {MESH_STATE_LABEL[b.state] || 'Offline'}
                   </div>
                 </div>
                 <PluginToolbarButton onClick={() => openBucket(b)}>Open in list</PluginToolbarButton>
@@ -209,8 +209,8 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
             <input className={PLUGIN_INPUT_CLASS} value={bucketRegion} onChange={e => setBucketRegion(e.target.value)} placeholder="us-east-1" />
           </div>
           <div className="sm:col-span-2">
-            <PluginFieldLabel>Endpoint (optional — MinIO / R2 / Wasabi)</PluginFieldLabel>
-            <input className={PLUGIN_INPUT_CLASS} value={bucketEndpoint} onChange={e => setBucketEndpoint(e.target.value)} placeholder="https://…" />
+            <PluginFieldLabel>Endpoint (optional -- MinIO / R2 / Wasabi)</PluginFieldLabel>
+            <input className={PLUGIN_INPUT_CLASS} value={bucketEndpoint} onChange={e => setBucketEndpoint(e.target.value)} placeholder="https://..." />
           </div>
           <div>
             <PluginFieldLabel>Access key</PluginFieldLabel>
@@ -241,7 +241,7 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
             className={`${PLUGIN_INPUT_CLASS} flex-1`}
             value={folderDraft}
             onChange={e => setFolderDraft(e.target.value)}
-            placeholder="C:\\Users\\…\\Shared"
+            placeholder="C:\\Users\\...\\Shared"
             onKeyDown={e => { if (e.key === 'Enter') void addSharedFolder(); }}
           />
           <PluginToolbarButton onClick={() => void addSharedFolder()}>Add folder</PluginToolbarButton>
@@ -251,7 +251,7 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
           <PluginEmptyState
             icon="emblem-shared"
             title="No shared folders"
-            description="Add a local folder — open it in the list, or MeshDrop a link from the context menu."
+            description="Add a local folder -- open it in the list, or MeshDrop a link from the context menu."
           />
         ) : (
           <div className="space-y-2">
@@ -279,12 +279,12 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
           <Icons8Icon id="emblem-shared" size={14} className="text-emerald-300" />
           <div>
             <div className="text-[12px] font-semibold text-white/90">Link sharing</div>
-            <div className="text-[10px] text-white/45">Mesh Code · deep link · QR · LAN · relay</div>
+            <div className="text-[10px] text-white/45">Mesh Code | deep link | QR | LAN | relay</div>
           </div>
         </div>
         <p className="text-[11px] text-white/50 mb-2 leading-relaxed">
-          Pick files in the list, then Share → MeshDrop — or open MeshDrop here to create a share code,
-          copy a <code className="text-white/70">bndz://meshdrop/…</code> deep link, show a QR, or join via LAN/relay.
+          Pick files in the list, then Share → MeshDrop -- or open MeshDrop here to create a share code,
+          copy a <code className="text-white/70">bndz://meshdrop/...</code> deep link, show a QR, or join via LAN/relay.
         </p>
         <div className="flex flex-wrap gap-2">
           <PluginToolbarButton onClick={() => shareViaMeshDrop(folderDraft.trim() || '')}>

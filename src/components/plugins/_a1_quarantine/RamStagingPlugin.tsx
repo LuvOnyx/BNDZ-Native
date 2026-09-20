@@ -24,7 +24,7 @@ export const RamStagingPluginDef = {
   id: 'ram-staging',
   name: 'RAM Staging',
   icon: 'hard_drive_ui',
-  description: 'Staging — hot RAM zones plus cold offload that keeps a link at the old path',
+  description: 'Staging -- hot RAM zones plus cold offload that keeps a link at the old path',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -113,7 +113,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
 
   const createZone = async () => {
     setBusy(true);
-    onStatus?.(preferRam ? 'Creating zone…' : 'Creating fast staging zone…');
+    onStatus?.(preferRam ? 'Creating zone...' : 'Creating fast staging zone...');
     try {
       const r = await IPC.ramStagingCreateZone(newName.trim() || 'RAM Staging', newSizeMb, preferRam);
       if (!r.ok) throw new Error(r.error || 'Create failed');
@@ -131,8 +131,8 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
           kind: 'success',
           title: 'Zone ready',
           message: isRam
-            ? 'RAM zone mounted — open it to paste or drop files.'
-            : 'Fast staging zone ready — open it to paste or drop files.',
+            ? 'RAM zone mounted -- open it to paste or drop files.'
+            : 'Fast staging zone ready -- open it to paste or drop files.',
         });
       }
       invalidateRamZoneMountCache();
@@ -154,7 +154,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
 
   const flushZone = async (zoneId: string) => {
     setBusy(true);
-    onStatus?.('Flushing staged files to disk…');
+    onStatus?.('Flushing staged files to disk...');
     try {
       const r = await IPC.ramStagingFlushZone(zoneId);
       if ((r as { ok?: boolean }).ok === false) {
@@ -174,7 +174,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
 
   const ejectZone = async (zoneId: string, flushFirst = false) => {
     setBusy(true);
-    onStatus?.(flushFirst ? 'Flushing and ejecting zone…' : 'Ejecting zone…');
+    onStatus?.(flushFirst ? 'Flushing and ejecting zone...' : 'Ejecting zone...');
     try {
       const r = await IPC.ramStagingDeleteZone(zoneId, flushFirst);
       if (r.ok === false) throw new Error(r.error || 'Eject failed');
@@ -200,7 +200,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
   const stagePaths = async (zoneId: string, paths: string[]) => {
     if (!paths.length) return;
     setBusy(true);
-    onStatus?.(`Staging ${paths.length} item(s)…`);
+    onStatus?.(`Staging ${paths.length} item(s)...`);
     try {
       const { resolvePanePathForFs } = await import('../../lib/ramStagingPaths');
       const { isBndzRamPath } = await import('../../lib/bndzVirtualViews');
@@ -245,7 +245,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
 
   const remountZone = async (zoneId: string) => {
     setBusy(true);
-    onStatus?.('Remounting zone…');
+    onStatus?.('Remounting zone...');
     try {
       const r = await IPC.ramStagingRemountZone(zoneId);
       if (r.ok === false) throw new Error(r.error || 'Remount failed');
@@ -289,8 +289,8 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
       iconColor="#a78bfa"
       variant="embedded"
       subtitle={panelTab === 'cold'
-        ? 'Cold offload — reclaim space while keeping a link at the old path'
-        : 'Hot RAM / fast disk staging zones · flush on eject'}
+        ? 'Cold offload -- reclaim space while keeping a link at the old path'
+        : 'Hot RAM / fast disk staging zones | flush on eject'}
       toolbar={(
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={panelTab === 'hot'} onClick={() => setPanelTab('hot')}>
@@ -314,7 +314,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
       <div className="flex flex-col gap-3 min-h-0 bndz-ram-panel px-4 pb-4">
         {memoryPressure && (
           <div className="shrink-0 px-3 py-2 rounded-lg border border-amber-400/30 bg-amber-500/10 text-[10px] text-amber-200/90">
-            System memory is under pressure — flush dirty zones soon to avoid data loss on eject.
+            System memory is under pressure -- flush dirty zones soon to avoid data loss on eject.
           </div>
         )}
 
@@ -425,7 +425,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
                       {z.state === 'unmounted' && <span className="text-[9px] font-bold uppercase tracking-wider text-rose-300/90">Unmounted</span>}
                       {z.isDirty && <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300/90">Dirty</span>}
                     </div>
-                    <p className="text-[10px] text-gray-500 mt-1 font-mono truncate" title={z.mountPath}>{z.mountPath || '— no mount —'}</p>
+                    <p className="text-[10px] text-gray-500 mt-1 font-mono truncate" title={z.mountPath}>{z.mountPath || '-- no mount --'}</p>
                     {z.error && (z.state === 'unmounted' || !z.mountPath) && (
                       <div className="mt-1.5 space-y-1.5">
                         <p className="text-[10px] text-amber-300/90 leading-snug">{z.error}</p>
@@ -440,7 +440,7 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
                   <div className="bndz-ram-gauge-fill" style={{ width: `${pct}%` }} />
                 </div>
                 <p className="text-[10px] text-gray-500 mt-1">
-                  {formatMb(z.usedBytes)} / {z.sizeBudgetMb} MB · {z.stagedFileCount} file{z.stagedFileCount === 1 ? '' : 's'}
+                  {formatMb(z.usedBytes)} / {z.sizeBudgetMb} MB | {z.stagedFileCount} file{z.stagedFileCount === 1 ? '' : 's'}
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {z.state === 'unmounted' || !z.mountPath ? (

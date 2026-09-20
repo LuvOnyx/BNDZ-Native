@@ -87,7 +87,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
           if (res.ok && res.instances) {
             setInstances(res.instances.map((i: Record<string, unknown>) => normalizeIncusEphemeral(i)));
           }
-        } catch { /* optional — list still loads from DB */ }
+        } catch { /* optional -- list still loads from DB */ }
       }
       const [eps, inst, hosts, local] = await Promise.all([
         IPC.meshIncusListEndpoints(),
@@ -189,10 +189,10 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
   const friendlyError = (raw: string) => {
     const m = raw || '';
     if (/SSL|TLS|certificate/i.test(m)) {
-      return `${m} — Edit host: enable “Allow insecure TLS” for lab certs, or paste a trust token and Test again.`;
+      return `${m} -- Edit host: enable "Allow insecure TLS" for lab certs, or paste a trust token and Test again.`;
     }
     if (/No such host|getaddrinfo|Name or service not known|https:443/i.test(m)) {
-      return `${m} — That looks like a remote-host URL error. Primary Create uses BNDZ Local on this PC — select “BNDZ Local · this PC” and Create again.`;
+      return `${m} -- That looks like a remote-host URL error. Primary Create uses BNDZ Local on this PC -- select "BNDZ Local | this PC" and Create again.`;
     }
     if (/WSL|0x80070422|Subsystem for Linux/i.test(m)) {
       return m;
@@ -279,7 +279,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
     persistControlHost?: boolean;
   }) => {
     setBusy(true);
-    setStatusAndToast('Connecting over SSH and auto-trusting…', 'info');
+    setStatusAndToast('Connecting over SSH and auto-trusting...', 'info');
     try {
       const res = await IPC.meshIncusBootstrapTrust(req);
       if (!res.ok) throw new Error(res.error || 'Auto-trust failed');
@@ -290,8 +290,8 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       setEditor(null);
       setStatusAndToast(
         ep?.trusted || res.info?.trusted
-          ? `Trusted — ${ep?.alias || 'VPS host'} ready. Hit Create VPS.`
-          : `Connected ${ep?.alias || 'host'} — trust pending`,
+          ? `Trusted -- ${ep?.alias || 'VPS host'} ready. Hit Create VPS.`
+          : `Connected ${ep?.alias || 'host'} -- trust pending`,
         ep?.trusted || res.info?.trusted ? 'success' : 'info',
       );
     } catch (e: any) {
@@ -313,7 +313,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       await IPC.meshIncusUpsertEndpoint(incusEndpointToPayload(payload));
       await refresh();
       setSelectedEndpointId(endpoint.id);
-      setStatusAndToast(`Saved ${endpoint.alias} — use Connect & trust if not Trusted yet`, 'info');
+      setStatusAndToast(`Saved ${endpoint.alias} -- use Connect & trust if not Trusted yet`, 'info');
     } catch (e: any) {
       setStatusAndToast(e?.message || 'Could not save VPS host', 'warning');
     } finally { setBusy(false); }
@@ -356,7 +356,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       if (!res.ok) throw new Error(res.error || 'Trust probe failed');
       if (res.endpoints) setEndpoints(res.endpoints.map((e: Record<string, unknown>) => normalizeIncusEndpoint(e)));
       setStatusAndToast(
-        res.info?.trusted ? 'Trusted — VPS API reachable' : 'Connected but not trusted yet — paste a trust token and save',
+        res.info?.trusted ? 'Trusted -- VPS API reachable' : 'Connected but not trusted yet -- paste a trust token and save',
         res.info?.trusted ? 'success' : 'info',
       );
     } catch (e: any) {
@@ -374,7 +374,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
     setBusy(true);
     try {
       if (isLocalCreate) {
-        setStatusAndToast('Preparing local VPS factory on this PC…', 'info');
+        setStatusAndToast('Preparing local VPS factory on this PC...', 'info');
         const ensure = await IPC.meshIncusLocalEnsure();
         if (!ensure.ok) throw new Error(ensure.error || 'Local VPS factory not ready');
         if (ensure.status) setFactoryStatus(ensure.status);
@@ -383,14 +383,14 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
         }
         setSelectedEndpointId('bndz-local');
       } else if (selectedEndpoint && !selectedEndpoint.trusted) {
-        setStatusAndToast('Trusting remote compute host…', 'info');
+        setStatusAndToast('Trusting remote compute host...', 'info');
         const test = await IPC.meshIncusTestEndpoint(selectedEndpoint.id);
         if (!test.ok || !test.info?.trusted) {
           throw new Error(test.error || 'Remote host is not trusted');
         }
       }
 
-      setStatusAndToast(isLocalCreate ? 'Creating temporary VPS on this PC…' : 'Creating VPS…', 'info');
+      setStatusAndToast(isLocalCreate ? 'Creating temporary VPS on this PC...' : 'Creating VPS...', 'info');
       const profileList = launchProfiles.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
       const config: Record<string, string> = {};
       if (launchCpu.trim()) config['limits.cpu'] = launchCpu.trim();
@@ -415,8 +415,8 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       const inst = res.instance ? normalizeIncusEphemeral(res.instance as Record<string, unknown>) : null;
       const addr = inst?.ipv4 || inst?.ipv6;
       setStatusAndToast(addr
-        ? `Temporary VPS ready — ${inst?.instanceName} @ ${addr}${inst?.meshHostId ? ' (Mesh)' : ''}`
-        : `VPS created (${inst?.instanceName || 'instance'}) — waiting for SSH`,
+        ? `Temporary VPS ready -- ${inst?.instanceName} @ ${addr}${inst?.meshHostId ? ' (Mesh)' : ''}`
+        : `VPS created (${inst?.instanceName || 'instance'}) -- waiting for SSH`,
         addr ? 'success' : 'info');
     } catch (e: any) {
       setStatusAndToast(friendlyError(e?.message || 'Create VPS failed'), 'warning');
@@ -457,13 +457,13 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       const res = await IPC.meshIncusImportInstance({
         endpointId: selectedEndpointId,
         instanceName: inst.name,
-        alias: `VPS · ${inst.name}`,
+        alias: `VPS | ${inst.name}`,
         registerMeshHost: true,
       });
       if (!res.ok) throw new Error(res.error || 'Import failed');
       await refresh();
       void loadServerInventory();
-      setStatusAndToast(`Imported ${inst.name} — Mesh host registered when IP is ready`, 'success');
+      setStatusAndToast(`Imported ${inst.name} -- Mesh host registered when IP is ready`, 'success');
     } catch (e: any) {
       setStatusAndToast(e?.message || 'Import failed', 'warning');
     } finally { setBusy(false); }
@@ -493,7 +493,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
 
   const browseMesh = async (inst: IncusEphemeralInstance) => {
     if (!inst.meshHostId) {
-      setStatus('No Mesh host registered yet — Refresh after IP appears');
+      setStatus('No Mesh host registered yet -- Refresh after IP appears');
       return;
     }
     setBusy(true);
@@ -507,13 +507,13 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       }));
       setStatus(`Browsing ${inst.instanceName}`);
     } catch (e: any) {
-      setStatus(e?.message || 'Browse failed — check SSH user/key on the endpoint');
+      setStatus(e?.message || 'Browse failed -- check SSH user/key on the endpoint');
     } finally { setBusy(false); }
   };
 
   const shellHere = async (inst: IncusEphemeralInstance) => {
     if (!inst.meshHostId) {
-      setStatus('No Mesh host registered yet — Refresh after IP appears');
+      setStatus('No Mesh host registered yet -- Refresh after IP appears');
       return;
     }
     setBusy(true);
@@ -524,9 +524,9 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       if (sessionId && onOpenTerminal) {
         onOpenTerminal(String(sessionId), inst.meshHostId);
       }
-      setStatusAndToast(`Shell · ${inst.instanceName}`, 'success');
+      setStatusAndToast(`Shell | ${inst.instanceName}`, 'success');
     } catch (e: any) {
-      setStatusAndToast(e?.message || 'Shell Here failed — ensure cloud-init injected your SSH pubkey', 'warning');
+      setStatusAndToast(e?.message || 'Shell Here failed -- ensure cloud-init injected your SSH pubkey', 'warning');
     } finally { setBusy(false); }
   };
 
@@ -537,12 +537,12 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       <PluginHeroStrip
         icon={<Icons8Icon id="server_ui" size={40} />}
         name="Mesh VPS"
-        typeLabel="Local temporary VPS · BNDZ is the host"
-        meta={<span className="text-[10px] text-gray-500">Create disposable Linux instances on this PC · Mesh SSH · destroy when done</span>}
+        typeLabel="Local temporary VPS | BNDZ is the host"
+        meta={<span className="text-[10px] text-gray-500">Create disposable Linux instances on this PC | Mesh SSH | destroy when done</span>}
         actions={
           <>
             <PluginHeroActionButton icon="play" variant="primary" onClick={() => void launch()} disabled={!canCreateVps}>
-              {busy ? 'Creating…' : 'Create VPS'}
+              {busy ? 'Creating...' : 'Create VPS'}
             </PluginHeroActionButton>
             <PluginHeroActionButton icon="refresh" onClick={() => void refresh({ reconcile: true })} disabled={busy}>
               Refresh
@@ -608,8 +608,8 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
             </div>
             {factoryStatus?.phase && (
               <div className="text-[10px] text-gray-500 bndz-mono">
-                runtime:{factoryStatus.runtime || '—'} · {factoryStatus.phase}
-                {factoryStatus.needsElevation ? ' · needs admin once for WSL' : ''}
+                runtime:{factoryStatus.runtime || '--'} | {factoryStatus.phase}
+                {factoryStatus.needsElevation ? ' | needs admin once for WSL' : ''}
               </div>
             )}
             <div className="flex flex-wrap gap-1.5">
@@ -620,7 +620,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                     .then(r => {
                       if (!r.ok) throw new Error(r.error || 'Factory prepare failed');
                       if (r.status) setFactoryStatus(r.status);
-                      setStatusAndToast(r.status?.ready ? 'Local factory ready' : (r.status?.detail || 'Factory preparing…'), r.status?.ready ? 'success' : 'info');
+                      setStatusAndToast(r.status?.ready ? 'Local factory ready' : (r.status?.detail || 'Factory preparing...'), r.status?.ready ? 'success' : 'info');
                     })
                     .catch((e: any) => setStatusAndToast(friendlyError(e?.message || 'Factory prepare failed'), 'warning'))
                     .finally(() => setBusy(false));
@@ -639,7 +639,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
             className="text-[11px] text-sky-300/80 hover:text-sky-200 text-left"
             onClick={() => setEditor('new')}
           >
-            Advanced: optional remote compute host…
+            Advanced: optional remote compute host...
           </button>
         </div>
 
@@ -651,9 +651,9 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
             </div>
             <PluginFieldLabel>Where</PluginFieldLabel>
             <select className={PLUGIN_INPUT_CLASS} value={selectedEndpointId || 'bndz-local'} onChange={e => setSelectedEndpointId(e.target.value || 'bndz-local')}>
-              <option value="bndz-local">BNDZ Local · this PC (temporary)</option>
+              <option value="bndz-local">BNDZ Local | this PC (temporary)</option>
               {endpoints.filter(ep => ep.id !== 'bndz-local').map(ep => (
-                <option key={ep.id} value={ep.id}>{ep.alias}{ep.trusted ? '' : ' · not trusted'}</option>
+                <option key={ep.id} value={ep.id}>{ep.alias}{ep.trusted ? '' : ' | not trusted'}</option>
               ))}
             </select>
 
@@ -664,8 +664,8 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                 value={imagePreset}
                 onChange={e => setImagePreset(e.target.value)}
               >
-                <option value="lscr.io/linuxserver/openssh-server:latest">Linux · SSH ready (temporary VPS)</option>
-                <option value="__custom__">Custom container image…</option>
+                <option value="lscr.io/linuxserver/openssh-server:latest">Linux | SSH ready (temporary VPS)</option>
+                <option value="__custom__">Custom container image...</option>
               </select>
             ) : (
               <select
@@ -673,13 +673,13 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                 value={imagePreset}
                 onChange={e => setImagePreset(e.target.value)}
               >
-                <option value="ubuntu/24.04/cloud">Ubuntu 24.04 (cloud · SSH ready)</option>
+                <option value="ubuntu/24.04/cloud">Ubuntu 24.04 (cloud | SSH ready)</option>
                 <option value="ubuntu/22.04/cloud">Ubuntu 22.04 (cloud)</option>
                 <option value="debian/12/cloud">Debian 12 (cloud)</option>
                 {(imageAliases.length > 0) && imageAliases.slice(0, 40).map(a => (
                   <option key={`srv-${a.name}`} value={a.name}>{a.description || a.name}</option>
                 ))}
-                <option value="__custom__">Custom alias…</option>
+                <option value="__custom__">Custom alias...</option>
               </select>
             )}
             {imagePreset === '__custom__' && (
@@ -716,10 +716,10 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                   value={sizePreset}
                   onChange={e => setSizePreset(e.target.value as 'small' | 'medium' | 'large' | 'custom')}
                 >
-                  <option value="small">Small · 1 CPU / 1 GiB</option>
-                  <option value="medium">Medium · 2 CPU / 2 GiB</option>
-                  <option value="large">Large · 4 CPU / 4 GiB</option>
-                  <option value="custom">Custom limits…</option>
+                  <option value="small">Small | 1 CPU / 1 GiB</option>
+                  <option value="medium">Medium | 2 CPU / 2 GiB</option>
+                  <option value="large">Large | 4 CPU / 4 GiB</option>
+                  <option value="custom">Custom limits...</option>
                 </select>
               </div>
             </div>
@@ -750,10 +750,10 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                     : 'Create VPS on remote compute host'}
             >
               <Icons8Icon id="play" size={14} />
-              {busy ? 'Creating VPS…' : 'Create temporary VPS · one push'}
+              {busy ? 'Creating VPS...' : 'Create temporary VPS | one push'}
             </button>
             <div className="text-[10px] text-gray-500 text-center -mt-1">
-              BNDZ is the host — spins a local instance · Mesh SSH · Destroy when done
+              BNDZ is the host -- spins a local instance | Mesh SSH | Destroy when done
             </div>
             {isLocalCreate && (
               <>
@@ -787,7 +787,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                 <PluginFieldLabel>Network (NIC)</PluginFieldLabel>
                 <select className={PLUGIN_INPUT_CLASS} value={launchNetwork} onChange={e => setLaunchNetwork(e.target.value)}>
                   <option value="">Profile default</option>
-                  {networks.map(n => <option key={n.name} value={n.name}>{n.name}{n.type ? ` · ${n.type}` : ''}</option>)}
+                  {networks.map(n => <option key={n.name} value={n.name}>{n.name}{n.type ? ` | ${n.type}` : ''}</option>)}
                 </select>
                 <PluginFieldLabel>Mesh alias (optional)</PluginFieldLabel>
                 <input className={PLUGIN_INPUT_CLASS} value={launchAlias} onChange={e => setLaunchAlias(e.target.value)} placeholder="Build box" />
@@ -806,20 +806,20 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
           <div className="text-[11px] font-semibold tracking-wide text-sky-200/80 uppercase flex items-center justify-between gap-2">
             <span>Remote server inventory</span>
             <PluginToolbarButton onClick={() => void loadServerInventory()} disabled={inventoryBusy || !selectedEndpointId}>
-              {inventoryBusy ? 'Scanning…' : 'Scan host'}
+              {inventoryBusy ? 'Scanning...' : 'Scan host'}
             </PluginToolbarButton>
           </div>
           <PluginCard className="!p-2 space-y-1 bndz-mesh-ephemeral-inventory max-h-[220px] overflow-y-auto bndz-scrollbar">
             {!selectedEndpointId ? (
               <div className="text-[10px] text-gray-500 px-2 py-3">Select a remote host to list instances on that server.</div>
             ) : serverInstances.length === 0 ? (
-              <div className="text-[10px] text-gray-500 px-2 py-3">No instances yet — Create VPS above, or scan after the host is Trusted.</div>
+              <div className="text-[10px] text-gray-500 px-2 py-3">No instances yet -- Create VPS above, or scan after the host is Trusted.</div>
             ) : serverInstances.map(srv => (
               <div key={srv.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] bndz-mesh-ephemeral-inventory-row">
                 <span className={`bndz-mesh-ephemeral-dot ${srv.status === 'Running' ? 'is-trusted' : 'is-pending'}`} />
                 <div className="min-w-0 flex-1">
                   <div className="text-[11px] text-white truncate font-medium">{srv.name}</div>
-                  <div className="text-[9px] text-gray-500 truncate">{srv.type}{srv.ephemeral ? ' · ephemeral' : ' · persistent'} · {srv.status}</div>
+                  <div className="text-[9px] text-gray-500 truncate">{srv.type}{srv.ephemeral ? ' | ephemeral' : ' | persistent'} | {srv.status}</div>
                 </div>
                 {srv.tracked ? (
                   <span className="text-[9px] text-emerald-300/80 shrink-0">In Mesh</span>
@@ -840,7 +840,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
           <PluginEmptyState
             icon="cloud_ui"
             title="No temporary VPS yet"
-            description="Press Create temporary VPS — BNDZ spins a disposable Linux instance on this PC and registers Mesh SSH for browse and Shell Here."
+            description="Press Create temporary VPS -- BNDZ spins a disposable Linux instance on this PC and registers Mesh SSH for browse and Shell Here."
           />
         ) : (
           <div className="grid gap-2 xl:grid-cols-2">
@@ -850,11 +850,11 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                   <div className="min-w-0">
                     <div className="font-semibold text-sm text-white truncate">{inst.notes || inst.instanceName}</div>
                     <div className="text-[10px] text-gray-500 truncate mt-0.5">
-                      {inst.instanceType} · {inst.imageAlias}{inst.ephemeral ? ' · ephemeral' : ''}
+                      {inst.instanceType} | {inst.imageAlias}{inst.ephemeral ? ' | ephemeral' : ''}
                     </div>
                     <div className="text-[10px] text-sky-300/80 mt-1 bndz-mono">
-                      {inst.ipv4 || inst.ipv6 || 'waiting for IP…'}
-                      {inst.meshHostId ? ` · mesh:${inst.meshHostId}` : ''}
+                      {inst.ipv4 || inst.ipv6 || 'waiting for IP...'}
+                      {inst.meshHostId ? ` | mesh:${inst.meshHostId}` : ''}
                       {!inst.ipv4 && !inst.ipv6 && inst.status !== 'Error' ? (
                         <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse align-middle" />
                       ) : null}
@@ -866,7 +866,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
                 <div className="flex flex-wrap gap-1.5">
                   <PluginToolbarButton onClick={() => void browseMesh(inst)} disabled={busy || !inst.meshHostId}>Browse</PluginToolbarButton>
                   <PluginToolbarButton onClick={() => void shellHere(inst)} disabled={busy || !inst.meshHostId}>Shell Here</PluginToolbarButton>
-                  <PluginToolbarButton onClick={() => setInspectId(inst.id)} disabled={busy || inst.endpointId === 'bndz-local'} title={inst.endpointId === 'bndz-local' ? 'Incus inspector is for remote hosts — use Start/Stop/Destroy for local VPS' : undefined}>Manage</PluginToolbarButton>
+                  <PluginToolbarButton onClick={() => setInspectId(inst.id)} disabled={busy || inst.endpointId === 'bndz-local'} title={inst.endpointId === 'bndz-local' ? 'Incus inspector is for remote hosts -- use Start/Stop/Destroy for local VPS' : undefined}>Manage</PluginToolbarButton>
                   {inst.status !== 'Running' && (
                     <PluginToolbarButton onClick={() => void instanceAction(inst.id, 'start')} disabled={busy}>Start</PluginToolbarButton>
                   )}
@@ -982,14 +982,14 @@ function EndpointEditor({
   return (
     <PluginCard className="!p-4 space-y-2 max-h-[85vh] overflow-y-auto bndz-scrollbar">
       <div className="flex items-center justify-between gap-2 mb-1">
-        <h3 className="text-sm font-semibold text-white">Advanced · remote compute host</h3>
+        <h3 className="text-sm font-semibold text-white">Advanced | remote compute host</h3>
         <button type="button" className="text-xs text-gray-400 hover:text-white" onClick={onCancel}>Close</button>
       </div>
       <p className="text-[11px] text-gray-400 leading-relaxed -mt-1">
         Optional. Primary Create VPS uses BNDZ Local on this PC. Use this only for an extra remote Incus lab host.
       </p>
       <p className="text-[11px] text-gray-400 leading-relaxed">
-        Enter SSH to the Linux box that runs the VPS API. BNDZ installs its client certificate and marks the host Trusted — you do not paste a trust token.
+        Enter SSH to the Linux box that runs the VPS API. BNDZ installs its client certificate and marks the host Trusted -- you do not paste a trust token.
       </p>
 
       <PluginFieldLabel>Alias</PluginFieldLabel>
@@ -1011,9 +1011,9 @@ function EndpointEditor({
               }
             }}
           >
-            <option value="">Enter SSH below…</option>
+            <option value="">Enter SSH below...</option>
             {sshHosts.map(h => (
-              <option key={h.id} value={h.id}>{h.alias || h.hostname} · {h.username}@{h.hostname}</option>
+              <option key={h.id} value={h.id}>{h.alias || h.hostname} | {h.username}@{h.hostname}</option>
             ))}
           </select>
         </>
@@ -1066,7 +1066,7 @@ function EndpointEditor({
                 type="password"
                 value={sshPassword}
                 onChange={e => setSshPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="********"
                 autoComplete="off"
               />
             </>
@@ -1086,7 +1086,7 @@ function EndpointEditor({
         onClick={runBootstrap}
       >
         <Icons8Icon id="play" size={14} />
-        {busy ? 'Connecting & trusting…' : 'Connect & trust · auto'}
+        {busy ? 'Connecting & trusting...' : 'Connect & trust | auto'}
       </button>
       <div className="text-[10px] text-gray-500 text-center -mt-1">
         SSH → install BNDZ cert on host → Trusted → Create VPS unlocked

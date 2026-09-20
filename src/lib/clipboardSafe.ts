@@ -1,4 +1,4 @@
-/** Safe clipboard helpers — WebView2 may leave navigator.clipboard undefined. */
+/** Safe clipboard helpers -- WebView2 may leave navigator.clipboard undefined. */
 
 export async function readClipboardText(): Promise<string> {
   try {

@@ -3,7 +3,7 @@ import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 import MediaPlayingIcon from './MediaPlayingIcon';
 
 /**
- * SVG emblems from public/EMBLEMS â€” sized via CSS box, not the SVG's native viewport.
+ * SVG emblems from public/EMBLEMS -- sized via CSS box, not the SVG's native viewport.
  * Media playback ids resolve via the DEV icon map (public/Media/) in toolbarLauncherIcons.
  */
 export type EmblemId =
@@ -89,7 +89,7 @@ type Props = {
   title?: string;
   /** Optional CSS filter / opacity via className; this dims for disabled chrome. */
   disabled?: boolean;
-  /** 0â€“1 seek progress for media-playback-playing (live seek ring). */
+  /** 0-1 seek progress for media-playback-playing (live seek ring). */
   progress?: number;
   /** When true, media-playback-playing uses the live seek ring (audio session). */
   live?: boolean;

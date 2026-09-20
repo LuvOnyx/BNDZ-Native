@@ -167,7 +167,7 @@ export default function FileLineagePanel({ path, onNavigate }: Props) {
       <div className="flex items-center gap-1.5 mb-2">
         <Icons8Icon id="genealogy" size={13} className="opacity-60" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">File Lineage</span>
-        {loading && <span className="text-[10px] text-gray-600 ml-auto animate-pulse">hashing…</span>}
+        {loading && <span className="text-[10px] text-gray-600 ml-auto animate-pulse">hashing...</span>}
 
         {hasAnything && !loading && (
           <div className="ml-auto flex items-center gap-0.5">
@@ -329,7 +329,7 @@ function ContentDagView({ nodes, edges, focusHash, revealPath }: {
         <DagNodeCard node={node} relation="focus" revealPath={revealPath} />
         {nodes.length > 1 && (
           <div className="text-[9px] text-gray-600 mt-2 italic">
-            {nodes.length} content identities recorded • no derivation edges yet
+            {nodes.length} content identities recorded * no derivation edges yet
           </div>
         )}
       </div>
@@ -437,7 +437,7 @@ function DagEdgeConnector({ op, utc }: { op: string; utc: string }) {
             className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider"
             style={{ color, background: `${color}15` }}
           >
-            {op}{utc ? ` · ${relativeTime(utc)}` : ''}
+            {op}{utc ? ` | ${relativeTime(utc)}` : ''}
           </div>
         )}
         <div className="w-[1px] h-2" style={{ background: color, opacity: 0.4 }} />

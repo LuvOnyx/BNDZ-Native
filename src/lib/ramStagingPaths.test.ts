@@ -8,7 +8,7 @@ describe('RAM staging drop paths', () => {
     expect(canonicalDropPath('/bndz/ram/zone-1/sub')).toBe('/bndz/ram/zone-1/sub');
   });
 
-  it('repairs mangled bndz\\ram\\… paths', () => {
+  it('repairs mangled bndz\\ram\\... paths', () => {
     expect(canonicalDropPath('bndz\\ram\\zone-1')).toBe('/bndz/ram/zone-1');
     expect(canonicalDropPath('bndz/ram/zone-1/a')).toBe('/bndz/ram/zone-1/a');
   });

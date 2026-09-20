@@ -56,7 +56,7 @@ export default function TrialExpiredGate({
     if (externalRegisterOpen) setPhase('gate');
   }, [externalRegisterOpen]);
 
-  // Still loading — render app without gate flash.
+  // Still loading -- render app without gate flash.
   if (!status || status.statusPending) {
     return <>{children}</>;
   }
@@ -92,7 +92,7 @@ export default function TrialExpiredGate({
                 Activate with license key
               </button>
               <p className="text-[10px] bndz-native-dialog-muted text-center leading-relaxed">
-                Help → Register BNDZ · Purchase at your vendor portal
+                Help → Register BNDZ | Purchase at your vendor portal
               </p>
             </div>
           }

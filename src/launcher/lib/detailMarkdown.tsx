@@ -1,4 +1,4 @@
-/** SuperCmd detail-markdown port — lightweight Raycast-style renderer for AI responses */
+/** SuperCmd detail-markdown port -- lightweight Raycast-style renderer for AI responses */
 import React, { useState } from 'react';
 
 type ResolveImageSrc = (src: string) => string;
@@ -144,7 +144,7 @@ export function renderSimpleMarkdown(md: string, resolveImageSrc: ResolveImageSr
     if (/^[-*]\s+/.test(line)) {
       elements.push(
         <div key={elements.length} className="flex items-start gap-2 text-sm ml-2">
-          <span className="text-[var(--text-subtle)] mt-0.5">•</span>
+          <span className="text-[var(--text-subtle)] mt-0.5">*</span>
           <span>{renderInlineMarkdown(line.replace(/^[-*]\s+/, ''), resolveImageSrc)}</span>
         </div>,
       );

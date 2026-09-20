@@ -19,13 +19,13 @@ export const IMAGE_EXTENSIONS = new Set([
 ]);
 
 /**
- * 3D mesh / scene formats — previewed via WebGL (GLB/GLTF primary).
+ * 3D mesh / scene formats -- previewed via WebGL (GLB/GLTF primary).
  * FiveM/RAGE: only drawable/collision mesh containers (host CodeWalker → OBJ).
- * Do NOT list .ytd/.ycd/.ymap/.ytyp here — those are textures/clips/map meta, not orbit meshes.
+ * Do NOT list .ytd/.ycd/.ymap/.ytyp here -- those are textures/clips/map meta, not orbit meshes.
  */
 export const MODEL_EXTENSIONS = new Set([
   'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds', 'blend',
-  // Rockstar RAGE / GTA V · FiveM loose drawables (host converts → OBJ for WebGL)
+  // Rockstar RAGE / GTA V | FiveM loose drawables (host converts → OBJ for WebGL)
   'ydr', 'ybn', 'ydd', 'yft',
 ]);
 
@@ -36,8 +36,8 @@ export const GPU_NATIVE_MODEL_EXTENSIONS = new Set([
 
 /**
  * FiveM / RAGE mesh containers that need host-side CodeWalker extraction before WebGL.
- * Supported: .ydr .yft .ydd .ybn — there is no standard .yrs type.
- * Assimp / extra Three loaders are NOT used for these — keeps the path lean.
+ * Supported: .ydr .yft .ydd .ybn -- there is no standard .yrs type.
+ * Assimp / extra Three loaders are NOT used for these -- keeps the path lean.
  */
 export const RAGE_CONVERT_MODEL_EXTENSIONS = new Set([
   'ydr', 'ybn', 'ydd', 'yft',
@@ -55,7 +55,7 @@ export function isRageConvertModelExt(ext: string): boolean {
   return RAGE_CONVERT_MODEL_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
 }
 
-/** Executables / installers — ShellExecute only; never Quick Look or heavy metadata. */
+/** Executables / installers -- ShellExecute only; never Quick Look or heavy metadata. */
 export const SHELL_ACTIVATE_EXTENSIONS = new Set([
   'exe', 'msi', 'msp', 'com', 'scr', 'bat', 'cmd', 'ps1', 'cpl', 'msc',
   'application', 'gadget', 'hta', 'dll', 'sys', 'drv', 'ocx',

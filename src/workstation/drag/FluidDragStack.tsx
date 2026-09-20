@@ -15,11 +15,11 @@ import {
 import { isOleDragHandoffActive, subscribeOleDragHandoff } from '../../lib/fileDragUiCleanup';
 
 const MAX_VISIBLE = 10;
-/** Horizontal fan span per card — wide enough to read as a multi-file stack. */
+/** Horizontal fan span per card -- wide enough to read as a multi-file stack. */
 const FAN_SPREAD = 58;
 const CURSOR_OFFSET_X = 14;
 const CURSOR_OFFSET_Y = 10;
-/** Cursor-locked follow — lag felt "clunky" at lower values. */
+/** Cursor-locked follow -- lag felt "clunky" at lower values. */
 const FOLLOW = 1;
 const TILT_FOLLOW = 0.55;
 
@@ -42,7 +42,7 @@ function FluidDragIcon({
   size: number;
   className?: string;
 }) {
-  // Never mount Icons8 and native img as a hard swap — keep fallback under a fading-in native.
+  // Never mount Icons8 and native img as a hard swap -- keep fallback under a fading-in native.
   return (
     <span className={`bndz-fluid-drag-icon-slot${thumb ? ' has-thumb' : ''}${className ? ` ${className}` : ''}`}>
       <span className="bndz-fluid-drag-icon-fallback" aria-hidden>
@@ -74,14 +74,14 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
   const entranceRef = useRef(0);
   const rafRef = useRef(0);
   const runningRef = useRef(false);
-  // Cached DOM refs — populated after each render to avoid querySelectorAll in the RAF loop.
+  // Cached DOM refs -- populated after each render to avoid querySelectorAll in the RAF loop.
   const leadElRef = useRef<HTMLElement | null>(null);
   const badgeElRef = useRef<HTMLElement | null>(null);
   const pillElRef = useRef<HTMLElement | null>(null);
   const fanCardsRef = useRef<HTMLElement[]>([]);
 
   const isMulti = meta.count > 1;
-  /** Multi: every visible item is a fan card — no separate lead chip covering the span. */
+  /** Multi: every visible item is a fan card -- no separate lead chip covering the span. */
   const fanItems = isMulti ? items : [];
   const leadItem = items[0];
 
@@ -106,7 +106,7 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
     };
     entranceRef.current = 0;
     let active = true;
-    // Merge cache hits — never wipe to empty (that caused Icons8 flash).
+    // Merge cache hits -- never wipe to empty (that caused Icons8 flash).
     const seeded = peekFluidDragThumbs(items);
     setThumbs(prev => {
       const next: Record<string, string> = { ...seeded };
@@ -160,7 +160,7 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
       const mountScale = 0.9 + entrance * 0.1;
       smooth.scale = lerp(smooth.scale, mountScale - snapTension * 0.06, 0.35);
 
-      // Use cached DOM refs — populated by useLayoutEffect, no querySelectorAll per frame.
+      // Use cached DOM refs -- populated by useLayoutEffect, no querySelectorAll per frame.
       const lead = leadElRef.current;
       const badge = badgeElRef.current;
       const pill = pillElRef.current;
@@ -174,7 +174,7 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
       if (cards.length) {
         const n = cards.length;
         cards.forEach((el, i) => {
-          // Arc fan centered on cursor — front card (i=0) sits nearest the pointer
+          // Arc fan centered on cursor -- front card (i=0) sits nearest the pointer
           const t = n <= 1 ? 0 : i / (n - 1) - 0.5;
           const fan = t * FAN_SPREAD * (n + 1) * 0.55 * entrance;
           const collapse = snapTension;
@@ -266,7 +266,7 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
               <div className="bndz-fluid-drag-lead-title">{meta.label}</div>
               <div className="bndz-fluid-drag-lead-sub">
                 {meta.copy ? 'Copy' : 'Move'}
-                {meta.dropHint ? ` · ${meta.dropHint}` : ''}
+                {meta.dropHint ? ` | ${meta.dropHint}` : ''}
               </div>
             </div>
           </div>

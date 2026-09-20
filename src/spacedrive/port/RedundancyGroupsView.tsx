@@ -1,5 +1,5 @@
 /**
- * Duplicate groups — dual CAS thumbs + keep-rule delete (newest / largest / first path).
+ * Duplicate groups -- dual CAS thumbs + keep-rule delete (newest / largest / first path).
  */
 import React, { useMemo, useState } from 'react';
 import { Icons8Icon } from '../../components/Icons8Icon';
@@ -41,7 +41,7 @@ function pickKeepIndex(paths: string[], rule: KeepRule, groupSize: number, modif
     }
     return best;
   }
-  // newest — real mtime from host when available
+  // newest -- real mtime from host when available
   if (modified && modified.length === paths.length) {
     let best = 0;
     for (let i = 1; i < modified.length; i++) {

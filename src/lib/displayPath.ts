@@ -16,7 +16,7 @@ export function formatDriveLetter(pathOrName: string): string {
 }
 
 /**
- * Volume label for UI — strips a trailing `(C:)` / `(C:\)` so callers can append
+ * Volume label for UI -- strips a trailing `(C:)` / `(C:\)` so callers can append
  * the letter once without `Windows (C:) (C:)`.
  */
 export function formatDriveVolumeLabel(label: string | null | undefined, letterHint?: string): string {
@@ -31,7 +31,7 @@ export function formatDriveVolumeLabel(label: string | null | undefined, letterH
   return cleaned;
 }
 
-/** Single display string: `Local Disk (C:)` — never doubles the letter suffix. */
+/** Single display string: `Local Disk (C:)` -- never doubles the letter suffix. */
 export function formatDriveDisplayName(
   label: string | null | undefined,
   pathOrName: string,
@@ -45,7 +45,7 @@ export function formatDriveDisplayName(
   return `${base} (${letter})`;
 }
 
-/** Drive root label for lists / size map — always `C:\`, never `/C:`. */
+/** Drive root label for lists / size map -- always `C:\`, never `/C:`. */
 export function formatDriveRootLabel(pathOrName: string): string {
   const letter = formatDriveLetter(pathOrName);
   if (/^[A-Za-z]:$/.test(letter)) return `${letter}\\`;
@@ -53,7 +53,7 @@ export function formatDriveRootLabel(pathOrName: string): string {
 }
 
 /**
- * Human-facing path for any UI surface — never show raw `shell:Downloads` /
+ * Human-facing path for any UI surface -- never show raw `shell:Downloads` /
  * `shell:ControlPanel`. Use for Location rows, Spatial cards, Automation watchers, etc.
  */
 export function formatUiPath(path: string | null | undefined): string {
@@ -66,7 +66,7 @@ export function formatUiPath(path: string | null | undefined): string {
   return formatAddressBarPath(trimmed);
 }
 
-/** Leaf / pin title from a path — friendly for shell known folders. */
+/** Leaf / pin title from a path -- friendly for shell known folders. */
 export function formatPathLeafName(path: string | null | undefined): string {
   if (!path) return '';
   if (isShellDisplayPath(path) || /^shell:/i.test(path.trim())) {
@@ -77,7 +77,7 @@ export function formatPathLeafName(path: string | null | undefined): string {
   return leaf || win || '';
 }
 
-/** Split a path for list/plugin rows — never leaves `shell:` on the leaf. */
+/** Split a path for list/plugin rows -- never leaves `shell:` on the leaf. */
 export function splitUiPath(path: string | null | undefined): { leaf: string; parent: string; full: string } {
   const full = formatUiPath(path) || (path || '').trim();
   const normalized = full.replace(/[/\\]+$/, '');
@@ -94,7 +94,7 @@ export function isRawShellDisplayName(name: string | null | undefined): boolean 
   return /^shell:/i.test(n) || /^\/shell:/i.test(n);
 }
 
-/** Windows-style path for properties / copy — never `\\C:` for drive roots */
+/** Windows-style path for properties / copy -- never `\\C:` for drive roots */
 export function formatPropertiesPath(path: string | null | undefined): string {
   if (!path) return '';
   // Virtual shell locations: show Explorer labels, not shell:Tokens.
@@ -236,7 +236,7 @@ export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<st
   return segments.length ? segments : [{ label: getPaneTabLabel(p), path: p }];
 }
 
-/** List / tree display name — strips paths for recycle bin items. */
+/** List / tree display name -- strips paths for recycle bin items. */
 export function getEntityDisplayName(
   entity: { name?: string; path?: string; extension?: string; type?: string; isRecycleItem?: boolean },
   config: { showFileExtensions?: boolean; hideShortcutExtensions?: boolean },
@@ -306,7 +306,7 @@ export function parseUserPathToPane(input: string): string | null {
   if (catalogPath) return catalogPath;
 
   let normalized = raw.replace(/\//g, '\\');
-  // Leave %VAR% for async expand — caller should expand first when needed.
+  // Leave %VAR% for async expand -- caller should expand first when needed.
   if (/%[A-Za-z][A-Za-z0-9_()]*%/i.test(normalized)) {
     return null;
   }
@@ -347,7 +347,7 @@ export async function resolveUserPathToPane(
     }
   }
   let parsed = parseUserPathToPane(raw);
-  // Friendly names like "Desktop" parse to /shell:Desktop — resolve to the real FS path.
+  // Friendly names like "Desktop" parse to /shell:Desktop -- resolve to the real FS path.
   if (parsed && /^\/shell:/i.test(parsed)) {
     try {
       const expanded = await expand(parsed);

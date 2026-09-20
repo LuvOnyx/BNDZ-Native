@@ -1,4 +1,4 @@
-/** Helpers for Remote file ops — keep /mesh pane paths intact (never toWindowsPath). */
+/** Helpers for Remote file ops -- keep /mesh pane paths intact (never toWindowsPath). */
 
 import { isMeshPath, normalizeMeshPath, parseMeshPath, buildMeshPath } from './meshPaths';
 import { normalizePanePath } from './pathUtils';

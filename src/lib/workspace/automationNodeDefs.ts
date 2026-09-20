@@ -83,7 +83,7 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
   },
   onStartup: {
     label: 'On BNDZ startup', color: '#38bdf8', icon: 'zap_ui', category: 'trigger',
-    desc: 'Run once when BNDZ launches (armed pipelines only — restored at host boot)',
+    desc: 'Run once when BNDZ launches (armed pipelines only -- restored at host boot)',
     fields: [
       { key: 'enabled', label: 'Enabled', placeholder: 'true', type: 'boolean' },
     ],

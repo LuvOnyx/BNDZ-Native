@@ -29,7 +29,7 @@ export const RealityCheckPluginDef = {
   id: 'reality-check',
   name: 'Reality Check',
   icon: 'data_warning',
-  description: 'Compare on-disk assets against project and DAW session file references — missing files glow in the list.',
+  description: 'Compare on-disk assets against project and DAW session file references -- missing files glow in the list.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -110,7 +110,7 @@ export default function RealityCheckPlugin({
       pushToast({
         kind: r.missingCount ? 'warning' : 'success',
         title: 'Reality Check complete',
-        message: `${r.missingCount ?? 0} missing · ${r.okCount ?? 0} ok across ${r.projectFileCount ?? 0} project files`,
+        message: `${r.missingCount ?? 0} missing | ${r.okCount ?? 0} ok across ${r.projectFileCount ?? 0} project files`,
       });
     } catch (e) {
       pushToast({ kind: 'error', title: 'Reality Check failed', message: String(e) });
@@ -154,7 +154,7 @@ export default function RealityCheckPlugin({
           <div className="text-[12px] font-medium truncate" title={formatUiPath(ref.resolvedPath)}>{formatPathLeafName(ref.resolvedPath) || leafName(ref.resolvedPath)}</div>
           <div className="text-[10px] text-gray-500 truncate" title={formatUiPath(ref.resolvedPath)}>{formatUiPath(ref.resolvedPath)}</div>
           <div className="text-[10px] text-gray-600 mt-0.5">
-            via {ref.source} · {leafName(ref.projectFile)}
+            via {ref.source} | {leafName(ref.projectFile)}
           </div>
           {tone === 'missing' && (
             <button

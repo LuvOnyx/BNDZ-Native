@@ -14,7 +14,7 @@ export type CustomColumnDef = {
 const PHOTO_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico', 'cur', 'tif', 'tiff', 'heic', 'heif', 'raw', 'cr2', 'nef', 'arw', 'dng']);
 const MEDIA_EXTS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma', 'mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'wmv']);
 
-/** Metadata columns — a few high-value ones on by default; rest opt-in via Choose Columns. */
+/** Metadata columns -- a few high-value ones on by default; rest opt-in via Choose Columns. */
 export const DEFAULT_CUSTOM_COLUMNS: CustomColumnDef[] = [
   { id: 'dimensions', label: 'Dimensions', propertyKey: 'Dimensions', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: true, widthPx: 110 },
   { id: 'aspect_ratio', label: 'Aspect Ratio', propertyKey: 'Aspect Ratio', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: false, widthPx: 90 },

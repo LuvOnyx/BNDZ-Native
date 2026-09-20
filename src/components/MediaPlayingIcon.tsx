@@ -4,14 +4,14 @@ import { audioPlaybackSession } from '../lib/audioPlaybackSession';
 type Props = {
   size?: number;
   className?: string;
-  /** 0–1 progress; when omitted, follows the shared audio session. */
+  /** 0-1 progress; when omitted, follows the shared audio session. */
   progress?: number;
   /** When true, center shows pause bars; ring still tracks seek position. */
   paused?: boolean;
 };
 
 /**
- * Round play control with live seek ring — cyan arc grows with currentTime/duration.
+ * Round play control with live seek ring -- cyan arc grows with currentTime/duration.
  */
 export default function MediaPlayingIcon({ size = 16, className = '', progress, paused = false }: Props) {
   const [live, setLive] = useState(0);

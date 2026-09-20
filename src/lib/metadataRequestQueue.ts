@@ -1,5 +1,5 @@
 /**
- * Serializes GET_EXTENDED_METADATA IPC — backend allows only 3 concurrent metadata slots.
+ * Serializes GET_EXTENDED_METADATA IPC -- backend allows only 3 concurrent metadata slots.
  * Unbounded parallel calls from custom columns / tooltips caused EXTENDED_METADATA_RESULT timeouts.
  */
 import { isIconQueueScrolling } from './iconRequestQueue';
@@ -44,7 +44,7 @@ export function enqueueMetadataRequest<T>(fn: () => Promise<T>, priority = 400):
     };
 
     if (pending.length >= MAX_PENDING) {
-      // Drop lowest-priority waiter — column cells will retry on next visibility pass.
+      // Drop lowest-priority waiter -- column cells will retry on next visibility pass.
       pending.sort((a, b) => a.priority - b.priority);
       pending.shift();
     }

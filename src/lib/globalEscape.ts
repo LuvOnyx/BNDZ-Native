@@ -1,5 +1,5 @@
 /**
- * Global Escape stack — dismiss overlays in priority order (capture phase).
+ * Global Escape stack -- dismiss overlays in priority order (capture phase).
  * Higher priority layers dismiss first (modals → context menus → filters → back).
  */
 

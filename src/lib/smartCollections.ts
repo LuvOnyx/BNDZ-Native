@@ -1,4 +1,4 @@
-/** Rule-based smart collections — LocalAppData-style JSON in localStorage for Launch. */
+/** Rule-based smart collections -- LocalAppData-style JSON in localStorage for Launch. */
 
 export type SmartCollection = {
   id: string;

@@ -17,7 +17,7 @@ type Props = {
   ghostRef: React.RefObject<HTMLDivElement | null>;
 };
 
-/** Portaled drag ghost — immune to preview panel overflow clipping. */
+/** Portaled drag ghost -- immune to preview panel overflow clipping. */
 export default function DragGhostPortal({ ghost, ghostRef }: Props) {
   return createPortal(
     <div
@@ -44,8 +44,8 @@ export default function DragGhostPortal({ ghost, ghostRef }: Props) {
             <div className="text-[11px] font-semibold text-white/95 truncate max-w-[200px]">{ghost.label}</div>
             <div className="text-[9px] text-white/45 uppercase tracking-wide">
               {ghost.preparing
-                ? 'Preparing extract…'
-                : `${ghost.copy ? 'Copy' : 'Extract'}${ghost.count > 1 ? ` · ${ghost.count} items` : ''}`}
+                ? 'Preparing extract...'
+                : `${ghost.copy ? 'Copy' : 'Extract'}${ghost.count > 1 ? ` | ${ghost.count} items` : ''}`}
             </div>
             {ghost.dropHint ? (
               <div className="text-[9px] text-white/35 normal-case tracking-normal mt-0.5">{ghost.dropHint}</div>

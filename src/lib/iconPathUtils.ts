@@ -5,7 +5,7 @@ export function isIconifyLibraryPath(p: string): boolean {
   return !!p && p.startsWith(ICONIFY_PATH_PREFIX);
 }
 
-/** Resolve icon library path — always returns absolute Windows path when possible */
+/** Resolve icon library path -- always returns absolute Windows path when possible */
 export function resolveIconFilePath(icoStr: string, libraryFolder?: string): string {
   if (!icoStr) return '';
   if (isIconifyLibraryPath(icoStr)) return icoStr;
@@ -47,6 +47,6 @@ export async function prepareIconForApply(iconPath: string): Promise<string | nu
     return materialized ? materialized.replace(/\//g, '\\') : null;
   }
 
-  // Backend SET_SYSTEM_ICON converts raster images — avoid a separate CONVERT_TO_ICO round-trip
+  // Backend SET_SYSTEM_ICON converts raster images -- avoid a separate CONVERT_TO_ICO round-trip
   return iconPath.replace(/\//g, '\\');
 }

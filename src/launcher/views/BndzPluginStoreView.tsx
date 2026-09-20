@@ -9,7 +9,7 @@ type Props = {
   onRunKeyword?: (keyword: string) => void;
 };
 
-/** Dedicated Raycast-style Plugin Store hub — browse installed Flow plugins and open the store. */
+/** Dedicated Raycast-style Plugin Store hub -- browse installed Flow plugins and open the store. */
 export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
   const [plugins, setPlugins] = useState<PluginRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +74,7 @@ export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             onKeyDown={handleKeyDown}
-            placeholder="Search installed plugins…"
+            placeholder="Search installed plugins..."
           />
         </div>
         <button type="button" className="bndz-icon-btn" title="Refresh" onClick={() => void load()} disabled={loading}>
@@ -92,7 +92,7 @@ export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
       <div className="flex-1 grid grid-cols-[2fr_3fr] min-h-0">
         <div className="border-r border-[var(--footer-border)] overflow-y-auto custom-scrollbar">
           {loading && filtered.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[var(--text-muted)] text-[12px]">Loading plugins…</div>
+            <div className="px-4 py-8 text-center text-[var(--text-muted)] text-[12px]">Loading plugins...</div>
           ) : filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-[var(--text-muted)] text-[12px]">
               {query.trim() ? 'No plugins match your search.' : 'No plugins installed yet.'}
@@ -164,7 +164,7 @@ export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
           )}
           <div className="mt-auto bndz-launcher-footer -mx-4 px-4 py-2.5 flex justify-between items-center">
             <span className="text-[11px] text-[var(--text-subtle)]">{filtered.length} installed</span>
-            <span className="text-[10px] text-[var(--text-subtle)]">↑↓ navigate · Enter run · Esc back</span>
+            <span className="text-[10px] text-[var(--text-subtle)]">↑↓ navigate | Enter run | Esc back</span>
           </div>
         </div>
       </div>

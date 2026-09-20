@@ -27,7 +27,7 @@ export type ConflictDetails = {
   sourceModifiedUtc?: number;
   destSize?: number;
   destModifiedUtc?: number;
-  /** Folder-vs-folder collision (E4.2) — titles/copy say folder, not file. */
+  /** Folder-vs-folder collision (E4.2) -- titles/copy say folder, not file. */
   isFolder?: boolean;
 };
 
@@ -60,7 +60,7 @@ type ModalContextValue = {
 const ModalContext = createContext<ModalContextValue | null>(null);
 
 function formatBytes(bytes: number): string {
-  if (!bytes || bytes === 0) return '—';
+  if (!bytes || bytes === 0) return '--';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -71,7 +71,7 @@ function formatModDate(utcSec: number | undefined): string {
   if (!utcSec) return '';
   const d = new Date(utcSec * 1000);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    + ' · '
+    + ' | '
     + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -198,8 +198,8 @@ function FileConflictModal({
       title={config.title}
       subtitle={
         c.isFolder
-          ? 'A folder with this name already exists — choose how to proceed.'
-          : 'A file with this name already exists — choose how to proceed.'
+          ? 'A folder with this name already exists -- choose how to proceed.'
+          : 'A file with this name already exists -- choose how to proceed.'
       }
       tone="conflict"
       variant="sheet"
@@ -217,8 +217,8 @@ function FileConflictModal({
           <BndzPlaque tone="warn" size="md" className="bndz-plaque--hex-well" animate={false} />
           <p className="text-[11px] text-gray-400 leading-relaxed m-0">
             {c.isFolder
-              ? 'Same folder name on disk — compare Incoming vs Existing, then Replace, Keep both, or Skip.'
-              : 'Same name on disk — compare Incoming vs Existing, then Replace, Keep both, or Skip.'}
+              ? 'Same folder name on disk -- compare Incoming vs Existing, then Replace, Keep both, or Skip.'
+              : 'Same name on disk -- compare Incoming vs Existing, then Replace, Keep both, or Skip.'}
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -274,7 +274,7 @@ function ConfirmModal({
     if (isPrimary && neverAgain && config.neverShowAgain) {
       try { config.neverShowAgain.onConfirm(); } catch { /* noop */ }
     }
-    // Run the button action first — it resolves the confirm promise (true/false).
+    // Run the button action first -- it resolves the confirm promise (true/false).
     // handleClose always resolves false; never call it from primary/secondary buttons.
     try { void action.action(); } catch { /* noop */ }
     onActionComplete();

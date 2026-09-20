@@ -18,7 +18,7 @@ export function invalidateIndexStatusCache(): void {
   cachedAt = 0;
 }
 
-/** Coalesced index status — one IPC round-trip serves Hub, settings, and FM chrome. */
+/** Coalesced index status -- one IPC round-trip serves Hub, settings, and FM chrome. */
 export async function getIndexStatusCached(force = false): Promise<IndexStatus> {
   if (!IPC.isNative) {
     return { fileCount: 0, folderCount: 0, locations: [] };

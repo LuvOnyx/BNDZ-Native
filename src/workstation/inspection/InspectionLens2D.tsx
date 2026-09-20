@@ -5,14 +5,14 @@ type Props = {
   mode: InspectionShaderMode;
   stageRef: React.RefObject<HTMLElement | null>;
   imgRef: React.RefObject<HTMLImageElement | null>;
-  /** Live pan/zoom scale — so zoom does not cause unnecessary re-renders. */
+  /** Live pan/zoom scale -- so zoom does not cause unnecessary re-renders. */
   displayScale: number;
 };
 
 const LOUPE_PX = 176;
 
 /**
- * CSS magnifier — no canvas (bndz-stream:// never taints).
+ * CSS magnifier -- no canvas (bndz-stream:// never taints).
  * pointer-events: none so pan/zoom on the stage keep working.
  */
 export default function InspectionLens2D({

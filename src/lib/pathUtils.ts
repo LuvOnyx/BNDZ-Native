@@ -15,7 +15,7 @@ export function normalizePanePath(path: string | null | undefined): string {
   if (p.startsWith('drive-')) p = '/' + p.slice(6);
   if (/^[A-Za-z]:/.test(p) && !p.startsWith('/')) p = '/' + p;
   if (/^\/[A-Za-z]:$/.test(p)) return p;
-  // Network root (`//`) and UNC paths (`//server/share`) — but `//C:` is a drive root, not UNC
+  // Network root (`//`) and UNC paths (`//server/share`) -- but `//C:` is a drive root, not UNC
   if (/^\/\/[A-Za-z]:/.test(p)) return '/' + p.slice(2);
   if (p.startsWith('//')) return '/' + p.replace(/\/+/g, '/');
   return p.replace(/\/+/g, '/');
@@ -41,7 +41,7 @@ export function joinPanePathForFs(panePath: string, name: string): string {
   return toWindowsPath(`${base}/${name}`);
 }
 
-/** Stream/file URI junk — not literal % in a real Windows path segment (e.g. folder `file%3A`). */
+/** Stream/file URI junk -- not literal % in a real Windows path segment (e.g. folder `file%3A`). */
 export function isUriJunkPath(path: string | null | undefined): boolean {
   if (!path) return false;
   const raw = path.trim();
@@ -65,7 +65,7 @@ function decodeBndzStreamPath(url: string): string {
 export function toWindowsPath(path: string | null | undefined): string {
   if (!path) return '';
   let p = path.trim();
-  // Never whole-path decodeURIComponent — breaks real folders named file%3A on disk.
+  // Never whole-path decodeURIComponent -- breaks real folders named file%3A on disk.
   if (/^bndz-stream:/i.test(p)) {
     p = decodeBndzStreamPath(p);
   } else if (/^file:/i.test(p)) {
@@ -76,7 +76,7 @@ export function toWindowsPath(path: string | null | undefined): string {
   }
   // UNC / network paths: preserve the leading double separator
   const slashed = p.replace(/\\/g, '/');
-  // Mis-parsed drive root (`//C:`) — not a UNC path
+  // Mis-parsed drive root (`//C:`) -- not a UNC path
   if (/^\/\/[A-Za-z]:/.test(slashed)) {
     const drive = slashed.slice(2);
     return drive.endsWith('/') || drive.endsWith('\\') ? drive.replace(/\//g, '\\') : drive.replace(/\//g, '\\') + '\\';
@@ -110,7 +110,7 @@ export function isValidShellTarget(path: string | null | undefined): boolean {
   return win.length > 2;
 }
 
-/** Paths safe for native CF_HDROP outbound drag — rejects file: URI junk and virtual pane paths. */
+/** Paths safe for native CF_HDROP outbound drag -- rejects file: URI junk and virtual pane paths. */
 export function isValidOutboundDragPath(path: string | null | undefined): boolean {
   if (!path) return false;
   const raw = path.trim();
@@ -120,7 +120,7 @@ export function isValidOutboundDragPath(path: string | null | undefined): boolea
   const pane = normalizePanePath(path);
   if (pane.toLowerCase().startsWith('/bndz/')) return false;
   const leaf = win.split(/[/\\]/).pop() ?? '';
-  // Reject decoded URI junk leaf (file:) — allow literal folder names like file%3A.
+  // Reject decoded URI junk leaf (file:) -- allow literal folder names like file%3A.
   if (!leaf || leaf === 'file:' || (leaf.includes(':') && !/^[A-Za-z]:$/.test(leaf))) return false;
   if (!/^[A-Za-z]:\\/.test(win) && !win.startsWith('\\\\')) return false;
   return true;
@@ -137,13 +137,13 @@ export function encodeLocalStreamPath(winPath: string): string {
 
 /**
  * Build URL for local file streaming in WebView2.
- * Uses custom scheme `bndz-stream://` — WebResourceRequested does not fire under
+ * Uses custom scheme `bndz-stream://` -- WebResourceRequested does not fire under
  * SetVirtualHostNameToFolderMapping hosts like http://bndz.local/...
  */
 export function toVirtualStreamUrl(path: string | null | undefined): string {
   const win = toWindowsPath(path)?.split('#')[0]?.split('?')[0];
   if (!win) return '';
-  // Never stream directories — custom scheme 404s and poisons preview.
+  // Never stream directories -- custom scheme 404s and poisons preview.
   if (win.endsWith('\\') || win.endsWith('/')) return '';
   const encoded = encodeLocalStreamPath(win);
   const isNative =
@@ -201,7 +201,7 @@ export function wslRootPanePath(): string {
   return WSL_ROOT_PANE;
 }
 
-/** Safe locale date formatting — avoids "Invalid Date" in preview panel */
+/** Safe locale date formatting -- avoids "Invalid Date" in preview panel */
 export function formatFsDate(value: string | number | Date | null | undefined): string {
   if (!value) return '--';
   const d = value instanceof Date ? value : new Date(value);

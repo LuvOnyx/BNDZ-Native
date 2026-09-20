@@ -12,7 +12,7 @@ export type NativeDialogButton = {
 export type BndzNativeDialogProps = {
   open: boolean;
   title: string;
-  /** Optional lead line under title (alert) or sheet intro — omit generic app name subtitles */
+  /** Optional lead line under title (alert) or sheet intro -- omit generic app name subtitles */
   subtitle?: string;
   message?: React.ReactNode;
   tone?: NativeDialogTone;

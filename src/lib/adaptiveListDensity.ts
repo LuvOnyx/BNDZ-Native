@@ -1,5 +1,5 @@
 /**
- * Adaptive list density — focus boost only.
+ * Adaptive list density -- focus boost only.
  * Mid-scroll row-height densify was removed: changing --bndz-list-density while
  * scrolling reflows virtual rows against a fixed estimateSize and flashes.
  */
@@ -42,7 +42,7 @@ export function initAdaptiveListDensity(enabled: boolean, persistValue?: number 
   }
 }
 
-/** Kept for call-site compatibility — no layout mutation during scroll. */
+/** Kept for call-site compatibility -- no layout mutation during scroll. */
 export function onAdaptiveListScroll(_scrollTop: number) {
   // Intentionally empty: scroll velocity must not resize rows.
 }

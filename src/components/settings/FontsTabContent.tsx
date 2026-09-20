@@ -88,7 +88,7 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
     <div className="p-1">
       <SettingsTabHeader
         title="Fonts"
-        description="BNDZ font pack for List, Tree, Tabs, and the top menu bar — plus preview, plugins, and status. Pick a face per region or inherit the global UI font."
+        description="BNDZ font pack for List, Tree, Tabs, and the top menu bar -- plus preview, plugins, and status. Pick a face per region or inherit the global UI font."
       />
 
       <SettingsSection title="Global UI">
@@ -304,31 +304,31 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Navigation tree</div>
             <div style={{ fontFamily: (localConfig.treeFontFamily as string) || baseFamily, fontSize: (localConfig.treeFontSize as number) || 12 }}>
-              Documents · Downloads · Desktop
+              Documents | Downloads | Desktop
             </div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">File list</div>
             <div style={{ fontFamily: (localConfig.listFontFamily as string) || baseFamily, fontSize: (localConfig.listFontSize as number) || 12 }}>
-              report-2026.pdf · vacation-photos · project-notes.md
+              report-2026.pdf | vacation-photos | project-notes.md
             </div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">List tabs</div>
             <div style={{ fontFamily: (localConfig.tabsFontFamily as string) || baseFamily, fontSize: (localConfig.tabsFontSize as number) || (localConfig.tabFontSize as number) || 11 }}>
-              Desktop · Downloads · Pictures
+              Desktop | Downloads | Pictures
             </div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Top menu bar</div>
             <div style={{ fontFamily: (localConfig.chromeFontFamily as string) || baseFamily, fontSize: (localConfig.chromeFontSize as number) || baseSize }}>
-              File · Edit · View · Go · Tools
+              File | Edit | View | Go | Tools
             </div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Preview panel</div>
             <div style={{ fontFamily: (localConfig.previewFontFamily as string) || baseFamily, fontSize: (localConfig.previewFontSize as number) || 12 }}>
-              Modified · 2.4 MB · Read-only
+              Modified | 2.4 MB | Read-only
             </div>
           </div>
           <div className="bndz-mono text-gray-400" style={{ fontFamily: monoFamily, fontSize: 11 }}>
@@ -352,7 +352,7 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
             onChange={e => patch({ interfaceScale: parseInt(e.target.value, 10) || 100 })}
           />
           <p className="text-[10px] text-gray-500 mt-1">
-            All UI scaling lives here — Ctrl+wheel zoom is disabled in the file manager.
+            All UI scaling lives here -- Ctrl+wheel zoom is disabled in the file manager.
           </p>
         </div>
         <Checkbox

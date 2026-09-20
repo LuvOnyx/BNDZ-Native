@@ -1,4 +1,4 @@
-/** User-defined commands (XYplorer UDC lite) — palette + :: address bar */
+/** User-defined commands (XYplorer UDC lite) -- palette + :: address bar */
 
 import type { PaletteAction } from '../components/CommandPalette';
 import type { QuickScriptHandlers } from './addressQuickScripts';
@@ -53,7 +53,7 @@ export function userCommandsToPalette(
   return commands.map(cmd => ({
     id: `udc-${cmd.id}`,
     label: cmd.label,
-    hint: cmd.hint || `User command · ${cmd.action}`,
+    hint: cmd.hint || `User command | ${cmd.action}`,
     icon: 'zap_ui',
     keywords: cmd.keywords,
     onRun: () => {

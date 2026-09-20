@@ -2815,7 +2815,7 @@ html.theme-light .bndz-breadcrumb-slot .text-gray-500 {
   color: var(--chrome-dark-muted, rgba(255, 255, 255, 0.55)) !important;
 }
 
-/* â”€â”€ Pink-mark audit: surface-aware ink (dark surface â†’ white, light â†’ black) â”€â”€ */
+/* â”€â”€ Pink-mark audit: surface-aware ink (dark surface -> white, light -> black) â”€â”€ */
 
 /*
  * Rapid Access / menubar / context menus:
@@ -2998,7 +2998,7 @@ html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-500 
   color: rgba(0, 0, 0, 0.62) !important;
 }
 
-/* Other hardcoded dark wells in preview (not the metadata strip) â†’ pale + black */
+/* Other hardcoded dark wells in preview (not the metadata strip) -> pale + black */
 html.theme-light .bndz-chrome-preview .bg-\[\#252526\]:not(.bndz-preview-metadata-strip),
 html.theme-light .bndz-chrome-preview .bg-\[\#1e1e1e\]:not(.bndz-preview-metadata-strip),
 html.theme-light .bndz-chrome-preview .bg-black\/55,
@@ -16898,7 +16898,7 @@ html.bndz-ole-drag-handoff [data-fluid-badge] {
   pointer-events: none !important;
   transform: none !important;
 }
-/* Menubar stays clickable â€” OLE handoff must not brick Scriptingâ†’Help after a drag. */
+/* Menubar stays clickable â€” OLE handoff must not brick Scripting->Help after a drag. */
 html.bndz-ole-drag-handoff .bndz-chrome-menubar,
 html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger],
 html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-bndz-menubar-logo] {
@@ -18098,7 +18098,7 @@ html[data-bndz-shell="native-host"] .bndz-native-list-slot {
 }
 
 /* Native WinUI list overlay is not used over full-window WebView2 (HWND airspace).
-   Typography + row height come from Settings â†’ Appearance / Fonts (CSS vars). */
+   Typography + row height come from Settings -> Appearance / Fonts (CSS vars). */
 html[data-bndz-shell="native-host"] {
   --bndz-list-density: 1;
 }

@@ -79,7 +79,7 @@ export function getHoverPending(): HoverPending | null {
   return hoverPending;
 }
 
-/** Register hovered item — tooltip appears after delay and/or while Left Shift is held */
+/** Register hovered item -- tooltip appears after delay and/or while Left Shift is held */
 export function setHoverPending(
   content: HoverTooltipContent | null,
   x: number,
@@ -144,14 +144,14 @@ export function moveFloatingTooltip(x: number, y: number) {
   updateHoverPendingPosition(x, y);
 }
 
-/** Mouse left the row — clear pending hover and fade out */
+/** Mouse left the row -- clear pending hover and fade out */
 export function hideFloatingTooltip() {
   clearShowTimer();
   hoverPending = null;
   dismissVisibleTooltip();
 }
 
-/** Left Shift only — avoids accidental tooltip reveal from right Shift */
+/** Left Shift only -- avoids accidental tooltip reveal from right Shift */
 let leftShiftKeyHeld = false;
 
 export function isShiftKeyHeld(): boolean {

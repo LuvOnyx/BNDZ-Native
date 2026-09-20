@@ -1,4 +1,4 @@
-﻿// Reference copy from SuperCmd (MIT) â€” https://github.com/SuperCmdLabs/SuperCmd
+﻿// Reference copy from SuperCmd (MIT) -- https://github.com/SuperCmdLabs/SuperCmd
 // BNDZ-adapted implementations live alongside in src/launcher/components/
 // Re-sync: .\scripts\sync-supercmd-launcher-ui.ps1
 import React, { useEffect, useState } from 'react';

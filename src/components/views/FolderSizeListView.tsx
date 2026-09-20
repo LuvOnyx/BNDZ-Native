@@ -25,7 +25,7 @@ function formatBytes(n: number) {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
-/** Explorer-style size view — sorted rows with proportional bars (no treemap sitemap). */
+/** Explorer-style size view -- sorted rows with proportional bars (no treemap sitemap). */
 export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFolderSizes }: Props) {
   const { config } = useAppConfig();
   const barStyle = (config.folderSizeBarStyle || 'bar') as SizeBarStyle;
@@ -62,7 +62,7 @@ export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFo
     <div className="bndz-sizemap bndz-sizemap--list flex flex-col h-full min-h-0">
       {unknownSizes && onScanFolderSizes && (
         <div className="bndz-sizemap-banner">
-          <span>Folder sizes not scanned yet — bars show relative placeholders.</span>
+          <span>Folder sizes not scanned yet -- bars show relative placeholders.</span>
           <button type="button" onClick={onScanFolderSizes} className="bndz-sizemap-scan-btn">
             Scan sizes
           </button>

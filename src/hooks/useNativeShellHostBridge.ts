@@ -18,7 +18,7 @@ type BridgeOpts = {
   setPathLoadErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
 };
 
-/** WinUI native-list overlay bridge — bounds only; listing is React+IPC (WebView2 HWND airspace). */
+/** WinUI native-list overlay bridge -- bounds only; listing is React+IPC (WebView2 HWND airspace). */
 export function useNativeShellHostBridge(opts: BridgeOpts): void {
   const {
     activePaneId,

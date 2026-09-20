@@ -1,4 +1,4 @@
-/** XYplorer-style “Select Items…” visibility categories for tree and list. */
+/** XYplorer-style "Select Items..." visibility categories for tree and list. */
 
 export type TreeListItemType =
   | 'folders'
@@ -94,7 +94,7 @@ export function isTreeListItemVisible(
   }
   if (!showSystem) {
     if (attrs.includes('system')) return false;
-    // `$…` protected-style names (e.g. $Recycle.Bin, $WinREAgent) even if attr bits lag.
+    // `$...` protected-style names (e.g. $Recycle.Bin, $WinREAgent) even if attr bits lag.
     if (name.startsWith('$') && name.length > 1) return false;
   }
 

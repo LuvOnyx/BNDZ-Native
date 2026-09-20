@@ -89,7 +89,7 @@ export function lintAutomationGraph(graph: AutomationGraph): LintIssue[] {
       id: 'graph_cycle',
       severity: 'error',
       nodeId: [...cycleHit][0],
-      message: 'Pipeline contains a cycle — loops are not supported',
+      message: 'Pipeline contains a cycle -- loops are not supported',
     });
   }
 
@@ -246,11 +246,11 @@ function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
     case 'manualRun': return 'Manual trigger';
     case 'onSchedule': return `Schedule every ${d.intervalMinutes || '60'} min`;
     case 'onStartup': return 'Run on BNDZ startup';
-    case 'indexChanged': return `Index changed${d.root ? ` · ${pathLabel(d.root)}` : ''}`;
+    case 'indexChanged': return `Index changed${d.root ? ` | ${pathLabel(d.root)}` : ''}`;
     case 'spatialPin': return `Spatial pin (${String(d.paths || '').split('\n').filter(Boolean).length} paths)`;
     case 'filterExtension': return `Filter ext: ${d.extensions || '*'}`;
     case 'filterArchive': return `Archives: ${d.extensions || 'default'}`;
-    case 'filterSize': return `Size ${d.minSize || '0'} – ${d.maxSize || '∞'}`;
+    case 'filterSize': return `Size ${d.minSize || '0'} - ${d.maxSize || '∞'}`;
     case 'filterAge': return `${d.mode || 'olderThan'} ${d.days || '7'} days`;
     case 'filterTag': return `Tag: ${d.tag || '(unset)'}`;
     case 'filterContent': return `Grep: ${d.pattern || '(unset)'}`;

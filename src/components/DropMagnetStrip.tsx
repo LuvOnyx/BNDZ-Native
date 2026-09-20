@@ -61,7 +61,7 @@ export default function DropMagnetStrip({ externalDragActive, pendingPaths, onAp
         pushToast({
           kind: 'success',
           title: magnet?.name ?? 'Magnet',
-          message: 'Routing queued — see transfer panel.',
+          message: 'Routing queued -- see transfer panel.',
         });
         onApplied?.();
         return;

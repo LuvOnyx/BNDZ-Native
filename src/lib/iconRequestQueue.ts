@@ -103,7 +103,7 @@ function isProtectedFromEviction(job: Queued): boolean {
 
 /**
  * @param priority Higher runs first.
- *   shell ≈ 0–99 (+ viewport boost), list thumb ≈ 1000+.
+ *   shell ≈ 0-99 (+ viewport boost), list thumb ≈ 1000+.
  * @param kind Defaults from priority: ≥500 → thumb, else shell.
  */
 export function enqueueIconRequest<T>(

@@ -26,7 +26,7 @@ import { IPC } from '../lib/ipcBridge';
 import { pushToast } from './ToastHost';
 import type { ContextToolId } from '../workstation/command-deck/contextToolRegistry';
 
-/** Keep tab reorder drags horizontal — no vertical pull on the tab strip. */
+/** Keep tab reorder drags horizontal -- no vertical pull on the tab strip. */
 const restrictTabDragToHorizontalAxis: Modifier = ({ transform }) => ({
   ...transform,
   y: 0,
@@ -309,7 +309,7 @@ export default function BottomPluginPanel(props: any & {
       'transcode-rack': 'metadata',
       'semantic-desk': 'filters',
     };
-    // Absorbed / alias tool ids that are not on ContextToolId — handle via string key.
+    // Absorbed / alias tool ids that are not on ContextToolId -- handle via string key.
     const absorbedDeepLinks: Record<string, { id: string; tab: string }> = {
       'capacity-solver': { id: 'storage-cleanup', tab: 'capacity' },
       compare: { id: 'folder-sync', tab: 'diff' },
@@ -377,7 +377,7 @@ export default function BottomPluginPanel(props: any & {
           <span className="text-sm font-medium text-gray-300">No plugins installed</span>
           <span className="text-xs bndz-panel-muted max-w-[300px] leading-relaxed">
             Only installed plugins appear here and on the Command Deck.
-            Defaults are System Properties, Fast Search, and Visual Filters — add them from Extension Hub.
+            Defaults are System Properties, Fast Search, and Visual Filters -- add them from Extension Hub.
           </span>
           {onOpenPluginStore && (
             <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold">
@@ -407,10 +407,10 @@ export default function BottomPluginPanel(props: any & {
             Restore
           </button>
           <span className="text-[11px] text-[#99c9f0]/90 font-semibold tracking-wide">
-            Immersive · {activePlugin?.name || 'Plugin'}
+            Immersive | {activePlugin?.name || 'Plugin'}
           </span>
           <span className="text-[10px] text-gray-500 ml-auto">
-            Covers the file list · Esc restores the panel
+            Covers the file list | Esc restores the panel
           </span>
         </div>
       )}
@@ -422,7 +422,7 @@ export default function BottomPluginPanel(props: any & {
         modifiers={[restrictTabDragToHorizontalAxis]}
       >
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="bndz-bottom-tabstrip flex min-w-0 border-b border-white/[0.06] shrink-0 items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs · scroll or drag to reorder when many are installed">
+          <div className="bndz-bottom-tabstrip flex min-w-0 border-b border-white/[0.06] shrink-0 items-stretch" title="Ctrl+PageDown / Ctrl+PageUp -- switch plugin tabs | scroll or drag to reorder when many are installed">
             <div
               ref={tabScrollRef}
               className={`bndz-bottom-tabstrip-scroll flex flex-1 min-w-0 overflow-x-auto scrollbar-hidden items-stretch touch-pan-x${
@@ -509,7 +509,7 @@ export default function BottomPluginPanel(props: any & {
 
       <div className="bndz-bottom-content flex-1 min-h-0 overflow-hidden relative flex flex-col">
         {/* Keep-alive: stay mounted (display toggled) so Remote sessionId / ConPTY association survives tab switches.
-            Use hidden (display:none) not invisible — invisible keeps layout rects and can re-publish TermControl bounds. */}
+            Use hidden (display:none) not invisible -- invisible keeps layout rects and can re-publish TermControl bounds. */}
         {orderedPlugins.map((plugin: any) => {
           if (!keepAliveIds.has(plugin.id)) return null;
           const Component = plugin.component;
@@ -555,7 +555,7 @@ export default function BottomPluginPanel(props: any & {
             <BndzPlaque tone="panel" size="md" />
             <span className="text-sm font-medium text-gray-300">Select a plugin above</span>
             <span className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">
-              Installed plugins open here — pick a tab from the strip to start.
+              Installed plugins open here -- pick a tab from the strip to start.
             </span>
             {onOpenPluginStore && (
               <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-3 py-1.5 text-xs font-semibold">
@@ -573,7 +573,7 @@ export default function BottomPluginPanel(props: any & {
       <>
         <div className="bndz-bottom-immersive-placeholder h-full flex items-center justify-center gap-2 px-3 text-[11px] text-gray-500">
           <Icons8Icon id="extension_hub" size={12} className="opacity-60" />
-          Plugin immersive — list covered
+          Plugin immersive -- list covered
           <button type="button" className="text-[#7eb8e8] hover:text-[#99c9f0] font-medium" onClick={() => onExitImmersive?.()}>
             Exit immersive
           </button>

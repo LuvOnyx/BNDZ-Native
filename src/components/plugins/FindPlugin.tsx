@@ -139,10 +139,10 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 return;
             }
             setSearching(true);
-            setStatus('Scanning for duplicate files…');
+            setStatus('Scanning for duplicate files...');
             setDuplicateGroups([]);
             setResults([]);
-            setDupProgress({ percent: 0, message: 'Starting…' });
+            setDupProgress({ percent: 0, message: 'Starting...' });
             try {
                 const res = await IPC.scanDuplicates(toWindowsPath(scopePath), true, 1024);
                 if (res.error) setStatus(res.error);
@@ -199,7 +199,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         ? `${roots.length} folder(s)`
                         : formatUiPath(rootPath);
                 const indent = rt.search.levelIndentWidthInPixels || rt.search.levelIndent || 12;
-                setStatus(`${items?.length ?? 0} result(s) · ${scopeLabel}${engine ? ` · ${engine}` : ''} · indent ${indent}px`);
+                setStatus(`${items?.length ?? 0} result(s) | ${scopeLabel}${engine ? ` | ${engine}` : ''} | indent ${indent}px`);
             } else {
                 setResults([]);
                 setHasSearched(true);
@@ -295,21 +295,21 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
 
     const everythingEnabled = config?.enableEverythingSearch !== false;
     const emptyTitle = searching
-        ? 'Searching…'
+        ? 'Searching...'
         : !hasSearched
             ? 'Search your PC'
             : 'No results';
     const emptyDescription = searching
-        ? 'Looking for matches…'
+        ? 'Looking for matches...'
         : !hasSearched
             ? (everythingEnabled
                 ? 'Type a query and press Enter. Everything mode searches all drives instantly; Folder mode stays in the current path.'
-                : 'Type a query and press Enter. Everything is off in Settings — searches use the BNDZ index / Windows Search when available.')
+                : 'Type a query and press Enter. Everything is off in Settings -- searches use the BNDZ index / Windows Search when available.')
             : (everythingEnabled
                 ? (lastSearchEngine
                     ? `No matches via ${lastSearchEngine}. Try a broader query, another mode, or check spelling.`
                     : 'No matches. Try a broader query, switch mode, or search a different folder.')
-                : 'No matches. Everything is disabled — enable it in Settings for instant all-drive search, or build/refresh the BNDZ index.');
+                : 'No matches. Everything is disabled -- enable it in Settings for instant all-drive search, or build/refresh the BNDZ index.');
 
 
     const toggleQueryToken = (token: string) => {
@@ -362,7 +362,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             icon="find"
             iconColor="#a855f7"
             variant="embedded"
-            subtitle={mode === 'global' ? 'Search all drives' : mode === 'advanced' ? 'Search several folders with AND / OR' : mode === 'duplicates' ? 'Find same files in this folder' : `This folder · ${formatUiPath(scopePath)}`}
+            subtitle={mode === 'global' ? 'Search all drives' : mode === 'advanced' ? 'Search several folders with AND / OR' : mode === 'duplicates' ? 'Find same files in this folder' : `This folder | ${formatUiPath(scopePath)}`}
             status={!IPC.isNative ? (
                 <span className="text-amber-300/90 text-[11px]">Needs the BNDZ app for indexed search</span>
             ) : undefined}
@@ -378,7 +378,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     name={query.trim() || 'Fast Search'}
                     typeLabel={mode === 'global' ? 'Everything' : mode === 'advanced' ? 'Advanced' : mode === 'duplicates' ? 'Duplicates' : 'Easy'}
                     path={mode === 'local' ? scopePath : undefined}
-                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Easy · Everything · Advanced')}</span>}
+                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching...' : 'Easy | Everything | Advanced')}</span>}
                     actions={
                         <PluginHeroActionButton
                             icon={searching ? 'loading' : 'play_ui'}
@@ -393,8 +393,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 <div className="px-4 pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
                     {([
                         { id: 'local' as const, label: 'Easy', hint: 'This folder', icon: 'find' },
-                        { id: 'global' as const, label: 'Everything', hint: 'All drives · instant', icon: 'go_network' },
-                        { id: 'advanced' as const, label: 'Advanced', hint: 'AND / OR · several folders', icon: 'code_ui' },
+                        { id: 'global' as const, label: 'Everything', hint: 'All drives | instant', icon: 'go_network' },
+                        { id: 'advanced' as const, label: 'Advanced', hint: 'AND / OR | several folders', icon: 'code_ui' },
                         { id: 'duplicates' as const, label: 'Duplicates', hint: 'Same files in this folder', icon: 'copy' },
                     ]).map(card => (
                         <button
@@ -418,7 +418,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     <PluginSectionTitle icon="filters">Mode</PluginSectionTitle>
                     <div className="flex flex-col gap-1">
                         {([
-                            { id: 'local' as const, label: 'Easy — this folder', icon: 'find' },
+                            { id: 'local' as const, label: 'Easy -- this folder', icon: 'find' },
                             { id: 'global' as const, label: 'Everything', icon: 'go_network' },
                             { id: 'advanced' as const, label: 'Advanced', icon: 'code_ui' },
                             { id: 'duplicates' as const, label: 'Duplicates', icon: 'copy' },
@@ -573,12 +573,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     )}
                     {dupProgress && (
                         <div className="text-xs text-[#7eb8e8]">
-                            {dupProgress.percent}% {dupProgress.message ? `· ${dupProgress.message}` : ''}
+                            {dupProgress.percent}% {dupProgress.message ? `| ${dupProgress.message}` : ''}
                         </div>
                     )}
                     <div className="text-xs bndz-panel-muted mt-auto leading-relaxed">
                         {status || `Limit: ${rt.search.limit}`}
-                        {mode === 'advanced' && <div className="mt-1">Use quotes, OR, NOT — e.g. report OR invoice NOT draft</div>}
+                        {mode === 'advanced' && <div className="mt-1">Use quotes, OR, NOT -- e.g. report OR invoice NOT draft</div>}
                     </div>
                 </PluginSidebar>
                 <div className="flex-1 flex flex-col min-w-0">
@@ -588,7 +588,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 <input
                                     value={scopeFolder}
                                     onChange={e => setScopeFolder(e.target.value)}
-                                    placeholder={`Current · ${formatUiPath(focusedPane)}`}
+                                    placeholder={`Current | ${formatUiPath(focusedPane)}`}
                                     title="Folder to scan. Leave blank to use the folder open in the list."
                                     className={`flex-1 min-w-0 ${PLUGIN_INPUT_CLASS} bndz-mono text-[11px]`}
                                 />
@@ -598,7 +598,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     title="Choose folder"
                                     onClick={() => void pickScopeFolder()}
                                 >
-                                    …
+                                    ...
                                 </button>
                             </div>
                         </div>
@@ -610,7 +610,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     <input
                                         value={scopeFolder}
                                         onChange={e => setScopeFolder(e.target.value)}
-                                        placeholder={`Current · ${formatUiPath(focusedPane)}`}
+                                        placeholder={`Current | ${formatUiPath(focusedPane)}`}
                                         title="Folder to search. Leave blank to use the folder open in the list."
                                         className={`flex-1 min-w-0 ${PLUGIN_INPUT_CLASS} bndz-mono text-[11px]`}
                                     />
@@ -620,7 +620,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                         title="Choose folder"
                                         onClick={() => void pickScopeFolder()}
                                     >
-                                        …
+                                        ...
                                     </button>
                                 </div>
                             )}
@@ -647,7 +647,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                             setActiveResultIndex(0);
                                         }
                                     }}
-                                    placeholder={mode === 'advanced' ? 'Search several folders — try report OR invoice NOT draft…' : mode === 'global' ? 'Search all drives…' : 'Search this folder…'}
+                                    placeholder={mode === 'advanced' ? 'Search several folders -- try report OR invoice NOT draft...' : mode === 'global' ? 'Search all drives...' : 'Search this folder...'}
                                     className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm bndz-find-query-input`}
                                 />
                             </div>
@@ -678,7 +678,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                             e.target.value = '';
                                         }}
                                     >
-                                        <option value="">Presets…</option>
+                                        <option value="">Presets...</option>
                                         {findPresets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                                     </select>
                                 )}
@@ -701,8 +701,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                             duplicateGroups.length === 0 ? (
                                 <PluginEmptyState
                                   icon="copy"
-                                  title={searching ? 'Scanning…' : 'No duplicates yet'}
-                                  description={searching ? 'Comparing files in the current folder…' : 'Scan this folder for files that are exact copies of each other.'}
+                                  title={searching ? 'Scanning...' : 'No duplicates yet'}
+                                  description={searching ? 'Comparing files in the current folder...' : 'Scan this folder for files that are exact copies of each other.'}
                                 />
                             ) : (
                                 <div
@@ -727,7 +727,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     {duplicateGroups.map(g => (
                                         <div key={g.hash} className="bndz-plugin-card overflow-hidden !p-0" role="group">
                                             <div className="px-3 py-2 border-b border-white/[0.06] text-xs bndz-panel-muted bndz-mono">
-                                                {g.paths.length} copies · {g.size} bytes
+                                                {g.paths.length} copies | {g.size} bytes
                                             </div>
                                             {g.paths.map(p => (
                                                 <div

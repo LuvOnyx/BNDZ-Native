@@ -97,7 +97,7 @@ export function LeftSidebar({
         dropSideRef.current = 'before';
 
         const resolveTarget = (clientX: number, clientY: number) => {
-            // Prefer another module's header — elementsFromPoint often lands on the
+            // Prefer another module's header -- elementsFromPoint often lands on the
             // dragged section (or its ghost), which previously aborted the swap.
             const hit = document.elementsFromPoint(clientX, clientY)
                 .map(el => {
@@ -136,7 +136,7 @@ export function LeftSidebar({
             window.removeEventListener('pointercancel', finish);
             try { gripEl.releasePointerCapture(captureId); } catch { /* ignore */ }
 
-            // Commit from last valid hover target — pointerup hit-test is unreliable under capture/ghost.
+            // Commit from last valid hover target -- pointerup hit-test is unreliable under capture/ghost.
             resolveTarget(ev.clientX, ev.clientY);
             const targetId = dragOverIdRef.current;
             const side = dropSideRef.current;
@@ -152,7 +152,7 @@ export function LeftSidebar({
                 }
             }
             if (moved) {
-                // Grip lives inside the clickable header — swallow the fold toggle after a drag.
+                // Grip lives inside the clickable header -- swallow the fold toggle after a drag.
                 suppressToggleRef.current = true;
                 window.setTimeout(() => { suppressToggleRef.current = false; }, 120);
             }
@@ -187,7 +187,7 @@ export function LeftSidebar({
             onContextMenu={e => e.preventDefault()}
             onPointerDownCapture={(e) => {
               // Stuck list/OLE pointer-capture steals left-clicks while hover/RMB still work.
-              // Re-stamp WinUI Passthrough at most every 2s — boot can leave sidebar LMB dead.
+              // Re-stamp WinUI Passthrough at most every 2s -- boot can leave sidebar LMB dead.
               try {
                 const now = Date.now();
                 const w = window as typeof window & { __bndzSidebarRegionNudgeAt?: number };
@@ -217,7 +217,7 @@ export function LeftSidebar({
                 });
               } catch { /* ignore */ }
               try {
-                // Only release Win32 capture when OLE handoff left it stuck — every-click
+                // Only release Win32 capture when OLE handoff left it stuck -- every-click
                 // releaseCapture synthesizes button-up and fights first sidebar LMB after boot.
                 if (document.documentElement.classList.contains('bndz-ole-drag-handoff')) {
                   IPC.windowChrome('releaseCapture');
@@ -251,7 +251,7 @@ export function LeftSidebar({
                     (key === 'miniTree' && nextKey === 'tree')
                     || (key === 'tree' && nextKey === 'miniTree');
 
-                // Natural height modules — the LEFT SIDEBAR scrolls as one panel.
+                // Natural height modules -- the LEFT SIDEBAR scrolls as one panel.
                 // Mini Tree / Navigation Tree get extra margin when adjacent.
                 const sectionSpacing = key === 'miniTree' || key === 'tree'
                     ? `shrink-0 ${gapAfterTreePair ? 'mb-4' : 'mb-3'} ${gapBeforeTreePair ? 'mt-3' : ''}`

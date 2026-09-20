@@ -12,7 +12,7 @@ export type BndzWindowFrameProps = {
   widthClass?: string;
   heightClass?: string;
   zIndexClass?: string;
-  /** Settings → Modeless dialog — allow interacting with the FM behind Configuration. */
+  /** Settings → Modeless dialog -- allow interacting with the FM behind Configuration. */
   modelessDialog?: boolean;
 };
 

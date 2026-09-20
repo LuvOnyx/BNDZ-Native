@@ -61,7 +61,7 @@ function tool(
 }
 
 /**
- * Drop tools whose plugin is not installed — never auto-install from the deck.
+ * Drop tools whose plugin is not installed -- never auto-install from the deck.
  * Host tools (no pluginId) always pass. Empty installed set hides every plugin-backed tool.
  */
 export function filterToolsForInstalled(
@@ -95,7 +95,7 @@ export function pluginIdForStockContext(stockId: string): string | undefined {
   return STOCK_CONTEXT_PLUGIN[stockId];
 }
 
-/** True when stock row may show — host actions always; plugin-backed need install. */
+/** True when stock row may show -- host actions always; plugin-backed need install. */
 export function isStockContextInstalled(
   stockId: string,
   installedIds: ReadonlySet<string> | readonly string[] | undefined | null,
@@ -144,14 +144,14 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
     case 'image':
       return [
         tool('transcode-rack', 'Encode', 'edit_image', 'metadata'),
-        // Loupe / Luma are 2D image tools only — never offered for 3D meshes.
+        // Loupe / Luma are 2D image tools only -- never offered for 3D meshes.
         tool('histogram', 'Luma inspect', 'color', undefined, 'host'),
         tool('loupe', 'Loupe', 'preview', undefined, 'host'),
         tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
         tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'model':
-      // 3D / FiveM RAGE (.ydr/.ybn/…) — main preview GpuModelViewport only; no Loupe/Luma.
+      // 3D / FiveM RAGE (.ydr/.ybn/...) -- main preview GpuModelViewport only; no Loupe/Luma.
       return [
         tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
         tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),

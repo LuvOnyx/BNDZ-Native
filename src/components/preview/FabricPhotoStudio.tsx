@@ -56,15 +56,15 @@ type Props = {
 };
 
 const TOOLS: { id: PhotoStudioTool; label: string; icon: string; tip: string }[] = [
-  { id: 'select', label: 'Move', icon: 'target_ui', tip: 'V — Select / move' },
-  { id: 'hand', label: 'Hand', icon: 'mouse_ui', tip: 'H — Pan canvas' },
-  { id: 'brush', label: 'Brush', icon: 'paint', tip: 'B — Paint brush' },
-  { id: 'eraser', label: 'Eraser', icon: 'trash_ui', tip: 'E — Erase' },
-  { id: 'rect', label: 'Rect', icon: 'view_grid', tip: 'U — Rectangle' },
-  { id: 'ellipse', label: 'Ellipse', icon: 'images_ui', tip: 'O — Ellipse' },
-  { id: 'line', label: 'Line', icon: 'link', tip: 'L — Line' },
-  { id: 'text', label: 'Text', icon: 'notepad', tip: 'T — Type' },
-  { id: 'crop', label: 'Crop', icon: 'cut', tip: 'C — Crop frame' },
+  { id: 'select', label: 'Move', icon: 'target_ui', tip: 'V -- Select / move' },
+  { id: 'hand', label: 'Hand', icon: 'mouse_ui', tip: 'H -- Pan canvas' },
+  { id: 'brush', label: 'Brush', icon: 'paint', tip: 'B -- Paint brush' },
+  { id: 'eraser', label: 'Eraser', icon: 'trash_ui', tip: 'E -- Erase' },
+  { id: 'rect', label: 'Rect', icon: 'view_grid', tip: 'U -- Rectangle' },
+  { id: 'ellipse', label: 'Ellipse', icon: 'images_ui', tip: 'O -- Ellipse' },
+  { id: 'line', label: 'Line', icon: 'link', tip: 'L -- Line' },
+  { id: 'text', label: 'Text', icon: 'notepad', tip: 'T -- Type' },
+  { id: 'crop', label: 'Crop', icon: 'cut', tip: 'C -- Crop frame' },
 ];
 
 const DEFAULT_ADJUST: AdjustState = {
@@ -260,7 +260,7 @@ export default function FabricPhotoStudio({
     const canvas = fabricRef.current;
     if (!canvas || !imageUrl) return;
     try {
-      setStatus('Loading image…');
+      setStatus('Loading image...');
       const img = await FabricImage.fromURL(imageUrl, { crossOrigin: 'anonymous' });
       canvas.clear();
       const anyImg = img as FabricImage & { __bndzBase?: boolean; __bndzName?: string; __bndzId?: string };
@@ -419,7 +419,7 @@ export default function FabricPhotoStudio({
       if (drawStartRef.current?.obj) {
         drawStartRef.current = null;
         if (toolRef.current === 'crop') {
-          setStatus('Crop frame ready — click Apply Crop');
+          setStatus('Crop frame ready -- click Apply Crop');
         } else if (toolRef.current !== 'select') {
           configureTool('select');
         }
@@ -653,7 +653,7 @@ export default function FabricPhotoStudio({
           <button type="button" className="bndz-ps-chip" disabled={!canUndo || busy} onClick={() => void undo()}>Undo</button>
           <button type="button" className="bndz-ps-chip" disabled={!canRedo || busy} onClick={() => void redo()}>Redo</button>
           <button type="button" className="bndz-ps-chip" onClick={fitImage}>Fit</button>
-          <button type="button" className="bndz-ps-chip" onClick={() => setZoom(zoomPct - 15)}>−</button>
+          <button type="button" className="bndz-ps-chip" onClick={() => setZoom(zoomPct - 15)}>-</button>
           <span className="bndz-ps-zoom">{zoomPct}%</span>
           <button type="button" className="bndz-ps-chip" onClick={() => setZoom(zoomPct + 15)}>+</button>
           {tool === 'crop' && (

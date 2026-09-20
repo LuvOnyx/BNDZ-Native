@@ -1,5 +1,5 @@
 /**
- * Configure Monaco to load from bundled assets — never CDN (jsdelivr).
+ * Configure Monaco to load from bundled assets -- never CDN (jsdelivr).
  * Workers/AMD loader are served from ./monaco/vs next to the built UI.
  */
 import { loader } from '@monaco-editor/react';
@@ -15,7 +15,7 @@ declare global {
 let configured = false;
 
 function monacoVsBase(): string {
-  // Built UI lives at …/Assets/ui/index.html — workers are copied beside it.
+  // Built UI lives at .../Assets/ui/index.html -- workers are copied beside it.
   try {
     const base = new URL('.', window.location.href);
     return new URL('monaco/vs', base).href.replace(/\/$/, '');

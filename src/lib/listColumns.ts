@@ -111,7 +111,7 @@ export function resolveListColumnOrder(config: AppConfig): ListColumnId[] {
   return ordered;
 }
 
-/** Move `sourceId` to sit immediately before/after `targetId` in the column order — used by header drag-to-reorder. */
+/** Move `sourceId` to sit immediately before/after `targetId` in the column order -- used by header drag-to-reorder. */
 export function reorderListColumns(
   currentOrder: ListColumnId[],
   sourceId: ListColumnId,
@@ -172,7 +172,7 @@ export function getVisibleListColumns(
 export function getColumnStyle(col: ListColumnDef): React.CSSProperties {
   const px = col.widthPx
     || (DEFAULT_LIST_COLUMN_PX[col.id as BuiltinListColumnId] ?? 100);
-  // Fixed widths only — flex-fill on Name made live resize snap back after persist.
+  // Fixed widths only -- flex-fill on Name made live resize snap back after persist.
   return {
     width: px,
     minWidth: px,

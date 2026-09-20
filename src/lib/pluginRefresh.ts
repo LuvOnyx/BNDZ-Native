@@ -1,7 +1,7 @@
 import { pushToast } from '../components/ToastHost';
 
 /**
- * Standard plugin IPC refresh — surfaces failures instead of silent empty states.
+ * Standard plugin IPC refresh -- surfaces failures instead of silent empty states.
  */
 export async function runPluginRefresh<T>(
   pluginLabel: string,

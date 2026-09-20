@@ -8,7 +8,7 @@ type Props = {
   onTool: (id: ContextToolId) => void;
 };
 
-/** Horizontal instrument rail — soft squircles, not pill chrome. */
+/** Horizontal instrument rail -- soft squircles, not pill chrome. */
 export default function ContextToolRail({ tools, onTool }: Props) {
   const list = tools || [];
   if (list.length === 0) {

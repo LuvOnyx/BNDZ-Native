@@ -13,7 +13,7 @@ function thumbKey(path: string, isDirectory: boolean): string {
   return `${isDirectory ? 'd' : 'f'}:${path.toLowerCase()}`;
 }
 
-/** Sync cache peek — avoids Icons8→native flash when a prior fetch already landed. */
+/** Sync cache peek -- avoids Icons8→native flash when a prior fetch already landed. */
 export function peekFluidDragThumb(path: string, isDirectory: boolean): string | null {
   const hit = thumbCache.get(thumbKey(path, isDirectory));
   return hit || null;

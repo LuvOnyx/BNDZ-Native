@@ -1,7 +1,7 @@
 import type { AppConfig } from '../data/configContext';
 import { readSettingBool } from './settingsWiring';
 
-/** Format path(s) for clipboard Copy Path — honors trailing-slash setting. */
+/** Format path(s) for clipboard Copy Path -- honors trailing-slash setting. */
 export function formatPathsForClipboard(config: AppConfig | Record<string, unknown> | null | undefined, paths: string | string[]): string {
   const list = (Array.isArray(paths) ? paths : [paths]).filter(Boolean).map(String);
   const trailing = readSettingBool((config || {}) as AppConfig, 'copyPathsToTheClipboardWithATrailingSlash');

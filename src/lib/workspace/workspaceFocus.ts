@@ -34,7 +34,7 @@ export function focusWorkspaceSurface(surface: HTMLElement | null): void {
 
 /**
  * Isolate list-pane marquee from workspace without pointer-events:none (which breaks hit-testing).
- * Call from list body pointerdown capture — returns true when the event target is inside a workspace.
+ * Call from list body pointerdown capture -- returns true when the event target is inside a workspace.
  */
 export function isWorkspacePointerTarget(target: EventTarget | null): boolean {
   return !!(target as Element)?.closest?.(

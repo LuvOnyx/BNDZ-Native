@@ -142,7 +142,7 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
         <PluginHeroStrip
           icon={<Icons8Icon id="cloud_ui" size={40} />}
           name="Remote Hosts"
-          typeLabel="SSH · SFTP · S3"
+          typeLabel="SSH | SFTP | S3"
           meta={<span className="text-[10px] text-gray-500">Browse, mirror, terminal</span>}
           actions={
             <>
@@ -208,7 +208,7 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
                   </div>
                   <div className="text-[10px] text-gray-500 truncate mt-0.5">
                     {h.provider === 1
-                      ? `${MESH_PROVIDER_LABEL[h.provider]} · ${h.s3Bucket || 'no bucket'}`
+                      ? `${MESH_PROVIDER_LABEL[h.provider]} | ${h.s3Bucket || 'no bucket'}`
                       : `${h.username}@${h.hostname}:${h.port}`}
                   </div>
                   {h.notes && <div className="text-[10px] text-gray-600 truncate mt-1">{h.notes}</div>}

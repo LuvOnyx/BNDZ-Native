@@ -45,7 +45,7 @@ export function isDocxExt(ext: string): boolean {
   return e === 'docx' || e === 'docm' || e === 'odt';
 }
 
-/** Spreadsheet / office extras QuickLook covers — preview as download/open fallback in viewer. */
+/** Spreadsheet / office extras QuickLook covers -- preview as download/open fallback in viewer. */
 export function isOfficeExt(ext: string): boolean {
   const e = ext.toLowerCase().replace(/^\./, '');
   return ['doc', 'docx', 'docm', 'odt', 'xls', 'xlsx', 'xlsm', 'xlsb', 'ods', 'ppt', 'pptx', 'odp', 'vsd', 'vsdx'].includes(e);

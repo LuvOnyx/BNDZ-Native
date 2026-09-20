@@ -74,7 +74,7 @@ export function parseByteSizeToken(value: string, unit: string): number | undefi
 }
 
 export function formatTransferBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (!Number.isFinite(bytes) || bytes < 0) return '--';
   if (bytes === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let v = bytes;
@@ -101,8 +101,8 @@ export function buildCapacityLine(neededBytes?: number, freeBytes?: number): str
   if (neededBytes != null && freeBytes != null) {
     const shortfall = Math.max(0, neededBytes - freeBytes);
     return shortfall > 0
-      ? `Need ${formatTransferBytes(neededBytes)} · free ${formatTransferBytes(freeBytes)} · short ${formatTransferBytes(shortfall)}`
-      : `Need ${formatTransferBytes(neededBytes)} · free ${formatTransferBytes(freeBytes)}`;
+      ? `Need ${formatTransferBytes(neededBytes)} | free ${formatTransferBytes(freeBytes)} | short ${formatTransferBytes(shortfall)}`
+      : `Need ${formatTransferBytes(neededBytes)} | free ${formatTransferBytes(freeBytes)}`;
   }
   if (neededBytes != null) return `Need ${formatTransferBytes(neededBytes)}`;
   return `Free ${formatTransferBytes(freeBytes!)}`;
@@ -154,7 +154,7 @@ export function classifyTransferError(
     return {
       kind: 'sharingViolation',
       title: 'File in use',
-      summary: 'Windows reports the file is locked by another program. Close the app using it, then Retry — or Skip to dismiss.',
+      summary: 'Windows reports the file is locked by another program. Close the app using it, then Retry -- or Skip to dismiss.',
       detail,
     };
   }

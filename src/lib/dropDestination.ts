@@ -82,7 +82,7 @@ export type InternalDropRejectReason =
   | null;
 
 /**
- * Why an internal list drop would not commit — used for user-facing ops dialogs.
+ * Why an internal list drop would not commit -- used for user-facing ops dialogs.
  * Does not change OLE / external drop routing.
  */
 export function explainInternalDropReject(opts: {

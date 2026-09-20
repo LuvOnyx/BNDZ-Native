@@ -6,7 +6,7 @@ import { JUMP_SETTING_INDEX as GENERATED_INDEX } from './jumpToSettingIndex.data
 export interface JumpSettingEntry {
   tab: string;
   label: string;
-  /** Config key when available — used to scroll/highlight after jump. */
+  /** Config key when available -- used to scroll/highlight after jump. */
   key?: string;
   /** What the setting does / how users describe it. */
   description?: string;
@@ -45,7 +45,7 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
   {
     tab: 'Appearance',
     label: 'Selection chrome and density',
-    description: 'How selected files look — borders, fill, File Pilot / XYplorer style',
+    description: 'How selected files look -- borders, fill, File Pilot / XYplorer style',
     keywords: ['selection', 'chrome', 'density', 'radius', 'filepilot', 'xyplorer', 'highlight', 'selected'],
   },
   {
@@ -129,7 +129,7 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
   {
     tab: 'File Operations',
     label: 'Copy move delete engine',
-    description: 'How file copy, move, and delete behave — confirmations and recycle',
+    description: 'How file copy, move, and delete behave -- confirmations and recycle',
     keywords: ['copy', 'move', 'delete', 'transfer', 'confirm', 'recycle', 'overwrite'],
   },
   {

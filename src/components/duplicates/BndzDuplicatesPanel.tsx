@@ -145,7 +145,7 @@ export default function BndzDuplicatesPanel({ folderPath, onReveal }: Props) {
 
       {scanning && progress && (
         <div className="text-[10px] text-gray-400 truncate">
-          {progress.percent}% — {progress.currentPath}
+          {progress.percent}% -- {progress.currentPath}
         </div>
       )}
 
@@ -158,7 +158,7 @@ export default function BndzDuplicatesPanel({ folderPath, onReveal }: Props) {
           wastedBytes={wasted}
         />
         {!scanning && groups.length === 0 && !error && (
-          <p className="text-[11px] text-gray-500 p-3">No scan yet. Uses SHA-256 — native, no external tools.</p>
+          <p className="text-[11px] text-gray-500 p-3">No scan yet. Uses SHA-256 -- native, no external tools.</p>
         )}
       </div>
     </div>

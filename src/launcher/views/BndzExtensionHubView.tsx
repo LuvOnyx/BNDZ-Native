@@ -6,7 +6,7 @@ import type { PluginRecord } from '../types';
 
 type Props = { onClose: () => void };
 
-/** Phase D — Raycast-style extension hub listing Flow Launcher plugins. */
+/** Phase D -- Raycast-style extension hub listing Flow Launcher plugins. */
 export default function BndzExtensionHubView({ onClose }: Props) {
   const [plugins, setPlugins] = useState<PluginRecord[]>([]);
   const [query, setQuery] = useState('');
@@ -38,7 +38,7 @@ export default function BndzExtensionHubView({ onClose }: Props) {
           className="bndz-search-input flex-1"
           value={query}
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-          placeholder="Search extensions…"
+          placeholder="Search extensions..."
         />
         <button type="button" className="bndz-icon-btn" title="Plugin Store" onClick={() => void openPluginStore()}><Icons8Icon id="store" size={14} /></button>
       </div>

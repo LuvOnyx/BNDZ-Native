@@ -24,7 +24,7 @@ const GO_ITEMS: GoItem[] = [
 ];
 
 /**
- * Top chrome island for BNDZShell split layout — menubar + address + nav.
+ * Top chrome island for BNDZShell split layout -- menubar + address + nav.
  * Depth/glass craft adapted from Uiverse into BNDZ soft-squircle language.
  */
 export default function NativeShellChrome({ currentPath, onNavigate, onOpenWorkspace }: Props) {

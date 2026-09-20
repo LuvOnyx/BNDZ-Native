@@ -87,7 +87,7 @@ export default function ContentDnaRelativesPanel({ path, onNavigate }: Props) {
         {kind && (
           <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] text-gray-500 ml-1">{kind}</span>
         )}
-        {loading && <span className="text-[10px] text-gray-600 ml-auto animate-pulse">scanning…</span>}
+        {loading && <span className="text-[10px] text-gray-600 ml-auto animate-pulse">scanning...</span>}
       </div>
 
       {!loading && relatives.length === 0 && (

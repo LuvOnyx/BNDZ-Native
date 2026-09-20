@@ -16,7 +16,7 @@ function TextFilePreview({ path, fallback }: { path: string | null; fallback: st
     let cancelled = false;
     fetch(launcherStreamUrl(path))
       .then(r => r.ok ? r.text() : fallback)
-      .then(t => { if (!cancelled) setText(t.length > 32000 ? `${t.slice(0, 32000)}\n…` : t); })
+      .then(t => { if (!cancelled) setText(t.length > 32000 ? `${t.slice(0, 32000)}\n...` : t); })
       .catch(() => { if (!cancelled) setText(fallback); });
     return () => { cancelled = true; };
   }, [path, fallback]);
@@ -126,7 +126,7 @@ function PreviewBody({
     return (
       <div className="launcher-preview-media flex flex-col items-center justify-center py-10 gap-3">
         <div className="w-16 h-16 rounded-xl border border-[var(--footer-border)] bg-gradient-to-br from-pink-500/30 to-violet-500/30" />
-        <div className="text-[11px] text-[var(--text-muted)]">Folder color · {path.split(/[/\\]/).pop()}</div>
+        <div className="text-[11px] text-[var(--text-muted)]">Folder color | {path.split(/[/\\]/).pop()}</div>
       </div>
     );
   }

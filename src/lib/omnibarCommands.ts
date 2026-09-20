@@ -1,4 +1,4 @@
-/** Shared omnibar command catalog — `>` prefix + Command Hub. */
+/** Shared omnibar command catalog -- `>` prefix + Command Hub. */
 
 export type OmnibarCommandDef = {
   id: string;
@@ -16,7 +16,7 @@ export const OMNIBAR_COMMANDS: OmnibarCommandDef[] = [
   { id: 'dual', name: 'dual', aliases: ['split', 'dp'], label: 'Toggle dual pane', hint: 'Split / unsplit the workspace', icon: 'dual_pane' },
   { id: 'preview', name: 'preview', aliases: ['inspector', 'i'], label: 'Toggle preview', hint: 'Show or hide the preview pane', icon: 'preview' },
   { id: 'settings', name: 'settings', aliases: ['config'], label: 'Configuration', hint: 'Open BNDZ settings', icon: 'settings' },
-  { id: 'find', name: 'find', aliases: ['search'], label: 'Fast Search', hint: '>find photos — or open Search plugin', icon: 'search' },
+  { id: 'find', name: 'find', aliases: ['search'], label: 'Fast Search', hint: '>find photos -- or open Search plugin', icon: 'search' },
   { id: 'rename', name: 'rename', label: 'Batch Rename', hint: 'Open Batch / Smart Rename', icon: 'batch_rename' },
   { id: 'metadata', name: 'metadata', label: 'Metadata Inspector', hint: 'Open Metadata plugin', icon: 'metadata' },
   { id: 'filters', name: 'filters', label: 'Visual Filters', hint: 'Open Visual Filters plugin', icon: 'filters' },
@@ -24,7 +24,7 @@ export const OMNIBAR_COMMANDS: OmnibarCommandDef[] = [
   { id: 'tabset', name: 'tabset', label: 'Save tabset', hint: 'Save the current workspace tabs', icon: 'tabs' },
   { id: 'palette', name: 'palette', aliases: ['commands'], label: 'Command palette', hint: 'Open the full command palette', icon: 'command' },
   { id: 'hub', name: 'hub', aliases: ['plugins', 'store'], label: 'Extension Hub', hint: 'Install and manage plugins', icon: 'extension_hub' },
-  { id: 'go', name: 'go', aliases: ['cd'], label: 'Go to path', hint: '>go C:\\Users — navigate to a folder', icon: 'folder_open_ui' },
+  { id: 'go', name: 'go', aliases: ['cd'], label: 'Go to path', hint: '>go C:\\Users -- navigate to a folder', icon: 'folder_open_ui' },
 ];
 
 export type OmnibarCommandSuggestion = {

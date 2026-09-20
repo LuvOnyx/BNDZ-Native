@@ -29,7 +29,7 @@ function readEnabled(): boolean {
   }
 }
 
-/** Dev/perf overlay — Ctrl+Shift+Alt+P or localStorage bndz-perf-hud=1. */
+/** Dev/perf overlay -- Ctrl+Shift+Alt+P or localStorage bndz-perf-hud=1. */
 export default function PerfHud() {
   const [open, setOpen] = useState(readEnabled);
   const [stats, setStats] = useState<PerfStats | null>(null);
@@ -129,7 +129,7 @@ export default function PerfHud() {
     </div>
   );
 
-  const gpuLine = gpu ? formatGpuHudLine(gpu) : '…';
+  const gpuLine = gpu ? formatGpuHudLine(gpu) : '...';
   const gpuColor =
     gpu?.compositing === 'gpu' && gpu.hardwareAccelerated
       ? '#34d399'
@@ -139,8 +139,8 @@ export default function PerfHud() {
 
   const adapterShort = (() => {
     const raw = (gpu?.adapter || gpu?.renderer || '').trim();
-    if (!raw) return '—';
-    return raw.length > 42 ? `${raw.slice(0, 40)}…` : raw;
+    if (!raw) return '--';
+    return raw.length > 42 ? `${raw.slice(0, 40)}...` : raw;
   })();
 
   return (

@@ -10,7 +10,7 @@ const TUTORIAL_STEPS = [
     iconId: 'sparkles_ui',
     color: '#c026d3',
     title: 'Welcome to BNDZ',
-    body: 'Windows-native file manager with BNDZ craft UI. This short tour covers the surfaces you will use every day — replay anytime from View → Show tutorial.',
+    body: 'Windows-native file manager with BNDZ craft UI. This short tour covers the surfaces you will use every day -- replay anytime from View → Show tutorial.',
   },
   {
     id: 'sidebar',
@@ -49,7 +49,7 @@ const TUTORIAL_STEPS = [
     iconId: 'zap_ui',
     color: '#f59e0b',
     title: 'Rapid access & Undo',
-    body: 'Pin folders to Rapid access from the context menu. Undo file operations with Ctrl+Z — the Action Log tracks what can be reversed.',
+    body: 'Pin folders to Rapid access from the context menu. Undo file operations with Ctrl+Z -- the Action Log tracks what can be reversed.',
     anchor: 'sidebar',
   },
 ];

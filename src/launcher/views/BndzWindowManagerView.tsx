@@ -31,7 +31,7 @@ export default function BndzWindowManagerView({ onClose }: Props) {
         <span className="text-[14px] font-medium">Window Management</span>
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-        <p className="text-[12px] text-[var(--text-muted)] mb-4">Snap and resize the foreground window — SuperCmd / Raycast style tiling.</p>
+        <p className="text-[12px] text-[var(--text-muted)] mb-4">Snap and resize the foreground window -- SuperCmd / Raycast style tiling.</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {TILES.map(t => (
             <button

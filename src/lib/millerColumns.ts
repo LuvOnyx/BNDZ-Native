@@ -47,7 +47,7 @@ export function millerRootForMount(
   const pane = normalizePanePath(panePath) || '/';
   if (!frozen) return pane;
   if (pane === frozen || pane.startsWith(`${frozen}/`)) return frozen;
-  // User climbed above the freeze — mount at the shorter path.
+  // User climbed above the freeze -- mount at the shorter path.
   if (frozen.startsWith(`${pane}/`)) return pane;
   return pane;
 }

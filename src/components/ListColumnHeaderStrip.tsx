@@ -37,7 +37,7 @@ type Props = {
   onContextMenu?: (e: React.MouseEvent) => void;
 };
 
-/** Keep reorder on the header row — only X follows the pointer. */
+/** Keep reorder on the header row -- only X follows the pointer. */
 const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
   ...transform,
   y: 0,
@@ -72,7 +72,7 @@ function SortableColumnHeader({
   const pressRef = React.useRef<{ x: number; y: number; moved: boolean; pointerId: number } | null>(null);
   const lastSortAtRef = React.useRef(0);
 
-  // Translate only — never scale. Scale is what made the bars look deformed.
+  // Translate only -- never scale. Scale is what made the bars look deformed.
   const style: React.CSSProperties = {
     ...getColumnStyle(col),
     ...(lockedWidth
@@ -138,7 +138,7 @@ function SortableColumnHeader({
       onPointerMove={e => {
         const press = pressRef.current;
         if (!press || press.pointerId !== e.pointerId) return;
-        // 8px slack — WebView2 / trackpad micro-jitter was cancelling sort toggles at 3px.
+        // 8px slack -- WebView2 / trackpad micro-jitter was cancelling sort toggles at 3px.
         if (Math.abs(e.clientX - press.x) > 8 || Math.abs(e.clientY - press.y) > 8) press.moved = true;
       }}
       onPointerUp={e => {
@@ -195,7 +195,7 @@ function SortableColumnHeader({
   );
 }
 
-/** Details-view column headers — in-place horizontal slide reorder (no portal ghost). */
+/** Details-view column headers -- in-place horizontal slide reorder (no portal ghost). */
 export default function ListColumnHeaderStrip({
   columns,
   sortColumn,

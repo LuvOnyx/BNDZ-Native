@@ -337,9 +337,9 @@ export default function DropStackPlugin({
             <div className="bndz-dropstack-opsrail-title">{stack?.name || 'Drop Stack'}</div>
             <div className="bndz-dropstack-opsrail-meta">
               {items.length} staged
-              {selected.size ? ` · ${selected.size} selected` : ''}
-              {` · ${stacks.length} stack${stacks.length === 1 ? '' : 's'}`}
-              {destPath ? ` · ${formatUiPath(destPath)}` : ''}
+              {selected.size ? ` | ${selected.size} selected` : ''}
+              {` | ${stacks.length} stack${stacks.length === 1 ? '' : 's'}`}
+              {destPath ? ` | ${formatUiPath(destPath)}` : ''}
             </div>
           </div>
           <div className="bndz-dropstack-opsrail-actions">
@@ -452,7 +452,7 @@ export default function DropStackPlugin({
                       {dragOver ? 'Release to stage' : 'Drop files here or browse'}
                     </span>
                     <span className="bndz-dropstack-hint">
-                      Stage from Explorer or the list — images, docs, folders…
+                      Stage from Explorer or the list -- images, docs, folders...
                     </span>
                     {!dragOver && (
                       <button

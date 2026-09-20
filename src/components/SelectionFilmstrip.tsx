@@ -7,7 +7,7 @@ type Props = {
   onSelect?: (path: string) => void;
 };
 
-/** Multi-select filmstrip under preview — CAS thumbs, soft squircles. */
+/** Multi-select filmstrip under preview -- CAS thumbs, soft squircles. */
 export function SelectionFilmstrip({ paths, activePath, onSelect }: Props) {
   if (!paths.length) return null;
   return (

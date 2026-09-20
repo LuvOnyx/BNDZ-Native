@@ -1,5 +1,5 @@
 /**
- * Spacedrive SearchToolbar port — scope chips for `> ` indexed search.
+ * Spacedrive SearchToolbar port -- scope chips for `> ` indexed search.
  * Source: spacedrive/packages/interface/src/routes/explorer/SearchToolbar.tsx
  */
 import React from 'react';

@@ -81,7 +81,7 @@ export function parseColorFill(raw: unknown, fallback = '#111111'): ColorFill {
         return { mode: 'solid', color: normalizeHex(fallback) };
       }
     }
-    // Legacy / pasted CSS gradient — keep as opaque gradient via fake stops if we can't parse.
+    // Legacy / pasted CSS gradient -- keep as opaque gradient via fake stops if we can't parse.
     if (t.toLowerCase().includes('gradient(')) {
       const colors = [...t.matchAll(/#(?:[0-9a-fA-F]{3,8})\b/g)].map(m => normalizeHex(m[0]));
       if (colors.length >= 2) {
@@ -179,7 +179,7 @@ export function migratePluginHeroFill(
     });
   }
   if (parsed.mode === 'solid') {
-    // Legacy single solid (or mid/edge cleared) — restore classic visible 3-step hero, not a flat wash.
+    // Legacy single solid (or mid/edge cleared) -- restore classic visible 3-step hero, not a flat wash.
     const base = normalizeHex(parsed.color);
     const six = base.length === 9 ? base.slice(0, 7) : base;
     return serializeColorFill({

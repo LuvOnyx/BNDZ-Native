@@ -29,7 +29,7 @@ function normKey(p: string) {
 }
 
 /**
- * Native-shell sidebar island — glass sections, drive cards, Home discoverability.
+ * Native-shell sidebar island -- glass sections, drive cards, Home discoverability.
  * Craft language adapted from Uiverse depth/glass patterns into BNDZ tokens.
  */
 export default function NativeShellSidebar({ currentPath, onNavigate }: Props) {
@@ -118,7 +118,7 @@ export default function NativeShellSidebar({ currentPath, onNavigate }: Props) {
         {expanded.drives && (
           <div className="bndz-ns-section-body bndz-ns-drives">
             {drives.length === 0 ? (
-              <div className="bndz-ns-empty">Scanning volumes…</div>
+              <div className="bndz-ns-empty">Scanning volumes...</div>
             ) : (
               drives.map((drive) => {
                 const selected = active === normKey(drive.name) || active === normKey(drive.path || '');

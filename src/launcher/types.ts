@@ -1,4 +1,4 @@
-/** Adapted from SuperCmd CommandInfo — trimmed for Flow bridge on Windows */
+/** Adapted from SuperCmd CommandInfo -- trimmed for Flow bridge on Windows */
 export type LauncherCommandCategory =
   | 'app'
   | 'extension'
@@ -142,7 +142,7 @@ export type LauncherBridgeMessage = LauncherBridgeEnvelope & (
   | { type: 'AI_CANCEL'; requestId: string }
 );
 
-/** Host RPC replies (SNIPPET_LIST_RESULT, etc.) — kept separate so bridge unions narrow cleanly. */
+/** Host RPC replies (SNIPPET_LIST_RESULT, etc.) -- kept separate so bridge unions narrow cleanly. */
 export type LauncherBridgeRpcMessage = LauncherBridgeEnvelope & {
   type: string;
   requestId?: string;

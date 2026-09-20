@@ -13,7 +13,7 @@ export const DesignBoardPluginDef = {
   name: 'Design Board',
   icon: 'layers_ui',
   description:
-    'Hosted design canvas (Fabric / optional OpenPencil) — shapes, pen, and layers inside BNDZ chrome.',
+    'Hosted design canvas (Fabric / optional OpenPencil) -- shapes, pen, and layers inside BNDZ chrome.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -26,7 +26,7 @@ function editorSrc(useOpenPencil?: boolean): string {
 }
 
 type Props = {
-  /** Full-bleed second-process / pop-out face — skip dock chrome. */
+  /** Full-bleed second-process / pop-out face -- skip dock chrome. */
   popout?: boolean;
   immersive?: boolean;
   isPluginTabActive?: boolean;
@@ -42,7 +42,7 @@ type HostMsg = Record<string, unknown>;
 /**
  * Host for the Figma/ProDesign UI (public/editors/bndz-design-board.html).
  * Chrome stays; Fabric canvas is default. OpenPencil opt-in via useOpenPencil prop.
- * Expand uses CSS fixed overlay on the same iframe host — never remounts the frame.
+ * Expand uses CSS fixed overlay on the same iframe host -- never remounts the frame.
  */
 export default function DesignBoardPlugin({
   popout = false,
@@ -86,7 +86,7 @@ export default function DesignBoardPlugin({
     const fromPaths = !fromFiles.length && paths?.length ? await pathsToStudioDropImages(paths) : [];
     const images = fromFiles.length ? fromFiles : fromPaths;
     if (!images.length) {
-      setStatus('Drop an image (PNG, JPG, WEBP, SVG, ICO…)');
+      setStatus('Drop an image (PNG, JPG, WEBP, SVG, ICO...)');
       return;
     }
     postToBoard({ type: 'placeImages', images });
@@ -169,11 +169,11 @@ export default function DesignBoardPlugin({
       if (d.type === 'ready') {
         boardReadyRef.current = true;
         flushPending();
-        setStatus(d.degraded ? 'OpenPencil failed — Fabric fallback' : 'OpenPencil live');
+        setStatus(d.degraded ? 'OpenPencil failed -- Fabric fallback' : 'OpenPencil live');
       } else if (d.type === 'error' && d.message) {
         setStatus(String(d.message));
       } else if (d.type === 'toolChanged' && d.tool) {
-        setStatus(`Tool · ${String(d.tool)}`);
+        setStatus(`Tool | ${String(d.tool)}`);
       }
     };
     window.addEventListener('message', onMsg);
@@ -271,7 +271,7 @@ export default function DesignBoardPlugin({
           try {
             iframeRef.current?.focus({ preventScroll: true });
           } catch { /* ignore */ }
-          // Soft unlock — editor also posts ready; avoid dropping early host messages forever.
+          // Soft unlock -- editor also posts ready; avoid dropping early host messages forever.
           window.setTimeout(() => {
             if (!boardReadyRef.current) {
               boardReadyRef.current = true;
@@ -304,13 +304,13 @@ export default function DesignBoardPlugin({
     );
   }
 
-  // Single tree: expand via CSS fixed viewport — iframe never remounts.
+  // Single tree: expand via CSS fixed viewport -- iframe never remounts.
   return (
     <PluginPanelShell
       title="Design Board"
       icon="layers_ui"
       iconColor="#0d99ff"
-      subtitle="Hosted canvas engine · Fabric / OpenPencil"
+      subtitle="Hosted canvas engine | Fabric / OpenPencil"
       variant="embedded"
       scrollable={false}
       footer={!expanded ? (
@@ -331,7 +331,7 @@ export default function DesignBoardPlugin({
               boardReadyRef.current = false;
               pendingRef.current = [];
               setBoardKey(k => k + 1);
-              setStatus('Reloading board…');
+              setStatus('Reloading board...');
             }}
             title="Hard-reload the editor frame"
           >

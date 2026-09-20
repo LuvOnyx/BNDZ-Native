@@ -40,7 +40,7 @@ function BranchRow({
 }) {
   const [open, setOpen] = useState(depth < 2);
   const label = branch.parentPath || '(unknown)';
-  const short = label.length > 72 ? `…${label.slice(-68)}` : label;
+  const short = label.length > 72 ? `...${label.slice(-68)}` : label;
   return (
     <div className="bndz-recycle-arch-branch" style={{ marginLeft: depth * 12 }}>
       <div className="bndz-plugin-card !p-2.5 flex items-center gap-2 group">
@@ -55,8 +55,8 @@ function BranchRow({
         <div className="min-w-0 flex-1">
           <div className="text-[12px] font-medium text-gray-100 truncate" title={label}>{short}</div>
           <div className="text-[10px] text-white/40 mt-0.5">
-            {branch.itemCount} item{branch.itemCount === 1 ? '' : 's'} · {formatBytes(branch.totalBytes)}
-            {branch.latestDeletedUtc ? ` · deleted ${new Date(branch.latestDeletedUtc).toLocaleString()}` : ''}
+            {branch.itemCount} item{branch.itemCount === 1 ? '' : 's'} | {formatBytes(branch.totalBytes)}
+            {branch.latestDeletedUtc ? ` | deleted ${new Date(branch.latestDeletedUtc).toLocaleString()}` : ''}
           </div>
         </div>
         <button
@@ -78,7 +78,7 @@ function BranchRow({
             </li>
           ))}
           {branch.items.length > 12 && (
-            <li className="text-[10px] text-white/30 pl-4">+{branch.items.length - 12} more…</li>
+            <li className="text-[10px] text-white/30 pl-4">+{branch.items.length - 12} more...</li>
           )}
         </ul>
       )}
@@ -117,7 +117,7 @@ export default function RecycleArchaeologyPanel() {
     setError(null);
     try {
       const r = await IPC.recycleArchRestoreBranch(parentPath);
-      setStatus(`Restored ${r.restored} item(s)${r.failed ? ` · ${r.failed} failed` : ''} to ${toWindowsPath(parentPath)}`);
+      setStatus(`Restored ${r.restored} item(s)${r.failed ? ` | ${r.failed} failed` : ''} to ${toWindowsPath(parentPath)}`);
       await refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Restore failed.');
@@ -149,7 +149,7 @@ export default function RecycleArchaeologyPanel() {
           disabled={loading || busy}
           className="bndz-hub-btn-primary px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40"
         >
-          {loading ? 'Scanning…' : 'Rescan Recycle Bin'}
+          {loading ? 'Scanning...' : 'Rescan Recycle Bin'}
         </button>
         {status && <span className="text-[11px] text-white/40">{status}</span>}
       </div>

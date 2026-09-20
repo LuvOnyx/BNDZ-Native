@@ -90,26 +90,26 @@ export default function AclDramaPanel({ path }: { path: string | null }) {
       </div>
 
       {error && <div className="text-[11px] text-rose-300 mb-2">{error}</div>}
-      {busy && history.length === 0 && <div className="text-[11px] text-gray-500">Loading timeline…</div>}
+      {busy && history.length === 0 && <div className="text-[11px] text-gray-500">Loading timeline...</div>}
 
       {history.length === 0 && !busy ? (
-        <div className="text-[11px] text-gray-500">No ACL history yet — snapshot to start the drama timeline.</div>
+        <div className="text-[11px] text-gray-500">No ACL history yet -- snapshot to start the drama timeline.</div>
       ) : (
         <ol className="space-y-2 max-h-[220px] overflow-y-auto bndz-scrollbar">
           {history.map(entry => (
             <li key={entry.snapshotId} className="relative pl-4 border-l border-amber-500/30">
               <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-amber-400/80 -translate-x-[5px]" />
-              <div className="text-[11px] text-gray-500">{relativeTime(entry.snapshotUtc)} · Owner: {entry.owner}</div>
+              <div className="text-[11px] text-gray-500">{relativeTime(entry.snapshotUtc)} | Owner: {entry.owner}</div>
               <div className="text-xs text-gray-200 mt-0.5">{entry.dramaLabel}</div>
               {entry.addedRules.length > 0 && (
                 <div className="text-[10px] text-emerald-300/90 mt-1">
-                  + {entry.addedRules.slice(0, 2).join(' · ')}
+                  + {entry.addedRules.slice(0, 2).join(' | ')}
                   {entry.addedRules.length > 2 ? ` (+${entry.addedRules.length - 2})` : ''}
                 </div>
               )}
               {entry.removedRules.length > 0 && (
                 <div className="text-[10px] text-rose-300/90">
-                  − {entry.removedRules.slice(0, 2).join(' · ')}
+                  - {entry.removedRules.slice(0, 2).join(' | ')}
                   {entry.removedRules.length > 2 ? ` (+${entry.removedRules.length - 2})` : ''}
                 </div>
               )}

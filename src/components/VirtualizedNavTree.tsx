@@ -282,7 +282,7 @@ function TreeRow({
             document.documentElement.classList.remove('bndz-ole-drag-handoff');
             document.getElementById('bndz-ole-veil')?.remove();
           } catch { /* ignore */ }
-          // Fresh LMB — do not inherit a stuck suppress from a prior cancelled drag.
+          // Fresh LMB -- do not inherit a stuck suppress from a prior cancelled drag.
           if (suppressTreeClickRef) suppressTreeClickRef.current = false;
         }
         if (canDragFile && e.button === 0) onFilePointerDown?.(row, e);
@@ -402,7 +402,7 @@ function TreeRow({
   );
 
   if (isVirtualRow) {
-    // Virtual mode: container has fixed height — use absolute indicators so they
+    // Virtual mode: container has fixed height -- use absolute indicators so they
     // straddle the row boundary without expanding the slot.
     return (
       <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -512,7 +512,7 @@ export function VirtualizedNavTree({
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // TreeRowMemo skips re-render when only onNavigate identity changes — keep a stable
+  // TreeRowMemo skips re-render when only onNavigate identity changes -- keep a stable
   // callback so Navigation Tree LMB never freezes on the first-render handler.
   const onNavigateRef = useRef(onNavigate);
   onNavigateRef.current = onNavigate;
@@ -696,7 +696,7 @@ export function VirtualizedNavTree({
         const hadSelected = rowEl.classList.contains('nav-tree-row-selected');
         if (!hadSelected) rowEl.classList.add('nav-tree-row-selected');
         const cs = getComputedStyle(rowEl);
-        // Bake live sidebar paint before cloning — body orphans lose
+        // Bake live sidebar paint before cloning -- body orphans lose
         // `html[data-bndz-shell] .bndz-chrome-sidebar .nav-tree-row-selected` rules.
         const paint = {
           backgroundImage: cs.backgroundImage,
@@ -735,7 +735,7 @@ export function VirtualizedNavTree({
         clone.querySelectorAll('.nav-tree-reorder-grip').forEach(el => {
           (el as HTMLElement).style.visibility = 'hidden';
         });
-        // Additive layout — preserve indent from live paddingLeft bake.
+        // Additive layout -- preserve indent from live paddingLeft bake.
         Object.assign(clone.style, {
           position: 'fixed',
           left: '0',
@@ -783,7 +783,7 @@ export function VirtualizedNavTree({
       if (!sessionStarted) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < FILE_DRAG_THRESHOLD_PX) return;
         sessionStarted = true;
-        // Do NOT suppress row click here — pointercancel/up without OLE used to leave
+        // Do NOT suppress row click here -- pointercancel/up without OLE used to leave
         // suppress stuck true and kill Navigation Tree LMB navigate (chevrons still worked).
         try {
           rowEl.setPointerCapture(capturePointerId);
@@ -842,7 +842,7 @@ export function VirtualizedNavTree({
     };
 
     const onCancel = (ev: PointerEvent) => {
-      // Leaving the WebView cancels the pointer — keep FILE_DRAG_ACTIVE armed so the
+      // Leaving the WebView cancels the pointer -- keep FILE_DRAG_ACTIVE armed so the
       // host poll can still escalate to DoDragDrop after the cursor leaves the window.
       if (ev.pointerId !== capturePointerId) return;
       if (sessionStarted && !oleStarted && !hostOleEscalated) {

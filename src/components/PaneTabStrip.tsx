@@ -24,7 +24,7 @@ import { findingTabLabel, isFindingTab } from '../lib/findingTab';
 import { normalizePanePath } from '../lib/pathUtils';
 import { isBndzAutomationPath, isBndzCanvasPath } from '../lib/bndzVirtualViews';
 
-/** Keep reorder on the tab row — only X follows the pointer; kill Y/scale hard. */
+/** Keep reorder on the tab row -- only X follows the pointer; kill Y/scale hard. */
 const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
   ...transform,
   x: transform.x,
@@ -56,7 +56,7 @@ export type PaneTabStripProps = {
   activeTabIndex: number;
   tabBarHeight?: number;
   flexibleTabWidth?: boolean;
-  /** Settings → Resizable tabs — drag right edge to set width. */
+  /** Settings → Resizable tabs -- drag right edge to set width. */
   resizableTabs?: boolean;
   /** Per-path custom widths when resizableTabs is on. */
   tabCustomWidths?: Record<string, number>;
@@ -163,7 +163,7 @@ function SortablePaneTab({
   const effectiveWidth = liveWidth ?? customWidth;
   const useCustom = !flexibleTabWidth && resizableTabs && typeof effectiveWidth === 'number' && effectiveWidth > 0;
 
-  // Light theme: CSS owns chip paint. Dark themes: set text only —
+  // Light theme: CSS owns chip paint. Dark themes: set text only --
   // plaque / accent CSS owns background (inline `background` shorthand fought plaques and looked tiny).
   const isLightTheme =
     typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light');
@@ -317,7 +317,7 @@ function SortablePaneTab({
   );
 }
 
-/** Pane list tabs — horizontal slide reorder via @dnd-kit (same pattern as column headers). */
+/** Pane list tabs -- horizontal slide reorder via @dnd-kit (same pattern as column headers). */
 export default function PaneTabStrip(props: PaneTabStripProps) {
   const {
     paneId,
@@ -360,7 +360,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // Left-button only — right-click must reach onContextMenu for tab menus.
+      // Left-button only -- right-click must reach onContextMenu for tab menus.
       activationConstraint: { distance: suspendTabReorder ? 99999 : 6 },
     }),
   );
@@ -393,7 +393,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
         String(buttonsPosition || '').toLowerCase() === 'right' ? 'flex-row-reverse' : ''
       }`}
       style={{
-        /* Configuration → Tabs → Tab bar height (24–36px) */
+        /* Configuration → Tabs → Tab bar height (24-36px) */
         minHeight: tabBarHeight ?? undefined,
         height: tabBarHeight ? `${tabBarHeight}px` : 'var(--bndz-tab-bar-height, 44px)',
         background: 'var(--bndz-surface-chrome)',
@@ -492,7 +492,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
             newTabDropActive ? 'ring-1 ring-inset ring-[#38bdf8]/60 bg-[#333]' : ''
           }`}
           data-new-tab-zone={paneId}
-          title="New tab · Drop a folder here to open it in a new tab"
+          title="New tab | Drop a folder here to open it in a new tab"
           onClick={e => {
             e.stopPropagation();
             onAddTab();

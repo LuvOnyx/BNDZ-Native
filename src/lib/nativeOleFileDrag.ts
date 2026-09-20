@@ -52,7 +52,7 @@ export type OutboundOleBoundaryHandoffOpts = {
 
 /**
  * Boundary handoff: hide React ghost → START_DRAG.
- * Do NOT releasePointerCapture — that synthesizes button-up and breaks wallpaper commit.
+ * Do NOT releasePointerCapture -- that synthesizes button-up and breaks wallpaper commit.
  */
 export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHandoffOpts): void {
   if (!IPC.isNative) return;
@@ -64,7 +64,7 @@ export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHando
   opts.hideGhost();
   // Intentionally no releasePointerCapture / ReleaseCapture.
 
-  // Optimistic strip ASAP — wallpaper MOVE can take hundreds of ms before OLE_DRAG_ENDED,
+  // Optimistic strip ASAP -- wallpaper MOVE can take hundreds of ms before OLE_DRAG_ENDED,
   // and host OLE_DRAG_ESCALATED is one dispatcher tick later.
   try {
     window.dispatchEvent(new CustomEvent('bndz-ole-drag-escalated', {

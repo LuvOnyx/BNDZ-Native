@@ -19,7 +19,7 @@ const STORAGE_PREFIX = 'bndz_ws_splash_seen_';
 const EMPTY_HINT_PREFIX = 'bndz_ws_splash_empty_';
 
 export type WorkspaceSplashOptions = {
-  /** Workspace data finished loading — avoids flashing splash during async hydrate. */
+  /** Workspace data finished loading -- avoids flashing splash during async hydrate. */
   isReady?: boolean;
   /** True when board/graph has zero pins/blocks. */
   isEmpty?: boolean;

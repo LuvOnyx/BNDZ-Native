@@ -10,7 +10,7 @@ export function isNonFsShellIconPath(path: string | null | undefined): boolean {
   if (isMeshPath(n)) return true;
   if (isVirtualCatalogPath(n)) return true;
   if (/^\/cloud(\/|$)/i.test(n)) return true;
-  // Smart / BNDZ virtual views — but RAM zone mounts are real FS and should extract.
+  // Smart / BNDZ virtual views -- but RAM zone mounts are real FS and should extract.
   if (isBndzVirtualPath(n) && !isBndzRamWritablePath(n)) return true;
   return false;
 }
@@ -23,9 +23,9 @@ export const SHELL_CLSID = {
   libraries: '::{031E4825-7B94-4DC3-B131-E946B44C8DD5}',
   controlPanel: '::{26EE0668-A00A-44D7-9371-BEB064C98683}',
   portableDevices: '::{35786D3C-B076-497C-A057-7DCC04A3D85}',
-  /** Personal OneDrive shell folder — FS path alone yields a generic yellow folder. */
+  /** Personal OneDrive shell folder -- FS path alone yields a generic yellow folder. */
   oneDrive: '::{018D5C66-4533-4307-9B53-224DE2ED1FE6}',
-  /** User profile — parsing name shell:Profile (FOLDERID_Profile CLSID fails SHParseDisplayName). */
+  /** User profile -- parsing name shell:Profile (FOLDERID_Profile CLSID fails SHParseDisplayName). */
   profile: 'shell:Profile',
 } as const;
 
@@ -117,7 +117,7 @@ export const SHELL_PANE_TO_SHORTCUT_NAME: Record<string, string> = {
 
 /**
  * Map `/shell:Desktop` (etc.) to the real filesystem pane path from system shortcuts
- * so tabs/address bar show `C:\Users\…\Desktop` instead of `shell:Desktop`.
+ * so tabs/address bar show `C:\Users\...\Desktop` instead of `shell:Desktop`.
  */
 export function resolveShellKnownFolderToFs(
   panePath: string,
@@ -245,7 +245,7 @@ export function resolveShellIconPath(path: string | null | undefined): string {
   return win;
 }
 
-/** Path for shell properties verb — same resolver, ensures drive roots end with backslash */
+/** Path for shell properties verb -- same resolver, ensures drive roots end with backslash */
 export function resolveShellPropertiesPath(path: string | null | undefined): string {
   return resolveShellIconPath(path);
 }
@@ -277,7 +277,7 @@ export function shellIconIsDirectory(path: string | null | undefined): boolean {
     return !leaf.includes('.');
   }
   if (pane === '/vf' || pane.startsWith('/vf/')) return true;
-  // Known-folder shell tokens (Desktop, Downloads, …) are directories — query them as such
+  // Known-folder shell tokens (Desktop, Downloads, ...) are directories -- query them as such
   // so the tree gets the real special-folder glyph instead of a white file placeholder.
   if (lower.startsWith('shell:')) {
     const token = `shell:${lower.slice(6).split(/[/\\]/)[0]}`;

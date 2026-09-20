@@ -14,8 +14,8 @@ type Props = {
  * Pan/zoom for R3F orthographic (pixel frustum ±size/2).
  * Screen pixels → world: delta / ortho.zoom.
  * Clamp so the plane cannot be thrown out of view.
- * Does not reset on resize — FitCamera owns base zoom.
- * Waits for baseZoomRef > 0 (real fit) before applying — avoids speck-at-zoom=1.
+ * Does not reset on resize -- FitCamera owns base zoom.
+ * Waits for baseZoomRef > 0 (real fit) before applying -- avoids speck-at-zoom=1.
  */
 export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoomChange }: Props) {
   const { camera, gl, invalidate, size } = useThree();
@@ -61,7 +61,7 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
         if (!(baseZoomRef.current > 0)) return;
         event.preventDefault();
         const factor = dy > 0 ? 0.9 : 1.1;
-        // Floor at 0.25× fit — never shrink to an irrecoverable speck.
+        // Floor at 0.25× fit -- never shrink to an irrecoverable speck.
         zoomMul.current = Math.max(0.25, Math.min(16, zoomMul.current * factor));
         clampPan();
         onZoomChange?.(zoomMul.current);

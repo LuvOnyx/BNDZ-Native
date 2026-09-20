@@ -49,7 +49,7 @@ const VIEWS = [
     path: BNDZ_LARGE,
     icon: 'hard_drive_ui',
     accent: '#c48b4a',
-    desc: 'Largest files — sorted and visualized by size',
+    desc: 'Largest files -- sorted and visualized by size',
   },
   {
     path: BNDZ_PROBLEMS,
@@ -71,7 +71,7 @@ const WORKSPACES = [
     icon: 'view_grid',
     accent: '#c4a35a',
     title: 'Spatial Canvas',
-    desc: 'Pin files from many folders on one board — without moving them on disk',
+    desc: 'Pin files from many folders on one board -- without moving them on disk',
   },
   {
     path: BNDZ_AUTOMATION,
@@ -138,7 +138,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop }: P
             {onOpenMeshDrop && (
               <WorkspaceLaunchCard
                 title="Mesh Drop"
-                desc="Send files over your network with a one-time code — no cloud account"
+                desc="Send files over your network with a one-time code -- no cloud account"
                 icon="share"
                 emblemId="share-check"
                 accent="#5b9fd4"
@@ -178,7 +178,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop }: P
             <h2 className="bndz-smart-hub-title text-[13px] font-semibold tracking-wide">Smart Views</h2>
             <p className="bndz-smart-hub-sub text-[11px] mt-0.5">
               {(status?.fileCount ?? 0).toLocaleString()} files indexed
-              {(status?.locations?.length ?? 0) > 0 ? ` · ${status!.locations!.length} location${status!.locations!.length === 1 ? '' : 's'}` : ''}
+              {(status?.locations?.length ?? 0) > 0 ? ` | ${status!.locations!.length} location${status!.locations!.length === 1 ? '' : 's'}` : ''}
             </p>
           </div>
         </div>

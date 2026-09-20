@@ -62,7 +62,7 @@ export default function WorkspaceCommandPalette({ open, commands, onClose }: Pro
         <input
           className="bndz-ws-palette-input"
           autoFocus
-          placeholder="Type a command…"
+          placeholder="Type a command..."
           value={query}
           onChange={e => { setQuery(e.target.value); setIdx(0); }}
         />

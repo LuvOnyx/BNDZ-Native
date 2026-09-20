@@ -10,7 +10,7 @@ interface Icons8IconProps {
   className?: string;
   /** Dim the icon (e.g. disabled buttons) without needing a distinct asset. */
   disabled?: boolean;
-  /** Spin animation — used for 'loading' in place of Lucide's Loader2. */
+  /** Spin animation -- used for 'loading' in place of Lucide's Loader2. */
   spin?: boolean;
   title?: string;
   /** Stroke/tint color for tintable glyphs (tag_manager / tag__ / favorites). */
@@ -19,7 +19,7 @@ interface Icons8IconProps {
 
 /**
  * Renders a real Icons8 3D-Fluency PNG asset (public/launcher-icons/) in place of a
- * Lucide vector icon. These are raster 3D renders, not tintable strokes — size and
+ * Lucide vector icon. These are raster 3D renders, not tintable strokes -- size and
  * opacity are the only visual knobs, matching how the existing toolbar already
  * consumes launcherIconUrl(). Falls back to a small neutral dot if the id has no
  * mapped asset, so a missing icon never breaks layout.
@@ -27,7 +27,7 @@ interface Icons8IconProps {
  * Exceptions: tag_manager / tag__ use a tintable tag mask; favorites uses the bookmark glyph.
  */
 export function Icons8Icon({ id, size = 16, className = '', disabled, spin, title, color }: Icons8IconProps) {
-  // Guard: plugins sometimes pass a ReactNode by mistake — never call string methods on it.
+  // Guard: plugins sometimes pass a ReactNode by mistake -- never call string methods on it.
   if (typeof id !== 'string' || !id) {
     return (
       <span
@@ -85,7 +85,7 @@ export function Icons8Icon({ id, size = 16, className = '', disabled, spin, titl
   );
 }
 
-/** Small geometric six-dot drag handle — Icons8 has no matching 3D asset at UI-chrome scale. */
+/** Small geometric six-dot drag handle -- Icons8 has no matching 3D asset at UI-chrome scale. */
 export function DragHandleGlyph({ size = 14, className = '' }: { size?: number; className?: string }) {
   const dot = Math.max(1.5, size / 8);
   return (
@@ -100,7 +100,7 @@ export function DragHandleGlyph({ size = 14, className = '' }: { size?: number; 
   );
 }
 
-/** Pop-out / open-in-new-window glyph — replaces the misleading chain-link external_link asset. */
+/** Pop-out / open-in-new-window glyph -- replaces the misleading chain-link external_link asset. */
 export function PopOutGlyph({ size = 14, className = '' }: { size?: number; className?: string }) {
   return (
     <svg

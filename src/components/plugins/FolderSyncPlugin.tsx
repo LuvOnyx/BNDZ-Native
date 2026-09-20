@@ -70,7 +70,7 @@ function formatWhen(iso?: string | null) {
   try {
     return new Date(iso).toLocaleString();
   } catch {
-    return '—';
+    return '--';
   }
 }
 
@@ -237,7 +237,7 @@ export default function FolderSyncPlugin({
 
   const runSync = async (jobId: string) => {
     setSyncingId(jobId);
-    setProgress(prev => ({ ...prev, [jobId]: { percent: 0, message: 'Starting…' } }));
+    setProgress(prev => ({ ...prev, [jobId]: { percent: 0, message: 'Starting...' } }));
     try {
       await IPC.runFolderSync(jobId);
     } catch (e: any) {
@@ -306,9 +306,9 @@ export default function FolderSyncPlugin({
             </div>
             <div className="bndz-foldersync-opsrail-meta">
               {jobs.filter(j => j.watchEnabled).length} watching
-              {' · '}
+              {' | '}
               {syncingId ? 'Sync in progress' : 'Ready'}
-              {currentPath ? ` · ${formatUiPath(currentPath)}` : ''}
+              {currentPath ? ` | ${formatUiPath(currentPath)}` : ''}
             </div>
           </div>
           <PluginToolbarButton icon="plus_ui" onClick={startNewJob}>New sync</PluginToolbarButton>
@@ -316,7 +316,7 @@ export default function FolderSyncPlugin({
         <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3 min-h-0">
           {loading && (
             <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
-              <Icons8Icon id="loading" size={18} spin /> Loading jobs…
+              <Icons8Icon id="loading" size={18} spin /> Loading jobs...
             </div>
           )}
 
@@ -349,7 +349,7 @@ export default function FolderSyncPlugin({
                   className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
                   onClick={() => setPicker('source')}
                 >
-                  {draft.sourcePath ? formatUiPath(draft.sourcePath) : 'Pick source folder…'}
+                  {draft.sourcePath ? formatUiPath(draft.sourcePath) : 'Pick source folder...'}
                 </button>
                 <Icons8Icon id="chevron_right" size={14} className="shrink-0 text-gray-500" />
                 <button
@@ -357,7 +357,7 @@ export default function FolderSyncPlugin({
                   className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
                   onClick={() => setPicker('dest')}
                 >
-                  {draft.destPath ? formatUiPath(draft.destPath) : 'Pick destination…'}
+                  {draft.destPath ? formatUiPath(draft.destPath) : 'Pick destination...'}
                 </button>
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-gray-300">
@@ -415,7 +415,7 @@ export default function FolderSyncPlugin({
                     </div>
                     <div className="mt-1.5 flex items-center gap-1 text-xs bndz-panel-muted">
                       <Icons8Icon id="clock_ui" size={10} /> Last sync: {formatWhen(job.lastSyncUtc)}
-                      {job.mirrorMode && <span className="ml-2 text-amber-400/80">• Mirror</span>}
+                      {job.mirrorMode && <span className="ml-2 text-amber-400/80">* Mirror</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0">
@@ -446,7 +446,7 @@ export default function FolderSyncPlugin({
                     <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
                       <div className="h-full bg-[#0078d4] rounded-full transition-all duration-300" style={{ width: `${prog?.percent ?? 30}%` }} />
                     </div>
-                    <p className="text-xs bndz-panel-muted truncate">{prog?.message || prog?.file || 'Syncing…'}</p>
+                    <p className="text-xs bndz-panel-muted truncate">{prog?.message || prog?.file || 'Syncing...'}</p>
                   </div>
                 )}
 
@@ -477,10 +477,10 @@ export default function FolderSyncPlugin({
                 ['Extra (mirror)', preview.data.extraInDest, 'text-rose-300'],
               ] as const).map(([label, items, color]) => (
                 <div key={label} className="bndz-foldersync-preview-block">
-                  <div className={`bndz-foldersync-preview-head ${color}`}>{label} · {items?.length ?? 0}</div>
+                  <div className={`bndz-foldersync-preview-head ${color}`}>{label} | {items?.length ?? 0}</div>
                   <div className="bndz-foldersync-preview-list bndz-panel-muted">
                     {(items || []).slice(0, 40).map(p => <div key={p} className="truncate" title={p}>{p}</div>)}
-                    {(items?.length ?? 0) > 40 && <div>…and {(items?.length ?? 0) - 40} more</div>}
+                    {(items?.length ?? 0) > 40 && <div>...and {(items?.length ?? 0) - 40} more</div>}
                     {(items?.length ?? 0) === 0 && <div className="opacity-50">None</div>}
                   </div>
                 </div>

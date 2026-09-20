@@ -90,9 +90,9 @@ function entryIcon(entry: ArchiveEntry) {
 }
 
 function formatModified(value?: string): string {
-  if (!value) return '—';
+  if (!value) return '--';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '--';
   return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
 
@@ -295,7 +295,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     if (!isNative || entry.isDirectory) return;
     if (!['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'pdf', 'html', 'htm', 'txt', 'mp3', 'wav', 'flac', 'm4a', 'ogg'].includes(ext)) return;
     void (async () => {
-      setBusy(`Loading ${entry.name}…`);
+      setBusy(`Loading ${entry.name}...`);
       try {
         const { IPC } = await import('../lib/ipcBridge');
         const result = await IPC.archiveExtractEntryToTemp(winPath, entry.path);
@@ -325,7 +325,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     window.dispatchEvent(new CustomEvent('bndz-archive-drop', {
       detail: { paths, clientX, clientY, op: 'copy' },
     }));
-    setStatus(`Dropping ${paths.length} item(s) into folder…`);
+    setStatus(`Dropping ${paths.length} item(s) into folder...`);
   };
 
   const dragEntriesOut = async (targets: ArchiveEntry[]) => {
@@ -563,17 +563,17 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
 
   const extractSelected = async () => {
     if (!primarySelected) return;
-    setBusy(`Extracting ${primarySelected.name}…`);
+    setBusy(`Extracting ${primarySelected.name}...`);
     try {
       const { IPC } = await import('../lib/ipcBridge');
-      const dest = await IPC.openFolderDialog('Extract selected archive items to…');
+      const dest = await IPC.openFolderDialog('Extract selected archive items to...');
       if (!dest) {
         setStatus('Extract cancelled.');
         return;
       }
       const result = await IPC.archiveExtractEntry(winPath, primarySelected.path, dest);
       if (isQueuedIpcResult(result)) {
-        setStatus('Extract queued — see Background processing.');
+        setStatus('Extract queued -- see Background processing.');
         return;
       }
       setStatus(result.success ? `Extracted to ${dest}` : (result.error || 'Extract failed'));
@@ -619,9 +619,9 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
           </div>
           {(onExtract) && (
             <div className="flex items-center gap-1.5 shrink-0">
-              <button type="button" onClick={onExtract} className="bndz-archive-btn-primary shrink-0" title="Choose a folder…">
+              <button type="button" onClick={onExtract} className="bndz-archive-btn-primary shrink-0" title="Choose a folder...">
                 <Icons8Icon id="extract" size={13} />
-                Extract…
+                Extract...
               </button>
             </div>
           )}
@@ -650,7 +650,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Filter entries…"
+              placeholder="Filter entries..."
               className="bndz-archive-search-input"
             />
           </div>
@@ -670,7 +670,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         {canAddFiles && (
           <div className="bndz-archive-hint">
             <Icons8Icon id="upload" size={11} className="shrink-0 opacity-70" />
-            Drop files to add · Drag rows out to extract
+            Drop files to add | Drag rows out to extract
           </div>
         )}
         {(status || busy) && (
@@ -715,7 +715,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
           {loading && (
             <div className="bndz-archive-empty">
               <Icons8Icon id="loading" size={18} spin />
-              Opening archive…
+              Opening archive...
             </div>
           )}
           {error && (
@@ -760,10 +760,10 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
                   )}
                 </div>
                 <span className="bndz-archive-col-size">
-                  {entry.isDirectory ? '—' : formatArchiveSize(entry.size)}
+                  {entry.isDirectory ? '--' : formatArchiveSize(entry.size)}
                 </span>
                 <span className="bndz-archive-col-packed">
-                  {entry.isDirectory ? '—' : formatArchiveSize(entry.compressedSize)}
+                  {entry.isDirectory ? '--' : formatArchiveSize(entry.compressedSize)}
                 </span>
               </div>
             );
@@ -771,7 +771,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         </div>
       </div>
 
-      {/* Bottom inspector — replaces cramped side panel */}
+      {/* Bottom inspector -- replaces cramped side panel */}
       {inspectorOpen && primarySelected && (
         <aside className="bndz-archive-inspector">
           <div className="bndz-archive-inspector-head">
@@ -779,9 +779,9 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
               <div className="text-[12px] font-semibold text-white/95 truncate">{primarySelected.name}</div>
               <div className="text-[10px] text-white/40 mt-0.5">
                 {formatArchiveSize(primarySelected.size)}
-                {primarySelected.compressedSize > 0 && ` · packed ${formatArchiveSize(primarySelected.compressedSize)}`}
-                {primarySelected.modified && ` · ${formatModified(primarySelected.modified)}`}
-                {selectedPaths.size > 1 && ` · ${selectedPaths.size} selected`}
+                {primarySelected.compressedSize > 0 && ` | packed ${formatArchiveSize(primarySelected.compressedSize)}`}
+                {primarySelected.modified && ` | ${formatModified(primarySelected.modified)}`}
+                {selectedPaths.size > 1 && ` | ${selectedPaths.size} selected`}
               </div>
             </div>
             <button
@@ -816,7 +816,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
           <div className="bndz-archive-inspector-actions">
             <button type="button" onClick={() => void extractSelected()} className="bndz-archive-btn-primary">
               <Icons8Icon id="extract" size={12} />
-              Extract…
+              Extract...
             </button>
             {isNative && (
               <button
@@ -825,7 +825,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
                 className="bndz-archive-btn-secondary"
               >
                 <Icons8Icon id="external_link" size={12} />
-                Drag out…
+                Drag out...
               </button>
             )}
           </div>

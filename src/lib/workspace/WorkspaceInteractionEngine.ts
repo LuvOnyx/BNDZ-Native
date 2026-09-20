@@ -8,7 +8,7 @@ export type WorkspaceEngineOptions = {
 };
 
 /**
- * Imperative pan/zoom engine — no React state during interaction.
+ * Imperative pan/zoom engine -- no React state during interaction.
  * Applies transforms via rAF to layer + optional grid elements.
  */
 export class WorkspaceInteractionEngine {
@@ -70,7 +70,7 @@ export class WorkspaceInteractionEngine {
     return () => this.displayListeners.delete(cb);
   }
 
-  /** Imperative listeners — never triggers React; used for minimap/viewport chrome. */
+  /** Imperative listeners -- never triggers React; used for minimap/viewport chrome. */
   subscribeTransform(cb: (t: WorkspaceTransform) => void): () => void {
     this.transformListeners.add(cb);
     cb(this.transform);

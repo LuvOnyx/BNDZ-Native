@@ -105,7 +105,7 @@ class AudioPlaybackSession {
     // Same path already live: never tear down the decoder (Quick Look / dual surfaces).
     // Force is ignored unless the caller is intentionally changing the path.
     if (this.samePath(path) && this.resolvedSrc) {
-      // Never replace a live blob with a stream URL — peaks / decoder break (ERR_FILE_NOT_FOUND).
+      // Never replace a live blob with a stream URL -- peaks / decoder break (ERR_FILE_NOT_FOUND).
       if (
         this.resolvedSrc.startsWith('blob:')
         && (src.includes('bndz-stream://') || !src.startsWith('blob:'))
@@ -114,7 +114,7 @@ class AudioPlaybackSession {
         this.emit();
         return false;
       }
-      // Already on a blob (or identical src) — keep timeline / play state intact.
+      // Already on a blob (or identical src) -- keep timeline / play state intact.
       if (!opts?.force || this.resolvedSrc === src || this.resolvedSrc.startsWith('blob:')) {
         this.error = null;
         this.emit();
@@ -138,7 +138,7 @@ class AudioPlaybackSession {
     el.load();
     this.emit();
 
-    // Preserve play intent when swapping files only if previously playing —
+    // Preserve play intent when swapping files only if previously playing --
     // callers decide autoplay for first load.
     void wasPlaying;
     return true;
@@ -223,12 +223,12 @@ class AudioPlaybackSession {
     this.emit();
   }
 
-  /** Soft release — keep element alive for next surface binding. */
+  /** Soft release -- keep element alive for next surface binding. */
   releaseUi() {
     this.emit();
   }
 
-  /** Shared decoder for WaveSurfer / preview / Quick Look — never dual-decode. */
+  /** Shared decoder for WaveSurfer / preview / Quick Look -- never dual-decode. */
   getMediaElement(): HTMLAudioElement {
     return this.ensureEl();
   }

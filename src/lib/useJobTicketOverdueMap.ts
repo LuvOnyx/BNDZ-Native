@@ -44,7 +44,7 @@ export function useJobTicketOverdueMap(
     void IPC.jobTicketListOverdue(folderPaths).then((res) => {
       if (!active || !res.ok) return;
       apply(res.overdueMap);
-    }).catch(() => { /* host busy / timeout — badge is optional */ });
+    }).catch(() => { /* host busy / timeout -- badge is optional */ });
     const onChanged = () => {
       void IPC.jobTicketListOverdue(folderPaths).then((res) => {
         if (!active || !res.ok) return;

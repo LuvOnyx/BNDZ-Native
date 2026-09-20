@@ -2,7 +2,7 @@ import { generateId } from './generateId';
 import { decodeBnd1DirListing, decodeBng1GlyphMap } from './dirListingBinary';
 import { hydrateShellGlyphMap } from './nativeIconService';
 
-/** Unique IPC request IDs — prevents response cross-wiring under burst load. */
+/** Unique IPC request IDs -- prevents response cross-wiring under burst load. */
 export function generateIpcId(suffix?: string): string {
   const base = generateId();
   return suffix ? `${base}_${suffix}` : base;
@@ -24,7 +24,7 @@ const pushHandlers = new Set<PushHandler>();
 
 export function registerIpcPushHandler(handler: PushHandler): () => void {
   pushHandlers.add(handler);
-  // Install the WebView message listener as soon as any push consumer registers —
+  // Install the WebView message listener as soon as any push consumer registers --
   // otherwise MESH_TERMINAL_OUTPUT can arrive before the first nativeCall and vanish.
   ensureGlobalListener();
   return () => pushHandlers.delete(handler);
@@ -64,7 +64,7 @@ function ingestHostMessage(data: { type?: string; id?: string; payload?: unknown
     return;
   }
 
-  // Listing-time glyphs — hydrate BEFORE dir contents resolve so first paint has type icons.
+  // Listing-time glyphs -- hydrate BEFORE dir contents resolve so first paint has type icons.
   if (data.type === 'SHELL_GLYPH_MAP' && data.payload && typeof data.payload === 'object') {
     hydrateShellGlyphMap(data.payload as Record<string, string>);
     window.dispatchEvent(new CustomEvent('bndz-shell-glyph-map', {
@@ -137,7 +137,7 @@ function ensureGlobalListener() {
         }
         return;
       }
-      // SHELL_GLYPH_MAP is a push-only event — id may be null on the backend-host path.
+      // SHELL_GLYPH_MAP is a push-only event -- id may be null on the backend-host path.
       if (!id && type !== 'SHELL_GLYPH_MAP') {
         try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
         return;
@@ -236,7 +236,7 @@ function nativeCallOnce<T>(
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       if (pending.delete(id)) {
-        // Quiet warn — callers often .catch() to empty defaults; avoid console spam storms.
+        // Quiet warn -- callers often .catch() to empty defaults; avoid console spam storms.
         if (typeof console !== 'undefined' && console.debug) {
           console.debug(`[IPC] Timeout waiting for ${responseType} (id=${id})`);
         }

@@ -48,7 +48,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1e3).toFixed(0)} KB`;
 }
 
-/** Spatial pin — glass constellation (WorkspaceLaunchCard DNA), distinct from Automation rack. */
+/** Spatial pin -- glass constellation (WorkspaceLaunchCard DNA), distinct from Automation rack. */
 function SpatialCanvasCardInner({
   item,
   selected,
@@ -91,7 +91,7 @@ function SpatialCanvasCardInner({
       data-spatial-card={item.id}
       role="button"
       tabIndex={0}
-      aria-label={`${kind}: ${title}. Click to select · double-click to open.`}
+      aria-label={`${kind}: ${title}. Click to select | double-click to open.`}
       aria-pressed={selected}
       className={`bndz-spatial-card bndz-pin-module${selected ? ' is-selected' : ''}${dragging ? ' is-dragging' : ''}${isDir ? ' is-folder' : ' is-file'}`}
       style={{ left: item.x, top: item.y, width: cardW, minHeight: cardH, ['--ws-accent' as string]: accent }}
@@ -131,7 +131,7 @@ function SpatialCanvasCardInner({
               className="bndz-spatial-card-note-input"
               autoFocus
               defaultValue={item.note || ''}
-              placeholder="Add a note…"
+              placeholder="Add a note..."
               aria-label={`Note for ${title}`}
               onBlur={e => onNoteBlur(item.id, e.target.value)}
               onKeyDown={e => {
@@ -165,7 +165,7 @@ function SpatialCanvasCardInner({
           {intelligence.lineage && (intelligence.lineage.inboundCount > 0 || intelligence.lineage.outboundCount > 0) && (
             <span
               className="bndz-pin-intel-badge bndz-pin-intel-badge--lineage"
-              title={`Lineage: ${intelligence.lineage.inboundCount} in · ${intelligence.lineage.outboundCount} out${intelligence.lineage.recentOp ? ` · last: ${intelligence.lineage.recentOp}` : ''}`}
+              title={`Lineage: ${intelligence.lineage.inboundCount} in | ${intelligence.lineage.outboundCount} out${intelligence.lineage.recentOp ? ` | last: ${intelligence.lineage.recentOp}` : ''}`}
             >
               <span className="bndz-pin-intel-badge-arc" />
               {intelligence.lineage.inboundCount + intelligence.lineage.outboundCount} edge{(intelligence.lineage.inboundCount + intelligence.lineage.outboundCount) === 1 ? '' : 's'}
@@ -175,7 +175,7 @@ function SpatialCanvasCardInner({
             <span
               className="bndz-pin-intel-badge bndz-pin-intel-badge--capacity"
               style={{ '--badge-accent': capacityColor(intelligence.capacity.usedPercent) } as React.CSSProperties}
-              title={`${intelligence.capacity.usedPercent}% used · ${formatBytes(intelligence.capacity.freeBytes)} free`}
+              title={`${intelligence.capacity.usedPercent}% used | ${formatBytes(intelligence.capacity.freeBytes)} free`}
             >
               <span className="bndz-pin-intel-badge-bar">
                 <span className="bndz-pin-intel-badge-bar-fill" style={{ width: `${intelligence.capacity.usedPercent}%` }} />

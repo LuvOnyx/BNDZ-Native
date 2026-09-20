@@ -48,7 +48,7 @@ function formatBytes(n: number): string {
 }
 
 function formatTime(utc?: string): string {
-  if (!utc) return '—';
+  if (!utc) return '--';
   try {
     return new Date(utc).toLocaleString();
   } catch {
@@ -182,7 +182,7 @@ export default function BndzTemporalDiffView({ watchFolder, onNavigate }: Props)
               Time Diff
             </h2>
             <p className="text-[11px] text-gray-500 mt-1 max-w-xl">
-              This folder now vs N minutes ago — USN journal when available, file-time snapshots as fallback.
+              This folder now vs N minutes ago -- USN journal when available, file-time snapshots as fallback.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -208,7 +208,7 @@ export default function BndzTemporalDiffView({ watchFolder, onNavigate }: Props)
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <input
             className="bndz-plugin-input flex-1 min-w-[200px] rounded-lg px-3 py-2 text-xs"
-            placeholder="Folder to watch (C:\Projects\…)"
+            placeholder="Folder to watch (C:\Projects\...)"
             value={folder}
             onChange={e => setFolder(e.target.value)}
           />
@@ -234,10 +234,10 @@ export default function BndzTemporalDiffView({ watchFolder, onNavigate }: Props)
           <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
             <span>
               Baseline: {formatTime(diff.snapshotUtc)}
-              {diff.usedUsn ? ' · USN' : ` · ${diff.snapshotSource}`}
+              {diff.usedUsn ? ' | USN' : ` | ${diff.snapshotSource}`}
             </span>
             <span className="text-emerald-400/90">+{tabCounts.added}</span>
-            <span className="text-rose-400/90">−{tabCounts.removed}</span>
+            <span className="text-rose-400/90">-{tabCounts.removed}</span>
             <span className="text-amber-400/90">~{tabCounts.modified}</span>
           </div>
         )}
@@ -291,7 +291,7 @@ export default function BndzTemporalDiffView({ watchFolder, onNavigate }: Props)
                     onClick={() => navigateToEntry(e.relPath)}
                   >
                     <span className="text-xs text-slate-200 group-hover:text-white truncate block">{e.relPath}</span>
-                    <span className="text-[10px] text-gray-600">{formatBytes(e.size)} · {formatTime(e.lastWriteUtc)}</span>
+                    <span className="text-[10px] text-gray-600">{formatBytes(e.size)} | {formatTime(e.lastWriteUtc)}</span>
                   </button>
                 </li>
               ))}
@@ -316,7 +316,7 @@ export default function BndzTemporalDiffView({ watchFolder, onNavigate }: Props)
                     <span className="text-xs text-slate-400 truncate block">{e.relPath}</span>
                     <span className="text-[10px] text-gray-600">
                       {formatBytes(e.previousSize ?? e.size)}
-                      {e.previousLastWriteUtc ? ` · ${formatTime(e.previousLastWriteUtc)}` : ''}
+                      {e.previousLastWriteUtc ? ` | ${formatTime(e.previousLastWriteUtc)}` : ''}
                     </span>
                   </div>
                 </li>
@@ -333,7 +333,7 @@ export default function BndzTemporalDiffView({ watchFolder, onNavigate }: Props)
 
       {busy && (
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
-          <span className="text-xs text-gray-400 animate-pulse">Comparing…</span>
+          <span className="text-xs text-gray-400 animate-pulse">Comparing...</span>
         </div>
       )}
     </div>

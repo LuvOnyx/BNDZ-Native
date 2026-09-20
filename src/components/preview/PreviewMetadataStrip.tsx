@@ -18,7 +18,7 @@ type Props = {
 };
 
 function formatSize(bytes: number) {
-  if (!bytes) return '—';
+  if (!bytes) return '--';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
@@ -26,18 +26,18 @@ function formatSize(bytes: number) {
 }
 
 function formatModified(value: Props['modified']) {
-  if (value == null) return '—';
+  if (value == null) return '--';
   if (typeof value === 'number') {
     const d = new Date(value * 1000);
-    return Number.isNaN(d.getTime()) ? '—' : formatFsDate(d);
+    return Number.isNaN(d.getTime()) ? '--' : formatFsDate(d);
   }
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? '—' : formatFsDate(value);
+    return Number.isNaN(value.getTime()) ? '--' : formatFsDate(value);
   }
   return formatFsDate(String(value));
 }
 
-/** Flat metadata ribbon — single action cluster (no duplicate open/copy from tabstrip). */
+/** Flat metadata ribbon -- single action cluster (no duplicate open/copy from tabstrip). */
 export default function PreviewMetadataStrip({
   name, path, size, modified, kindLabel, isDirectory, facts, onReveal, className,
 }: Props & { className?: string }) {

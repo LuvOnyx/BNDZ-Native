@@ -15,7 +15,7 @@ type Props = {
   onHover: (index: number) => void;
 };
 
-/** Address / omnibar autocomplete — paths + `>` commands */
+/** Address / omnibar autocomplete -- paths + `>` commands */
 export default function AddressAutocompleteDropdown({ suggestions, selectedIndex, onSelect, onHover }: Props) {
   if (!suggestions.length) return null;
 

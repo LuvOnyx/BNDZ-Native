@@ -17,7 +17,7 @@ import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugi
 import { useAppConfig } from './configContext';
 
 /**
- * Launch Ready A1 — removed from Hub (not remapped to a living host):
+ * Launch Ready A1 -- removed from Hub (not remapped to a living host):
  * ram-staging, ghost-link, design-board. Saved installs scrub when not in ALL_PLUGINS.
  */
 export const DROPPED_HUB_PLUGIN_IDS: ReadonlySet<string> = new Set([
@@ -39,7 +39,7 @@ const RETIRED_PLUGIN_REMAP: Record<string, string> = {
     'inbound-volume': 'dropstack',
     'capture-inbox': 'dropstack',
     'zk-vault': 'project-sandbox',
-    // ghost-link / ram-staging intentionally NOT remapped — Launch Ready removes Staging.
+    // ghost-link / ram-staging intentionally NOT remapped -- Launch Ready removes Staging.
     'library-health': 'storage-cleanup',
     'reality-check': 'storage-cleanup',
 };
@@ -57,7 +57,7 @@ export type PluginManifest = {
     installOnFirstUse?: boolean;
 };
 
-/** Core plugins on first launch — System Properties, Fast Search, Visual Filters only. */
+/** Core plugins on first launch -- System Properties, Fast Search, Visual Filters only. */
 export const DEFAULT_INSTALLED_PLUGINS: string[] = [
     'properties',
     'find',
@@ -66,7 +66,7 @@ export const DEFAULT_INSTALLED_PLUGINS: string[] = [
 
 /**
  * Selling-pillar plugin ids previously soft-installed on first open.
- * Auto-install is intentionally disabled — keep this list empty so marketplace
+ * Auto-install is intentionally disabled -- keep this list empty so marketplace
  * installs stay explicit. Prefer installing from the plugin store.
  */
 export const FIRST_USE_PLUGINS: string[] = [];
@@ -93,7 +93,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...IconStudioPluginDef,
-        description: 'Icon libraries — import icons and apply them to folders and files',
+        description: 'Icon libraries -- import icons and apply them to folders and files',
         isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
@@ -198,7 +198,7 @@ const PluginRegistryContext = createContext<any>(null);
 
 export const PluginRegistryProvider = ({ children }: { children: ReactNode }) => {
     const { config, updateConfig } = useAppConfig();
-    // Start from DEFAULT install set — never flash ALL_PLUGINS hardcoded isInstalled:true into the deck.
+    // Start from DEFAULT install set -- never flash ALL_PLUGINS hardcoded isInstalled:true into the deck.
     const [plugins, setPlugins] = useState<PluginManifest[]>(() =>
         ALL_PLUGINS.map(p => ({
             ...p,
@@ -208,7 +208,7 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
 
     // Re-sync whenever persisted install list changes. Drop catalog-unknown IDs (stale),
     // but preserve legitimate store installs that exist in ALL_PLUGINS.
-    // Also scrubs stale tab-config keys that point at uninstalled plugins — belt-and-suspenders
+    // Also scrubs stale tab-config keys that point at uninstalled plugins -- belt-and-suspenders
     // guard for configs saved before the uninstall scrub path was added.
     useEffect(() => {
         const catalogIds = new Set(ALL_PLUGINS.map(p => p.id));
@@ -225,7 +225,7 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
         const LEGACY_DEFAULT_PLUGINS = [
             'properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters',
             'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare',
-            // ghost-link / ram-staging scrubbed in Launch Ready A1 — keep in length check only if still present in saved configs
+            // ghost-link / ram-staging scrubbed in Launch Ready A1 -- keep in length check only if still present in saved configs
             'ghost-link', 'ram-staging',
         ];
         const savedRawEarly = config.installedPlugins as string[] | undefined;
@@ -386,7 +386,7 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
             pluginRegistry: plugins,
             togglePluginInstall,
             addPluginToRegistry,
-            // ensurePluginInstalled intentionally NOT exposed — callers must use togglePluginInstall
+            // ensurePluginInstalled intentionally NOT exposed -- callers must use togglePluginInstall
             // via the Plugin Store; auto-installing on navigate/open is forbidden.
         }}>
             {children}

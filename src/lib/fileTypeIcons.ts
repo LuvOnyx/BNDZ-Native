@@ -1,10 +1,10 @@
 /**
- * Iconify on-demand fallbacks — used only when native shell icons are unavailable.
+ * Iconify on-demand fallbacks -- used only when native shell icons are unavailable.
  * - devicon: code / markup extensions ([devicon set](https://icon-sets.iconify.design/devicon/))
  * - skill-icons: application brands ([skill-icons set](https://icon-sets.iconify.design/skill-icons/))
  */
 
-/** Devicon / logos — verified against api.iconify.design (no `-plain` suffixes; those 404). */
+/** Devicon / logos -- verified against api.iconify.design (no `-plain` suffixes; those 404). */
 const DEVICON_EXT: Record<string, string> = {
   js: 'devicon:javascript',
   mjs: 'devicon:javascript',

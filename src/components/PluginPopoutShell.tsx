@@ -19,11 +19,11 @@ type Props = {
 function navigateMainList(path: string) {
   const p = (path || '').trim();
   if (!p) return;
-  // Pop-out has no BNDZUI list — ask the host to open in the main FM window.
+  // Pop-out has no BNDZUI list -- ask the host to open in the main FM window.
   void IPC.hostNavigate(p);
 }
 
-/** Slim second-process chrome — one plugin (or sticky widget) fills the viewport. */
+/** Slim second-process chrome -- one plugin (or sticky widget) fills the viewport. */
 export default function PluginPopoutShell({ initial }: Props) {
   const { pluginRegistry } = usePluginRegistry();
   const { config } = useAppConfig();
@@ -90,7 +90,7 @@ export default function PluginPopoutShell({ initial }: Props) {
     || (stickyMode ? (plugin?.name || 'Sticky') : (plugin?.name || boot.pluginId));
 
   useEffect(() => {
-    document.title = stickyMode ? (title || 'Sticky') : `BNDZ · ${title}`;
+    document.title = stickyMode ? (title || 'Sticky') : `BNDZ | ${title}`;
   }, [title, stickyMode]);
 
   const body = stickyMode ? (
@@ -117,11 +117,11 @@ export default function PluginPopoutShell({ initial }: Props) {
   ) : (
     <div className="bndz-plugin-popout-missing flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 px-6 text-center">
       <div className="bndz-plugin-popout-missing-orb" aria-hidden />
-      <p className="text-sm font-semibold text-gray-200">Loading plugin…</p>
+      <p className="text-sm font-semibold text-gray-200">Loading plugin...</p>
       <p className="text-[12px] max-w-sm leading-relaxed">
         {installedIds.includes(boot.pluginId)
-          ? `Warming “${boot.pluginId}”…`
-          : `“${boot.pluginId}” is not installed — open Extension Hub in the main window, install it, then pop out again.`}
+          ? `Warming "${boot.pluginId}"...`
+          : `"${boot.pluginId}" is not installed -- open Extension Hub in the main window, install it, then pop out again.`}
       </p>
     </div>
   );

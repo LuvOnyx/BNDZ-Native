@@ -14,7 +14,7 @@ void main() {
 }
 `;
 
-/** Luma heat-tint inspect — mix cyan heat with original so detail stays visible. */
+/** Luma heat-tint inspect -- mix cyan heat with original so detail stays visible. */
 export const histogramFrag = /* glsl */`
 uniform sampler2D uMap;
 uniform vec2 uResolution;
@@ -47,7 +47,7 @@ void main() {
   vec4 mag = texture2D(uMap, uv);
   // Outside lens: unmodified base (no blue wash).
   vec4 color = mix(base, mag, inside);
-  // Thin cyan rim only at the edge ring — not a full-frame mix.
+  // Thin cyan rim only at the edge ring -- not a full-frame mix.
   float rim = smoothstep(r - edge * 2.0, r - edge * 0.35, dist)
             * (1.0 - smoothstep(r + edge * 0.15, r + edge * 1.6, dist));
   color.rgb = mix(color.rgb, vec3(0.35, 0.75, 1.0), rim * 0.55);

@@ -66,7 +66,7 @@ export default function BndzPaneShell({ initial }: Props) {
 
   useEffect(() => {
     applyPaneDocumentMark(boot);
-    document.title = `BNDZ · ${paneTitle(boot)}`;
+    document.title = `BNDZ | ${paneTitle(boot)}`;
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('pane', boot.pane);
@@ -156,7 +156,7 @@ export default function BndzPaneShell({ initial }: Props) {
     return () => (window as any).chrome?.webview?.removeEventListener('message', onMsg);
   }, []);
 
-  // Folder listing for preview filmstrip / plugins — native shell uses in-process IPC (not DOM list).
+  // Folder listing for preview filmstrip / plugins -- native shell uses in-process IPC (not DOM list).
   useEffect(() => {
     const folder = ctx.path;
     if (!folder || !IPC.isNative) return;
@@ -168,7 +168,7 @@ export default function BndzPaneShell({ initial }: Props) {
         setPathContentsCache((prev) => ({ ...prev, [folder]: items }));
       })
       .catch(() => {
-        /* offline / missing — plugins fall back to selection-only */
+        /* offline / missing -- plugins fall back to selection-only */
       });
     return () => {
       cancelled = true;
@@ -393,7 +393,7 @@ export default function BndzPaneShell({ initial }: Props) {
               onSelectPath={onSelectPath}
               onToast={onToast}
               onOpenFloatingPreview={() => {
-                onToast('Floating preview stays in classic — use Preview column here.', 'info');
+                onToast('Floating preview stays in classic -- use Preview column here.', 'info');
               }}
             />
           ) : (
@@ -461,7 +461,7 @@ export default function BndzPaneShell({ initial }: Props) {
           </div>
         </header>
       )}
-      {/* Slim rail only for dialog panes — Spatial/Automation/Preview already own their chrome. */}
+      {/* Slim rail only for dialog panes -- Spatial/Automation/Preview already own their chrome. */}
       {isWorkspaceDialog && (
         <div className="bndz-native-pane-content-rail" aria-label={paneTitle(boot)}>
           <span className="bndz-native-pane-mark" aria-hidden />

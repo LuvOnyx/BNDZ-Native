@@ -63,8 +63,8 @@ function sizeGroup(entity: Record<string, unknown>): string {
   const n = Number(entity.size) || 0;
   if (n === 0) return 'Empty';
   if (n < 1024 * 1024) return 'Small (< 1 MB)';
-  if (n < 50 * 1024 * 1024) return 'Medium (1–50 MB)';
-  if (n < 1024 * 1024 * 1024) return 'Large (50 MB – 1 GB)';
+  if (n < 50 * 1024 * 1024) return 'Medium (1-50 MB)';
+  if (n < 1024 * 1024 * 1024) return 'Large (50 MB - 1 GB)';
   return 'Very large (> 1 GB)';
 }
 
@@ -72,7 +72,7 @@ function nameGroup(entity: Record<string, unknown>): string {
   const name = String(entity.name || '?');
   const ch = name.charAt(0).toUpperCase();
   if (/[A-Z]/.test(ch)) return ch;
-  if (/[0-9]/.test(ch)) return '0–9';
+  if (/[0-9]/.test(ch)) return '0-9';
   return '#';
 }
 
@@ -96,8 +96,8 @@ const GROUP_ORDER: Record<ListGroupBy, string[] | null> = {
   none: null,
   type: ['Folders', 'Images', 'Video', 'Audio', 'Documents', 'Archives', 'Programs'],
   date: ['Today', 'This week', 'This month', 'This year', 'Older', 'Unknown date'],
-  size: ['Folders', 'Empty', 'Small (< 1 MB)', 'Medium (1–50 MB)', 'Large (50 MB – 1 GB)', 'Very large (> 1 GB)'],
-  name: ['#', '0–9', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')],
+  size: ['Folders', 'Empty', 'Small (< 1 MB)', 'Medium (1-50 MB)', 'Large (50 MB - 1 GB)', 'Very large (> 1 GB)'],
+  name: ['#', '0-9', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')],
 };
 
 function sortGroupKeys(keys: string[], groupBy: ListGroupBy): string[] {

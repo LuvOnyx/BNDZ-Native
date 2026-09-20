@@ -8,7 +8,7 @@ export function resolveCsvSeparator(config: AppConfig): string {
     const other = String(config.csvOtherSeparator ?? ',');
     return other.length ? other[0] : ',';
   }
-  // system — locale list separator where available
+  // system -- locale list separator where available
   try {
     const sample = (1.1).toLocaleString();
     // Most locales use ',' or '.' for decimals; CSV system sep is often '; ' in EU

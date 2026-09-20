@@ -302,7 +302,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   }, [engine]);
 
   useEffect(() => {
-    // Only reclaim keyboard focus when switching boards — not on every pin/sticky
+    // Only reclaim keyboard focus when switching boards -- not on every pin/sticky
     // mutation (that blurred sticky textareas mid-edit and could storm with reloads).
     focusWorkspaceSurface(surfaceRef.current);
   }, [doc?.id]);
@@ -422,7 +422,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       setDoc(fallback);
       engine.setTransform(fallback.panX, fallback.panY, fallback.zoom, true);
       seedAutosave(stableDocJson(fallback));
-      setStatus('Could not load spatial board — showing empty canvas.');
+      setStatus('Could not load spatial board -- showing empty canvas.');
     });
     return () => { active = false; };
   }, [engine, seedAutosave]);
@@ -506,7 +506,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       seedAutosave(stableDocJson(d));
       setSelectedIds([]);
       await refreshBoards();
-      setStatus(`Deleted board · now on ${d.name}`);
+      setStatus(`Deleted board | now on ${d.name}`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Could not delete board');
     }
@@ -540,7 +540,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
   }, [zoomAtPoint]);
 
-  // Native listener (passive:false) — must re-bind when board mounts after async doc load.
+  // Native listener (passive:false) -- must re-bind when board mounts after async doc load.
   useEffect(() => {
     const el = boardRef.current;
     if (!el || !wheelZoom || !doc) return;
@@ -653,7 +653,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const contentH = Math.max(1, maxY - minY);
     const bw = contentW + pad * 2;
     const bh = contentH + pad * 2;
-    // Fit never zooms past 100% — small boards were opening at maxZoom (e.g. 2.5×).
+    // Fit never zooms past 100% -- small boards were opening at maxZoom (e.g. 2.5×).
     const fitCap = Math.min(1, maxZoom);
     const zoom = Math.min(fitCap, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
     // Center the content bounding box in the viewport (world ↔ screen via pan + scale).
@@ -699,7 +699,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       if (!session?.paths?.length) return;
       if (!hitBoardAt(ev.clientX, ev.clientY)) return;
       addPaths(session.paths, resolveDropPoint(ev.clientX, ev.clientY));
-      // Board stopPropagation blocks BNDZUI bubble cleanup — tear down ghost/fluid here.
+      // Board stopPropagation blocks BNDZUI bubble cleanup -- tear down ghost/fluid here.
       endInternalFileDragUi('spatial-pin');
     };
     window.addEventListener('bndz-external-drop', onExternalDrop);
@@ -728,7 +728,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const parts: string[] = [];
     if (removedPins) parts.push(`${removedPins} card${removedPins === 1 ? '' : 's'}`);
     if (removedStickies) parts.push(`${removedStickies} sticky${removedStickies === 1 ? '' : 'ies'}`);
-    setStatus(`Removed ${parts.join(' · ')}`);
+    setStatus(`Removed ${parts.join(' | ')}`);
     closeMenu();
   }, [commitDoc, closeMenu]);
 
@@ -858,13 +858,13 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     setShowBoardPicker(false);
     await refreshBoards();
     requestAnimationFrame(() => fitBoard());
-    setStatus('Pillar Board live — Sandbox · Health · Inbound · Capacity · Automation');
+    setStatus('Pillar Board live -- Sandbox | Health | Inbound | Capacity | Automation');
   }, [engine, flushAutosave, seedAutosave, refreshBoards, fitBoard]);
 
   useEffect(() => {
     const onOpen = () => { void openContinuumBoard(); };
     window.addEventListener('bndz-open-continuum', onOpen);
-    // Home fires the event ~120ms after navigate — catch late listeners / race.
+    // Home fires the event ~120ms after navigate -- catch late listeners / race.
     const t = window.setTimeout(() => {
       try {
         if (sessionStorage.getItem('bndz-pending-pillar-board') === '1') {
@@ -968,7 +968,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         const stickyCount = parsed.stickies?.length ?? 0;
         setStatus(
           `Imported ${parsed.items.length} pin${parsed.items.length === 1 ? '' : 's'}`
-          + (stickyCount ? ` · ${stickyCount} sticky${stickyCount === 1 ? '' : 'ies'}` : ''),
+          + (stickyCount ? ` | ${stickyCount} sticky${stickyCount === 1 ? '' : 'ies'}` : ''),
         );
       };
       reader.readAsText(file);
@@ -1279,7 +1279,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const adoptExternalDoc = (next: SpatialCanvasDoc, opts?: { fit?: boolean }) => {
       if (cancelled || busyEditing()) return;
       const sanitized = sanitizePinDisplayNames(next);
-      // Preserve live camera if the external writer didn't change transforms —
+      // Preserve live camera if the external writer didn't change transforms --
       // unless caller asked to fit (context-menu pin / intro CTAs).
       const cur = docRef.current;
       const merged = cur && sanitized.id === cur.id && !opts?.fit
@@ -1314,7 +1314,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       const stickyId = typeof detail.stickyId === 'string' ? detail.stickyId : '';
       const cur = docRef.current;
       if (cur && stickyId) {
-        // Pop-out sticky widget — merge text/note without a full board reload (avoids freeze loops).
+        // Pop-out sticky widget -- merge text/note without a full board reload (avoids freeze loops).
         if (typeof detail.text === 'string') {
           if (editingStickyIdRef.current === stickyId) return;
           const stickies = (cur.stickies ?? []).map(s => (
@@ -1340,7 +1340,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       scheduleReload({ fit: !!detail.fit || !!detail.added });
     };
 
-    // Do NOT listen to window `focus` — clicking a sticky/textarea fires it in WebView2
+    // Do NOT listen to window `focus` -- clicking a sticky/textarea fires it in WebView2
     // and force-reloading the board while editing caused full app freezes.
     const onVisibility = () => {
       if (document.visibilityState === 'visible') scheduleReload();
@@ -1730,7 +1730,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   }, [panning]);
 
   useEffect(() => {
-    // Clear splitter col-resize immediately — don't wait for doc hydrate / pointerenter.
+    // Clear splitter col-resize immediately -- don't wait for doc hydrate / pointerenter.
     resetWorkspacePointerChrome();
     return () => resetWorkspacePointerChrome();
   }, []);
@@ -1808,7 +1808,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   if (!doc) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500 text-sm gap-2">
-        <Icons8Icon id="loading" size={18} spin /> Preparing spatial canvas…
+        <Icons8Icon id="loading" size={18} spin /> Preparing spatial canvas...
       </div>
     );
   }
@@ -1821,7 +1821,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       data-bndz-surface
       data-bndz-workspace-surface
       onPointerDown={e => {
-        // Bubble-only guard: never stop capture — that blocks board/cards/buttons.
+        // Bubble-only guard: never stop capture -- that blocks board/cards/buttons.
         if (e.target === e.currentTarget) e.stopPropagation();
       }}
     >
@@ -1830,13 +1830,13 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           workspaceId="spatial-canvas"
           eyebrow="Project map"
           title="Spatial Canvas"
-          subtitle="Map folders and free sticky notes on an infinite board — pins are references; originals stay on disk."
+          subtitle="Map folders and free sticky notes on an infinite board -- pins are references; originals stay on disk."
           icon="view_grid"
           accent="#c48b4a"
           features={[
             { icon: 'upload', title: 'Drop folders', desc: 'Drag project folders from any pane onto the map' },
-            { icon: 'notepad', title: 'Free sticky notes', desc: 'Park notes beside folders — optional tether to a pin' },
-            { icon: 'zoom_in_ui', title: 'Pan & zoom', desc: 'Scroll to pan · Ctrl+scroll to zoom' },
+            { icon: 'notepad', title: 'Free sticky notes', desc: 'Park notes beside folders -- optional tether to a pin' },
+            { icon: 'zoom_in_ui', title: 'Pan & zoom', desc: 'Scroll to pan | Ctrl+scroll to zoom' },
             { icon: 'keyboard_ui', title: 'Marquee select', desc: 'Drag empty space to box-select cards and stickies' },
           ]}
           onDismiss={() => splash.dismiss()}
@@ -1855,7 +1855,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                 value={doc.name}
                 onChange={e => {
                   const raw = e.target.value;
-                  // Continuum is Home branding — never a Spatial board title while typing.
+                  // Continuum is Home branding -- never a Spatial board title while typing.
                   const name = /^continuum$/i.test(raw.trim())
                     ? (doc.id === PILLAR_BOARD_ID ? PILLAR_BOARD_NAME : 'Spatial Canvas')
                     : raw;
@@ -1893,7 +1893,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                       onClick={() => void switchBoard(b.id)}
                     >
                       {b.name}
-                      <span className="bndz-spatial-board-picker-count">· {b.pinCount}</span>
+                      <span className="bndz-spatial-board-picker-count">| {b.pinCount}</span>
                     </button>
                     {boardList.length > 1 && (
                       <button
@@ -1933,7 +1933,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                 <div className="bndz-spatial-board-picker-search">
                   <input
                     className="bndz-spatial-board-picker-search-input"
-                    placeholder="Find pins…"
+                    placeholder="Find pins..."
                     value={pinSearch}
                     onChange={e => setPinSearch(e.target.value)}
                   />
@@ -1945,9 +1945,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
             )}
             <p className="bndz-ws-chrome-desc">
               {doc.items.length} pin{doc.items.length === 1 ? '' : 's'}
-              {(doc.stickies?.length ?? 0) > 0 ? ` · ${doc.stickies!.length} sticky${doc.stickies!.length === 1 ? '' : 'ies'}` : ''}
-              {selectedIds.length > 0 ? ` · ${selectedIds.length} selected` : ''}
-              {autoSave ? ' · autosave on' : ''}
+              {(doc.stickies?.length ?? 0) > 0 ? ` | ${doc.stickies!.length} sticky${doc.stickies!.length === 1 ? '' : 'ies'}` : ''}
+              {selectedIds.length > 0 ? ` | ${selectedIds.length} selected` : ''}
+              {autoSave ? ' | autosave on' : ''}
             </p>
           </div>
         </div>
@@ -1963,7 +1963,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         <div className="flex flex-col flex-1 min-w-0 min-h-0 relative">
           <WorkspaceCommandBar
             variant="spatial"
-            hint={`${(displayZoom * 100).toFixed(0)}% · Ctrl+scroll zoom · Del unpin · Ctrl+A`}
+            hint={`${(displayZoom * 100).toFixed(0)}% | Ctrl+scroll zoom | Del unpin | Ctrl+A`}
             commands={[
               { id: 'zin', label: 'Zoom in', iconSrc: '/launcher-icons/magnifier.png', onClick: () => zoomBy(1.15) },
               { id: 'zout', label: 'Zoom out', iconSrc: '/launcher-icons/minus_ui.png', onClick: () => zoomBy(0.87) },
@@ -2003,7 +2003,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
             onPointerUp={onBoardPointerUp}
             onPointerCancel={onBoardPointerUp}
             onPointerLeave={() => {
-              // Never end card-drag / marquee on leave — pointer capture owns the gesture.
+              // Never end card-drag / marquee on leave -- pointer capture owns the gesture.
               // Only clear a stray splitter cursor if we aren't mid-interaction.
               if (!interacting.current && !draggingRef.current && !panningRef.current && !marqueeRef.current.active) {
                 clearChromeDragCursor();
@@ -2029,7 +2029,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                   type="button"
                   className="bndz-spatial-cluster-halo pointer-events-auto"
                   style={{ left: c.cx - 40, top: c.cy - 40, width: 80, height: 80 }}
-                  title={`${c.label} (${c.itemIds.length}) — click to focus`}
+                  title={`${c.label} (${c.itemIds.length}) -- click to focus`}
                   onClick={() => focusCluster(c.id)}
                 />
               ))}
@@ -2114,7 +2114,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                   <img src="/Ui/preview-Big Folder.svg" alt="" className="w-14 h-14 opacity-35 mb-3 pointer-events-none mx-auto" />
                   <p className="text-sm font-semibold mb-1" style={{ color: 'rgba(240,232,218,0.92)' }}>Drop folders to build a project map</p>
                   <p className="text-[11px] mt-1 mb-5 max-w-[320px] pointer-events-none leading-relaxed" style={{ color: 'rgba(180,172,152,0.72)' }}>
-                    Pins are references only — originals stay on disk.<br />Add sticky notes to annotate your layout.
+                    Pins are references only -- originals stay on disk.<br />Add sticky notes to annotate your layout.
                   </p>
                   <div className="flex flex-wrap justify-center gap-2 max-w-[400px] mx-auto">
                     <button
@@ -2146,7 +2146,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] mt-4 pointer-events-none" style={{ color: 'rgba(120,112,96,0.8)' }}>Drag folders from any pane · right-click board → Add sticky note</p>
+                  <p className="text-[10px] mt-4 pointer-events-none" style={{ color: 'rgba(120,112,96,0.8)' }}>Drag folders from any pane | right-click board → Add sticky note</p>
                 </div>
               </div>
             )}
@@ -2167,9 +2167,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           <footer className="bndz-ws-rail bndz-ws-rail--spatial shrink-0">
             <span className="bndz-ws-rail-stat">
               {doc.items.length} pinned
-              {(doc.stickies?.length ?? 0) > 0 ? ` · ${doc.stickies!.length} notes` : ''}
+              {(doc.stickies?.length ?? 0) > 0 ? ` | ${doc.stickies!.length} notes` : ''}
             </span>
-            <span className="bndz-ws-rail-hint">Ctrl+scroll zoom · scroll pan · Space/Alt/right-drag pan · Ctrl+Shift+P commands</span>
+            <span className="bndz-ws-rail-hint">Ctrl+scroll zoom | scroll pan | Space/Alt/right-drag pan | Ctrl+Shift+P commands</span>
             <button ref={zoomPillRef} type="button" className="bndz-ws-rail-zoom-pill" onClick={() => setShowMinimap(v => !v)}>
               {(displayZoom * 100).toFixed(0)}%
             </button>

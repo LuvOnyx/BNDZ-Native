@@ -20,7 +20,7 @@ function base64ToObjectUrl(base64: string, mime: string): string {
 }
 
 /**
- * Resolve a WebGL-ready model URL. RAGE formats (.ydr/.ybn/…) are converted on the host to GLB.
+ * Resolve a WebGL-ready model URL. RAGE formats (.ydr/.ybn/...) are converted on the host to GLB.
  * Prefers bndz-stream; falls back to an in-memory blob when the custom scheme fails for Three.js.
  */
 export function useModelPreviewSource(path: string | null | undefined, ext: string): ModelPreviewSource {
@@ -81,7 +81,7 @@ export function useModelPreviewSource(path: string | null | undefined, ext: stri
         const tris = res.triangles;
         const badge = `${ext}→${res.format || 'glb'}`;
 
-        // Prefer blob for Three.js — custom-scheme MIME mismatches used to blank the viewport
+        // Prefer blob for Three.js -- custom-scheme MIME mismatches used to blank the viewport
         // even when conversion succeeded (verts/tris known).
         try {
           const blob = await IPC.getMediaBlob(res.path, 64 * 1024 * 1024);

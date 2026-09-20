@@ -121,10 +121,10 @@ export default function InstalledAppsPanel() {
         <div className="bndz-cleanup-meter-row">
           <strong>{apps.length}</strong>
           <span>installed</span>
-          <em>·</em>
+          <em>|</em>
           <strong>{uninstallableCount}</strong>
           <span>can uninstall</span>
-          <em>·</em>
+          <em>|</em>
           <strong>{formatAppSize(totalSize)}</strong>
           <span>reported size</span>
         </div>
@@ -136,7 +136,7 @@ export default function InstalledAppsPanel() {
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Name, publisher, version…"
+            placeholder="Name, publisher, version..."
             className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/[0.08] text-[12px] text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-[#0078d4]/50"
           />
         </div>
@@ -197,8 +197,8 @@ export default function InstalledAppsPanel() {
                   <div className="text-[12px] font-semibold text-gray-100 truncate">{app.name}</div>
                   <div className="text-[10px] text-gray-500 truncate">
                     {app.publisher || 'Unknown publisher'}
-                    {app.version ? ` · v${app.version}` : ''}
-                    {app.installDate ? ` · ${formatInstallDate(app.installDate)}` : ''}
+                    {app.version ? ` | v${app.version}` : ''}
+                    {app.installDate ? ` | ${formatInstallDate(app.installDate)}` : ''}
                   </div>
                   {app.installLocation && (
                     <div className="text-[9px] text-gray-600 font-mono truncate mt-0.5" title={app.installLocation}>{app.installLocation}</div>
@@ -227,7 +227,7 @@ export default function InstalledAppsPanel() {
 
       <p className="text-[10px] bndz-panel-muted px-1">
         Lists programs from the Windows uninstall registry (same source as Settings → Apps) plus Start Menu shortcuts.
-        Uninstall launches each program&apos;s native uninstaller — Store/UWP apps may need Settings for full removal.
+        Uninstall launches each program&apos;s native uninstaller -- Store/UWP apps may need Settings for full removal.
       </p>
     </div>
   );

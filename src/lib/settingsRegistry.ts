@@ -163,7 +163,7 @@ export const WIRED_KEYS = new Set<string>([
 // colorConfig* are wired via colors runtime
 for (let i = 1; i <= 50; i++) WIRED_KEYS.add(`colorConfig${i}`);
 
-/** Keys still awaiting a dedicated consumer — must shrink toward empty as waves complete. */
+/** Keys still awaiting a dedicated consumer -- must shrink toward empty as waves complete. */
 export const DEFERRED_KEYS = new Set(
   Object.keys(SETTINGS_DEFAULTS).filter((k) => !WIRED_KEYS.has(k)),
 );
@@ -195,7 +195,7 @@ export function getSettingWiringStatus(key: string): 'wired' | 'deferred' | 'hid
   if (WIRED_KEYS.has(key)) return 'wired';
   if (key.startsWith('colorConfig')) return 'wired';
   if (DEFERRED_KEYS.has(key)) return 'deferred';
-  // Unknown keys are deferred — never auto-wired.
+  // Unknown keys are deferred -- never auto-wired.
   return 'deferred';
 }
 

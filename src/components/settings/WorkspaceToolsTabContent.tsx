@@ -73,7 +73,7 @@ function formatBytes(n: number): string {
 function formatWhen(iso?: string): string {
   if (!iso) return 'Never';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? '--' : d.toLocaleString();
 }
 
 export default function WorkspaceToolsTabContent({
@@ -214,7 +214,7 @@ export default function WorkspaceToolsTabContent({
     <div className="flex flex-col h-full min-h-0">
       <SettingsTabHeader
         title="Workspace Tools"
-        description="Remote PCs, sync rules, and built-in workspaces — set them up once, use them from the tree, list, or bottom panel."
+        description="Remote PCs, sync rules, and built-in workspaces -- set them up once, use them from the tree, list, or bottom panel."
         icon="smart_tools"
       />
 
@@ -301,9 +301,9 @@ export default function WorkspaceToolsTabContent({
                         <div className="bndz-mesh-host-body">
                           <div className="bndz-mesh-host-name">{host.alias}</div>
                           <div className="bndz-mesh-host-meta">
-                            {MESH_PROVIDER_LABEL[host.provider]} · {host.hostname || host.s3Bucket || '—'}
-                            {host.showInNavTree ? ' · pinned' : ''}
-                            {' · '}{MESH_STATE_LABEL[host.state] || 'Unknown'}
+                            {MESH_PROVIDER_LABEL[host.provider]} | {host.hostname || host.s3Bucket || '--'}
+                            {host.showInNavTree ? ' | pinned' : ''}
+                            {' | '}{MESH_STATE_LABEL[host.state] || 'Unknown'}
                           </div>
                         </div>
                         <div className="bndz-mesh-host-actions">
@@ -311,7 +311,7 @@ export default function WorkspaceToolsTabContent({
                             disabled={connectingId === host.id || host.state === 2}
                             onClick={() => void connectHost(host.id)}
                           >
-                            {connectingId === host.id ? '…' : host.state === 2 ? 'Online' : 'Connect'}
+                            {connectingId === host.id ? '...' : host.state === 2 ? 'Online' : 'Connect'}
                           </PluginToolbarButton>
                           <PluginToolbarButton onClick={() => browseHost(host)}>Browse</PluginToolbarButton>
                         </div>
@@ -327,7 +327,7 @@ export default function WorkspaceToolsTabContent({
                     onChange={e => updateLocalConfig({ meshShowInNavTree: e.target.checked })}
                   />
                   <p className="text-[11px] text-gray-500 mt-2 leading-relaxed max-w-[640px]">
-                    Each host can be pinned individually when editing. Tree entries open the remote path directly — no bottom plugin required.
+                    Each host can be pinned individually when editing. Tree entries open the remote path directly -- no bottom plugin required.
                   </p>
                   <Checkbox
                     label={<span>Auto-connect when browsing from the tree</span>}
@@ -357,11 +357,11 @@ export default function WorkspaceToolsTabContent({
                     <div className="bndz-mesh-stat-label">LAN discovery</div>
                   </div>
                   <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{(localConfig.meshDropSignalingRelayUrl || '').trim() ? 'Set' : '—'}</div>
+                    <div className="bndz-mesh-stat-value">{(localConfig.meshDropSignalingRelayUrl || '').trim() ? 'Set' : '--'}</div>
                     <div className="bndz-mesh-stat-label">Relay</div>
                   </div>
                   <div className="bndz-mesh-stat">
-                    <div className="bndz-mesh-stat-value">{(localConfig.meshDropTurnUrl || '').trim() ? 'Set' : '—'}</div>
+                    <div className="bndz-mesh-stat-value">{(localConfig.meshDropTurnUrl || '').trim() ? 'Set' : '--'}</div>
                     <div className="bndz-mesh-stat-label">TURN</div>
                   </div>
                   <div className="bndz-mesh-stat">
@@ -429,7 +429,7 @@ export default function WorkspaceToolsTabContent({
               <div className="space-y-4">
                 <SettingsSection title="Deploy-on-save mirrors">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
-                    Push local project folders to remote hosts when files are saved — ideal for instant deploys. Full controls also live in the Remote bottom plugin.
+                    Push local project folders to remote hosts when files are saved -- ideal for instant deploys. Full controls also live in the Remote bottom plugin.
                   </p>
                   <div className="flex gap-2 mb-3 flex-wrap">
                     <PluginToolbarButton onClick={addRule}>Add rule</PluginToolbarButton>
@@ -448,7 +448,7 @@ export default function WorkspaceToolsTabContent({
                       <PluginFieldLabel>Local folder</PluginFieldLabel>
                       <div className="flex gap-2">
                         <input className={PLUGIN_INPUT_CLASS + ' flex-1'} value={r.localPath} placeholder="C:\Projects\my-app" onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, localPath: e.target.value } : x))} />
-                        <PluginToolbarButton onClick={() => void pickMirrorLocal(i)}>Browse…</PluginToolbarButton>
+                        <PluginToolbarButton onClick={() => void pickMirrorLocal(i)}>Browse...</PluginToolbarButton>
                       </div>
                       <PluginFieldLabel>Remote host</PluginFieldLabel>
                       <select className={PLUGIN_INPUT_CLASS} value={r.remoteHostId} onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, remoteHostId: e.target.value } : x))}>
@@ -492,7 +492,7 @@ export default function WorkspaceToolsTabContent({
               <div className="space-y-4">
                 <SettingsSection title="Bidirectional jobs">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
-                    Two-way folder sync with optional watch mode — separate from Live Mirror deploy pushes.
+                    Two-way folder sync with optional watch mode -- separate from Live Mirror deploy pushes.
                   </p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     <PluginToolbarButton onClick={() => void refreshSync()}>Refresh jobs</PluginToolbarButton>
@@ -515,10 +515,10 @@ export default function WorkspaceToolsTabContent({
                           {job.mirrorMode ? <span className="bndz-ws-tools-pill">Mirror</span> : null}
                         </div>
                         <div className="bndz-ws-tools-row-meta truncate" title={`${job.sourcePath} → ${job.destPath}`}>
-                          {job.sourcePath || '—'} → {job.destPath || '—'}
+                          {job.sourcePath || '--'} → {job.destPath || '--'}
                         </div>
                         <div className="bndz-ws-tools-row-meta">
-                          Status: {job.lastStatus || 'idle'} · Last sync: {formatWhen(job.lastSyncUtc)}
+                          Status: {job.lastStatus || 'idle'} | Last sync: {formatWhen(job.lastSyncUtc)}
                         </div>
                         {job.lastError && <div className="text-[10px] text-amber-300/90 mt-1">{job.lastError}</div>}
                       </div>
@@ -539,14 +539,14 @@ export default function WorkspaceToolsTabContent({
                 <div className="bndz-ws-tools-hero">
                   <div className="bndz-ws-tools-hero-title">Built-in workspaces</div>
                   <div className="bndz-ws-tools-hero-desc">
-                    Zero-launch power tools wired into BNDZ — open from Home, the tree, or here. No sidecars.
+                    Zero-launch power tools wired into BNDZ -- open from Home, the tree, or here. No sidecars.
                   </div>
                 </div>
 
                 <div className="bndz-ws-launch-grid">
                   <WorkspaceLaunchCard
                     title="Spatial Canvas"
-                    desc="Freeform constellation board for file pins across folders. Annotate, arrange, snapshot — nothing moves on disk."
+                    desc="Freeform constellation board for file pins across folders. Annotate, arrange, snapshot -- nothing moves on disk."
                     icon="view_grid"
                     accent="#c48b4a"
                     badge="Orrery"
@@ -556,7 +556,7 @@ export default function WorkspaceToolsTabContent({
                   />
                   <WorkspaceLaunchCard
                     title="Automation pipelines"
-                    desc="Visual file pipelines: watch, filter, branch, copy/move, and deploy — armed watchers restore at boot."
+                    desc="Visual file pipelines: watch, filter, branch, copy/move, and deploy -- armed watchers restore at boot."
                     icon="zap_ui"
                     accent="#34d399"
                     badge="Circuit"
@@ -621,7 +621,7 @@ export default function WorkspaceToolsTabContent({
 
                 <SettingsSection title="Spatial Canvas">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
-                    Infinite board for file references — drag from any pane, pan with Alt+drag or middle mouse, zoom with Ctrl+scroll.
+                    Infinite board for file references -- drag from any pane, pan with Alt+drag or middle mouse, zoom with Ctrl+scroll.
                   </p>
                   <Checkbox
                     label="Auto-save canvas layout"
@@ -684,7 +684,7 @@ export default function WorkspaceToolsTabContent({
 
                 <SettingsSection title="Automation pipelines">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
-                    Visual pipeline builder — separate from Custom Event Actions under Configuration → Automation.
+                    Visual pipeline builder -- separate from Custom Event Actions under Configuration → Automation.
                   </p>
                   <Checkbox
                     label="Auto-save pipeline on edit"
@@ -719,7 +719,7 @@ export default function WorkspaceToolsTabContent({
 
                 <SettingsSection title="List & selection chrome">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
-                    Workstation interaction systems that apply outside Spatial/Automation — Command Deck, fluid drag, and GPU preview shaders.
+                    Workstation interaction systems that apply outside Spatial/Automation -- Command Deck, fluid drag, and GPU preview shaders.
                   </p>
                   <Checkbox
                     label="Context Command Deck (selection tool morph bar)"
@@ -742,7 +742,7 @@ export default function WorkspaceToolsTabContent({
                   </div>
                   <div className="mt-2">
                     <Checkbox
-                      label="Image inspection tools (Luma / Loupe on photos — not 3D models)"
+                      label="Image inspection tools (Luma / Loupe on photos -- not 3D models)"
                       checked={localConfig.gpuInspection !== false}
                       onChange={e => updateLocalConfig({ gpuInspection: e.target.checked })}
                     />
@@ -761,7 +761,7 @@ export default function WorkspaceToolsTabContent({
                       <option value="loupe">Loupe magnifier (2D)</option>
                     </select>
                     <p className="mt-1.5 text-[10px] text-white/40 leading-snug">
-                      3D meshes (GLB, OBJ, FiveM .ydr/.ybn, …) always use the main preview orbit viewport — Loupe/Luma never apply.
+                      3D meshes (GLB, OBJ, FiveM .ydr/.ybn, ...) always use the main preview orbit viewport -- Loupe/Luma never apply.
                     </p>
                   </div>
                 </SettingsSection>

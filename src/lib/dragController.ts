@@ -1,10 +1,10 @@
 /**
- * Shared drag / marquee interaction guard — prevents accidental drags during
+ * Shared drag / marquee interaction guard -- prevents accidental drags during
  * double-clicks, marquee selection, and enforces movement threshold.
  */
 
 /**
- * Movement before a list drag can arm — above SM_CXDRAG so a jittery
+ * Movement before a list drag can arm -- above SM_CXDRAG so a jittery
  * first click of a double-click does not hijack into fluid-drag.
  */
 const DRAG_THRESHOLD_PX = 12;
@@ -19,7 +19,7 @@ const DEFAULT_DRAG_DELAY_MS = 140;
 const SELECTED_DRAG_DELAY_MS = 110;
 const NATIVE_DRAG_DELAY_MS = 100;
 const NATIVE_SELECTED_DRAG_DELAY_MS = 85;
-/** Legacy defer slot — row onClick handles clicks directly (0 = instant). */
+/** Legacy defer slot -- row onClick handles clicks directly (0 = instant). */
 export const LIST_CLICK_DEFER_MS = 0;
 
 /** Marquee arm distance once intent prefers marquee. */
@@ -47,10 +47,10 @@ let dragThresholdMet = false;
 let dragThresholdPx = DRAG_THRESHOLD_PX;
 let dragThresholdHitsRequired = 2;
 
-/** WinUI / WebView2 native shell — keep dual-hit + settle so clicks do not become drags. */
+/** WinUI / WebView2 native shell -- keep dual-hit + settle so clicks do not become drags. */
 export function configureExplorerGradeDragThreshold(enabled: boolean) {
   dragThresholdPx = enabled ? NATIVE_DRAG_THRESHOLD_PX : DRAG_THRESHOLD_PX;
-  // Always require two samples past threshold — a single jittery sample arms too early.
+  // Always require two samples past threshold -- a single jittery sample arms too early.
   dragThresholdHitsRequired = 2;
 }
 
@@ -97,7 +97,7 @@ export function isWithinDoubleClickGuard() {
 
 /**
  * Whether a new list press may arm a file-drag session.
- * Must be evaluated BEFORE markPointerDown() on the current press — otherwise
+ * Must be evaluated BEFORE markPointerDown() on the current press -- otherwise
  * the freshly stamped timestamp always trips the double-click guard and drag
  * never arms (HTML5 draggable is also disabled on rows).
  */
@@ -110,7 +110,7 @@ export function canStartDragFromList(disallowDrag?: boolean): boolean {
 
 /**
  * Legacy helper retained for call sites / tests. Item presses never convert to
- * marquee anymore — marquee is empty-canvas only (see list pointer-down path).
+ * marquee anymore -- marquee is empty-canvas only (see list pointer-down path).
  */
 export function preferFileDragOverMarquee(_opts: {
   wasSelected: boolean;
@@ -158,7 +158,7 @@ export function trackDragPointer(clientX: number, clientY: number): boolean {
     if (session.thresholdHits >= dragThresholdHitsRequired) {
       session.moved = true;
       dragThresholdMet = true;
-      // Threshold = proven drag intent — do not wait out settle delay (WebView2 rim cancel).
+      // Threshold = proven drag intent -- do not wait out settle delay (WebView2 rim cancel).
       if (!session.ready) {
         if (session.timer) {
           clearTimeout(session.timer);
@@ -201,7 +201,7 @@ export function clearDragSession() {
   dragThresholdMet = false;
 }
 
-/** Full reset after drop / cancel / Escape — clears arm state so the next press is clean. */
+/** Full reset after drop / cancel / Escape -- clears arm state so the next press is clean. */
 export function resetDragInteractionState() {
   clearDragSession();
   marqueeActive = false;

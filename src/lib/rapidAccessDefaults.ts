@@ -29,14 +29,14 @@ const KNOWN_LEAF_NAMES = new Set(
   [...RAPID_ACCESS_ORDER, 'Home', 'Gallery', 'Profile'].map(n => n.toLowerCase()),
 );
 
-/** Hardcoded profile folder paths — never empty when username is known. */
+/** Hardcoded profile folder paths -- never empty when username is known. */
 export function profileFolderPath(name: string, username: string): string {
   if (!username || username === 'Public') return '';
   return toPanePath(`C:/Users/${username}/${name}`);
 }
 
 /**
- * Collapse nested known-folder shadows like `…/Desktop/Desktop` → `…/Desktop`.
+ * Collapse nested known-folder shadows like `.../Desktop/Desktop` → `.../Desktop`.
  * Windows often has a real folder named "Desktop" inside the Desktop known folder;
  * Rapid Access must never treat that child as the Desktop pin/target.
  */
@@ -56,7 +56,7 @@ export function collapseKnownFolderShadowPath(
     if (n === `${real}/${leaf}`) return toPanePath(sc.path);
   }
 
-  // Generic …/Name/Name collapse for known folder leaf names
+  // Generic .../Name/Name collapse for known folder leaf names
   const parts = pane.replace(/\\/g, '/').split('/').filter(Boolean);
   if (parts.length >= 2) {
     const last = parts[parts.length - 1];
@@ -70,7 +70,7 @@ export function collapseKnownFolderShadowPath(
   return pane;
 }
 
-/** Identity key so `/shell:Desktop` and `C:/Users/…/Desktop` collapse to one Rapid Access row. */
+/** Identity key so `/shell:Desktop` and `C:/Users/.../Desktop` collapse to one Rapid Access row. */
 export function knownFolderDedupeKey(
   path: string,
   shortcuts: Array<{ name?: string; path?: string }> = [],
@@ -89,7 +89,7 @@ export function knownFolderDedupeKey(
 
 /**
  * Prefer real filesystem paths from GET_SYSTEM_SHORTCUTS so the address bar shows
- * `C:\Users\…\Desktop` instead of `shell:Desktop`. Use the same FS path for icon
+ * `C:\Users\...\Desktop` instead of `shell:Desktop`. Use the same FS path for icon
  * fetch (shell: tokens → white page glyphs). Always collapse Desktop\Desktop shadows.
  */
 export function buildRapidAccessDefaults(

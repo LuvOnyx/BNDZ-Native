@@ -10,7 +10,7 @@ interface CloudNavIconProps {
   size?: number;
 }
 
-/** Cloud sidebar row icon — native shell glyph when available, branded fallback otherwise. */
+/** Cloud sidebar row icon -- native shell glyph when available, branded fallback otherwise. */
 export function CloudNavIcon({ path, fallbackIcon, size = 14 }: CloudNavIconProps) {
   const fetchPath = path || '';
   const isDir = shellIconIsDirectory(fetchPath);

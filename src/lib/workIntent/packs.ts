@@ -1,4 +1,4 @@
-/** Work Intent packs — chrome compiler (no omnibar strip). */
+/** Work Intent packs -- chrome compiler (no omnibar strip). */
 
 export type WorkIntentId =
   | 'browse'
@@ -31,7 +31,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
   browse: {
     id: 'browse',
     label: 'Browse',
-    description: 'General navigation — name, size, modified, tags.',
+    description: 'General navigation -- name, size, modified, tags.',
     columns: {
       name: true, type: true, size: true, modified: true, tags: true,
       created: false, attributes: false, label: false, comment: false, path: false,
@@ -46,7 +46,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
   ingest: {
     id: 'ingest',
     label: 'Ingest',
-    description: 'Capture arrivals — Inbound, path, recent pressure.',
+    description: 'Capture arrivals -- Inbound, path, recent pressure.',
     columns: {
       name: true, type: true, size: true, modified: true, path: true, tags: true,
       created: true, attributes: false, label: false, comment: false,
@@ -62,7 +62,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
   archive: {
     id: 'archive',
     label: 'Archive',
-    description: 'Cold storage mindset — archive columns, confirm strict.',
+    description: 'Cold storage mindset -- archive columns, confirm strict.',
     columns: {
       name: true, type: true, size: true, modified: true, ghostState: true, coldTarget: true,
       created: false, attributes: true, tags: false, label: false, comment: false, path: false,
@@ -78,7 +78,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
   produce: {
     id: 'produce',
     label: 'Produce',
-    description: 'Producer desk — media-first columns + metadata.',
+    description: 'Producer desk -- media-first columns + metadata.',
     columns: {
       name: true, type: true, size: true, modified: true, ramZone: true, tags: true,
       created: false, attributes: false, label: false, comment: false, path: false,
@@ -94,7 +94,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
   clean: {
     id: 'clean',
     label: 'Clean',
-    description: 'Capacity + Health — large files, problems, strict deletes.',
+    description: 'Capacity + Health -- large files, problems, strict deletes.',
     columns: {
       name: true, type: true, size: true, modified: true, path: true, attributes: true,
       created: false, tags: false, label: false, comment: false,

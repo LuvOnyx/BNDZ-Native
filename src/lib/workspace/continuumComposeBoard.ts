@@ -19,9 +19,9 @@ import {
   type SpatialSticky,
 } from '../spatialCanvasStore';
 
-/** @deprecated Prefer PILLAR_BOARD_ID — Continuum is Home, not Spatial. */
+/** @deprecated Prefer PILLAR_BOARD_ID -- Continuum is Home, not Spatial. */
 export const CONTINUUM_BOARD_ID = PILLAR_BOARD_ID;
-/** User-facing Spatial preset name — Continuum is Home, not this board. */
+/** User-facing Spatial preset name -- Continuum is Home, not this board. */
 export const CONTINUUM_BOARD_NAME = PILLAR_BOARD_NAME;
 
 type PillarPin = {
@@ -31,43 +31,43 @@ type PillarPin = {
   sticky: string;
 };
 
-/** Category demo pins — ≥5 live pillars with real virtual roots. */
+/** Category demo pins -- ≥5 live pillars with real virtual roots. */
 const CONTINUUM_PILLARS: PillarPin[] = [
   {
     path: BNDZ_SANDBOX,
     name: 'Sandbox',
-    note: 'Project sandbox sessions · commit / discard',
+    note: 'Project sandbox sessions | commit / discard',
     sticky: 'Stage risky edits here before Commit.',
   },
   {
     path: BNDZ_PROBLEMS,
     name: 'Library Health',
-    note: 'Live problems feed · one-click fixes',
+    note: 'Live problems feed | one-click fixes',
     sticky: 'Sick badges open Health Problems.',
   },
   {
     path: BNDZ_INBOUND,
     name: 'Inbound',
-    note: 'Capture volume · copy into library',
+    note: 'Capture volume | copy into library',
     sticky: 'Drop arrivals → Inbound capture.',
   },
 
   {
     path: BNDZ_LARGE,
     name: 'Capacity',
-    note: 'Space pressure · largest folders',
+    note: 'Space pressure | largest folders',
     sticky: 'Reclaim space from Capacity Solver.',
   },
   {
     path: BNDZ_AUTOMATION,
     name: 'Automation',
-    note: 'Visual pipelines · watch / move / deploy',
+    note: 'Visual pipelines | watch / move / deploy',
     sticky: 'Drop pins into Automation nodes.',
   },
   {
     path: BNDZ_RECENT,
     name: 'Recent',
-    note: 'Pulse · last touched paths',
+    note: 'Pulse | last touched paths',
     sticky: 'Quick jump from Recent heat.',
   },
 ];

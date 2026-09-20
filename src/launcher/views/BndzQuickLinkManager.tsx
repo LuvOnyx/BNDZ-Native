@@ -8,7 +8,7 @@ type Props = {
   initialView: 'search' | 'create';
 };
 
-/** SuperCmd QuickLinkManager port — Raycast-style link browser. */
+/** SuperCmd QuickLinkManager port -- Raycast-style link browser. */
 export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
   const [view, setView] = useState<'search' | 'create' | 'edit'>(initialView);
   const [links, setLinks] = useState<QuickLinkRecord[]>([]);
@@ -105,7 +105,7 @@ export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
           className="bndz-search-input flex-1"
           value={query}
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-          placeholder="Search quick links…"
+          placeholder="Search quick links..."
         />
         <button type="button" className="bndz-icon-btn" onClick={openCreate}><Icons8Icon id="plus_ui" size={14} /></button>
       </div>

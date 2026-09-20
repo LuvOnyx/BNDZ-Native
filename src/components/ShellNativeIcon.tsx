@@ -24,7 +24,7 @@ interface ShellNativeIconProps {
   preferThumbnail?: boolean;
   eager?: boolean;
   hero?: boolean;
-  /** Lock first painted src — prevents shell↔thumb flash on Spatial/drag cards. */
+  /** Lock first painted src -- prevents shell↔thumb flash on Spatial/drag cards. */
   stableSrc?: boolean;
 }
 

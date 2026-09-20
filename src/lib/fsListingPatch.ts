@@ -27,7 +27,7 @@ export function applyFsEventsToListing(
     if (!name) continue;
 
     if (type === 'Changed') {
-      // Attribute/size chatter â€” skip full listing churn.
+      // Attribute/size chatter -- skip full listing churn.
       continue;
     }
 
@@ -70,7 +70,7 @@ export function applyFsEventsToListing(
       const lower = name.toLowerCase();
       const idx = next.findIndex((e: any) => String(e.name || '').toLowerCase() === lower);
       if (idx >= 0) {
-        // Already visible (optimistic drop) â€” still soft-refresh for real metadata.
+        // Already visible (optimistic drop) -- still soft-refresh for real metadata.
         needsSoftRefresh = true;
         continue;
       }

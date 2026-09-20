@@ -1,5 +1,5 @@
 /**
- * Spacedrive TagAssignmentMode port — keyboard-driven quick tagging overlay.
+ * Spacedrive TagAssignmentMode port -- keyboard-driven quick tagging overlay.
  * Source: spacedrive/packages/interface/src/routes/explorer/TagAssignmentMode.tsx
  */
 import React, { useEffect } from 'react';
@@ -114,7 +114,7 @@ export default function TagAssignmentMode({
 
         {selectedCount === 0 && (
           <p className="text-[10px] text-gray-500 mt-2">
-            Select files to tag · Press 1–9/0 to toggle · Esc to exit
+            Select files to tag | Press 1-9/0 to toggle | Esc to exit
           </p>
         )}
       </motion.div>

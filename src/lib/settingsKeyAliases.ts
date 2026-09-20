@@ -52,7 +52,7 @@ export const SETTINGS_KEY_ALIASES: Record<string, string> = {
   selectConfig14: 'listGridLineWidth',
   selectConfig15: 'listSortArrowSize',
 
-  // Shell / drag defaults (keep selectConfig1–3 as aliases to clearer names)
+  // Shell / drag defaults (keep selectConfig1-3 as aliases to clearer names)
   selectConfig1: 'shellIntegrationScope',
   selectConfig2: 'dragDropSameVolumeAction',
   selectConfig3: 'dragDropCrossVolumeAction',

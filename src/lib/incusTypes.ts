@@ -1,4 +1,4 @@
-/** Incus ephemeral types — mirrors BNDZBackend Services/Mesh/Incus/IncusModels.cs */
+/** Incus ephemeral types -- mirrors BNDZBackend Services/Mesh/Incus/IncusModels.cs */
 
 export type IncusEndpoint = {
   id: string;
@@ -163,7 +163,7 @@ export function incusEndpointToPayload(e: IncusEndpoint): Record<string, unknown
   };
 }
 
-/** Web admin UI — same origin as the HTTPS API when the server ships a UI. */
+/** Web admin UI -- same origin as the HTTPS API when the server ships a UI. */
 export function incusAdminWebUrl(apiUrl: string): string {
   const validated = validateMeshVpsApiUrl(apiUrl);
   if (validated.ok) return validated.url;

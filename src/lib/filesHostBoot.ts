@@ -5,7 +5,7 @@
 
 import { toWindowsPath, normalizePanePath } from './pathUtils';
 
-/** True when FilesMerge hosts full classic BNDZUI (`?filesHost=1`). Archived — BNDZ-Native uses native list + craft islands only. */
+/** True when FilesMerge hosts full classic BNDZUI (`?filesHost=1`). Archived -- BNDZ-Native uses native list + craft islands only. */
 export function isFilesHostBoot(): boolean {
   try {
     return new URLSearchParams(window.location.search).get('filesHost') === '1';
@@ -39,7 +39,7 @@ function toFilesHostNavPath(path: string): string {
   if (!norm) return path;
   if (norm === '/') return 'Home';
   if (norm.toLowerCase().startsWith('/shell:')) return norm.slice(1); // shell:Desktop
-  if (norm.startsWith('/bndz/')) return norm; // virtual — host may ignore / fall through
+  if (norm.startsWith('/bndz/')) return norm; // virtual -- host may ignore / fall through
   return toWindowsPath(norm);
 }
 

@@ -31,7 +31,7 @@ type Props = {
   selectedPaths?: string[];
   focusedPath?: string;
   onNavigate?: (path: string) => void;
-  /** Nested under Folder Sync Diff tab — skip duplicate shell/hero. */
+  /** Nested under Folder Sync Diff tab -- skip duplicate shell/hero. */
   bareChrome?: boolean;
 };
 
@@ -276,7 +276,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
       detail: { pathA: normalizePanePath(pathA), pathB: normalizePanePath(pathB) },
     }));
     onNavigate?.(normalizePanePath(pathA));
-    pushToast({ kind: 'info', title: 'Dual pane', message: 'Opened path A — set path B in the other pane if dual-pane is enabled.' });
+    pushToast({ kind: 'info', title: 'Dual pane', message: 'Opened path A -- set path B in the other pane if dual-pane is enabled.' });
   }, [pathA, pathB, onNavigate]);
 
   const openDualPaneWithDiff = useCallback(() => {
@@ -309,7 +309,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
       title="Diff"
       icon="compare_ui"
       iconColor="#34d399"
-      subtitle="Binary file compare · recursive folder diff"
+      subtitle="Binary file compare | recursive folder diff"
       variant="embedded"
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -376,7 +376,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
                 <input
                   value={pathA}
                   onChange={e => setPathA(e.target.value)}
-                  placeholder={mode === 'files' ? 'First file…' : 'First folder…'}
+                  placeholder={mode === 'files' ? 'First file...' : 'First folder...'}
                   className={`flex-1 min-w-0 ${PLUGIN_INPUT_CLASS} bndz-mono`}
                 />
                 <PluginToolbarButton
@@ -397,7 +397,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
                 <input
                   value={pathB}
                   onChange={e => setPathB(e.target.value)}
-                  placeholder={mode === 'files' ? 'Second file…' : 'Second folder…'}
+                  placeholder={mode === 'files' ? 'Second file...' : 'Second folder...'}
                   className={`flex-1 min-w-0 ${PLUGIN_INPUT_CLASS} bndz-mono`}
                 />
                 <PluginToolbarButton
@@ -447,12 +447,12 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
                   </div>
                   <div className="p-3 flex-1 min-h-0 overflow-y-auto bndz-scrollbar space-y-2">
                     <div className="bndz-plugin-section-title">SHA-256</div>
-                    <p className="bndz-mono text-[11px] text-slate-300 break-all leading-relaxed">{fileResult.hashA || '—'}</p>
+                    <p className="bndz-mono text-[11px] text-slate-300 break-all leading-relaxed">{fileResult.hashA || '--'}</p>
                     {!fileResult.identical && fileResult.previewA != null && (
                       <>
                         <div className="bndz-plugin-section-title mt-2">Preview</div>
                         <pre className="bg-black/35 p-2.5 rounded-md overflow-x-auto border border-white/[0.06] bndz-mono text-[11px] text-slate-300">
-                          {fileResult.previewA || '—'}
+                          {fileResult.previewA || '--'}
                         </pre>
                       </>
                     )}
@@ -465,12 +465,12 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
                   </div>
                   <div className="p-3 flex-1 min-h-0 overflow-y-auto bndz-scrollbar space-y-2">
                     <div className="bndz-plugin-section-title">SHA-256</div>
-                    <p className="bndz-mono text-[11px] text-slate-300 break-all leading-relaxed">{fileResult.hashB || '—'}</p>
+                    <p className="bndz-mono text-[11px] text-slate-300 break-all leading-relaxed">{fileResult.hashB || '--'}</p>
                     {!fileResult.identical && fileResult.previewB != null && (
                       <>
                         <div className="bndz-plugin-section-title mt-2">Preview</div>
                         <pre className="bg-black/35 p-2.5 rounded-md overflow-x-auto border border-white/[0.06] bndz-mono text-[11px] text-slate-300">
-                          {fileResult.previewB || '—'}
+                          {fileResult.previewB || '--'}
                         </pre>
                       </>
                     )}

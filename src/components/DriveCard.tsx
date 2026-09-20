@@ -13,7 +13,7 @@ export type DriveCardData = {
   path?: string;
   /** When true, hide free-space chrome (Settings → skip calc for mapped network). */
   skipFreeSpace?: boolean;
-  /** Backend timed out on TotalSize/FreeSpace — show Calculating… instead of 0 B. */
+  /** Backend timed out on TotalSize/FreeSpace -- show Calculating... instead of 0 B. */
   sizeUnavailable?: boolean;
 };
 
@@ -21,7 +21,7 @@ type Props = {
   drive: DriveCardData;
   layout?: 'compact' | 'grid' | 'details' | 'list';
   selected?: boolean;
-  /** Icon pixel size — follows the Grid/List density slider. */
+  /** Icon pixel size -- follows the Grid/List density slider. */
   iconSize?: number;
 };
 
@@ -36,12 +36,12 @@ function formatBytes(bytes: number) {
 function freeSpaceLabel(drive: DriveCardData, skipFree: boolean): string {
   if (skipFree) return 'Free space hidden';
   if (drive.sizeUnavailable || (drive.totalSpace <= 0 && drive.freeSpace <= 0)) {
-    return 'Calculating…';
+    return 'Calculating...';
   }
   return `${formatBytes(drive.freeSpace)} free of ${formatBytes(drive.totalSpace)}`;
 }
 
-/** Compact drive rows — rectangle-rounded, no pill cards */
+/** Compact drive rows -- rectangle-rounded, no pill cards */
 export default function DriveCard({ drive, layout = 'compact', selected, iconSize }: Props) {
   const skipFree = !!drive.skipFreeSpace;
   const calculating = !skipFree && (drive.sizeUnavailable || (drive.totalSpace <= 0 && drive.freeSpace <= 0));
@@ -123,7 +123,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
     );
   }
 
-  // compact — sidebar & list strip
+  // compact -- sidebar & list strip
   return (
     <div className={`bndz-drive-card px-3 py-1.5 cursor-pointer transition-colors${selClass}`}>
       <div className="flex items-center gap-2 mb-1 bndz-drive-card-title">
@@ -134,7 +134,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
       {!skipFree && !calculating && <StorageUsageBar usedPct={usedPct} height={4} className="mb-1" />}
       <div className={`flex justify-between text-[10px] font-mono bndz-drive-card-meta ${calculating ? 'text-amber-300/80 animate-pulse' : ''}`}>
         {calculating ? (
-          <span>Calculating…</span>
+          <span>Calculating...</span>
         ) : (
           <>
             <span>{formatBytes(drive.freeSpace)} free</span>

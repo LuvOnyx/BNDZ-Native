@@ -22,7 +22,7 @@ export function endInternalFileDragUi(reason = 'drop'): void {
   } catch { /* ignore */ }
 }
 
-/** Hide drag chrome only — keeps FILE_DRAG_ACTIVE session for host OLE escalate. */
+/** Hide drag chrome only -- keeps FILE_DRAG_ACTIVE session for host OLE escalate. */
 export function hideFileDragGhostForOleHandoff(): void {
   try {
     document.documentElement.classList.add('bndz-ole-drag-handoff');
@@ -79,7 +79,7 @@ export function subscribeOleDragHandoff(fn: HandoffListener): () => void {
 }
 
 /**
- * Host OLE escalate — kill the fluid ghost *now* (no 140ms snap). WebView2 cannot paint
+ * Host OLE escalate -- kill the fluid ghost *now* (no 140ms snap). WebView2 cannot paint
  * the React card outside the HWND; Windows shell owns the cursor after this.
  */
 export function onHostOleDragEscalated(): void {
@@ -92,7 +92,7 @@ export function onHostOleDragEscalated(): void {
 
 declare global {
   interface Window {
-    /** Called from host ExecuteScript before DoDragDrop — must be sync-safe. */
+    /** Called from host ExecuteScript before DoDragDrop -- must be sync-safe. */
     __bndzDismissDragGhost?: () => void;
   }
 }
@@ -126,8 +126,8 @@ function stopScreenDragGhostMonitor() {
   screenDragMonitorStop = null;
 }
 
-/** Screen-space backup when WebView stops pointermove — only after cursor leaves the window.
- *  Do NOT hide FE ghosts here — WebView cannot paint outside HWND; host overlay takes over
+/** Screen-space backup when WebView stops pointermove -- only after cursor leaves the window.
+ *  Do NOT hide FE ghosts here -- WebView cannot paint outside HWND; host overlay takes over
  *  on escalate. Premature hide left only the finger cursor beyond the app border.
  */
 function startScreenDragGhostMonitor() {
@@ -144,7 +144,7 @@ function startScreenDragGhostMonitor() {
   screenDragMonitorStop = () => document.removeEventListener('mousemove', onMove, true);
 }
 
-/** Install once — ExecuteScript + PostWebMessage both hit this before DoDragDrop blocks STA. */
+/** Install once -- ExecuteScript + PostWebMessage both hit this before DoDragDrop blocks STA. */
 export function installOleDragEscalateGhostHook(): void {
   if (oleEscalateHookInstalled || typeof window === 'undefined') return;
   oleEscalateHookInstalled = true;
@@ -162,7 +162,7 @@ export function installOleDragEscalateGhostHook(): void {
   window.addEventListener('bndz-end-file-drag', (ev: Event) => {
     stopScreenDragGhostMonitor();
     const reason = (ev as CustomEvent<{ reason?: string }>).detail?.reason;
-    // Keep handoff hide through DoDragDrop AND through ole-ended's same-tick clear —
+    // Keep handoff hide through DoDragDrop AND through ole-ended's same-tick clear --
     // removing the class here re-shows the stuck MOVE card under the WinUI menubar.
     if (reason === 'ole-escalate' || reason === 'ole-ended') {
       notifyOleDragHandoffListeners();
@@ -171,7 +171,7 @@ export function installOleDragEscalateGhostHook(): void {
     clearOleHandoffDom();
     notifyOleDragHandoffListeners();
     // Other listeners (BNDZUI) may have historically re-armed handoff CSS while clearing
-    // ghosts — clear again on the next microtask so list/sidebar hit-testing recovers.
+    // ghosts -- clear again on the next microtask so list/sidebar hit-testing recovers.
     queueMicrotask(() => {
       clearOleHandoffDom();
       notifyOleDragHandoffListeners();

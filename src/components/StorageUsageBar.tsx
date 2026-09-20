@@ -15,7 +15,7 @@ function tier(pct: number, warnAbove: number, critAbove: number) {
   return 'healthy';
 }
 
-/** macOS-inspired storage meter — rounded glass track with tiered fill */
+/** macOS-inspired storage meter -- rounded glass track with tiered fill */
 export function StorageUsageBar({
   usedPct,
   height = 6,

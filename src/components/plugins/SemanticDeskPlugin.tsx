@@ -118,7 +118,7 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
       setSemanticDeskClusters(clusters.map(c => ({ id: c.id, label: c.label, paths: c.paths })));
       setActive(true);
       window.dispatchEvent(new CustomEvent('bndz-semantic-desk-changed', { detail: { active: true } }));
-      pushToast(`${clusters.length} semantic piles · ${clusters.reduce((n, c) => n + c.count, 0)} items`, 'success');
+      pushToast(`${clusters.length} semantic piles | ${clusters.reduce((n, c) => n + c.count, 0)} items`, 'success');
       void refreshEmbedding();
     } catch (e: unknown) {
       pushToast(e instanceof Error ? e.message : 'Cluster failed', 'error');
@@ -155,8 +155,8 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
       <PluginHeroStrip
         title="Smart groups"
         subtitle={onnxReady
-          ? 'ONNX embeddings loaded — cluster by meaning, then group the list.'
-          : 'Local feature vectors (extension, size, name tokens) → 3–8 piles. Drop ONNX model for richer ranking.'}
+          ? 'ONNX embeddings loaded -- cluster by meaning, then group the list.'
+          : 'Local feature vectors (extension, size, name tokens) → 3-8 piles. Drop ONNX model for richer ranking.'}
         actions={
           <PluginHeroActionButton icon="folder_open_ui" onClick={runCluster} disabled={loading}>
             Analyze {folderPath ? folderPath.split('\\').pop() : 'folder'}
@@ -210,7 +210,7 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
       {onnxReady && (
         <div className="mx-3 mb-2 rounded-xl border border-emerald-400/20 bg-emerald-950/20 px-3 py-2 flex items-center gap-2 text-[10px] text-emerald-200/90">
           <Icons8Icon id="checksquare_ui" size={12} className="text-emerald-400 shrink-0" />
-          ONNX ready{emb?.modelLoaded ? ' · loaded' : ''} · dim {emb?.embeddingDimension || '—'}
+          ONNX ready{emb?.modelLoaded ? ' | loaded' : ''} | dim {emb?.embeddingDimension || '--'}
           <button
             type="button"
             className={`${PLUGIN_INPUT_CLASS} !w-auto !py-0.5 !px-2 !text-[10px] ml-auto`}
@@ -249,7 +249,7 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
           <PluginEmptyState
             icon="smart_view"
             title="No clusters yet"
-            hint="Run cluster on the current folder — details view shows pile headers."
+            hint="Run cluster on the current folder -- details view shows pile headers."
           />
         )}
         {piles.map(pile => (
@@ -260,8 +260,8 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
               <span className="text-[10px] text-gray-500 ml-auto">{pile.count} items</span>
             </div>
             <div className="text-[10px] text-gray-500 truncate">
-              {pile.paths.slice(0, 4).map(p => p.split('\\').pop()).join(' · ')}
-              {pile.paths.length > 4 ? ` · +${pile.paths.length - 4} more` : ''}
+              {pile.paths.slice(0, 4).map(p => p.split('\\').pop()).join(' | ')}
+              {pile.paths.length > 4 ? ` | +${pile.paths.length - 4} more` : ''}
             </div>
           </PluginCard>
         ))}

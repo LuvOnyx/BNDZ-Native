@@ -121,7 +121,7 @@ export function formatTransferProgressLine(job: FileTransferJobDto, showSpeedEta
     const eta = formatTransferEta(job.etaSeconds);
     if (eta) parts.push(eta);
   }
-  return parts.join(' · ');
+  return parts.join(' | ');
 }
 
 const COMPLETED_VISIBLE_MS = 2_500;

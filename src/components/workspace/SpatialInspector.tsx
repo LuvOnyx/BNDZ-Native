@@ -104,9 +104,9 @@ export default function SpatialInspector({
             {snapshotCount > 0 ? <div>{snapshotCount} snapshot{snapshotCount === 1 ? '' : 's'}</div> : null}
           </div>
           <ul className="bndz-spatial-inspector-tips">
-            <li>Click once to select · double-click to open</li>
+            <li>Click once to select | double-click to open</li>
             <li>Drop files from any pane</li>
-            <li>Delete removes pins · not files</li>
+            <li>Delete removes pins | not files</li>
             <li>Tags sync with BNDZ sidecars</li>
           </ul>
         </div>
@@ -129,7 +129,7 @@ export default function SpatialInspector({
               className="bndz-spatial-field-input"
               rows={6}
               value={primarySticky.text || ''}
-              placeholder="Sticky note…"
+              placeholder="Sticky note..."
               onChange={e => onUpdateStickyText?.(primarySticky.id, e.target.value)}
             />
           </label>
@@ -193,7 +193,7 @@ export default function SpatialInspector({
                 className="bndz-spatial-field-input"
                 rows={3}
                 value={primary!.note || ''}
-                placeholder="Annotation for this pin…"
+                placeholder="Annotation for this pin..."
                 onChange={e => onUpdateNote(primary!.id, e.target.value)}
                 onFocus={() => onEditNote(primary!.id)}
               />
@@ -260,7 +260,7 @@ export default function SpatialInspector({
                 {intelligence.lineage.recentOp && (
                   <div className="bndz-spatial-intel-hint">
                     Last: {intelligence.lineage.recentOp}
-                    {intelligence.lineage.recentUtc ? ` · ${new Date(intelligence.lineage.recentUtc).toLocaleDateString()}` : ''}
+                    {intelligence.lineage.recentUtc ? ` | ${new Date(intelligence.lineage.recentUtc).toLocaleDateString()}` : ''}
                   </div>
                 )}
               </div>
@@ -296,7 +296,7 @@ export default function SpatialInspector({
             )}
           </div>
         )}
-        <p className="bndz-spatial-inspector-kbd"><kbd>Del</kbd> unpin · autosave on edit</p>
+        <p className="bndz-spatial-inspector-kbd"><kbd>Del</kbd> unpin | autosave on edit</p>
       </div>
     </aside>
   );

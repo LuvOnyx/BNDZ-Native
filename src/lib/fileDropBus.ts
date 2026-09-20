@@ -1,5 +1,5 @@
 /**
- * Unified file-drop commit bus — external OLE, archive internal, and list pointer
+ * Unified file-drop commit bus -- external OLE, archive internal, and list pointer
  * sessions converge here before executeInternalDrop.
  */
 
@@ -74,7 +74,7 @@ export function isWithinAppViewport(clientX?: number, clientY?: number): boolean
     && clientX <= window.innerWidth && clientY <= window.innerHeight;
 }
 
-/** Copy/move into the active (or hovered) real folder tab — bypasses hit-test. */
+/** Copy/move into the active (or hovered) real folder tab -- bypasses hit-test. */
 export function forceCommitToActivePaneFolder(
   paths: string[],
   op: 'copy' | 'move' = 'copy',
@@ -301,7 +301,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     return true;
   }
 
-  // Launch Ready A1: RAM Staging product surface removed — do not intercept drops for ram zones.
+  // Launch Ready A1: RAM Staging product surface removed -- do not intercept drops for ram zones.
 
   const meshDropInboxEl = document.elementsFromPoint(clientX, clientY)
     .map(el => (el as HTMLElement).closest('[data-mesh-drop-inbox]'))
@@ -330,7 +330,7 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     return true;
   }
 
-  // Icon Studio / Design Board / Photo Studio — defer OLE to plugin handlers
+  // Icon Studio / Design Board / Photo Studio -- defer OLE to plugin handlers
   if (ctx.bottomPluginTab === 'icon-studio') {
     const hit = document.elementFromPoint(clientX, clientY);
     if (hit?.closest('[data-icon-studio]') || hit?.closest('.icon-studio')) {
@@ -484,7 +484,7 @@ function resolveInboundOp(opts: ResolveAndCommitDropOpts): 'copy' | 'move' {
 }
 
 /**
- * External OLE / HTML5 drop into BNDZ — only when drop landed in our window.
+ * External OLE / HTML5 drop into BNDZ -- only when drop landed in our window.
  * Falls back to active-pane folder when coord hit-tests miss (125% DPI, etc.).
  * Dual-path (OLE + HTML5 + ExecuteScript inject) must not double-commit.
  */
@@ -558,7 +558,7 @@ export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Pro
   }
 }
 
-/** Archive extract-and-copy — never escalate to desktop OLE when still inside BNDZ. */
+/** Archive extract-and-copy -- never escalate to desktop OLE when still inside BNDZ. */
 export function commitArchiveInternalDrop(opts: ResolveAndCommitDropOpts): boolean {
   if (!opts.paths?.length) return false;
   if (!busContext) {

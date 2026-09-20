@@ -65,7 +65,7 @@ export default function BndzFileSearchView({ onClose, initialQuery = '' }: Props
             className="bndz-search-input flex-1 relative z-[1] text-[13px]"
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-            placeholder="Search files and folders…"
+            placeholder="Search files and folders..."
             onKeyDown={e => {
               if (e.key === 'ArrowDown' && items.length) { e.preventDefault(); setSelectedIndex(i => (i + 1) % items.length); }
               if (e.key === 'ArrowUp' && items.length) { e.preventDefault(); setSelectedIndex(i => (i - 1 + items.length) % items.length); }

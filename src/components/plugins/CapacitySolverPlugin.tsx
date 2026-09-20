@@ -21,7 +21,7 @@ export const CapacitySolverPluginDef = {
   id: 'capacity-solver',
   name: 'Capacity Solver',
   icon: 'hard_drive_ui',
-  description: 'Plan free space — see what you can reclaim before you delete anything',
+  description: 'Plan free space -- see what you can reclaim before you delete anything',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -327,7 +327,7 @@ export default function CapacitySolverPlugin({
       pushToast({
         kind: 'success',
         title: 'Actions dispatched',
-        message: `${r.actionsDispatched ?? selectedIds.size} actuator(s) · ~${formatBytes(r.bytesTargeted ?? 0)} targeted`,
+        message: `${r.actionsDispatched ?? selectedIds.size} actuator(s) | ~${formatBytes(r.bytesTargeted ?? 0)} targeted`,
       });
       for (const action of projection?.actions ?? []) {
         if (!selectedIds.has(action.id)) continue;
@@ -367,7 +367,7 @@ export default function CapacitySolverPlugin({
       pushToast({
         kind: 'success',
         title: 'Budget saved',
-        message: `${root} · ${budget.enforcement === 'off' ? 'governor off' : `${budget.enforcement} quota`}`,
+        message: `${root} | ${budget.enforcement === 'off' ? 'governor off' : `${budget.enforcement} quota`}`,
       });
     } catch (e) {
       pushToast({ kind: 'error', title: 'Budget save failed', message: String(e) });
@@ -395,7 +395,7 @@ export default function CapacitySolverPlugin({
       icon="hard_drive_ui"
       iconColor="#c48b4a"
       variant="embedded"
-      subtitle="What-if projection · budget"
+      subtitle="What-if projection | budget"
     >
       <div className="flex flex-col min-h-0">
         <PluginHeroStrip
@@ -405,11 +405,11 @@ export default function CapacitySolverPlugin({
             </div>
           }
           name="Capacity"
-          typeLabel="What-if · budget"
+          typeLabel="What-if | budget"
           meta={
             projection ? (
               <span className="bndz-panel-muted text-xs">
-                {formatBytes(projection.currentFreeBytes)} free → {formatBytes(liveProjected)} projected · {livePct}%
+                {formatBytes(projection.currentFreeBytes)} free → {formatBytes(liveProjected)} projected | {livePct}%
               </span>
             ) : (
               <span className="bndz-panel-muted text-xs">Tune keep-hot / recency to project free space</span>
@@ -438,7 +438,7 @@ export default function CapacitySolverPlugin({
                   onClick={() => void runWhatIf(false)}
                   disabled={busy}
                 >
-                  {busy ? 'Projecting…' : 'Project'}
+                  {busy ? 'Projecting...' : 'Project'}
                 </PluginHeroActionButton>
               </>
             ) : (
@@ -448,7 +448,7 @@ export default function CapacitySolverPlugin({
                 onClick={() => void saveBudget()}
                 disabled={budgetBusy}
               >
-                {budgetBusy ? 'Saving…' : 'Save budget'}
+                {budgetBusy ? 'Saving...' : 'Save budget'}
               </PluginHeroActionButton>
             )
           }
@@ -547,7 +547,7 @@ export default function CapacitySolverPlugin({
               <PluginEmptyState
                 icon="hard_drive_ui"
                 title="No projection yet"
-                description="Set scrubbers and Project — live free-space outcome before you Approve."
+                description="Set scrubbers and Project -- live free-space outcome before you Approve."
               />
             </div>
           ) : (
@@ -612,17 +612,17 @@ export default function CapacitySolverPlugin({
                 <div className="bndz-cleanup-meter-row">
                   <strong>{formatBytes(projection.currentFreeBytes)}</strong>
                   <span>free now</span>
-                  <em>·</em>
+                  <em>|</em>
                   <strong>{formatBytes(liveProjected)}</strong>
                   <span>projected</span>
-                  <em>·</em>
+                  <em>|</em>
                   <strong>{formatBytes(selectedReclaimable)}</strong>
                   <span>selected reclaim</span>
                 </div>
                 <div className="bndz-cleanup-meter-links">
                   <span className="bndz-cleanup-quiet-link" style={{ pointerEvents: 'none', border: 'none' }}>
                     {selectedIds.size} of {projection.actions.length} action(s)
-                    {projection.meetsTarget || liveProjected >= projection.targetFreeBytes ? ' · target met' : ''}
+                    {projection.meetsTarget || liveProjected >= projection.targetFreeBytes ? ' | target met' : ''}
                   </span>
                 </div>
               </div>
@@ -666,7 +666,7 @@ export default function CapacitySolverPlugin({
                       onClick={() => void approveSelected()}
                       disabled={approving || selectedIds.size === 0}
                     >
-                      {approving ? 'Dispatching…' : `Approve (${selectedIds.size})`}
+                      {approving ? 'Dispatching...' : `Approve (${selectedIds.size})`}
                     </PluginToolbarButton>
                   </div>
                   <div className="mt-3 space-y-2">

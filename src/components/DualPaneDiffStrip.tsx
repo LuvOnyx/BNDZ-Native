@@ -19,7 +19,7 @@ type LineDiff = {
 type Props = {
   pathA: string;
   pathB: string;
-  /** Full paths when a *file* is selected in both panes — triggers inline line diff. */
+  /** Full paths when a *file* is selected in both panes -- triggers inline line diff. */
   fileA?: string | null;
   fileB?: string | null;
   onNavigate?: (name: string, pane: 'A' | 'B') => void;
@@ -149,7 +149,7 @@ export function DualPaneDiffStrip({ pathA, pathB, fileA, fileB, onNavigate, onCl
             type: 'unchanged',
             text: (res as any)?.ok === false
               ? String((res as any)?.message || 'Compare failed')
-              : '(no text diff — binary or empty)',
+              : '(no text diff -- binary or empty)',
           }]);
     } catch (e) {
       if (!token.cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -205,7 +205,7 @@ export function DualPaneDiffStrip({ pathA, pathB, fileA, fileB, onNavigate, onCl
               disabled={loading}
               className="ml-auto px-2 py-0.5 rounded-[6px] text-[10px] border border-[color-mix(in_srgb,var(--accent,#8b9cf8)_40%,transparent)] text-[color-mix(in_srgb,var(--accent,#8b9cf8)_90%,#fff)] disabled:opacity-40"
             >
-              {loading ? 'Comparing…' : 'Refresh'}
+              {loading ? 'Comparing...' : 'Refresh'}
             </button>
           </>
         )}
@@ -216,7 +216,7 @@ export function DualPaneDiffStrip({ pathA, pathB, fileA, fileB, onNavigate, onCl
             disabled={loading}
             className="ml-auto px-2 py-0.5 rounded-[6px] text-[10px] border border-[color-mix(in_srgb,var(--accent,#8b9cf8)_40%,transparent)] disabled:opacity-40"
           >
-            {loading ? 'Comparing…' : 'Refresh'}
+            {loading ? 'Comparing...' : 'Refresh'}
           </button>
         )}
         <button
@@ -232,7 +232,7 @@ export function DualPaneDiffStrip({ pathA, pathB, fileA, fileB, onNavigate, onCl
       <div className="bndz-dual-diff-strip__body flex-1 overflow-y-auto overflow-x-auto min-h-0">
         {loading && (
           <div className="flex items-center justify-center h-full text-[11px] py-4 opacity-70">
-            Running DiffPlex comparison…
+            Running DiffPlex comparison...
           </div>
         )}
         {!loading && error && (
@@ -242,7 +242,7 @@ export function DualPaneDiffStrip({ pathA, pathB, fileA, fileB, onNavigate, onCl
           <div className="px-3 py-2 text-[11px] opacity-60">No entries match this filter.</div>
         )}
         {!loading && !error && mode === 'dir' && dirEntries.length === 0 && (
-          <div className="px-3 py-2 text-[11px] opacity-60">No differences found — folders are identical.</div>
+          <div className="px-3 py-2 text-[11px] opacity-60">No differences found -- folders are identical.</div>
         )}
         {!loading && !error && mode === 'dir' && filtered.length > 0 && (
           <table className="w-full text-[11px] border-collapse">
@@ -292,7 +292,7 @@ export function DualPaneDiffStrip({ pathA, pathB, fileA, fileB, onNavigate, onCl
                             : 'inherit',
                     }}
                   >
-                    {l.type === 'added' ? '+' : l.type === 'removed' ? '−' : l.type === 'modified' ? '~' : ' '}
+                    {l.type === 'added' ? '+' : l.type === 'removed' ? '-' : l.type === 'modified' ? '~' : ' '}
                   </td>
                   <td className="pr-3 py-0 whitespace-pre">{l.text}</td>
                 </tr>

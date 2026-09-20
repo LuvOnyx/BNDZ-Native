@@ -26,7 +26,7 @@ type Props = {
  *
  * If the WebGL context is unavailable or the texture fails to load, we fall
  * back to the 2D ImageZoomPreview so the panel never goes blank.
- * 3D meshes (.glb, .ydr, …) use GpuModelViewport in the main preview — never here.
+ * 3D meshes (.glb, .ydr, ...) use GpuModelViewport in the main preview -- never here.
  */
 export default function InspectionViewportRouter({
   src,

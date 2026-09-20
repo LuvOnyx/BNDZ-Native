@@ -35,7 +35,7 @@ function topFolderChips(panePath: string): Array<{ path: string; label: string }
   return chips;
 }
 
-/** XYplorer branch view — horizontal sibling folders for quick lateral navigation. */
+/** XYplorer branch view -- horizontal sibling folders for quick lateral navigation. */
 export default function BranchViewStrip({ panePath, contents, config, branchType, onNavigate }: Props) {
   const folders = useMemo(() => {
     let dirs = contents.filter(c => c.type === 'directory');

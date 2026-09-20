@@ -2,7 +2,7 @@
 export const LAUNCHER_ICON_REV = '22';
 
 /**
- * DEV ICON MAP — single place to find / swap UI chrome icons.
+ * DEV ICON MAP -- single place to find / swap UI chrome icons.
  * Drop files in public/launcher-icons/ or public/Media/, change the filename here,
  * bump LAUNCHER_ICON_REV, run npm run build. See also public/ui-icons.catalog.json.
  *
@@ -14,7 +14,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   nav_forward: 'nav_forward.png',
   nav_up: 'nav_up.png',
   go_home: 'home.svg',
-  // Prefer PNG — multi-frame .ico often paints as a blank/white doc in WebView2 at 15–16px.
+  // Prefer PNG -- multi-frame .ico often paints as a blank/white doc in WebView2 at 15-16px.
   home: 'home.svg',
   refresh: 'refresh.png',
   folder_size_sync: 'folder_size_sync.png',
@@ -109,7 +109,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   powershell: 'powershell.png',
   calculator: 'calculator.png',
 
-  // Generic UI chrome — replaces Lucide app-wide (chevrons, close, check, spinner, etc.)
+  // Generic UI chrome -- replaces Lucide app-wide (chevrons, close, check, spinner, etc.)
   chevron_right: 'chevron_right.png',
   chevron_left: 'chevron_left.png',
   chevron_down: 'chevron_down.png',
@@ -167,7 +167,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   layers_ui: 'layers_ui.png',
   eye_ui: 'eye_ui.png',
   // No distinct Icons8 3D-fluency "eye slash" asset resolves reliably; reuse the eye
-  // glyph — call sites differentiate state via opacity/tooltip, not the icon shape.
+  // glyph -- call sites differentiate state via opacity/tooltip, not the icon shape.
   eye_off_ui: 'eye_ui.png',
   puzzle_ui: 'puzzle_ui.png',
   globe_ui: 'globe_ui.png',

@@ -33,7 +33,7 @@ type Props = {
 };
 
 /**
- * BNDZ fill picker — solid or multi-stop gradient.
+ * BNDZ fill picker -- solid or multi-stop gradient.
  * Gradient stops are editable *steps on the rail* inside this picker (not settings-page sliders).
  */
 export default function ColorPicker({
@@ -117,7 +117,7 @@ export default function ColorPicker({
     });
   };
 
-  // Drop draft when switching stops / mode (not on every parent echo — that fights the drag).
+  // Drop draft when switching stops / mode (not on every parent echo -- that fights the drag).
   useEffect(() => {
     setDraftColor(null);
   }, [stopIndex, fill.mode]);
@@ -194,7 +194,7 @@ export default function ColorPicker({
           )}
           {forceGradient && fill.mode === 'gradient' && (
             <div className="bndz-fill-mode-badge">
-              Gradient · {fill.stops.length} steps
+              Gradient | {fill.stops.length} steps
             </div>
           )}
 
@@ -219,7 +219,7 @@ export default function ColorPicker({
                     disabled={fill.stops.length <= minStops}
                     onClick={removeStop}
                   >
-                    − Step
+                    - Step
                   </button>
                 </div>
               </div>
@@ -316,7 +316,7 @@ function GradientStepsRail({
             data-stop={i}
             className={`bndz-fill-stop${i === activeIndex ? ' is-active' : ''}`}
             style={{ left: `${stop.pos}%`, background: toPickerHex(stop.color) }}
-            title={`Step ${i + 1} · ${stop.pos}%`}
+            title={`Step ${i + 1} | ${stop.pos}%`}
             onPointerDown={e => {
               e.preventDefault();
               e.stopPropagation();
@@ -327,7 +327,7 @@ function GradientStepsRail({
           />
         ))}
       </div>
-      <div className="bndz-fill-rail-caption">Drag steps · select · edit color below</div>
+      <div className="bndz-fill-rail-caption">Drag steps | select | edit color below</div>
     </div>
   );
 }

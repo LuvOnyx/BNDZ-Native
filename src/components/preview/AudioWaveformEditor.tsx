@@ -33,7 +33,7 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-/** Ableton-style — light peaks on saturated track. */
+/** Ableton-style -- light peaks on saturated track. */
 const WAVE_TRACK = '#e11d48';
 const WAVE_FILL = '#fecdd3';
 const WAVE_PROGRESS = '#fff1f2';
@@ -73,7 +73,7 @@ async function decodePeaksCached(pathKey: string, blobUrl: string, signal: { can
       }
       const entry = { peaks, duration: probe.duration };
       peakCache.set(pathKey, entry);
-      // Bound memory — keep recent tracks only.
+      // Bound memory -- keep recent tracks only.
       if (peakCache.size > 12) {
         const first = peakCache.keys().next().value;
         if (first) peakCache.delete(first);
@@ -186,7 +186,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
       setStatus(null);
       setReady(false);
 
-      // Resolve ONE live blob — never bndz-stream for peaks (fetch/decode fails silently).
+      // Resolve ONE live blob -- never bndz-stream for peaks (fetch/decode fails silently).
       let blobUrl = '';
       const snap = audioPlaybackSession.getSnapshot();
       if (audioPlaybackSession.samePath(path) && snap.resolvedSrc.startsWith('blob:')) {
@@ -200,7 +200,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
             return;
           }
           blobUrl = created;
-          // Only force when path actually changed — avoids decoder thrash mid-switch.
+          // Only force when path actually changed -- avoids decoder thrash mid-switch.
           audioPlaybackSession.load(path, blobUrl, { force: !audioPlaybackSession.samePath(path) });
         } catch (e) {
           if (!cancelled) setStatus(e instanceof Error ? e.message : 'Waveform load failed');
@@ -292,7 +292,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
         try { ws?.unAll?.(); } catch { /* */ }
         try { ws?.destroy(); } catch { /* */ }
         if (keepPlaying && wasPaused) {
-          /* media may have been paused by destroy — restore below */
+          /* media may have been paused by destroy -- restore below */
         }
       } catch { /* */ }
       wsRef.current = null;
@@ -383,7 +383,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
     try {
       const dest = await IPC.trimAudioFile(toWindowsPath(path), region.start, region.end);
       if (dest?.ok) setStatus(`Exported → ${dest.path?.split(/[/\\]/).pop() || 'clip'}`);
-      else setStatus(dest?.error || 'Export failed — preparing audio tools…');
+      else setStatus(dest?.error || 'Export failed -- preparing audio tools...');
     } catch {
       setStatus('Export failed');
     } finally {
@@ -425,7 +425,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
           await IPC.setTagMeta(toWindowsPath(path), sc?.label, sc?.comment, merged);
         } catch { /* sidecar optional */ }
       }
-      setStatus(`Detected ${r.bpm} BPM · ${r.key} ${r.mode}${r.camelot ? ` · Camelot ${r.camelot}` : ''}`);
+      setStatus(`Detected ${r.bpm} BPM | ${r.key} ${r.mode}${r.camelot ? ` | Camelot ${r.camelot}` : ''}`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Analysis failed');
     } finally {
@@ -446,8 +446,8 @@ export default function AudioWaveformEditor({ path, title }: Props) {
           <div className="bndz-wave-editor-kicker">Producer desk</div>
           <div className="bndz-wave-editor-title truncate">{displayTitle}</div>
           <div className="bndz-wave-editor-sub">
-            {analysis?.artist ? `${analysis.artist} · ` : ''}
-            Shift+wheel timeline · Ctrl+Shift+wheel amplitude · shared playback
+            {analysis?.artist ? `${analysis.artist} | ` : ''}
+            Shift+wheel timeline | Ctrl+Shift+wheel amplitude | shared playback
           </div>
         </div>
         <div className="bndz-wave-editor-tools">
@@ -458,7 +458,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
             onClick={() => void detectMusic()}
           >
             <Icons8Icon id="music_ui" size={12} />
-            {analyzing ? 'Detecting…' : 'Detect BPM + Key'}
+            {analyzing ? 'Detecting...' : 'Detect BPM + Key'}
           </button>
           <button
             type="button"
@@ -467,7 +467,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
             onClick={() => void exportSelection()}
           >
             <Icons8Icon id="download" size={12} />
-            {busy ? 'Exporting…' : 'Export clip'}
+            {busy ? 'Exporting...' : 'Export clip'}
           </button>
         </div>
       </div>
@@ -484,16 +484,16 @@ export default function AudioWaveformEditor({ path, title }: Props) {
           </div>
           <div className="bndz-music-stat">
             <span className="bndz-music-stat-label">Camelot</span>
-            <span className="bndz-music-stat-value">{analysis.camelot || '—'}</span>
+            <span className="bndz-music-stat-value">{analysis.camelot || '--'}</span>
           </div>
           <div className="bndz-music-stat">
             <span className="bndz-music-stat-label">Peak</span>
-            <span className="bndz-music-stat-value">{analysis.peakDb != null ? `${analysis.peakDb.toFixed(1)} dB` : '—'}</span>
+            <span className="bndz-music-stat-value">{analysis.peakDb != null ? `${analysis.peakDb.toFixed(1)} dB` : '--'}</span>
           </div>
           <div className="bndz-music-stat bndz-music-stat--wide">
             <span className="bndz-music-stat-label">Half / Double</span>
             <span className="bndz-music-stat-value">
-              {analysis.suggestedHalfTime?.toFixed(1)} · {analysis.suggestedDoubleTime?.toFixed(1)}
+              {analysis.suggestedHalfTime?.toFixed(1)} | {analysis.suggestedDoubleTime?.toFixed(1)}
             </span>
           </div>
         </div>
@@ -502,7 +502,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
       <div className="bndz-wave-transport">
         <button type="button" className="bndz-wave-btn" disabled={!ready} onClick={() => skip(-5)} title="Back 5s">
           <EmblemIcon id="media-seek-backward" size={12} />
-          −5s
+          -5s
         </button>
         <button type="button" className="bndz-wave-btn is-primary" disabled={!ready} onClick={togglePlay}>
           <EmblemIcon
@@ -526,7 +526,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
         <div ref={containerRef} className="bndz-wave-canvas" />
         {!ready && (
           <div className="bndz-wave-canvas-loading" aria-live="polite">
-            {status || 'Decoding waveform…'}
+            {status || 'Decoding waveform...'}
           </div>
         )}
       </div>
@@ -537,8 +537,8 @@ export default function AudioWaveformEditor({ path, title }: Props) {
         </span>
         {region && (
           <span className="bndz-wave-meter-sel bndz-mono">
-            Selection {formatTime(region.start)} – {formatTime(region.end)}
-            {' · '}
+            Selection {formatTime(region.start)} - {formatTime(region.end)}
+            {' | '}
             {(region.end - region.start).toFixed(1)}s
           </span>
         )}

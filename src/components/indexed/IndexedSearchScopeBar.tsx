@@ -12,7 +12,7 @@ const SCOPES: Array<{ id: IndexedSearchScope; label: string }> = [
   { id: 'folder', label: 'This folder' },
 ];
 
-/** Scope strip for `> ` global search — adapted from Spacedrive SearchToolbar patterns, BNDZ-native. */
+/** Scope strip for `> ` global search -- adapted from Spacedrive SearchToolbar patterns, BNDZ-native. */
 export default function IndexedSearchScopeBar({ scope, onScopeChange }: Props) {
   return (
     <div className="flex items-center gap-1 px-2 py-1 border-b border-[#454545] bg-[#2a2a2a] shrink-0">

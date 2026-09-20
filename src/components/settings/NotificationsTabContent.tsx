@@ -52,7 +52,7 @@ export default function NotificationsTabContent({ localConfig, updateLocalConfig
     <div className="space-y-5">
       <SettingsTabHeader
         title="Notifications"
-        description="In-app physics toasts and Windows Action Center — independently gated by category."
+        description="In-app physics toasts and Windows Action Center -- independently gated by category."
       />
 
       <SettingsSection title="Delivery">

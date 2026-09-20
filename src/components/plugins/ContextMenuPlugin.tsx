@@ -108,7 +108,7 @@ function uid(): string {
 }
 
 function isSeparatorAction(ac: MenuAction): boolean {
-  return ac.id === 'separator' || ac.command === 'separator' || ac.name === 'separator' || ac.name === '—';
+  return ac.id === 'separator' || ac.command === 'separator' || ac.name === 'separator' || ac.name === '--';
 }
 
 /* ── Palette row ─────────────────────────────────────────────────────────── */
@@ -138,7 +138,7 @@ function PaletteDraggable({
       {...attributes}
       className={`bndz-cm-palette-row group ${isDragging ? 'bndz-cm-palette-row--dragging' : ''}`}
       onClick={onAdd}
-      title={`Add “${label}” to your menu`}
+      title={`Add "${label}" to your menu`}
     >
       <div className="bndz-cm-palette-icon" style={categoryColor ? { borderColor: `${categoryColor}55` } : undefined}>
         <Icons8Icon id="shell_menus" size={14} />
@@ -164,7 +164,7 @@ function MenuDropZone({ children, empty }: { children: React.ReactNode; empty?: 
       {children}
       {empty && (
         <div className="bndz-cm-custom-empty pointer-events-none">
-          Drop presets here — they land in the live menu
+          Drop presets here -- they land in the live menu
         </div>
       )}
     </div>
@@ -220,7 +220,7 @@ function SortableCustomRow({
         {...listeners}
         className={`bndz-cm-sep-handle ${selected ? 'bndz-cm-custom-row--selected' : ''}`}
         onClick={onSelect}
-        title="Separator — drag to reorder"
+        title="Separator -- drag to reorder"
       >
         <div className="bndz-context-menu-sep !mx-2 flex-1" />
       </div>
@@ -234,7 +234,7 @@ function SortableCustomRow({
       {...listeners}
       className={`${menuItemClass} bndz-cm-custom-row ${selected ? 'bndz-cm-custom-row--selected' : ''}`}
       onClick={onSelect}
-      title="Drag to reorder · click to edit"
+      title="Drag to reorder | click to edit"
     >
       <span className="bndz-context-menu-icon w-[14px] flex justify-center">
         <ContextMenuIcon verb={iconVerbForAction(action)} size={14} />
@@ -353,7 +353,7 @@ export default function ContextMenuPlugin({
   };
 
   const addFromSeed = (seed: MenuActionSeed | Partial<MenuAction>) => {
-    if (seed.command === 'separator' || seed.name === 'separator' || seed.name === '—') {
+    if (seed.command === 'separator' || seed.name === 'separator' || seed.name === '--') {
       const sep: MenuAction = { id: 'separator', name: 'separator', command: 'separator' };
       // unique id for sortable
       const row: MenuAction = { ...sep, id: `separator_${uid()}` };
@@ -539,7 +539,7 @@ export default function ContextMenuPlugin({
           targetMode: a.targetMode || 'all',
         }));
         setGlobalActions(toDeploy);
-        pushToast({ kind: 'info', title: 'Seeded stock verbs', message: 'Empty list — added Open in BNDZ, Problems, Inbound.' });
+        pushToast({ kind: 'info', title: 'Seeded stock verbs', message: 'Empty list -- added Open in BNDZ, Problems, Inbound.' });
       }
       updateConfig({ globalContextMenuActions: toDeploy, injectGlobalContextMenu: true } as Partial<typeof config>);
       if (!IPC.updateGlobalContextMenu) {
@@ -556,7 +556,7 @@ export default function ContextMenuPlugin({
       }));
       const ok = await IPC.updateGlobalContextMenu(payload);
       pushToast(ok
-        ? { kind: 'success', title: 'Deployed', message: 'Explorer menus updated (HKCU). New items appear after Explorer refreshes — no admin required.' }
+        ? { kind: 'success', title: 'Deployed', message: 'Explorer menus updated (HKCU). New items appear after Explorer refreshes -- no admin required.' }
         : { kind: 'error', title: 'Deploy failed', message: 'Could not write per-user shell keys. Check antivirus / Controlled Folder Access, then retry.' });
     } catch (err: any) {
       pushToast({ kind: 'error', title: 'Deploy error', message: String(err?.message || err) });
@@ -575,7 +575,7 @@ export default function ContextMenuPlugin({
   };
 
   const selectionHint = selectedItems?.length
-    ? `${selectedItems.length} selected — used when testing`
+    ? `${selectedItems.length} selected -- used when testing`
     : focusedPath
       ? 'Focused path ready for test'
       : 'Select items in the list to test commands';
@@ -589,7 +589,7 @@ export default function ContextMenuPlugin({
             <input
               ref={searchRef}
               type="text"
-              placeholder="Search presets…"
+              placeholder="Search presets..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="bndz-native-input w-full !py-1.5 !pl-8 !pr-3 !text-[11.5px]"
@@ -606,7 +606,7 @@ export default function ContextMenuPlugin({
               className="bndz-hub-btn-ghost text-[11px] font-semibold px-2.5 py-1.5"
               onClick={() => addFromSeed({ name: 'Custom command', command: tab === 'global' ? 'C:\\Apps\\Tool.exe "%1"' : '', targetMode: 'all' })}
             >
-              Custom…
+              Custom...
             </button>
             {tab === 'global' ? (
               <>
@@ -632,7 +632,7 @@ export default function ContextMenuPlugin({
                     pushToast({ kind: 'success', title: 'Stock BNDZ verbs', message: 'Added Open in BNDZ, Problems, Inbound. Click Deploy.' });
                   }}
                 >
-                  Stock BNDZ…
+                  Stock BNDZ...
                 </button>
                 <button type="button" className="bndz-hub-btn-primary text-[11px] font-semibold px-3 py-1.5 flex items-center gap-1.5" onClick={() => void saveGlobalActions()}>
                   <Icons8Icon id="check" size={12} />
@@ -718,7 +718,7 @@ export default function ContextMenuPlugin({
                 </button>
               ))}
               <span className="ml-auto text-[10px] text-white/28 hidden lg:inline">
-                Stock BNDZ items · your customs in the glow zone
+                Stock BNDZ items | your customs in the glow zone
               </span>
             </div>
 
@@ -825,7 +825,7 @@ export default function ContextMenuPlugin({
                       className="bndz-native-input w-full !py-1.5 !text-[12px] bndz-mono text-emerald-300/90"
                       value={selectedAction.command}
                       onChange={e => updateSelected({ command: e.target.value })}
-                      placeholder={tab === 'global' ? 'C:\\Apps\\Tool.exe "%1"' : 'copyPath, openTerminal, notepad.exe "%1"…'}
+                      placeholder={tab === 'global' ? 'C:\\Apps\\Tool.exe "%1"' : 'copyPath, openTerminal, notepad.exe "%1"...'}
                     />
                     {tab === 'global' && (
                       <div className="flex flex-wrap gap-1 mt-2">
@@ -877,7 +877,7 @@ export default function ContextMenuPlugin({
                   <Icons8Icon id="key_ui" size={12} className="opacity-50 shrink-0 mt-0.5" />
                   <p>
                     Compose items that appear in File Explorer and other Windows apps, then Deploy.
-                    Below: live shell extensions for the current selection — pin to the top or hide from BNDZ menus.
+                    Below: live shell extensions for the current selection -- pin to the top or hide from BNDZ menus.
                   </p>
                 </div>
               )}
@@ -886,7 +886,7 @@ export default function ContextMenuPlugin({
                   <div className="bndz-cm-section-label mb-1.5">Optional stock items</div>
                   <p className="text-[10px] text-white/35 mb-2.5 leading-snug">
                     Core Open / Cut / Copy / Paste / Delete / Rename / Share / Tags / Pin / Archive / Properties stay on by default.
-                    Enable power extras here — left off keeps the right-click menu short.
+                    Enable power extras here -- left off keeps the right-click menu short.
                   </p>
                   <div className="space-y-1 max-h-[220px] overflow-y-auto bndz-scrollbar">
                     {OPTIONAL_STOCK_CONTEXT_ITEMS.map(item => {
@@ -935,7 +935,7 @@ export default function ContextMenuPlugin({
                 <div className="bndz-cm-hint">
                   <Icons8Icon id="help_ui" size={12} className="opacity-50 shrink-0 mt-0.5" />
                   <p>
-                    Dim optional rows stay hidden until toggled above. Highlighted rows are your custom actions — drag presets from the library, reorder, or drop on remove. Switch File / Folder / Empty space for the stock preview.
+                    Dim optional rows stay hidden until toggled above. Highlighted rows are your custom actions -- drag presets from the library, reorder, or drop on remove. Switch File / Folder / Empty space for the stock preview.
                   </p>
                 </div>
               )}
@@ -949,9 +949,9 @@ export default function ContextMenuPlugin({
                     </button>
                   </div>
                   <p className="text-[10px] text-white/35 mb-2 leading-snug">
-                    Native handlers registered with Windows (7-Zip, Git, antivirus…). Same shell menu Explorer uses.
+                    Native handlers registered with Windows (7-Zip, Git, antivirus...). Same shell menu Explorer uses.
                   </p>
-                  {shellLoading && <div className="text-[11px] text-white/40">Scanning…</div>}
+                  {shellLoading && <div className="text-[11px] text-white/40">Scanning...</div>}
                   {shellError && <div className="text-[11px] text-rose-300">{shellError}</div>}
                   {!shellLoading && !shellError && shellItems.length === 0 && (
                     <div className="text-[11px] text-white/35 py-3">Select a file or folder in the list, then Scan.</div>
@@ -999,7 +999,7 @@ export default function ContextMenuPlugin({
             <div className="bndz-shellmenus-opsrail-title">Shell Menus</div>
             <div className="bndz-shellmenus-opsrail-meta">
               {tab === 'app' && 'Compose the Inside BNDZ right-click menu with live preview'}
-              {tab === 'global' && 'Inject BNDZ into Explorer · Deploy writes per-user HKCU keys'}
+              {tab === 'global' && 'Inject BNDZ into Explorer | Deploy writes per-user HKCU keys'}
               {tab === 'verbs' && 'Forge Explorer verbs that launch BNDZ with path args'}
             </div>
           </div>
@@ -1035,11 +1035,11 @@ export default function ContextMenuPlugin({
 
         {showHelp && (
           <div className="px-4 py-2.5 text-[11px] text-white/45 leading-relaxed border-b border-white/[0.05] bg-black/25">
-            <strong className="text-cyan-300/90">Inside BNDZ</strong> — compose the in-app right-click menu with a live preview of stock + custom items.
+            <strong className="text-cyan-300/90">Inside BNDZ</strong> -- compose the in-app right-click menu with a live preview of stock + custom items.
             {' '}
-            <strong className="text-cyan-300/90">Windows Explorer</strong> — OS-wide context menus: inject BNDZ commands into Explorer (Deploy), and pin/hide live shell extensions that Windows already registers.
+            <strong className="text-cyan-300/90">Windows Explorer</strong> -- OS-wide context menus: inject BNDZ commands into Explorer (Deploy), and pin/hide live shell extensions that Windows already registers.
             {' '}
-            <strong className="text-cyan-300/90">Explorer verbs</strong> — forge HKCU shell verbs that launch BNDZ with path args (formerly a fake sibling plugin).
+            <strong className="text-cyan-300/90">Explorer verbs</strong> -- forge HKCU shell verbs that launch BNDZ with path args (formerly a fake sibling plugin).
           </div>
         )}
 

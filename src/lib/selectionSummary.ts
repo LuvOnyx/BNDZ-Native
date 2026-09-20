@@ -26,7 +26,7 @@ export function summarizeSelection(
   }
   const extList = [...extSet].slice(0, 4);
   const types = extList.length
-    ? extList.join(', ') + (extSet.size > 4 ? '…' : '')
+    ? extList.join(', ') + (extSet.size > 4 ? '...' : '')
     : '';
   return { count: entities.length, files, folders, totalBytes, types };
 }
@@ -37,5 +37,5 @@ export function formatSelectionSummaryLine(summary: SelectionSummary, formatSize
   if (summary.files) parts.push(`${summary.files} file${summary.files === 1 ? '' : 's'}`);
   if (summary.totalBytes > 0) parts.push(formatSize(summary.totalBytes));
   if (summary.types) parts.push(summary.types);
-  return parts.join(' · ');
+  return parts.join(' | ');
 }

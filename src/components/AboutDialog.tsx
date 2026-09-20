@@ -86,7 +86,7 @@ export default function AboutDialog({
           </div>
           <div>
             <div className="bndz-native-dialog-muted text-[10px] uppercase tracking-wide">Runtime</div>
-            <div className="text-[13px] mt-0.5">64-bit · WebView2</div>
+            <div className="text-[13px] mt-0.5">64-bit | WebView2</div>
           </div>
         </div>
 
@@ -98,13 +98,13 @@ export default function AboutDialog({
             className="bndz-native-dialog-primary w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[12px] font-medium disabled:opacity-50"
           >
             {checking ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="download" size={14} />}
-            {checking ? 'Checking…' : 'Check for updates'}
+            {checking ? 'Checking...' : 'Check for updates'}
           </button>
           {updateInfo && (
             <div className="bndz-native-dialog-panel p-3 space-y-1.5 text-[11px]">
               {updateInfo.updateAvailable ? (
                 <>
-                  <p className="text-emerald-400 font-medium">Update available — v{updateInfo.latestVersion}</p>
+                  <p className="text-emerald-400 font-medium">Update available -- v{updateInfo.latestVersion}</p>
                   {updateInfo.releaseNotes && (
                     <p className="bndz-native-dialog-muted line-clamp-4 whitespace-pre-wrap">{updateInfo.releaseNotes}</p>
                   )}
@@ -130,7 +130,7 @@ export default function AboutDialog({
 
         <div className="pt-1 border-t border-white/5 space-y-2">
           <p className="text-[12px] bndz-native-dialog-muted leading-relaxed">
-            Dual-pane browsing, native shell integration, sync, cleanup, and deep preview —
+            Dual-pane browsing, native shell integration, sync, cleanup, and deep preview --
             engineered as a real Windows host, not a thin web shell.
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">

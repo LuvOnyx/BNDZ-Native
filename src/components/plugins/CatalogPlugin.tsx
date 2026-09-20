@@ -220,8 +220,8 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
             </div>
             <div className="bndz-catalog-opsrail-meta">
               {selected
-                ? `${(selected.paths || []).length} path(s)${selected.query?.trim() ? ' · search-backed' : ''} · ${VF_ROOT}/${selected.id}`
-                : `Browse at ${VF_ROOT} · ${selectedPaths.length ? `${selectedPaths.length} selected` : 'Select items to add'}`}
+                ? `${(selected.paths || []).length} path(s)${selected.query?.trim() ? ' | search-backed' : ''} | ${VF_ROOT}/${selected.id}`
+                : `Browse at ${VF_ROOT} | ${selectedPaths.length ? `${selectedPaths.length} selected` : 'Select items to add'}`}
             </div>
           </div>
           <div className="bndz-catalog-opsrail-actions">
@@ -256,7 +256,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
                 <input
                   value={draftName}
                   onChange={e => setDraftName(e.target.value)}
-                  placeholder="Name…"
+                  placeholder="Name..."
                   className={`${PLUGIN_INPUT_CLASS} flex-1 !py-1.5`}
                   onKeyDown={e => { if (e.key === 'Enter') void createCatalog(); }}
                 />
@@ -267,7 +267,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
             {selectedPaths.length > 0 && (
               <div className="mx-2 mt-2 shrink-0">
                 <PluginCard className="!py-2 !px-2.5 border-amber-500/20 bg-amber-950/15 text-amber-200/90 text-[11px] leading-snug">
-                  {selectedPaths.length} selected — pick a catalog to add them.
+                  {selectedPaths.length} selected -- pick a catalog to add them.
                 </PluginCard>
               </div>
             )}
@@ -275,7 +275,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
             <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-1 min-h-0">
               {loading ? (
                 <div className="flex items-center justify-center py-8 text-gray-500 text-xs gap-2">
-                  <Icons8Icon id="loading" size={14} spin /> Loading…
+                  <Icons8Icon id="loading" size={14} spin /> Loading...
                 </div>
               ) : catalogs.length === 0 ? (
                 <PluginEmptyState
@@ -305,7 +305,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
                         <span className="bndz-plugin-kind-pill !text-[9px] shrink-0">{(cat.paths || []).length}</span>
                       </div>
                       {cat.query?.trim() && (
-                        <div className="mt-1 text-[10px] bndz-panel-muted truncate pl-5">Search · {cat.query}</div>
+                        <div className="mt-1 text-[10px] bndz-panel-muted truncate pl-5">Search | {cat.query}</div>
                       )}
                     </button>
                   );
@@ -371,7 +371,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
                       <input
                         value={queryDraft}
                         onChange={e => setQueryDraft(e.target.value)}
-                        placeholder="XYplorer-style filter…"
+                        placeholder="XYplorer-style filter..."
                         className={`${PLUGIN_INPUT_CLASS} bndz-mono`}
                       />
                     </div>

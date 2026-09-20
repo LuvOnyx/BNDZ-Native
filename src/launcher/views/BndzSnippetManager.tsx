@@ -8,7 +8,7 @@ type Props = {
   initialView: 'search' | 'create';
 };
 
-/** SuperCmd SnippetManager port — Raycast 40/60 split search + preview. */
+/** SuperCmd SnippetManager port -- Raycast 40/60 split search + preview. */
 export default function BndzSnippetManager({ onClose, initialView }: Props) {
   const [view, setView] = useState<'search' | 'create' | 'edit'>(initialView);
   const [snippets, setSnippets] = useState<SnippetRecord[]>([]);
@@ -112,7 +112,7 @@ export default function BndzSnippetManager({ onClose, initialView }: Props) {
           className="bndz-search-input flex-1"
           value={query}
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-          placeholder="Search snippets…"
+          placeholder="Search snippets..."
         />
         <button type="button" className="bndz-icon-btn" onClick={openCreate} title="New snippet"><Icons8Icon id="plus_ui" size={14} /></button>
       </div>

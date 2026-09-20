@@ -87,7 +87,7 @@ export default function LauncherDetailPanel({ command, onExecute, onOpenManager 
           </button>
         ) : null}
       </div>
-      <div className="text-[10px] text-[var(--text-muted)] mt-2 text-center">Enter · Ctrl+Enter BNDZ · Esc hide</div>
+      <div className="text-[10px] text-[var(--text-muted)] mt-2 text-center">Enter | Ctrl+Enter BNDZ | Esc hide</div>
     </div>
   );
 }

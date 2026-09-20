@@ -56,7 +56,7 @@ export default function FindingTabToolbar({ tab, config, loading, indexedRoots, 
             }
           }}
           className="bndz-plugin-input min-w-[140px] flex-1 max-w-xs text-[11px] text-amber-100/95 font-medium"
-          placeholder="Search query…"
+          placeholder="Search query..."
           spellCheck={false}
         />
 

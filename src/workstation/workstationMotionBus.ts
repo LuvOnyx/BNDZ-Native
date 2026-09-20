@@ -21,7 +21,7 @@ let dragPhase: DragPhase = 'idle';
 /** Stable reference for phase-only subscribers (WorkstationVisualProvider). */
 let phaseSnapshot = { dragPhase, snapTension };
 
-/** Full snapshot — pointer fields mutate in place; replaced on phase publish. */
+/** Full snapshot -- pointer fields mutate in place; replaced on phase publish. */
 let snapshot: MotionSnapshot = { pointer, snapTension, dragPhase };
 
 function publishPhase() {
@@ -46,7 +46,7 @@ export function getMotionPhaseSnapshot(): Pick<MotionSnapshot, 'dragPhase' | 'sn
   return phaseSnapshot;
 }
 
-/** Legacy — subscribes to all motion events (pointer + phase). */
+/** Legacy -- subscribes to all motion events (pointer + phase). */
 export function subscribeMotionBus(fn: Listener): () => void {
   phaseListeners.add(fn);
   pointerListeners.add(fn);

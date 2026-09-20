@@ -28,7 +28,7 @@ interface TagManagerDialogProps {
   onClose: () => void;
   availableTags: TagDefinition[];
   onTagsUpdated: (tags: TagDefinition[]) => void;
-  /** @deprecated Prefer global sidecar via GET_ALL_TAGGED — kept for navigate fallback. */
+  /** @deprecated Prefer global sidecar via GET_ALL_TAGGED -- kept for navigate fallback. */
   pathContentsCache?: Record<string, any[]>;
   onOpenPath?: (path: string) => void;
 }
@@ -160,7 +160,7 @@ export function TagManagerDialog({
   return (
     <BndzWindowFrame
       title="Tag Manager"
-      subtitle={`${tags.length} definitions · ${taggedItems.length} tagged`}
+      subtitle={`${tags.length} definitions | ${taggedItems.length} tagged`}
       iconId="tag_manager"
       onClose={onClose}
       widthClass="w-[min(820px,calc(100vw-2rem))]"
@@ -176,7 +176,7 @@ export function TagManagerDialog({
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addTag()}
-                placeholder="New tag name…"
+                placeholder="New tag name..."
                 className="bndz-native-input flex-1 text-sm"
               />
               <button type="button" onClick={addTag} className="bndz-tagmgr-btn bndz-tagmgr-btn--add shrink-0">
@@ -229,7 +229,7 @@ export function TagManagerDialog({
                     <>
                       <div className="text-sm font-medium text-white/90 truncate">{tag.label}</div>
                       <div className="text-[11px] text-white/40 font-mono mt-0.5">
-                        {tagUsage[tag.name] || 0} items · {tag.name}
+                        {tagUsage[tag.name] || 0} items | {tag.name}
                       </div>
                     </>
                   )}
@@ -271,7 +271,7 @@ export function TagManagerDialog({
             <div className="flex items-center justify-between gap-2">
               <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300/70 font-semibold truncate">
                 {activeFilter
-                  ? `Tagged “${tags.find(t => t.name === activeFilter)?.label || activeFilter}”`
+                  ? `Tagged "${tags.find(t => t.name === activeFilter)?.label || activeFilter}"`
                   : 'Library tagged items'}
               </div>
               <button type="button" className="bndz-tagmgr-btn bndz-tagmgr-btn--ghost text-[11px]" onClick={onClose}>
@@ -283,14 +283,14 @@ export function TagManagerDialog({
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search paths, names, tags…"
+                placeholder="Search paths, names, tags..."
                 className="bndz-native-input w-full !pl-9 !py-2 !text-sm"
               />
             </div>
           </div>
           <div className="flex-1 overflow-y-auto bndz-scrollbar p-2.5">
             {loadingTagged && (
-              <div className="text-center text-white/40 text-sm py-12">Loading tagged library…</div>
+              <div className="text-center text-white/40 text-sm py-12">Loading tagged library...</div>
             )}
             {!loadingTagged && filteredItems.length === 0 && (
               <div className="bndz-tagmgr-empty">

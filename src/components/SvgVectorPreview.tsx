@@ -9,7 +9,7 @@ type Props = {
 };
 
 /**
- * Vector-faithful SVG preview — size via layout (width/height), never CSS
+ * Vector-faithful SVG preview -- size via layout (width/height), never CSS
  * transform scale (that rasterizes and looks blurry on reselect / zoom).
  * Wheel zoom + drag-pan match raster ImageZoomPreview interaction.
  */
@@ -26,7 +26,7 @@ export default function SvgVectorPreview({ src, alt, onOpenFloating }: Props) {
 
   useEffect(() => {
     // Force a fresh decode so returning to a cached blob: URL stays crisp.
-    // Prefer fragment bust over query — blob: URLs reject &query appends.
+    // Prefer fragment bust over query -- blob: URLs reject &query appends.
     const bust = `${src}${src.includes('#') ? '&' : '#'}bndz=${Date.now()}`;
     setImgSrc(bust);
     userScaleRef.current = 1;
@@ -64,7 +64,7 @@ export default function SvgVectorPreview({ src, alt, onOpenFloating }: Props) {
     return () => ro.disconnect();
   }, [natural.w, natural.h, applyFit]);
 
-  // Wheel zoom (Ctrl or plain — match raster preview; prevent stage scroll hijack).
+  // Wheel zoom (Ctrl or plain -- match raster preview; prevent stage scroll hijack).
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -148,7 +148,7 @@ export default function SvgVectorPreview({ src, alt, onOpenFloating }: Props) {
         )}
       </div>
       <div className="bndz-image-preview-chrome">
-        <span className="bndz-image-preview-hint">Vector SVG · Wheel zoom · Drag to pan</span>
+        <span className="bndz-image-preview-hint">Vector SVG | Wheel zoom | Drag to pan</span>
         <div className="bndz-image-preview-tools">
           <button type="button" onClick={zoomOut} className="bndz-media-transport-btn" title="Zoom out">
             <Icons8Icon id="zoom_out_ui" size={14} />

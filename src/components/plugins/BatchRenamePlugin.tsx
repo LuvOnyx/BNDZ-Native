@@ -298,7 +298,7 @@ export default function BatchRenamePlugin({
 
         if (config?.previewAllRenameSpecialOperations) {
             const lines = collisions.slice(0, 24).map(p => `${p.oldName}  →  ${p.newName}`);
-            const more = collisions.length > 24 ? `\n…and ${collisions.length - 24} more` : '';
+            const more = collisions.length > 24 ? `\n...and ${collisions.length - 24} more` : '';
             const ok = await requestNativeConfirm({
                 title: 'Apply renames',
                 message: `Apply ${collisions.length} rename operation(s)?\n\n${lines.join('\n')}${more}`,
@@ -332,7 +332,7 @@ export default function BatchRenamePlugin({
             const result = await IPC.executeBatchRename(operationId, renames, label);
 
             if (isQueuedIpcResult(result)) {
-                pushToast({ kind: 'info', title: 'Rename queued', message: 'Running in the transfer panel…' });
+                pushToast({ kind: 'info', title: 'Rename queued', message: 'Running in the transfer panel...' });
                 return;
             }
 
@@ -340,7 +340,7 @@ export default function BatchRenamePlugin({
                 const renamed = result.renamed ?? 0;
                 const skipped = result.skipped ?? 0;
                 if (skipped === 0) {
-                    pushToast({ kind: 'success', title: 'Rename complete', message: `${renamed} item(s) renamed — undo restores all in one step.` });
+                    pushToast({ kind: 'success', title: 'Rename complete', message: `${renamed} item(s) renamed -- undo restores all in one step.` });
                 } else {
                     pushToast({
                         kind: 'info',
@@ -390,8 +390,8 @@ export default function BatchRenamePlugin({
             iconColor="#34d399"
             variant="embedded"
             subtitle={panelTab === 'magnets'
-                ? 'Drop zones — rename, tag, or move files when you release them'
-                : `${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name conflict(s)` : ''}`}
+                ? 'Drop zones -- rename, tag, or move files when you release them'
+                : `${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` | ${batchNameConflicts.size} name conflict(s)` : ''}`}
             toolbar={(
                 <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
                     <PluginTab active={panelTab === 'rename'} onClick={() => setPanelTab('rename')}>
@@ -422,7 +422,7 @@ export default function BatchRenamePlugin({
                             </div>
                             <div className="bndz-batch-opsrail-meta">
                                 {collisions.length ? `${collisions.length} pending change(s)` : 'Select files in the list'}
-                                {batchNameConflicts.size > 0 ? ` · ${batchNameConflicts.size} collision(s)` : ''}
+                                {batchNameConflicts.size > 0 ? ` | ${batchNameConflicts.size} collision(s)` : ''}
                             </div>
                         </div>
                         <div className="bndz-batch-opsrail-actions">
@@ -461,7 +461,7 @@ export default function BatchRenamePlugin({
                                 e.target.value = '';
                             }}
                         >
-                            <option value="">Load preset…</option>
+                            <option value="">Load preset...</option>
                             {presets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                         </select>
                     )}
@@ -472,13 +472,13 @@ export default function BatchRenamePlugin({
                             <div>
                                 <PluginFieldLabel>Find</PluginFieldLabel>
                                 <div className="flex gap-1">
-                                    <input type="text" value={findStr} onChange={e => setFindStr(e.target.value)} placeholder="Text to find…" className={`${PLUGIN_INPUT_CLASS} flex-1`} />
+                                    <input type="text" value={findStr} onChange={e => setFindStr(e.target.value)} placeholder="Text to find..." className={`${PLUGIN_INPUT_CLASS} flex-1`} />
                                     <button type="button" onClick={() => setUseRegex(!useRegex)} className={`px-2 py-1 rounded-md border text-xs ${useRegex ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-white/[0.03] text-gray-400 border-white/10'}`} title="Regular expressions">.*</button>
                                 </div>
                             </div>
                             <div>
                                 <PluginFieldLabel>Replace with</PluginFieldLabel>
-                                <input type="text" value={replaceStr} onChange={e => setReplaceStr(e.target.value)} placeholder="Replacement text…" className={PLUGIN_INPUT_CLASS} />
+                                <input type="text" value={replaceStr} onChange={e => setReplaceStr(e.target.value)} placeholder="Replacement text..." className={PLUGIN_INPUT_CLASS} />
                             </div>
                         </PluginControlSection>
 
@@ -557,7 +557,7 @@ export default function BatchRenamePlugin({
                             <textarea
                                 value={aiPrompt}
                                 onChange={e => setAiPrompt(e.target.value)}
-                                placeholder="e.g. Add date prefix, lowercase, remove spaces…"
+                                placeholder="e.g. Add date prefix, lowercase, remove spaces..."
                                 className={`${PLUGIN_INPUT_CLASS} min-h-[64px] resize-y`}
                             />
                             <PluginToolbarButton
@@ -584,7 +584,7 @@ export default function BatchRenamePlugin({
                                     const skipReason = emptyName
                                         ? 'Empty name'
                                         : !changed
-                                            ? 'Unchanged — skipped'
+                                            ? 'Unchanged -- skipped'
                                             : null;
                                     return (
                                         <div

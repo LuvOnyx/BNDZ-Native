@@ -72,7 +72,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
       if (result.error) throw new Error(result.error);
       const cats = normalizeScanCategories(result.categories || []);
       if (!cats.length) {
-        setError('Scan complete — nothing matched the selected categories.');
+        setError('Scan complete -- nothing matched the selected categories.');
         setStep('options');
         return;
       }
@@ -133,7 +133,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
       setResultMsg(
         result.errors.length
           ? `Cleaned ${result.processedCount} item(s), freed ~${formatStorageSize(result.freedBytes)}. ${result.errors.length} error(s).`
-          : `Cleaned ${result.processedCount} item(s) · reclaimed ~${formatStorageSize(result.freedBytes)}`,
+          : `Cleaned ${result.processedCount} item(s) | reclaimed ~${formatStorageSize(result.freedBytes)}`,
       );
       setStep('done');
     } catch (err: unknown) {
@@ -153,7 +153,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-white tracking-tight">Advanced Storage Scan</h2>
-          <p className="text-xs bndz-panel-muted mt-0.5">Intelligent cleanup · you choose what gets removed</p>
+          <p className="text-xs bndz-panel-muted mt-0.5">Intelligent cleanup | you choose what gets removed</p>
         </div>
         <button type="button" onClick={onClose} disabled={executing || scanning} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40" aria-label="Close">
           <CloseGlyph size={16} />
@@ -167,7 +167,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
               <PluginCard>
                 <PluginSectionTitle icon="layers_ui">Pre-selected scan areas</PluginSectionTitle>
                 <p className="text-xs bndz-panel-muted mb-3">
-                  Check the directories / categories to analyze. Safe areas start selected. After the scan you’ll get a results window with checkboxes — accept only what you want, or cancel.
+                  Check the directories / categories to analyze. Safe areas start selected. After the scan you'll get a results window with checkboxes -- accept only what you want, or cancel.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {CLEANUP_CATEGORY_PRESETS.map(p => {
@@ -203,7 +203,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
           {step === 'scan' && (
             <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-20 gap-4">
               <Icons8Icon id="loading" size={36} spin />
-              <p className="text-[13px] text-gray-400">{progress?.phase || 'Scanning…'}</p>
+              <p className="text-[13px] text-gray-400">{progress?.phase || 'Scanning...'}</p>
               {progress && (
                 <div className="w-full max-w-md bndz-plugin-card border border-emerald-500/25 p-4">
                   <div className="flex justify-between text-[11px] mb-2">
@@ -224,7 +224,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
                 <div>
                   <div className="text-[13px] font-bold text-emerald-200">Review before cleanup</div>
                   <div className="text-[11px] text-gray-400 mt-1">
-                    {selectedCount} item(s) selected · {formatStorageSize(selectedBytes)} reclaimable
+                    {selectedCount} item(s) selected | {formatStorageSize(selectedBytes)} reclaimable
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -256,7 +256,7 @@ export default function StorageAdvancedScanWizard({ onClose, onComplete }: Stora
                   {cat.expanded && (
                     <div className="max-h-[200px] overflow-y-auto bndz-scrollbar divide-y divide-white/[0.03]">
                       {cat.items.length === 0 ? (
-                        <div className="px-4 py-3 text-[11px] text-gray-500">Category summary — enable checkbox to include in cleanup.</div>
+                        <div className="px-4 py-3 text-[11px] text-gray-500">Category summary -- enable checkbox to include in cleanup.</div>
                       ) : cat.items.map(item => (
                         <label key={item.id} className="flex items-center gap-2 px-4 py-2 text-[11px] hover:bg-white/[0.03] cursor-pointer">
                           <input

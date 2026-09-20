@@ -91,10 +91,10 @@ function JobRow({
   const jobAction = (job.action || '').toLowerCase();
   const isDeleteJob = jobAction === 'delete' || jobAction === 'purge';
   const statusLabel = cancelling
-    ? 'Cancelling…'
+    ? 'Cancelling...'
     : job.status === 'paused' ? 'Paused'
-    // Delete jobs show a verb instead of a meaningless "0%" — they finish in <1s so progress is noisy.
-    : job.status === 'running' && isDeleteJob ? 'Deleting…'
+    // Delete jobs show a verb instead of a meaningless "0%" -- they finish in <1s so progress is noisy.
+    : job.status === 'running' && isDeleteJob ? 'Deleting...'
     : job.status === 'queued' && isDeleteJob ? 'Queued'
     : job.status === 'running' || job.status === 'queued'
       ? `${Math.min(99, job.progress ?? 0)}%`
@@ -232,7 +232,7 @@ function JobRow({
   );
 }
 
-/** Docked transfer queue — real cancel + soft-squircle chrome. */
+/** Docked transfer queue -- real cancel + soft-squircle chrome. */
 export default function FileTransferQueuePanel({ className = '', enabled = true }: Props) {
   const { config } = useAppConfig();
   const autoClear = config.autoClearFinishedTransfers !== false;
@@ -471,7 +471,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
             Background processing
           </span>
           <span className="text-[10px] text-gray-500 truncate">
-            {summaryParts.join(' · ')}
+            {summaryParts.join(' | ')}
           </span>
           <Icons8Icon
             id="chevron_right"

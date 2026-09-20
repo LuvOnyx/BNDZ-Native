@@ -11,7 +11,7 @@ interface TreeShellIconProps {
   fallbackIcon?: string;
 }
 
-/** Navigation-tree icon — native shell first; Icons8 is loading/empty fallback only. */
+/** Navigation-tree icon -- native shell first; Icons8 is loading/empty fallback only. */
 export function TreeShellIcon({ path, iconPath, size = 15, fallbackIcon }: TreeShellIconProps) {
   const fetchPath = iconPath || path || '';
   const enabled = !!fetchPath;

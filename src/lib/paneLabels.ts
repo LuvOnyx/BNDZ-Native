@@ -1,7 +1,7 @@
 import { BNDZ_HOME, BNDZ_VIEWS_ROOT, BNDZ_RAM_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel, isBndzRamPath, parseBndzRamZoneId } from './bndzVirtualViews';
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH } from './pathUtils';
 
-/** Canonical `/shell:…` roots → Explorer-style labels (never expose raw shell: tokens in UI). */
+/** Canonical `/shell:...` roots → Explorer-style labels (never expose raw shell: tokens in UI). */
 const SHELL_ROOT_LABELS: Record<string, string> = {
   '/shell:desktop': 'Desktop',
   '/shell:personal': 'Documents',

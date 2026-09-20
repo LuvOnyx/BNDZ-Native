@@ -143,7 +143,7 @@ export default function ActionLogPlugin() {
   const runUndo = async (entryId?: string) => {
     const r = await IPC.executeUndo(entryId ? { entryId } : undefined);
     if (isQueuedIpcResult(r)) {
-      pushToast({ kind: 'info', title: 'Undo queued', message: 'Running in the transfer panel…' });
+      pushToast({ kind: 'info', title: 'Undo queued', message: 'Running in the transfer panel...' });
       return;
     }
     pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? 'Undo' : 'Undo failed', message: r.message });
@@ -153,7 +153,7 @@ export default function ActionLogPlugin() {
   const runRedo = async () => {
     const r = await IPC.executeRedo();
     if (isQueuedIpcResult(r)) {
-      pushToast({ kind: 'info', title: 'Redo queued', message: 'Running in the transfer panel…' });
+      pushToast({ kind: 'info', title: 'Redo queued', message: 'Running in the transfer panel...' });
       return;
     }
     pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? 'Redo' : 'Redo failed', message: r.message });
@@ -181,14 +181,14 @@ export default function ActionLogPlugin() {
       title="Action Log"
       icon="clock_ui"
       iconColor="#a78bfa"
-      subtitle={`${items.length} logged · ${canUndo ? 'undo available' : 'nothing to undo'}`}
+      subtitle={`${items.length} logged | ${canUndo ? 'undo available' : 'nothing to undo'}`}
       variant="embedded"
       toolbar={
         <>
           <input
             value={textFilter}
             onChange={e => setTextFilter(e.target.value)}
-            placeholder="Search log…"
+            placeholder="Search log..."
             className={`${PLUGIN_INPUT_CLASS} !w-[140px] !py-1`}
           />
           <select
@@ -216,8 +216,8 @@ export default function ActionLogPlugin() {
             <div className="bndz-actionlog-opsrail-title">Action Log</div>
             <div className="bndz-actionlog-opsrail-meta">
               {visibleItems.length} of {items.length} action(s)
-              {kindFilter !== 'all' ? ` · ${kindFilter}` : ''}
-              {!loggingEnabled ? ' · logging off · Ctrl+Z still works' : ''}
+              {kindFilter !== 'all' ? ` | ${kindFilter}` : ''}
+              {!loggingEnabled ? ' | logging off | Ctrl+Z still works' : ''}
             </div>
           </div>
           <div className="bndz-actionlog-opsrail-actions">
@@ -229,7 +229,7 @@ export default function ActionLogPlugin() {
         <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar px-4 py-3">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-10 text-gray-500 text-xs">
-              <Icons8Icon id="loading" size={14} spin /> Loading Action Log…
+              <Icons8Icon id="loading" size={14} spin /> Loading Action Log...
             </div>
           )}
 
@@ -237,7 +237,7 @@ export default function ActionLogPlugin() {
             <PluginEmptyState
               icon="clock_ui"
               title="Action Log is off"
-              description="Ctrl+Z / Ctrl+Y still work. Enable “Show action history” in Settings → Undo & Action Log to browse this timeline."
+              description="Ctrl+Z / Ctrl+Y still work. Enable "Show action history" in Settings → Undo & Action Log to browse this timeline."
             />
           )}
 
@@ -312,7 +312,7 @@ export default function ActionLogPlugin() {
                           )}
                           {!entry.canUndo && entry.kind === 'Delete' && (
                             <span className="inline-flex items-center gap-1 text-[10px] text-rose-300/80 border border-rose-500/25 bg-rose-500/10 rounded px-1.5 py-0.5">
-                              Permanent — cannot undo
+                              Permanent -- cannot undo
                             </span>
                           )}
                           {entry.canUndo && (
@@ -345,7 +345,7 @@ export default function ActionLogPlugin() {
             <PluginEmptyState
               icon="filters"
               title="No matching actions"
-              description={`Nothing of type “${kindFilter}” in the current log.`}
+              description={`Nothing of type "${kindFilter}" in the current log.`}
             />
           )}
         </div>

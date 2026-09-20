@@ -67,7 +67,7 @@ const DevOnly = ({ children }: { children: React.ReactNode }) => (
   import.meta.env.DEV ? <>{children}</> : null
 );
 
-/** Legacy section label — prefer SettingsSection wrappers for new groupings. */
+/** Legacy section label -- prefer SettingsSection wrappers for new groupings. */
 const SectionHeader = ({ title }: { title: string }) => (
   <h3 className="bndz-settings-legacy-heading text-[13px] font-semibold text-white mt-5 mb-2 px-1 flex items-center gap-2 first:mt-0">
     <span className="bndz-settings-category-accent w-1 h-3.5 rounded-full shrink-0" />
@@ -77,7 +77,7 @@ const SectionHeader = ({ title }: { title: string }) => (
 
 const ActionBtn = SettingsActionBtn;
 
-/** Config tabs stay mounted while hidden — never let missing arrays crash chrome. */
+/** Config tabs stay mounted while hidden -- never let missing arrays crash chrome. */
 function sanitizeDialogConfig(cfg: Record<string, any> | null | undefined) {
   const c = { ...(cfg || {}) };
   const arr = <T,>(v: T[] | undefined | null, fallback: T[] = []): T[] =>
@@ -103,7 +103,7 @@ function sanitizeDialogConfig(cfg: Record<string, any> | null | undefined) {
   return c;
 }
 
-/** Friendlier nav labels — TabsTrigger value stays the canonical tab id for Jump-to-Setting. */
+/** Friendlier nav labels -- TabsTrigger value stays the canonical tab id for Jump-to-Setting. */
 const TAB_NAV_LABELS: Record<string, string> = {
   'Keyboard Shortcuts': 'Keyboard & Mouse',
   'Refresh, Icons, History': 'Refresh & Icons',
@@ -276,7 +276,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
       const result = await apply();
       if (!result.success && result.needsElevation) {
-        // Persist the intended toggle BEFORE relaunch — elevated host loads shell
+        // Persist the intended toggle BEFORE relaunch -- elevated host loads shell
         // settings from disk via SettingsManager, not from dialog-local React state.
         const { persistConfigNow } = await import('../data/configContext');
         await persistConfigNow(globalConfig, nextConfig, updateGlobalConfig);
@@ -593,7 +593,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <Icons8Icon id="search" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-55 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Filter settings…"
+                  placeholder="Filter settings..."
                   value={navFilter}
                   onChange={e => setNavFilter(e.target.value)}
                   className="w-full bg-[#0c0c10]/90 border border-white/[0.08] pl-8 pr-2.5 py-1.5 text-[11px] text-gray-200 placeholder-gray-600 outline-none"
@@ -952,7 +952,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <SectionHeader title="Context Menus" />
               <div className="ml-2 mb-4 space-y-[6px]">
                  <SettingsHint>
-                   Weave Windows actions into the BNDZ menu from Shell Integration → “Include Native shell verbs in BNDZ menu.” This tab only turns BNDZ menu extras on or off.
+                   Weave Windows actions into the BNDZ menu from Shell Integration → "Include Native shell verbs in BNDZ menu." This tab only turns BNDZ menu extras on or off.
                  </SettingsHint>
                  <div className="ml-[0px]">
                     <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>old Ctrl to invert the above selection</span>} checked={localConfig.holdCtrlToInvertTheAboveSelection ?? false} onChange={e => updateLocalConfig({ holdCtrlToInvertTheAboveSelection: e.target.checked })} />
@@ -1161,7 +1161,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   <Checkbox label={<span>Reconnect mapped network <span className="underline decoration-1 underline-offset-[3px]">d</span>rives at startup</span>} checked={localConfig.reconnectMappedNetworkDrivesAtStartup ?? false} onChange={e => updateLocalConfig({ reconnectMappedNetworkDrivesAtStartup: e.target.checked })} />
                   <Checkbox label={<span>Adjust to OS lig<span className="underline decoration-1 underline-offset-[3px]">h</span>t/dark mode at startup</span>} checked={localConfig.adjustToOsLightDarkModeAtStartup ?? false} onChange={e => updateLocalConfig({ adjustToOsLightDarkModeAtStartup: e.target.checked })} disabled={!!localConfig.followOsColorScheme} />
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">F</span>ollow Windows light / dark continuously</span>} checked={localConfig.followOsColorScheme ?? false} onChange={e => { const on = e.target.checked; updateLocalConfig({ followOsColorScheme: on }); applySettingsRuntime({ ...localConfig, followOsColorScheme: on } as any); }} />
-                  <p className="text-[10px] text-[#777] ml-5 max-w-[480px]">Also available under Colors and Styles → Highlights &amp; Dark Mode. Dark → Slate Workstation · Light → macOS Light.</p>
+                  <p className="text-[10px] text-[#777] ml-5 max-w-[480px]">Also available under Colors and Styles → Highlights &amp; Dark Mode. Dark → Slate Workstation | Light → macOS Light.</p>
               </div>
               
               <SectionHeader title="Save Settings" />
@@ -1649,7 +1649,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
               <SectionHeader title="Transfer handler (shortcut)" />
               <div className="ml-2 mb-4 space-y-[6px]">
-                 <p className="text-[11px] text-[#888] max-w-[560px]">Same choice as Transfer engine above — kept here for muscle memory. Prefer the engine dropdown when deciding how copies run.</p>
+                 <p className="text-[11px] text-[#888] max-w-[560px]">Same choice as Transfer engine above -- kept here for muscle memory. Prefer the engine dropdown when deciding how copies run.</p>
                  <div className="flex flex-col gap-1 mt-[6px]">
                      <span className="text-[12px] text-[#e0e0e0]">Select copy <span className="underline decoration-1 underline-offset-[3px]">h</span>andler:</span>
                      <select
@@ -1928,7 +1928,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
               <SectionHeader title="Shell Succession" />
               <p className="text-[12px] text-[#e0e0e0] mb-[22px] mt-1 ml-[8px]">
-                Make BNDZ the default folder handler — reversible.
+                Make BNDZ the default folder handler -- reversible.
                 {' '}Current user writes HKCU (Explorer may need a refresh). All users elevates and writes HKLM.
               </p>
 
@@ -2044,7 +2044,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        onChange={e => updateLocalConfig({ osWideQuickLook: e.target.checked })}
                      />
                      <p className="text-[11px] text-[#888] max-w-[420px] leading-snug">
-                        Select a file on the Desktop or in File Explorer and press Space to open BNDZ’s floating viewer (QuickLook-style). Esc closes. Hold Space ~¾s then release to peek-close.
+                        Select a file on the Desktop or in File Explorer and press Space to open BNDZ's floating viewer (QuickLook-style). Esc closes. Hold Space ~¾s then release to peek-close.
                      </p>
                   </div>
               </div>
@@ -2326,7 +2326,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      <Checkbox label={<span>Include local dis<span className="underline decoration-1 underline-offset-[3px]">k</span>s</span>} checked={localConfig.includeLocalDisks !== false} onChange={e => updateLocalConfig({ includeLocalDisks: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
                      <Checkbox label={<span>Include remov<span className="underline decoration-1 underline-offset-[3px]">a</span>ble media and network locations</span>} checked={!!localConfig.includeRemovableMediaAndNetworkLocations} onChange={e => updateLocalConfig({ includeRemovableMediaAndNetworkLocations: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
                      <Checkbox label={<span>Include searc<span className="underline decoration-1 underline-offset-[3px]">h</span> results</span>} checked={!!localConfig.includeSearchResults} onChange={e => updateLocalConfig({ includeSearchResults: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
-                     <Checkbox label={<span>Show cached thumbnails only (leave off — blocks first-visit extract)</span>} checked={!!localConfig.showCachedThumbnailsOnly} onChange={e => updateLocalConfig({ showCachedThumbnailsOnly: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
+                     <Checkbox label={<span>Show cached thumbnails only (leave off -- blocks first-visit extract)</span>} checked={!!localConfig.showCachedThumbnailsOnly} onChange={e => updateLocalConfig({ showCachedThumbnailsOnly: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
                      <div className="flex items-center gap-2 mt-2">
                         <span className="text-[12px] text-[#e0e0e0] w-[80px]">Cache path:</span>
                         <input
@@ -2731,7 +2731,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Modular Plugin Rack</h1>
               <p className="text-[12px] text-gray-400 mb-6 max-w-[560px] leading-relaxed">
                 Install and uninstall extensions in the <span className="text-gray-200">Extension Hub</span> (Help → Extension Hub or the bottom panel empty state).
-                This settings tab no longer duplicates the install list — that prevented marketplace and config from fighting each other.
+                This settings tab no longer duplicates the install list -- that prevented marketplace and config from fighting each other.
               </p>
               <div className="bndz-native-dialog-panel p-4 max-w-[520px] space-y-2">
                 <p className="text-[12px] text-gray-300">Default installed: System Properties, Fast Search, Visual Filters.</p>
@@ -2751,7 +2751,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             <TabsContent value="Bottom Panel" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-2 leading-tight">Bottom Panel</h1>
               <p className="text-[12px] text-gray-400 mb-6 max-w-[520px]">
-                Control the bottom plugin panel. Drag tabs on the panel itself to reorder them — order is saved automatically.
+                Control the bottom plugin panel. Drag tabs on the panel itself to reorder them -- order is saved automatically.
               </p>
 
               <SectionHeader title="Visibility &amp; Startup" />
@@ -2850,7 +2850,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">T</span>absets</span>} checked={localConfig.tabsets ?? false} onChange={e => updateLocalConfig({ tabsets: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">C</span>atalog</span>} checked={localConfig.catalog ?? false} onChange={e => updateLocalConfig({ catalog: e.target.checked })} />
               </SettingsSection>
-              <SettingsSection title="Automation & input" description="Rebinding lives under Keyboard & Mouse — this only enables the feature.">
+              <SettingsSection title="Automation & input" description="Rebinding lives under Keyboard & Mouse -- this only enables the feature.">
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">U</span>ser-Defined Commands</span>} checked={localConfig.userDefinedCommands ?? false} onChange={e => updateLocalConfig({ userDefinedCommands: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>cripting</span>} checked={localConfig.scripting ?? false} onChange={e => updateLocalConfig({ scripting: e.target.checked })} />
                  <Checkbox label={<span>Custom <span className="underline decoration-1 underline-offset-[3px]">K</span>eyboard Shortcuts</span>} checked={localConfig.customKeyboardShortcuts ?? true} onChange={e => updateLocalConfig({ customKeyboardShortcuts: e.target.checked })} />
@@ -3142,7 +3142,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                       <ActionBtn label="Down" className="flex-1 text-center py-[5px]" onClick={() => moveColorFilter(1)} disabled={selectedColorFilterIdx >= colorFilters.length - 1} />
                     </div>
                     <ActionBtn
-                      label="Advanced…"
+                      label="Advanced..."
                       className="w-full text-center py-[5px] mt-1 bg-[#094771]/35 text-[#7eb8e8] border-[#0078d4]/40 hover:bg-[#094771]/55"
                       onClick={() => setShowConditionalFormattingDialog(true)}
                       title="Advanced color rules"
@@ -3150,9 +3150,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     <div className="mt-auto pt-3 border-t border-[#444] flex flex-col gap-1.5">
                        <span className="text-[11px] font-semibold text-white/85">Define colors</span>
                        <div className="grid grid-cols-[1fr_auto] gap-1.5 items-stretch">
-                          <ActionBtn label="Text…" className="w-full text-center py-[5px] min-w-0" onClick={() => void setColorFilterPart('text')} disabled={!colorFilters.length} />
+                          <ActionBtn label="Text..." className="w-full text-center py-[5px] min-w-0" onClick={() => void setColorFilterPart('text')} disabled={!colorFilters.length} />
                           <ActionBtn label="Clear" className="px-2.5 py-[5px] whitespace-nowrap" onClick={() => void setColorFilterPart('text', true)} disabled={!colorFilters.length} />
-                          <ActionBtn label="Back…" className="w-full text-center py-[5px] min-w-0" onClick={() => void setColorFilterPart('bg')} disabled={!colorFilters.length} />
+                          <ActionBtn label="Back..." className="w-full text-center py-[5px] min-w-0" onClick={() => void setColorFilterPart('bg')} disabled={!colorFilters.length} />
                           <ActionBtn label="Clear" className="px-2.5 py-[5px] whitespace-nowrap" onClick={() => void setColorFilterPart('bg', true)} disabled={!colorFilters.length} />
                        </div>
                        <div className="pt-1">
@@ -3306,7 +3306,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       />
       <FieldPickerDialog
         open={fieldPicker === 'hoverTypes'}
-        title="Hover box — item types"
+        title="Hover box -- item types"
         items={HOVER_BOX_ITEM_TYPES.map(t => ({ id: t.id, label: t.label }))}
         selected={localConfig.hoverBoxItemTypes || DEFAULT_HOVER_BOX_ITEM_TYPES}
         onClose={() => setFieldPicker(null)}
@@ -3314,7 +3314,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       />
       <FieldPickerDialog
         open={fieldPicker === 'hoverContexts'}
-        title="Hover box — contexts"
+        title="Hover box -- contexts"
         items={HOVER_BOX_CONTEXTS.map(c => ({ id: c.id, label: c.label }))}
         selected={localConfig.hoverBoxContexts || DEFAULT_HOVER_BOX_CONTEXTS}
         onClose={() => setFieldPicker(null)}
@@ -3332,7 +3332,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       <NativeDialogShell
         open={showJumpDialog}
         title="Jump to Setting"
-        subtitle="Type what the setting does — fuzzy match across names, tabs, and descriptions"
+        subtitle="Type what the setting does -- fuzzy match across names, tabs, and descriptions"
         variant="sheet"
         size="sm"
         zIndexClass="z-[100]"
@@ -3346,7 +3346,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
           value={jumpQuery}
           onChange={e => setJumpQuery(e.target.value)}
           className="bndz-native-input w-full mb-3"
-          placeholder="e.g. ask before delete, dark theme, dual pane, tooltips…"
+          placeholder="e.g. ask before delete, dark theme, dual pane, tooltips..."
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               setShowJumpDialog(false);
@@ -3373,7 +3373,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
         <div className="max-h-[280px] overflow-y-auto bndz-scrollbar space-y-1">
           {!jumpQuery.trim() && (
             <div className="text-[11px] bndz-native-dialog-muted px-2 py-3 text-center">
-              Start typing — matches labels, synonyms, and what the option controls
+              Start typing -- matches labels, synonyms, and what the option controls
             </div>
           )}
           {jumpQuery.trim() && jumpResults.length === 0 && (

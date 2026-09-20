@@ -13,7 +13,7 @@ export type ListDragGhostState = {
   dropHint?: string;
 };
 
-/** Metadata only — position is updated imperatively via ghostRef. */
+/** Metadata only -- position is updated imperatively via ghostRef. */
 export type ListDragGhostMeta = Omit<ListDragGhostState, 'x' | 'y'>;
 
 type Props = {
@@ -26,7 +26,7 @@ export default function ListDragGhost({ ghost, ghostRef }: Props) {
   const [handoff, setHandoff] = useState(isOleDragHandoffActive);
   useEffect(() => subscribeOleDragHandoff(() => setHandoff(isOleDragHandoffActive())), []);
 
-  // Host OLE escalate sets html.bndz-ole-drag-handoff — never let React re-apply display:block
+  // Host OLE escalate sets html.bndz-ole-drag-handoff -- never let React re-apply display:block
   // over the host/CSS hide (that was the stuck MOVE card under the menubar).
   const show = !!ghost && !handoff;
 
@@ -34,7 +34,7 @@ export default function ListDragGhost({ ghost, ghostRef }: Props) {
     <div
       ref={ghostRef}
       className="bndz-drag-ghost-root"
-      // Never force display:block — host CSS !important handoff must win over React.
+      // Never force display:block -- host CSS !important handoff must win over React.
       style={show ? undefined : { display: 'none' }}
       aria-hidden={!show}
     >
@@ -63,7 +63,7 @@ export default function ListDragGhost({ ghost, ghostRef }: Props) {
             <span className="bndz-drag-ghost-label">{ghost!.label}</span>
             <span className="bndz-drag-ghost-meta">
               {ghost!.copy ? 'Copy' : 'Move'}
-              {ghost!.count > 1 ? ` · ${ghost!.count} items` : ''}
+              {ghost!.count > 1 ? ` | ${ghost!.count} items` : ''}
             </span>
             {ghost!.dropHint && (
               <span className="bndz-drag-ghost-hint">{ghost!.dropHint}</span>

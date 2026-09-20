@@ -8,7 +8,7 @@ type Props = {
   className?: string;
 };
 
-/** Inline SVG cloud sync stages — never depends on /EMBLEMS/*.svg loading in WebView. */
+/** Inline SVG cloud sync stages -- never depends on /EMBLEMS/*.svg loading in WebView. */
 export function CloudStatusIcon({ kind, size = 16, title, className = '' }: Props) {
   const k = String(kind || '').toLowerCase();
   const common = {

@@ -15,7 +15,7 @@ export type LauncherView =
   | 'windows'
   | 'files';
 
-/** SuperCmd-style view manager — one active sub-view in BNDZ Launcher shell. */
+/** SuperCmd-style view manager -- one active sub-view in BNDZ Launcher shell. */
 export function useBndzLauncherViews() {
   const [view, setView] = useState<LauncherView>('main');
   const [fileSearchQuery, setFileSearchQuery] = useState('');

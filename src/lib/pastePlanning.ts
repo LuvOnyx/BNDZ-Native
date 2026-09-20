@@ -41,7 +41,7 @@ export function resolveRecreateStructureForPaste(
   );
 }
 
-/** Async variant — prefer host ModalProvider confirm over window.confirm. */
+/** Async variant -- prefer host ModalProvider confirm over window.confirm. */
 export async function resolveRecreateStructureForPasteAsync(
   config: AppConfig,
   sources: string[],

@@ -450,7 +450,7 @@ const ToolbarButton = ({ iconId, launcherIcon, tagColor, onClick, onContextMenu,
 
 function formatSize(bytes: number | null | undefined) {
   const n = Number(bytes);
-  if (!Number.isFinite(n) || n < 0) return 'â€”';
+  if (!Number.isFinite(n) || n < 0) return '--';
   if (n === 0) return '0\u00A0B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -502,7 +502,7 @@ export default function BNDZUI() {
   const { clipboard, clipboardHistory, setClipboardState, executePaste, restorePreviousClipboard, clearClipboard } = useClipboard();
   const { config, updateConfig } = useAppConfig();
   const keyboardMap = useMemo(() => {
-    // Settings â†’ Custom Keyboard Shortcuts (literal toggle for strong wiring)
+    // Settings -> Custom Keyboard Shortcuts (literal toggle for strong wiring)
     void config.customKeyboardShortcuts;
     return buildSettingsRuntime(config).keyboard;
   }, [config, config.customKeyboardShortcuts]);
@@ -510,7 +510,7 @@ export default function BNDZUI() {
   const settingsRt = useMemo(() => buildSettingsRuntime(config), [config]);
   const { pluginRegistry } = usePluginRegistry();
 
-  // Real undo/redo availability for the main toolbar â€” previously always-enabled regardless
+  // Real undo/redo availability for the main toolbar -- previously always-enabled regardless
   // of whether there was anything to undo/redo.
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -602,10 +602,10 @@ export default function BNDZUI() {
     scheduleQuickActionsBar: (_show: boolean, _immediate?: boolean) => {},
   });
 
-  /** Per-pane DOM elements for the marquee rect â€” updated imperatively, zero React renders. */
+  /** Per-pane DOM elements for the marquee rect -- updated imperatively, zero React renders. */
   const marqueeRectByPaneRef = useRef<Map<string, HTMLElement>>(new Map());
   /**
-   * Live marquee selection preview â€” DOM + renderItem read this without React setState
+   * Live marquee selection preview -- DOM + renderItem read this without React setState
    * every pointermove (virtualized remounts still pick it up).
    */
   const marqueeLiveSelectionRef = useRef<{ paneId: string; ids: Set<string> } | null>(null);
@@ -622,7 +622,7 @@ export default function BNDZUI() {
     /** When zero-move marquee starts on a row chrome (lead/trail), select that row instead of clearing. */
     hitRowId?: string | null,
   ) => {
-    // Cache list geometry Î“Ã‡Ã¶ avoid getBoundingClientRect every move.
+    // Cache list geometry Î"Ã‡Ã¶ avoid getBoundingClientRect every move.
     let listRect = listEl.getBoundingClientRect();
     let originScrollLeft = listEl.scrollLeft;
     let originScrollTop = listEl.scrollTop;
@@ -720,7 +720,7 @@ export default function BNDZUI() {
         lastMarqueePreviewMs = nowMs;
         marqueeOpsRef.current.setMarqueePreviewIds(finalSelected);
       }
-      // No React setState / quick-actions during scrub â€” commit on pointerup.
+      // No React setState / quick-actions during scrub -- commit on pointerup.
     };
 
     // Single merged RAF: imperative rect style write + selection preview in one frame.
@@ -788,7 +788,7 @@ export default function BNDZUI() {
         else ops.setFocusedItemId(null);
         ops.scheduleQuickActionsBar(latestSelected.length > 0, true);
       } else if (!additive) {
-        // Plain click on empty canvas / marquee gutter â€” clear selection (Explorer-class).
+        // Plain click on empty canvas / marquee gutter -- clear selection (Explorer-class).
         // Exception: list/details lead-trail hit on a row must SELECT that row, not clear.
         if (hitRowId) {
           latestSelected = [hitRowId];
@@ -831,7 +831,7 @@ export default function BNDZUI() {
   const [workspaceToolsExpanded, setWorkspaceToolsExpanded] = useState(true);
   const [externalDragActive, setExternalDragActive] = useState(false);
   const [externalDragPaths, setExternalDragPaths] = useState<string[]>([]);
-  // Launch Ready A1: no sidebar RAM/Ghost tree chrome â€” zones only used to hide mount letters from This PC.
+  // Launch Ready A1: no sidebar RAM/Ghost tree chrome -- zones only used to hide mount letters from This PC.
   const [sidebarRamZones, setSidebarRamZones] = useState<{ id: string; name: string; isDirty?: boolean; driveLetter?: string }[]>([]);
   const lastFolderIntentRef = useRef<string>('');
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
@@ -881,7 +881,7 @@ export default function BNDZUI() {
       const pull = (force = false) =>
         IPC.getSystemDrives(force ? { force: true } : undefined).then(applyDrives).catch(() => applyDrives([]));
       void pull(false);
-      // Forced retry â€” first paint often races DriveInfo; force bypasses warm empty-size cache.
+      // Forced retry -- first paint often races DriveInfo; force bypasses warm empty-size cache.
       window.setTimeout(() => { if (!cancelled) void pull(true); }, 1200);
       window.setTimeout(() => { if (!cancelled) void pull(true); }, 3200);
       IPC.getCloudProviders().then(p => { if (!cancelled) setCloudProviders(Array.isArray(p) ? p : []); });
@@ -895,7 +895,7 @@ export default function BNDZUI() {
             || !!netBeh.assumeThatServersAreAvailable,
           cacheServers: !!netBeh.cacheNetworkServers || !!config.cacheNetworkServers,
         }).then(n => { if (!cancelled) setNetworkNodes(n); });
-        // WSL distro discovery can outlast the first 600ms probe â€” retry like drives.
+        // WSL distro discovery can outlast the first 600ms probe -- retry like drives.
         window.setTimeout(() => {
           if (cancelled) return;
           IPC.getNetworkLocations({
@@ -1068,8 +1068,8 @@ export default function BNDZUI() {
       workspaceLayoutVersion: WORKSPACE_LAYOUT_VERSION,
       workspaceLayoutOuter: migrated.outer,
       workspaceLayoutMainRow: migrated.mainRow,
-      // Always restore the canonical bottom plugin height on layout bumps â€”
-      // keeping a persisted ~5â€“10% leaves the dock looking collapsed.
+      // Always restore the canonical bottom plugin height on layout bumps --
+      // keeping a persisted ~5-10% leaves the dock looking collapsed.
       workspaceLayoutInner: { ...DEFAULT_INNER_LAYOUT },
     });
   }, [config.workspaceLayoutVersion]);
@@ -1108,7 +1108,7 @@ export default function BNDZUI() {
       || Math.abs((outer.preview ?? 0) - target.preview) > 0.6;
     if (!drifted) return;
     updateConfig({ workspaceLayoutOuter: target });
-    // Only correct once per layout-version bump â€” do not fight later user drag-resizes.
+    // Only correct once per layout-version bump -- do not fight later user drag-resizes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.workspaceLayoutVersion, config.previewDockedInWorkspace]);
 
@@ -1150,7 +1150,7 @@ export default function BNDZUI() {
     }
     if ((config.productDefaultsVersion ?? 0) < 3) {
       patches.productDefaultsVersion = 3;
-      // List names were shipping as muted #e0e0e0 â€” whiten unless the user already customized.
+      // List names were shipping as muted #e0e0e0 -- whiten unless the user already customized.
       const listText = String(config.colorConfig10 || '').toLowerCase();
       if (!listText || listText === '#e0e0e0' || listText === '#e0e0e0ff') {
         patches.colorConfig10 = '#f3f4f6';
@@ -1213,7 +1213,7 @@ export default function BNDZUI() {
       patches.xCloseAction = 'ask';
       patches.minimizeToTrayOnXClose = false;
     }
-    /** Old default stretched a single tab across the bar â€” force compact once. */
+    /** Old default stretched a single tab across the bar -- force compact once. */
     if ((config.tabWidthDefaultsVersion ?? 0) < 1) {
       patches.tabWidthDefaultsVersion = 1;
       patches.flexibleTabWidth = false;
@@ -1231,7 +1231,7 @@ export default function BNDZUI() {
     const next = !isPreviewPanelOpen;
     setIsPreviewPanelOpen(next);
     updateConfig({ previewPanelOpen: next });
-    // Imperatively restore a usable width â€” collapse leaves size 0 and expand alone
+    // Imperatively restore a usable width -- collapse leaves size 0 and expand alone
     // can reopen paper-thin if defaultLayout was not remounted.
     if (next) {
       const saved = previewDockedInWorkspace
@@ -1296,7 +1296,7 @@ export default function BNDZUI() {
       : { list: 100, preview: 0 }),
     [config.workspaceLayoutMainRow, effectivePreviewOpen, previewDockedInWorkspace],
   );
-  /** Updated after pane state â€” workspace tools hide the bottom plugin panel. */
+  /** Updated after pane state -- workspace tools hide the bottom plugin panel. */
   const layoutBottomOpenRef = useRef(effectiveBottomOpen);
 
   const outerLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1306,7 +1306,7 @@ export default function BNDZUI() {
     const sidebarVal = uiRuntime.treePanel
       ? (layout.sidebar ?? outerLayoutLive.sidebar)
       : (config.workspaceLayoutOuter?.sidebar ?? outerLayoutLive.sidebar);
-    // When preview is closed, keep the last open width â€” never persist 0 (paper-thin reopen).
+    // When preview is closed, keep the last open width -- never persist 0 (paper-thin reopen).
     // While open, never persist below the collapse floor (collapse drag must not poison reopen).
     let previewVal: number;
     if (previewDockedInWorkspace) {
@@ -1403,7 +1403,7 @@ export default function BNDZUI() {
       Math.max(DEFAULT_INNER_LAYOUT.bottom!, lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom!),
     );
     motionPanelImmersiveExit(immersiveShellRef.current, () => {
-      // Clear leftover motion transforms â€” translated abspos hosts can inflate
+      // Clear leftover motion transforms -- translated abspos hosts can inflate
       // ancestor scrollable overflow and spawn a bogus workspace scrollbar.
       const host = immersiveShellRef.current;
       if (host) {
@@ -1425,7 +1425,7 @@ export default function BNDZUI() {
   }, [bottomImmersive, innerGroupRef]);
 
   // Immersive Esc is handled via registerEscapeLayer (capture/priority) so it
-  // beats nav-back / filter layers â€” a bubble-only keydown loses that race.
+  // beats nav-back / filter layers -- a bubble-only keydown loses that race.
 
   const resetBottomPanelLayout = React.useCallback(() => {
     if (bottomImmersive) return;
@@ -1480,7 +1480,7 @@ export default function BNDZUI() {
             detail: {
               title: 'Update available',
               message: result.latestVersion
-                ? `BNDZ ${result.latestVersion} is available. Open Help â†’ About to download.`
+                ? `BNDZ ${result.latestVersion} is available. Open Help -> About to download.`
                 : 'A newer version of BNDZ is available.',
             },
           }));
@@ -1489,7 +1489,7 @@ export default function BNDZUI() {
     });
   }, [config.checkForUpdatesAtStartup, config.updateCheckUrl, config.includeBetaVersions]);
 
-  // Settings â†’ Check for language updates at startup
+  // Settings -> Check for language updates at startup
   useEffect(() => {
     if (!config.checkForLanguageUpdatesAtStartup) return;
     const manifestUrl = String(config.updateCheckUrl || '').trim();
@@ -1498,7 +1498,7 @@ export default function BNDZUI() {
       if (!IPC.isNative) return;
       void IPC.checkForLanguageUpdates(manifestUrl).then(result => {
         if (result?.error || !result?.updates?.length) return;
-        const names = result.updates.map(u => `${u.id} ${u.installedVersion}â†’${u.latestVersion}`).join(', ');
+        const names = result.updates.map(u => `${u.id} ${u.installedVersion}->${u.latestVersion}`).join(', ');
         window.dispatchEvent(new CustomEvent('bndz-native-alert', {
           detail: {
             title: 'Language pack updates',
@@ -1509,7 +1509,7 @@ export default function BNDZUI() {
     });
   }, [config.checkForLanguageUpdatesAtStartup, config.updateCheckUrl]);
 
-  // Settings â†’ Maximum number of items cached
+  // Settings -> Maximum number of items cached
   useEffect(() => {
     configurePathCacheMax(config.maximumNumberOfItemsCached as number | boolean | undefined);
   }, [config.maximumNumberOfItemsCached]);
@@ -1581,7 +1581,7 @@ export default function BNDZUI() {
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [licenseEpoch, setLicenseEpoch] = useState(0);
   const [showHelpTopics, setShowHelpTopics] = useState(false);
-  /** Sticky header identity per pane â€” React updates only when the active group changes. */
+  /** Sticky header identity per pane -- React updates only when the active group changes. */
   const [stickyHeaderKeys, setStickyHeaderKeys] = useState<Record<string, string>>({});
   const listScrollTopsRef = useRef<Record<string, number>>({});
   const paneScrollElsRef = useRef<Record<string, HTMLDivElement | null>>({});
@@ -1667,12 +1667,12 @@ export default function BNDZUI() {
   const suppressNavClickUntilRef = React.useRef(0);
   const typeAheadPrefixRef = useRef('');
   const typeAheadAtRef = useRef(0);
-  /** Last type-ahead hit â€” sync so same-key cycling works before React re-renders focusedItemId. */
+  /** Last type-ahead hit -- sync so same-key cycling works before React re-renders focusedItemId. */
   const typeAheadMatchIdRef = useRef<string | null>(null);
   const lastGlobalQueryRef = useRef('');
-  /** True after the user clicks/focuses a file list â€” type-ahead stays armed even if WebView2 leaves chrome focused. */
+  /** True after the user clicks/focuses a file list -- type-ahead stays armed even if WebView2 leaves chrome focused. */
   const listTypeAheadArmedRef = useRef(false);
-  /** Latest type-ahead context â€” handler is stable so letter keys never hit a stale closure. */
+  /** Latest type-ahead context -- handler is stable so letter keys never hit a stale closure. */
   const typeAheadCtxRef = useRef<Record<string, any>>({});
 
   useEffect(() => {
@@ -1691,14 +1691,14 @@ export default function BNDZUI() {
   const installedPluginIdSet = React.useMemo(() => new Set(installedPluginIds), [installedPluginIds]);
 
   const openBottomPlugin = React.useCallback((pluginId: string, launch?: BottomPluginLaunchContext) => {
-    // Mesh Drop is a dialog, not a bottom plugin â€” never open a phantom tab.
+    // Mesh Drop is a dialog, not a bottom plugin -- never open a phantom tab.
     if (pluginId === 'mesh-drop') {
       const paths = launch?.paths?.filter(Boolean) ?? [];
       setMeshDropPaths(paths);
       setShowMeshDropDialog(true);
       return;
     }
-    // Absorbed / retired plugin IDs â†’ host plugin + launch tab hint.
+    // Absorbed / retired plugin IDs -> host plugin + launch tab hint.
     const absorbMap: Record<string, { id: string; tab?: string }> = {
       'shell-verb-forge': { id: 'context-menu-manager' },
       'capacity-solver': { id: 'storage-cleanup', tab: 'capacity' },
@@ -1718,14 +1718,14 @@ export default function BNDZUI() {
     const launchMerged: BottomPluginLaunchContext | undefined = absorb?.tab
       ? { ...launch, tab: absorb.tab, currentPath: launch?.currentPath || (launch as any)?.path || (launch as any)?.rootPath }
       : launch;
-    // Never auto-install â€” only open plugins the user already has installed.
-    // Exception: Open Terminal (remote-mesh + tab=terminal) is core FM on Native â€”
+    // Never auto-install -- only open plugins the user already has installed.
+    // Exception: Open Terminal (remote-mesh + tab=terminal) is core FM on Native --
     // BottomPluginPanel will surface Mesh for the terminal hole without Hub install.
     const allowSystemTerminal =
       resolvedId === 'remote-mesh' && (launchMerged?.tab === 'terminal' || launch?.tab === 'terminal');
     if (!installedPluginIdSet.has(resolvedId) && !allowSystemTerminal) {
       const label = (pluginRegistry || []).find((p: { id: string }) => p.id === resolvedId)?.name || resolvedId;
-      setToastMessage(`â€œ${label}â€ isnâ€™t installed. Add it from Extension Hub.`, 'warning');
+      setToastMessage(`"${label}" isn't installed. Add it from Extension Hub.`, 'warning');
       return;
     }
     setIsBottomPanelOpen(true);
@@ -1755,7 +1755,7 @@ export default function BNDZUI() {
     } as any);
   }, [installedPluginIdSet, openBottomPlugin, updateConfig]);
 
-  // Truncated first-paint when MORE fails â€” clear sticky Streaming and force one full refetch.
+  // Truncated first-paint when MORE fails -- clear sticky Streaming and force one full refetch.
   useEffect(() => {
     const failCounts = new Map<string, number>();
     const onFail = (ev: Event) => {
@@ -1845,7 +1845,7 @@ export default function BNDZUI() {
   const [pointerFileDragActive, setPointerFileDragActive] = useState(false);
   pointerFileDragActiveRef.current = pointerFileDragActive;
   const dropModifierRef = useRef({ copy: false });
-  /** Last HTML5 drag-over target â€” fallback when native drop coordinates miss. */
+  /** Last HTML5 drag-over target -- fallback when native drop coordinates miss. */
   const htmlDropTargetRef = useRef<{ paneId: string; tabPath: string } | null>(null);
   const lastLocalTransferRef = useRef<{ action: 'copy' | 'move'; sources: string[]; destDir: string; operationId?: string } | null>(null);
   /** Per-operation stash so queue Retry can replay the matching copy/move, not only the latest. */
@@ -1863,9 +1863,9 @@ export default function BNDZUI() {
   const [clipboardPulse, setClipboardPulse] = useState(false);
   const clipboardPulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transferActiveCountRef = useRef(0);
-  /** Dest-relative paste flash: `normalizePanePath::nameLower` â†’ expiresAt ms (green tint until age filter catches up). */
+  /** Dest-relative paste flash: `normalizePanePath::nameLower` -> expiresAt ms (green tint until age filter catches up). */
   const recentPasteUntilRef = useRef(new Map<string, number>());
-  /** Pending FS ops â€” keep tombstoned names filtered from cache until the queue job finishes. */
+  /** Pending FS ops -- keep tombstoned names filtered from cache until the queue job finishes. */
   const pendingFsOpsRef = useRef(new Map<string, {
     opId: string;
     kind: 'delete' | 'move' | 'rename';
@@ -2005,7 +2005,7 @@ export default function BNDZUI() {
     fluidDragGenRef.current += 1;
     setListDragGhost(null);
     if (opts?.immediate) {
-      // Hide ghosts only â€” never arm html.bndz-ole-drag-handoff here.
+      // Hide ghosts only -- never arm html.bndz-ole-drag-handoff here.
       // That class sets pointer-events:none on list/sidebar and was left stuck after
       // internal/spatial end-file-drag, making subsequent list/desktop drops feel broken.
       try {
@@ -2089,7 +2089,7 @@ export default function BNDZUI() {
   const [isDualPane, setIsDualPane] = useState(false);
   const [dualPaneDiffActive, setDualPaneDiffActive] = useState(false);
 
-  // Settings â†’ Resizing the window (dual pane): keep left/right pixel width fixed on window resize
+  // Settings -> Resizing the window (dual pane): keep left/right pixel width fixed on window resize
   useEffect(() => {
     const mode = String(config.resizingTheWindowDualPane || 'Both panes flexible size');
     if (!isDualPane || mode === 'Both panes flexible size') return;
@@ -2134,7 +2134,7 @@ export default function BNDZUI() {
       if (existing?.length && (!filtered || filtered.length === 0)) {
         return commit(prev);
       }
-      // Keep inbound/outbound optimistic rows until the server listing catches up â€”
+      // Keep inbound/outbound optimistic rows until the server listing catches up --
       // early soft-refresh used to wipe them and leave a blank until manual F5.
       const mergeOptimistic = (server: any[]): any[] => {
         const now = Date.now();
@@ -2169,7 +2169,7 @@ export default function BNDZUI() {
           : [...pending, ...server];
         return dedupeListingByName(stampRecent(merged));
       };
-      // Progressive first-page RESULT must not shrink a fuller warm/streamed listing â€”
+      // Progressive first-page RESULT must not shrink a fuller warm/streamed listing --
       // but MUST drop tombstoned / gone names (OLE MOVE soft-refresh used to re-merge them).
       if (
         opts?.retainLarger
@@ -2183,7 +2183,7 @@ export default function BNDZUI() {
         if (looksLikeFirstPage) {
           return commit(setPathCacheEntry(prev, path, mergeDirEntryChunks(existingClean, filtered)));
         }
-        // Full/soft refresh shrunk the folder â€” trust the server (deletes/moves), keep optimistic.
+        // Full/soft refresh shrunk the folder -- trust the server (deletes/moves), keep optimistic.
         return commit(setPathCacheEntry(prev, path, mergeOptimistic(filtered)));
       }
       if (config.addNewItemsAtTheEndOfTheList && existing?.length && filtered?.length) {
@@ -2210,12 +2210,12 @@ export default function BNDZUI() {
     });
   }, [config.addNewItemsAtTheEndOfTheList, filterTombstonedEntries]);
 
-  // Progressive SharedBuffer append â€” merge remainder into first-paint list (never replace).
+  // Progressive SharedBuffer append -- merge remainder into first-paint list (never replace).
   useEffect(() => {
     const onAppend = (ev: Event) => {
       const detail = (ev as CustomEvent).detail as { path?: string; items?: any[] } | undefined;
       if (!detail?.items || !Array.isArray(detail.items) || !detail.items.length) {
-        // Empty remainder (folder == first-paint size) â€” just clear streaming flag.
+        // Empty remainder (folder == first-paint size) -- just clear streaming flag.
         const rawPath = detail?.path || '';
         if (rawPath) {
           const path = normalizePanePath(rawPath);
@@ -2252,7 +2252,7 @@ export default function BNDZUI() {
 
   const streamPrefetchTimersRef = useRef<Map<string, number>>(new Map());
 
-  // Mid-enumeration stream chunks â€” merge into live list while backend scans disk.
+  // Mid-enumeration stream chunks -- merge into live list while backend scans disk.
   useEffect(() => {
     const onStream = (ev: Event) => {
       const detail = (ev as CustomEvent).detail as { path?: string; items?: any[] } | undefined;
@@ -2291,11 +2291,11 @@ export default function BNDZUI() {
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
   const refetchAgainRef = useRef(new Set<string>());
   const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => Promise<void> | undefined>(() => undefined);
-  /** Always-current navigate â€” sidebar modules must not close over a stale setCurrentPath. */
+  /** Always-current navigate -- sidebar modules must not close over a stale setCurrentPath. */
   const setCurrentPathRef = useRef<(path: string, paneId?: string, updateHistory?: boolean) => void>(() => {});
-  /** Paths seeded by Files ShellViewModel (`BNDZ_DIR_LISTING`) â€” prefer over GET_DIR_CONTENTS. */
+  /** Paths seeded by Files ShellViewModel (`BNDZ_DIR_LISTING`) -- prefer over GET_DIR_CONTENTS. */
   const filesFedPathsRef = useRef(new Set<string>());
-  /** Cancelable Files-feed wait per path â€” listing handler clears; never falls back to GET_DIR_CONTENTS. */
+  /** Cancelable Files-feed wait per path -- listing handler clears; never falls back to GET_DIR_CONTENTS. */
   const filesHostFetchTimersRef = useRef<Map<string, number>>(new Map());
   const filesHostFallbackTimersRef = useRef<Map<string, number>>(new Map());
   /** Resolvers for filesHost beginDirFetch promises (listing arrive / timeout). */
@@ -2516,7 +2516,7 @@ export default function BNDZUI() {
   const beginDirFetch = React.useCallback((rawPath: string, opts?: { force?: boolean }): Promise<void> | undefined => {
     const path = normalizePanePath(rawPath);
     if (!path) return undefined;
-    // Cache hit: still re-warm shell glyphs / thumbs (Explorer feel â€” icons stay ready).
+    // Cache hit: still re-warm shell glyphs / thumbs (Explorer feel -- icons stay ready).
     // Successful empties are cached as []; failed fetches must NOT stamp sticky [].
     if (!opts?.force && pathContentsCacheRef.current[path] !== undefined) {
       const cached = pathContentsCacheRef.current[path];
@@ -2539,7 +2539,7 @@ export default function BNDZUI() {
       && !isVirtualCatalogPath(path);
 
     // BNDZShell full-face: React list owns FS fetch via in-process IPC.
-    // Craft islands (chrome/sidebar): host NativeList owns listing â€” navigate only.
+    // Craft islands (chrome/sidebar): host NativeList owns listing -- navigate only.
     if (isNativeShellCraftIslandBoot()) {
       if (opts?.force) filesFedPathsRef.current.delete(path);
       notifyNativeShellNavigate(path);
@@ -2674,7 +2674,7 @@ export default function BNDZUI() {
         cachePathContents(path, normalized);
         prefetchListingVisuals(normalized, path, listingPrefetchFromConfig(configRef.current));
       }).catch(() => {
-        // Do not stamp sticky [] â€” leave undefined so the next navigate/open can retry.
+        // Do not stamp sticky [] -- leave undefined so the next navigate/open can retry.
         setPathLoadErrors(prev => ({ ...prev, [path]: 'Could not load catalog.' }));
       }).finally(() => {
         dirFetchInFlightRef.current.delete(path);
@@ -2684,7 +2684,7 @@ export default function BNDZUI() {
 
     if (isBndzVirtualPath(path)) {
       if (isBndzPortalPath(path) || parseBndzPortalView(path)) {
-        // Portal namespace retired â€” leftover /bndz/port/* paths remap in setCurrentPath.
+        // Portal namespace retired -- leftover /bndz/port/* paths remap in setCurrentPath.
         cachePathContents(path, []);
         return Promise.resolve();
       }
@@ -2761,7 +2761,7 @@ export default function BNDZUI() {
       dirFetchInFlightRef.current.add(path);
       setLoadingPaths(prev => new Set(prev).add(path));
       // Photos/Videos (and other media-heavy smart views) must not pull thousands of rows or
-      // fire create-all-at-once thumbnail storms â€” that OOM/kills WebView2 and leaves a blank shell.
+      // fire create-all-at-once thumbnail storms -- that OOM/kills WebView2 and leaves a blank shell.
       const mediaHeavy = view === 'media' || view === 'audio';
       const nativeHost =
         typeof document !== 'undefined'
@@ -2800,7 +2800,7 @@ export default function BNDZUI() {
     const loadStarted = performance.now();
 
     // Backend already enforces Hello Gate inside GET_DIR_CONTENTS. Do not serialize a separate
-    // HELLO_GATE_CHECK here â€” a check timeout used to replace the whole pane with
+    // HELLO_GATE_CHECK here -- a check timeout used to replace the whole pane with
     // "IPC timeout: HELLO_GATE_CHECK_RESULT" and never load Desktop.
     const clearStream = () => {
       setStreamingPaths(prev => {
@@ -2820,14 +2820,14 @@ export default function BNDZUI() {
         delete next[key];
         return next;
       });
-      // Empty cache so the pane leaves the infinite "Streamingâ€¦" skeleton and shows the gate UI.
+      // Empty cache so the pane leaves the infinite "Streaming..." skeleton and shows the gate UI.
       setPathContentsCache(prev => setPathCacheEntry(prev, key, prev[key] !== undefined ? prev[key] : []));
       clearStream();
     };
 
     return IPC.getDirContents(path).then(data => {
       const normalized = normalizeDirEntries(data);
-      // First-page resolve may be only 64 rows â€” keep fuller warm/streamed cache until APPEND.
+      // First-page resolve may be only 64 rows -- keep fuller warm/streamed cache until APPEND.
       cachePathContents(path, normalized, { retainLarger: true });
       dirFetchTransientRetryRef.current[path] = 0;
       if (normalized.length === 0) clearStream();
@@ -2904,7 +2904,7 @@ export default function BNDZUI() {
       const tab = pane.tabs[pane.activeTabIndex];
       const path = normalizePanePath(tab?.path || '');
       if (!path) return;
-      // Blend: Files ShellViewModel feeds BNDZ_DIR_LISTING â€” short fallback, not a 2.2s stall.
+      // Blend: Files ShellViewModel feeds BNDZ_DIR_LISTING -- short fallback, not a 2.2s stall.
       if (isFilesHostBoot()) {
         if (filesFedPathsRef.current.has(path) && pathContentsCacheRef.current[path] !== undefined) {
           return;
@@ -2925,7 +2925,7 @@ export default function BNDZUI() {
     if (!path) return;
     const inFlight = refetchInFlightRef.current[path];
     if (inFlight) {
-      // Coalesce: another paste/refresh landed while listing â€” run once more after settle.
+      // Coalesce: another paste/refresh landed while listing -- run once more after settle.
       refetchAgainRef.current.add(path);
       await inFlight;
       if (refetchAgainRef.current.has(path)) {
@@ -2959,7 +2959,7 @@ export default function BNDZUI() {
     editedValue: string,
   ) => {
     let targetName = resolveRenameTargetName(entity, editedValue, config);
-    // Settings â†’ Directional formatting codes protection
+    // Settings -> Directional formatting codes protection
     targetName = protectDirectionalFormatting(targetName, config);
     if (settingsRt.rename.autoReplaceInvalidChars || !!config.autoReplaceInvalidCharacters) {
       targetName = targetName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
@@ -2981,7 +2981,7 @@ export default function BNDZUI() {
       const toLabel = toExt ? `.${toExt}` : '(no extension)';
       const approved = await confirm({
         title: 'Change file extension?',
-        message: `If you change a file name extension, the file might become unusable.\n\nAre you sure you want to change it from ${fromLabel} to ${toLabel}?\n\nThis only renames the file â€” it does not convert its contents.`,
+        message: `If you change a file name extension, the file might become unusable.\n\nAre you sure you want to change it from ${fromLabel} to ${toLabel}?\n\nThis only renames the file -- it does not convert its contents.`,
         type: 'warning',
         confirmLabel: 'Change',
         cancelLabel: 'Keep extension',
@@ -3019,7 +3019,7 @@ export default function BNDZUI() {
     }
 
     const displayTarget = targetName;
-    const renameLabel = `Rename: ${entity.name} â†’ ${displayTarget}`;
+    const renameLabel = `Rename: ${entity.name} -> ${displayTarget}`;
     const { IPC } = await import('../lib/ipcBridge');
     const renameOpId = `rename-${Date.now()}`;
     const normPane = normalizePanePath(panePath);
@@ -3088,7 +3088,7 @@ export default function BNDZUI() {
   const prefetchPathQuiet = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
     if (!path) return;
-    // Hover when listing already cached â€” still hydrate shells (plan #10).
+    // Hover when listing already cached -- still hydrate shells (plan #10).
     if (pathContentsCacheRef.current[path] !== undefined) {
       const cached = pathContentsCacheRef.current[path];
       if (Array.isArray(cached) && cached.length > 0) {
@@ -3238,7 +3238,7 @@ export default function BNDZUI() {
     if (!IPC.isNative) return;
     return IPC.onIndexProgress(p => {
       if (p.jobComplete || (p.done && p.error)) {
-        // Warm boot: all roots still fresh â€” do not flash a spinner/complete chip.
+        // Warm boot: all roots still fresh -- do not flash a spinner/complete chip.
         if (p.jobComplete && !p.error && p.currentPath === 'up-to-date') {
           invalidateIndexStatusCache();
           void refreshIndexedRoots();
@@ -3251,7 +3251,7 @@ export default function BNDZUI() {
       } else if (!p.done) {
         setIndexProgress(p);
       } else {
-        // Per-root done â€” keep chip visible; more roots may follow in the same job.
+        // Per-root done -- keep chip visible; more roots may follow in the same job.
         setIndexProgress(prev => ({
           ...p,
           done: false,
@@ -3373,7 +3373,7 @@ export default function BNDZUI() {
     fileDragFavoriteTargetRef.current = v;
     setFileDragFavoriteTargetState(v);
   };
-  /** Last hover coords+state from the drag-hover RAF â€” used to skip duplicate hit-tests in onMove. */
+  /** Last hover coords+state from the drag-hover RAF -- used to skip duplicate hit-tests in onMove. */
   const lastDragHoverStateRef = useRef<{ x: number; y: number; state: import('../lib/fileDragHover').FileDragHoverState } | null>(null);
   const nativeOleDragRef = useRef(false);
   const oleEscalateOpIdRef = useRef<string | null>(null);
@@ -3432,7 +3432,7 @@ export default function BNDZUI() {
         }
         return changed ? next : prev;
       });
-      // Soft-refresh only after shell settle â€” early GET_DIR resurrects rows while Windows
+      // Soft-refresh only after shell settle -- early GET_DIR resurrects rows while Windows
       // still holds the folder (wallpaper MOVE). Prefer tombstones for several seconds.
       if (opts?.invalidate === true) {
         window.setTimeout(() => {
@@ -3460,7 +3460,7 @@ export default function BNDZUI() {
     };
 
     // Wallpaper/desktop MOVE: strip list rows the moment OLE escalates (boundary handoff),
-    // not only after OLE_DRAG_ENDED â€” otherwise the folder sits in the list for the whole drop.
+    // not only after OLE_DRAG_ENDED -- otherwise the folder sits in the list for the whole drop.
     const onOleEscalated = (ev: Event) => {
       const detail = (ev as CustomEvent<{ paths?: string[] }>).detail;
       const winPaths = resolveOlePaths(detail?.paths);
@@ -3509,18 +3509,18 @@ export default function BNDZUI() {
         return;
       }
 
-      // BNDZ-originated outbound drag â€” wallpaper/desktop often latches COPY/NONE while MOVE completes.
+      // BNDZ-originated outbound drag -- wallpaper/desktop often latches COPY/NONE while MOVE completes.
       if (winPaths.length > 0 && outboundFromBndz) {
         const effect = String(detail?.effect || '').toUpperCase();
         const sourcesGone = detail?.sourcesGone === true
           || String(detail?.recover || '').toLowerCase() === 'move';
         const isMove = effect === 'MOVE' || effect === '2' || effect.includes('MOVE') || sourcesGone;
         oleEscalateOpIdRef.current = oleOpId;
-        // Always strip immediately for outbound drops â€” reinject only if disk still has the item.
+        // Always strip immediately for outbound drops -- reinject only if disk still has the item.
         applyOleMoveRemove(winPaths, { invalidate: false, opId: oleOpId });
         if (oleVerifyTimer != null) window.clearTimeout(oleVerifyTimer);
         const verifyGone = (pass: number) => {
-          // Prefer host sourcesGone when we already know â€” skip IPC storms that freeze WebView.
+          // Prefer host sourcesGone when we already know -- skip IPC storms that freeze WebView.
           if (sourcesGone && pass === 0) {
             applyOleMoveRemove(winPaths, { invalidate: true, opId: oleOpId });
             window.setTimeout(() => {
@@ -3549,7 +3549,7 @@ export default function BNDZUI() {
                 }, 5000);
                 return;
               }
-              // ~5s of gentle polling â€” avoid IPC storms that freeze the WebView.
+              // ~5s of gentle polling -- avoid IPC storms that freeze the WebView.
               if (pass < 12) {
                 oleVerifyTimer = window.setTimeout(() => verifyGone(pass + 1), 400);
                 return;
@@ -3559,7 +3559,7 @@ export default function BNDZUI() {
                 window.setTimeout(() => { oleEscalateOpIdRef.current = null; }, 5000);
                 return;
               }
-              // Still on disk after polls + COPY latch â€” true copy; reinject rows.
+              // Still on disk after polls + COPY latch -- true copy; reinject rows.
               try {
                 for (const key of [...pendingFsOpsRef.current.keys()]) {
                   if (key === oleOpId || key.startsWith(`${oleOpId}:`)) reinjectFsTombstone(key);
@@ -3596,9 +3596,9 @@ export default function BNDZUI() {
     };
   }, [clearListDragGhost, clearFsTombstone, reinjectFsTombstone]);
   const suppressRowClickRef = useRef(false);
-  /** Gesture double-tap already activated â€” ignore trailing native dblclick (~700ms). */
+  /** Gesture double-tap already activated -- ignore trailing native dblclick (~700ms). */
   const suppressNativeDblUntilRef = useRef(0);
-  /** WebView2 often synthesizes list-body clicks after a row press â€” block deselect briefly. */
+  /** WebView2 often synthesizes list-body clicks after a row press -- block deselect briefly. */
   const listItemPressGuardRef = useRef<{ entityId: string; at: number } | null>(null);
   const listEntityDblRef = useRef<{ paneId: string; entityId: string; at: number } | null>(null);
 
@@ -3687,7 +3687,7 @@ export default function BNDZUI() {
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       window.removeEventListener('blur', onUp);
-      // Read latest config via ref â€” mid-drag updates must not clobber sibling widths.
+      // Read latest config via ref -- mid-drag updates must not clobber sibling widths.
       const cfg = configRef.current;
       const folderWidths = {
         ...((cfg.listColumnWidthsByPath || {})[folderKey] || {}),
@@ -3717,7 +3717,7 @@ export default function BNDZUI() {
 
   const runUndoRedo = React.useCallback(async (redo = false) => {
     const fileOps = buildFileOpsRuntime(config);
-    // Always ask the host â€” FE canUndo can lag behind deletes (ACTION_LOG_CHANGED race).
+    // Always ask the host -- FE canUndo can lag behind deletes (ACTION_LOG_CHANGED race).
     let hostCan = redo ? canRedo : canUndo;
     try {
       const snap = await IPC.getActionLog();
@@ -3750,13 +3750,13 @@ export default function BNDZUI() {
       if (!approved) return;
     }
     const toastId = `undo-${Date.now()}`;
-    pushToast({ id: toastId, kind: 'progress', title: redo ? 'Redoingâ€¦' : 'Undoingâ€¦', message: 'Please wait', sticky: true });
+    pushToast({ id: toastId, kind: 'progress', title: redo ? 'Redoing...' : 'Undoing...', message: 'Please wait', sticky: true });
     try {
       const r = redo ? await executeRedoWithTimeout() : await executeUndoWithTimeout();
       dismissToast(toastId);
       refreshUndoRedoState();
       if (isQueuedIpcResult(r)) {
-        pushToast({ kind: 'info', title: redo ? 'Redo queued' : 'Undo queued', message: 'Running in the transfer panelâ€¦' });
+        pushToast({ kind: 'info', title: redo ? 'Redo queued' : 'Undo queued', message: 'Running in the transfer panel...' });
         return;
       }
       if (r.ok) {
@@ -3803,7 +3803,7 @@ export default function BNDZUI() {
                  const activePane = panes.find(p => p.id === activePaneId) || panes[0];
                  const tabPath = activePane?.tabs[activePane.activeTabIndex]?.path || '';
                  let searchQuery = query;
-                 // Settings â†’ Use space character for Boolean AND
+                 // Settings -> Use space character for Boolean AND
                  if (config.useSpaceCharacterForBooleanAnd && !/[()"]|\bAND\b|\bOR\b|\bNOT\b/i.test(query)) {
                    searchQuery = query.trim().split(/\s+/).filter(Boolean).join(' AND ');
                  }
@@ -3850,7 +3850,7 @@ export default function BNDZUI() {
 
   useEffect(() => {
     if (!globalSearchResults?.length) return;
-    // Settings â†’ Thumbnails â†’ Include search results (disk cache / full visual warm)
+    // Settings -> Thumbnails -> Include search results (disk cache / full visual warm)
     if (config.cacheThumbnailsOnDisk !== false && !config.includeSearchResults) {
       // Still warm shell icons; skip heavy media thumbnail extract for search hitsets.
       prefetchIconsForEntities(globalSearchResults, panes.find(p => p.id === activePaneId)?.tabs[0]?.path || '/', 'shell', 160);
@@ -3908,12 +3908,12 @@ export default function BNDZUI() {
       appliedListSortRef.current = true;
       return;
     }
-    // Wait until config has had a chance to load tabset id (undefined â†’ settled).
+    // Wait until config has had a chance to load tabset id (undefined -> settled).
     const col = config.listSortColumn as SortColumnId | undefined;
     const dir = config.listSortDirection === 'desc' ? 'desc' : config.listSortDirection === 'asc' ? 'asc' : undefined;
     if (!col && !dir) return;
     if (config.restoreLastTabsetOnStartup !== false && config.lastActiveTabsetId && !restoredTabsetRef.current) {
-      // Tabset restore effect may still run â€” apply after a microtask if it didn't.
+      // Tabset restore effect may still run -- apply after a microtask if it didn't.
       const t = window.setTimeout(() => {
         if (appliedListSortRef.current || restoredTabsetRef.current) return;
         appliedListSortRef.current = true;
@@ -3929,7 +3929,7 @@ export default function BNDZUI() {
     setPanes(prev => prev.map(p => ({ ...p, sortColumn: c, sortDirection: d })));
   }, [config.listSortColumn, config.listSortDirection, config.restoreLastTabsetOnStartup, config.lastActiveTabsetId]);
 
-  // Permanent Continuum Home tab â€” locked Home in every pane when enabled.
+  // Permanent Continuum Home tab -- locked Home in every pane when enabled.
   useEffect(() => {
     if (config.permanentHomeTab !== true) return;
     setPanes(prev => {
@@ -3976,7 +3976,7 @@ export default function BNDZUI() {
     setCurrentPath(pane);
   }, [config.permanentStartupPath]);
 
-  // Startup & Exit â†’ Focus panel
+  // Startup & Exit -> Focus panel
   const appliedStartupPaneRef = useRef(false);
   useEffect(() => {
     if (appliedStartupPaneRef.current) return;
@@ -4000,7 +4000,7 @@ export default function BNDZUI() {
     }
   }, [config.startupPane, isDualPane, panes.length, updateConfig]);
 
-  // Match OS light/dark â€” startup one-shot and/or continuous follow
+  // Match OS light/dark -- startup one-shot and/or continuous follow
   const appliedOsThemeRef = useRef(false);
   useEffect(() => {
     const follow = !!config.followOsColorScheme;
@@ -4084,7 +4084,7 @@ export default function BNDZUI() {
          e.preventDefault();
          omniFilterRef.current?.focus();
       }
-      // Quick Look overlay (Space) â€” skip while open/IME; audio keeps playing via shared session
+      // Quick Look overlay (Space) -- skip while open/IME; audio keeps playing via shared session
       if (!isInput && e.code === 'Space' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && !(e as any).isComposing) {
          if (quickPreviewOpenRef.current) return;
          const activePane = panes.find(p => p.id === activePaneId);
@@ -4113,7 +4113,7 @@ export default function BNDZUI() {
          } else if (tab?.path) {
            void refetchPath(tab.path);
          }
-         // Status-bar style feedback only â€” avoid toast/notification spam on every F5.
+         // Status-bar style feedback only -- avoid toast/notification spam on every F5.
       }
       if (!isInput && matchesShortcut(e, keyboardMap.undo)) {
          e.preventDefault();
@@ -4144,7 +4144,7 @@ export default function BNDZUI() {
                        selectedEntities.map((ent: any) => joinPanePath(tab.path, ent)),
                        isCutShortcut ? 'cut' : 'copy'
                      );
-                     // Status-bar clipboard chip is the primary cue (Explorer-quiet) â€” pulse it.
+                     // Status-bar clipboard chip is the primary cue (Explorer-quiet) -- pulse it.
                      if (clipboardPulseTimerRef.current) clearTimeout(clipboardPulseTimerRef.current);
                      setClipboardPulse(true);
                      clipboardPulseTimerRef.current = setTimeout(() => setClipboardPulse(false), 1400);
@@ -4195,7 +4195,7 @@ export default function BNDZUI() {
           }
       }
 
-      // Smart Tools (Ctrl+Shift+A) â€” opens Assistant tab
+      // Smart Tools (Ctrl+Shift+A) -- opens Assistant tab
       if (!isInput && (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         setSmartToolsTab('assistant');
@@ -4203,7 +4203,7 @@ export default function BNDZUI() {
         return;
       }
 
-      // View mode chords â€” Ctrl+Shift+1/2/3/4 (details / list / grid / columns)
+      // View mode chords -- Ctrl+Shift+1/2/3/4 (details / list / grid / columns)
       if (!isInput && e.ctrlKey && e.shiftKey && !e.altKey) {
         const digit = e.key;
         if (digit === '1' || digit === '2' || digit === '3' || digit === '4') {
@@ -4213,7 +4213,7 @@ export default function BNDZUI() {
         }
       }
 
-      // Inline rename â€” list item or pinned Rapid access favorite label
+      // Inline rename -- list item or pinned Rapid access favorite label
       if (!isInput && matchesShortcut(e, keyboardMap.rename) && !isToolbarConfigOpen && !isSmartToolsOpen) {
          const activePane = panes.find(p => p.id === activePaneId);
          const tab = activePane?.tabs[activePane?.activeTabIndex ?? 0];
@@ -4242,7 +4242,7 @@ export default function BNDZUI() {
          }
       }
 
-      // Alt+Enter â€” properties (Explorer standard)
+      // Alt+Enter -- properties (Explorer standard)
       if (!isInput && e.altKey && e.key === 'Enter') {
          e.preventDefault();
          const activePane = panes.find(p => p.id === activePaneId);
@@ -4262,7 +4262,7 @@ export default function BNDZUI() {
          }
       }
 
-      // Ctrl+Shift+N â€” new folder
+      // Ctrl+Shift+N -- new folder
       if (!isInput && matchesShortcut(e, keyboardMap.newFolder)) {
          e.preventDefault();
          const activePane = panes.find(p => p.id === activePaneId);
@@ -4278,7 +4278,7 @@ export default function BNDZUI() {
 
   // Context Menu State
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  /** True when openMenuId was switched by hover-chaining â€” next click must not toggle-close. */
+  /** True when openMenuId was switched by hover-chaining -- next click must not toggle-close. */
   const menubarOpenedByHoverRef = useRef(false);
   const [fileMenuShellNewItems, setFileMenuShellNewItems] = useState<NativeContextMenuItem[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, entityExtension?: string | null, isDirectory: boolean, isGhostLink?: boolean, surface?: ContextMenuSurface, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
@@ -4289,7 +4289,7 @@ export default function BNDZUI() {
   useContextMenuDismissOnLeave(!!contextMenu, () => setContextMenu(null));
   useContextMenuDismissOnLeave(!!tabContextMenu, () => setTabContextMenu(null));
 
-  // Optionally merge Windows shell "New" cascade into the File â†’ New menubar when available.
+  // Optionally merge Windows shell "New" cascade into the File -> New menubar when available.
   useEffect(() => {
     if (openMenuId !== 'File') return;
     let cancelled = false;
@@ -4351,7 +4351,7 @@ export default function BNDZUI() {
         ? (pathContentsCache[targetPath] || []).find((item: FSEntity) => item.id === entityId)
         : null;
 
-      // Settings â†’ Use custom context menu (false â†’ host shell menu only)
+      // Settings -> Use custom context menu (false -> host shell menu only)
       if (config.useCustomContextMenu === false) {
         const shellOnly = (selectedPaths?.length
           ? selectedPaths
@@ -4372,7 +4372,7 @@ export default function BNDZUI() {
         ? selectedPaths
         : [winPath]).map(p => toWindowsPath(p)).filter(Boolean);
 
-      // Shift+right-click â†’ real host shell menu (multi-select aware).
+      // Shift+right-click -> real host shell menu (multi-select aware).
       if (e.shiftKey && shellPaths.length > 0 && !isVirtualLocation) {
         void import('../lib/ipcBridge').then(({ IPC }) => {
           IPC.showNativeContextMenu(shellPaths, Math.round(e.screenX), Math.round(e.screenY));
@@ -4391,11 +4391,11 @@ export default function BNDZUI() {
             storeNativeContextMenu,
             prefetchNativeContextMenu,
           } = await import('../lib/nativeContextMenuCache');
-          // Exact path OR extension/shape â€” paint immediately when warm.
+          // Exact path OR extension/shape -- paint immediately when warm.
           const cachedNative = lookupNativeContextMenu(shellPaths) as any[] | null;
           if (cachedNative?.length) {
             initialNative = cachedNative;
-            // Background refresh â€” signature gate avoids height thrash when unchanged.
+            // Background refresh -- signature gate avoids height thrash when unchanged.
             void (async () => {
               try {
                 const { IPC } = await import('../lib/ipcBridge');
@@ -4410,7 +4410,7 @@ export default function BNDZUI() {
             })();
           } else {
             // Prefer a short wait for host shape-cache (usually <20ms when warm).
-            // No skeleton â€” if still cold after budget, paint BNDZ verbs and patch in silently.
+            // No skeleton -- if still cold after budget, paint BNDZ verbs and patch in silently.
             const SHELL_OPEN_BUDGET_MS = 48;
             const { IPC } = await import('../lib/ipcBridge');
             const fetchPromise = IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
@@ -4488,14 +4488,14 @@ export default function BNDZUI() {
     suppressNavClickUntilRef.current = 0;
   }, []);
 
-  // NOTE: must NOT be useCallback with thin deps â€” that froze the first render's
+  // NOTE: must NOT be useCallback with thin deps -- that froze the first render's
   // setCurrentPath (stale activePaneId/shortcuts) while the tree kept a fresh inline
   // onNavigate. Drives / Rapid Access / Cloud looked dead; Navigation Tree worked.
   // Always route through setCurrentPathRef so we never call a TDZ / stale binding.
   const sidebarNavigateFromPointer = (path: string, e?: React.PointerEvent | React.MouseEvent | { button?: number }) => {
     if (e && 'button' in e && typeof e.button === 'number' && e.button !== 0) return;
     if (!path) return;
-    // Nudge WinUI caption Passthrough on first sidebar interaction after boot â€”
+    // Nudge WinUI caption Passthrough on first sidebar interaction after boot --
     // regions often settle late and leave LMB dead for seconds.
     if (!sidebarInputRegionsNudgedRef.current) {
       sidebarInputRegionsNudgedRef.current = true;
@@ -4533,13 +4533,13 @@ export default function BNDZUI() {
       pushToast({
         kind: 'warning',
         title: 'Portable device is read-only',
-        message: 'Turn off â€œTreat portable devices as read-onlyâ€ in Settings to allow deletes on phones/MTP.',
+        message: 'Turn off "Treat portable devices as read-only" in Settings to allow deletes on phones/MTP.',
       });
       return;
     }
     const rt = buildSettingsRuntime(config);
     const listIx = getListIxBehavior(config);
-    // Recycle when deleteToRecycleBin is on and bypassRecycleBin is off (Shift+Delete â†’ permanent).
+    // Recycle when deleteToRecycleBin is on and bypassRecycleBin is off (Shift+Delete -> permanent).
     const useRecycleBin = config.deleteToRecycleBin !== false
       && !rt.shell.bypassRecycle
       && !config.bypassRecycleBin;
@@ -4613,25 +4613,25 @@ export default function BNDZUI() {
           detail: { opId, op: 'delete', label },
         }));
       } catch { /* ignore */ }
-      // Progress lives only in FileTransferQueuePanel â€” no center sticky toasts.
+      // Progress lives only in FileTransferQueuePanel -- no center sticky toasts.
       IPC.executeFsOperation(opId, 'delete', winPaths, '', bypassRecycle, label, 'high');
-      // Skip aggressive RAM refetch â€” tombstones keep rows hidden until the job completes.
+      // Skip aggressive RAM refetch -- tombstones keep rows hidden until the job completes.
       })();
     };
 
-    const names = items.map(x => x.name).slice(0, 5).join('\nâ€¢ ');
+    const names = items.map(x => x.name).slice(0, 5).join('\n* ');
     const confirmMsg = items.length === 1
       ? `${options?.permanent ? 'Permanently remove' : 'Delete'} "${items[0].name}"?${bypassRecycle ? '\n\n(Bypassing Recycle Bin)' : '\n\nItems will be moved to the Recycle Bin.'}`
-      : `${options?.permanent ? 'Permanently delete' : 'Delete'} ${items.length} items?${bypassRecycle ? '\n\n(Bypassing Recycle Bin)' : '\n\nItems will be moved to the Recycle Bin.'}\n\nâ€¢ ${names}${items.length > 5 ? '\nâ€¢ ...' : ''}`;
+      : `${options?.permanent ? 'Permanently delete' : 'Delete'} ${items.length} items?${bypassRecycle ? '\n\n(Bypassing Recycle Bin)' : '\n\nItems will be moved to the Recycle Bin.'}\n\n* ${names}${items.length > 5 ? '\n* ...' : ''}`;
 
-    // Permanent deletes (Shift+Delete / bypass) always require an explicit confirmation â€” never skippable.
+    // Permanent deletes (Shift+Delete / bypass) always require an explicit confirmation -- never skippable.
     if (options?.permanent || bypassRecycle) {
       showModal({
         type: 'destructive',
         title: items.length === 1 ? 'Delete Permanently' : `Permanently Delete ${items.length} Items`,
         message: items.length === 1
           ? `Permanently delete "${items[0].name}"?\n\nThis cannot be undone and will not go to the Recycle Bin.`
-          : `Permanently delete ${items.length} items?\n\nThis cannot be undone.\n\nâ€¢ ${names}${items.length > 5 ? '\nâ€¢ ...' : ''}`,
+          : `Permanently delete ${items.length} items?\n\nThis cannot be undone.\n\n* ${names}${items.length > 5 ? '\n* ...' : ''}`,
         actions: [
           { label: items.length === 1 ? 'Delete Permanently' : `Delete ${items.length} Permanently`, style: 'destructive', action: executeDelete },
           { label: 'Cancel', style: 'secondary', action: () => {} },
@@ -4753,7 +4753,7 @@ export default function BNDZUI() {
     handleDeleteRequest(items, paths[0].substring(0, Math.max(paths[0].lastIndexOf('/'), paths[0].lastIndexOf('\\'))) || currentPath);
   };
 
-  /** Mandatory confirmation for irreversible Recycle Bin purge â€” never skippable. */
+  /** Mandatory confirmation for irreversible Recycle Bin purge -- never skippable. */
   const requestPermanentPurge = (paths: string[]) => {
     if (!paths.length) return;
     const label = paths.length === 1
@@ -4772,7 +4772,7 @@ export default function BNDZUI() {
               const { IPC } = await import('../lib/ipcBridge');
               const result = await IPC.purgeRecycleItems(paths);
               if (isQueuedIpcResult(result)) {
-                setToastMessage('Delete queued â€” see transfer panel.');
+                setToastMessage('Delete queued -- see transfer panel.');
                 return;
               }
               if (result.purged > 0) {
@@ -4804,11 +4804,11 @@ export default function BNDZUI() {
           label: 'Empty Recycle Bin',
           style: 'destructive',
           action: () => {
-            setToastMessage('Emptying Recycle Binâ€¦');
+            setToastMessage('Emptying Recycle Bin...');
             import('../lib/ipcBridge').then(({ IPC }) => {
               IPC.emptyRecycleBin().then(result => {
                 if (isQueuedIpcResult(result)) {
-                  setToastMessage('Empty Recycle Bin queued â€” see transfer panel.');
+                  setToastMessage('Empty Recycle Bin queued -- see transfer panel.');
                   return;
                 }
                 if (result?.success) {
@@ -5041,7 +5041,7 @@ export default function BNDZUI() {
       transferActiveCountRef.current = Math.max(Number(state.activeCount) || 0, queuedOrRunning);
       let shouldRefresh = false;
       // Track whether every newly-completed job in this batch was a delete so we can
-      // use a shorter (or zero) refresh delay â€” tombstones already removed the rows
+      // use a shorter (or zero) refresh delay -- tombstones already removed the rows
       // optimistically, so the only reason to refresh is to confirm FS truth.
       let batchIsDeleteOnly = true;
       let hasDeleteFailure = false;
@@ -5055,7 +5055,7 @@ export default function BNDZUI() {
 
       for (const job of state.jobs) {
         if (!refreshCategories.has(job.category || 'fs')) continue;
-        // Throttled mid-run dest refresh â€” keeps optimistic rows stable on small ops.
+        // Throttled mid-run dest refresh -- keeps optimistic rows stable on small ops.
         if ((job.status === 'queued' || job.status === 'running') && job.destinationPath) {
           const destPane = watcherDirToPanePath(String(job.destinationPath));
           if (destPane && panesRef.current.some(p => p.tabs.some(t => normalizePanePath(t.path) === destPane))) {
@@ -5090,13 +5090,13 @@ export default function BNDZUI() {
             }
             if ((isDelete || isMove || isRename) && (job.status === 'failed' || job.status === 'cancelled')) {
               hasDeleteFailure = true;
-              // Instant reinject â€” don't wait for disk refresh (blank gap after optimistic hide).
+              // Instant reinject -- don't wait for disk refresh (blank gap after optimistic hide).
               reinjectFsTombstone(job.operationId);
-              // Clear backend filter BEFORE refresh â€” fire-and-forget clear raced refetch and
+              // Clear backend filter BEFORE refresh -- fire-and-forget clear raced refetch and
               // left rows missing until F5 (listing still tombstone-filtered on host).
               failedTombstoneClears.push(job.operationId);
             } else if ((isDelete || isMove) && job.status === 'completed') {
-              // Keep tombstones through disk refresh â€” prevents flicker-back when listing lags AV/recycle.
+              // Keep tombstones through disk refresh -- prevents flicker-back when listing lags AV/recycle.
               const opId = job.operationId;
               const tombstoneClearMs = isDelete ? 900 : 1800;
               setTimeout(() => clearFsTombstone(opId), tombstoneClearMs);
@@ -5133,7 +5133,7 @@ export default function BNDZUI() {
               const isPartialBatch = failedPaths.length > 0;
               // Partial batch always gets an ops sheet (Retry failed / Skip rest) even when
               // the summary message does not match a known error regex.
-              // Rename invalidName also gets a dedicated sheet (Fix name) â€” E4.14.
+              // Rename invalidName also gets a dedicated sheet (Fix name) -- E4.14.
               const showOpsSheet =
                 (classified.kind !== 'other' || isPartialBatch)
                 && (!isDelete)
@@ -5281,12 +5281,12 @@ Restart BNDZ as administrator to retry?` },
                       setInlineRename({ path: parent, entityId, currentName: next.trim() });
                       return;
                     }
-                    // Copy/move: retry after user picks a legal leaf â€” host still owns dest naming;
+                    // Copy/move: retry after user picks a legal leaf -- host still owns dest naming;
                     // surface toast so they can rename the source first if needed.
                     pushToast({
                       kind: 'info',
                       title: 'Rename the source',
-                      message: `Use a valid name like â€œ${next.trim()}â€, then Retry the transfer.`,
+                      message: `Use a valid name like "${next.trim()}", then Retry the transfer.`,
                     });
                     retryThisTransfer();
                   };
@@ -5328,7 +5328,7 @@ ${classified.detail}`,
                 });
               }
             } else if (job.status === 'completed') {
-              // Floating toast / transfer panel already surface success â€” skip center success spam
+              // Floating toast / transfer panel already surface success -- skip center success spam
               // for ordinary copy/move/delete (keep mesh/archive and failure messaging).
               const quietSuccess = isDelete || isMove || isCopy;
               if (!quietSuccess) {
@@ -5371,7 +5371,7 @@ ${classified.detail}`,
       }
       if (shouldRefresh) {
         if (refreshTimer) clearTimeout(refreshTimer);
-        // Instant confirmation refresh for ordinary FS ops â€” optimism already updated the list.
+        // Instant confirmation refresh for ordinary FS ops -- optimism already updated the list.
         // Tiny delay only when coalescing a mid-run dest tick with a completion in the same burst.
         const delay = (batchIsDeleteOnly || hasDeleteFailure || pathsToRefresh.size > 0) ? 0 : 50;
         const clears = failedTombstoneClears.slice();
@@ -5435,7 +5435,7 @@ ${classified.detail}`,
         setColumnPicker(null);
       }
     };
-    // pointerdown captures earlier than click â€” WebView2 sometimes eats the click after drag.
+    // pointerdown captures earlier than click -- WebView2 sometimes eats the click after drag.
     document.addEventListener('pointerdown', handleDismiss, true);
     document.addEventListener('click', handleDismiss, true);
     window.addEventListener('keydown', onKeyDown);
@@ -5488,7 +5488,7 @@ ${classified.detail}`,
   const liveShareEnabled = config.liveShareCursorEnabled === true || liveShareForced;
   const { peers: liveSharePeers, publish: publishLiveShare } = useLiveShareCursor(currentPath, liveShareEnabled);
 
-  // Settings â†’ Resolve cache path from current folder
+  // Settings -> Resolve cache path from current folder
   useEffect(() => {
     if (!config.resolveCachePathFromCurrentFolder) {
       void import('../lib/ipcBridge').then(({ IPC }) => IPC.setMediaCacheBrowseFolder(null));
@@ -5555,7 +5555,7 @@ ${classified.detail}`,
       }
       return;
     }
-    // Home / Spatial / Automation must force the dock shut â€” CSS is belt-and-suspenders;
+    // Home / Spatial / Automation must force the dock shut -- CSS is belt-and-suspenders;
     // also zero the group layout so RRP flexGrow cannot leave a leftover strip.
     const forceClosed = () => {
       try {
@@ -5734,12 +5734,12 @@ ${classified.detail}`,
 
   const addressSuggestions = useMemo(() => {
     if (!editingAddressBarPaneId) return [];
-    // Settings â†’ Auto-Complete Path Names â†’ Address Bar
+    // Settings -> Auto-Complete Path Names -> Address Bar
     if (!config.addressBar) return [];
     const pathCandidates = (shortcuts || [])
       .filter((s): s is { name?: string; path: string } => !!s.path)
       .map(s => ({ path: s.path, label: s.name }));
-    // Controls â†’ Auto-complete recently used items gates history visits in the dropdown.
+    // Controls -> Auto-complete recently used items gates history visits in the dropdown.
     const includeRecent = !!config.autoCompleteRecentlyUsedItems;
     return buildPathSuggestions(addressBarInput, {
       visits: includeRecent ? config.navigationHistory : [],
@@ -5806,7 +5806,7 @@ ${classified.detail}`,
 
   const statusBarClipboardLabel = useMemo(() => describeClipboardState(clipboard) || '', [clipboard]);
 
-  /** Live density while scrubbing â€” avoid config/save/runtime churn every pointer move. */
+  /** Live density while scrubbing -- avoid config/save/runtime churn every pointer move. */
   const [liveDensity, setLiveDensity] = useState<null | { mode: 'grid' | 'list' | 'details'; value: number }>(null);
   const listIconSz = Math.max(12, Math.min(96, (liveDensity?.mode === 'list' ? liveDensity.value : null) ?? config.listIconSize ?? 14));
   const gridIconSz = Math.max(12, Math.min(256, (liveDensity?.mode === 'grid' ? liveDensity.value : null) ?? config.gridIconSize ?? 48));
@@ -5854,7 +5854,7 @@ ${classified.detail}`,
     setSelectedItems([items[0].id], activePaneId);
   }, [currentPath, pathContentsCache, config.autoSelectFirstItem, activePaneId]);
 
-  // Settings â†’ Persist visual filters across folders (kind/tag list filters)
+  // Settings -> Persist visual filters across folders (kind/tag list filters)
   const lastVisualFilterPathRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentPath) return;
@@ -6028,7 +6028,7 @@ ${classified.detail}`,
   const jobTicketOverdueMap = useJobTicketOverdueMap(currentPath, currentDirItems);
   const healthProblemMap = useHealthProblemMap(currentPath, currentDirItems);
 
-  // Cancel in-flight scan when leaving a path â€” keep completed signatures so revisits skip IPC.
+  // Cancel in-flight scan when leaving a path -- keep completed signatures so revisits skip IPC.
   useEffect(() => {
     folderSizeScanGen.current += 1;
     folderSizeScanActiveRef.current = false;
@@ -6067,7 +6067,7 @@ ${classified.detail}`,
     if (!config.cacheFolderSizes) return;
     if (config.alwaysShowFolderSizes && !config.showCachedFolderSizesOnly) return;
     if (!currentDirCount) return;
-    // Same scheduler as above when both flags are on â€” skip duplicate kick.
+    // Same scheduler as above when both flags are on -- skip duplicate kick.
     if (!config.showCachedFolderSizesOnly && (config.autoSyncFolderSizes !== false || config.alwaysShowFolderSizes)) return;
     const isFilesHost = typeof document !== 'undefined'
       && document.documentElement.dataset.bndzShell === 'files-host';
@@ -6134,7 +6134,7 @@ ${classified.detail}`,
               list.push(ev);
               byDir.set(panePath, list);
             }
-            // RAM staging: host watches the real mount â€” map back to open /bndz/ram tabs.
+            // RAM staging: host watches the real mount -- map back to open /bndz/ram tabs.
             const winDir = (ev.dir || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
             for (const pane of panesRef.current) {
               for (const tab of pane.tabs) {
@@ -6159,7 +6159,7 @@ ${classified.detail}`,
               const t = String(e.type || '');
               return t === 'Created' || t === 'Deleted' || t === 'Renamed';
             });
-            // Always soft-refresh the open listing on Created/Deleted/Renamed â€”
+            // Always soft-refresh the open listing on Created/Deleted/Renamed --
             // patch alone often lacks host metadata and left paste/rename invisible.
             if (meaningful) {
               scheduleSoftRefresh(panePath);
@@ -6168,7 +6168,7 @@ ${classified.detail}`,
             }
           });
         }
-        // Settings â†’ Auto-refresh tags: re-fetch listing so sidecar tags re-enrich
+        // Settings -> Auto-refresh tags: re-fetch listing so sidecar tags re-enrich
         if (config.autoRefreshTags && config.fileTagging !== false) {
           for (const ev of events) {
             const panePath = watcherDirToPanePath(ev.dir || '');
@@ -6248,7 +6248,7 @@ ${classified.detail}`,
         if (!opId || opId.startsWith('folder-size') || opId.startsWith('index-')) return;
 
         // A backend error must never be reported as a success toast just because it also
-        // happened to carry percentage=100/0 â€” check explicitly before any pct-based branch.
+        // happened to carry percentage=100/0 -- check explicitly before any pct-based branch.
         if (progressDetails.error) {
           dismissToast(`xfer-${opId}`);
           // Terminal error toasts come from FILE_TRANSFER_QUEUE_CHANGED (avoids Deleted+Failed doubles).
@@ -6388,7 +6388,7 @@ ${classified.detail}`,
 
   const [destinationPicker, setDestinationPicker] = useState<{ mode: 'copy' | 'move'; sources: string[] } | null>(null);
   const [tabFileDropTarget, setTabFileDropTarget] = useState<{ paneId: string; tabIndex: number } | null>(null);
-  /** During pointer file drag â€” drives list + tab chrome to hovered tab before drop. */
+  /** During pointer file drag -- drives list + tab chrome to hovered tab before drop. */
   const [fileDragListPreview, setFileDragListPreview] = useState<{ paneId: string; tabIndex: number } | null>(null);
   const [newTabDropPaneId, setNewTabDropPaneId] = useState<string | null>(null);
   const tabFileDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -6520,7 +6520,7 @@ ${classified.detail}`,
         iconPath: KNOWN_FOLDER_SHELL[name]
           ? `/${KNOWN_FOLDER_SHELL[name]}`
           : p,
-        // Navigate-only under Libraries â€” expanding here surfaced a nested
+        // Navigate-only under Libraries -- expanding here surfaced a nested
         // "Desktop" folder (Desktop\Desktop) that shadowed the known folder.
         isDynamic: false,
         leaf: true,
@@ -6534,14 +6534,14 @@ ${classified.detail}`,
       const s = shortcuts.find(sc => sc.name === name);
       const shellKey = KNOWN_FOLDER_SHELL[name];
       // Prefer real FS paths from GET_SYSTEM_SHORTCUTS so the address bar shows
-      // C:\Users\â€¦\Desktop instead of shell:Desktop.
+      // C:\Users\...\Desktop instead of shell:Desktop.
       add(name, s?.path || (shellKey ? `/${shellKey}` : `C:/Users/${windowsUsername}/${name}`));
     }
     if (galleryShortcut?.path) add('Gallery', galleryShortcut.path);
     return items;
   }, [shortcuts, windowsUsername, galleryShortcut]);
 
-  /** List-pane entities for Libraries â€” same known folders as the tree (shell enum often returns blank names). */
+  /** List-pane entities for Libraries -- same known folders as the tree (shell enum often returns blank names). */
   const libraryListEntities = useMemo(() => (
     libraryFolderItems.map(item => ({
       id: item.path,
@@ -6570,7 +6570,7 @@ ${classified.detail}`,
     }))
   ), [cloudNav]);
 
-  /** Drives shown in This PC / tree / letter bar â€” exclude dedicated cloud volume letters only,
+  /** Drives shown in This PC / tree / letter bar -- exclude dedicated cloud volume letters only,
    *  and also exclude any drive letters currently mounted as RAM staging zones. */
   const navigationDrives = useMemo(() => {
     const ramLetters = new Set(
@@ -6582,7 +6582,7 @@ ${classified.detail}`,
       if (isCloudOwnedDrive(d)) return false;
       if (ramLetters.size === 0) return true;
       const letter = (d.name || '').replace(/^\/+/, '').replace(/[^A-Za-z:]/g, '').toUpperCase();
-      // letter is "C:" â€” check both with and without colon
+      // letter is "C:" -- check both with and without colon
       const letterOnly = letter.replace(':', '');
       return !ramLetters.has(letter) && !ramLetters.has(letterOnly);
     });
@@ -6741,7 +6741,7 @@ ${classified.detail}`,
   }, []);
 
   // Work Intent: folder `.bndz-intent` contract on navigate (never omnibar).
-  // Path-only deps + refs â€” avoid updateConfig/openBottomPlugin identity storms.
+  // Path-only deps + refs -- avoid updateConfig/openBottomPlugin identity storms.
   const workIntentIdRef = useRef(config.workIntentId || 'browse');
   workIntentIdRef.current = config.workIntentId || 'browse';
   const updateConfigRef = useRef(updateConfig);
@@ -6773,8 +6773,8 @@ ${classified.detail}`,
           });
           updateConfigRef.current(patch);
           setToastMessageRef.current(toast);
-          // Do not auto-open/install plugins on navigate â€” that chained ensurePluginInstalled
-          // â†’ updateConfig â†’ shell apply and contributed to host freezes.
+          // Do not auto-open/install plugins on navigate -- that chained ensurePluginInstalled
+          // -> updateConfig -> shell apply and contributed to host freezes.
         } catch {
           /* contract optional */
         }
@@ -6793,7 +6793,7 @@ ${classified.detail}`,
         draggable: true,
         label: 'Home',
         path: BNDZ_HOME,
-        // Native Profile shell glyph; Icons8 home is launch house â€” avoid as fallback.
+        // Native Profile shell glyph; Icons8 home is launch house -- avoid as fallback.
         iconPath: '/shell:Profile',
         icon: 'folder_open_ui',
         iconColor: '#7eb8e8',
@@ -6846,7 +6846,7 @@ ${classified.detail}`,
         path: BNDZ_VIEWS_ROOT,
         icon: 'sparkles_ui',
         iconColor: '#0078d4',
-        // Virtual /bndz paths are not shell namespace items â€” shell fetch â†’ white file placeholders.
+        // Virtual /bndz paths are not shell namespace items -- shell fetch -> white file placeholders.
         useShellIcon: false,
         expanded: smartViewsExpanded,
         onClick: () => setCurrentPath(BNDZ_VIEWS_ROOT),
@@ -6876,7 +6876,7 @@ ${classified.detail}`,
         treeKey: 'workspace-tools',
         draggable: true,
         label: 'Workspace Tools',
-        // No path â€” parent must NOT share /bndz/canvas with Spatial Canvas child
+        // No path -- parent must NOT share /bndz/canvas with Spatial Canvas child
         // (duplicate React row ids were painting a second "Workspace Tools" ghost).
         icon: 'layers_ui',
         iconColor: '#34d399',
@@ -6993,7 +6993,7 @@ ${classified.detail}`,
             const isEphemeral = h.id.startsWith('incus-')
               || String(h.notes || '').toLowerCase().startsWith('ephemeral:');
             return {
-              label: isEphemeral ? `${h.alias} Â· Ephemeral` : h.alias,
+              label: isEphemeral ? `${h.alias} | Ephemeral` : h.alias,
               path: buildMeshPath(h.id, h.remoteRootPath || '/'),
               icon: isEphemeral ? 'cloud_ui' : (h.provider === 1 ? 'cloud_ui' : 'server_ui'),
               iconColor: isEphemeral
@@ -7030,7 +7030,7 @@ ${classified.detail}`,
     const order = mergeNavTreeOrder(config.navTreeOrder, keys);
     return applyNavTreeOrder(deduped, order);
   }, [
-    // Intentionally omit currentPath â€” selection highlight is handled per-row via
+    // Intentionally omit currentPath -- selection highlight is handled per-row via
     // panePathsEqual; rebuilding the whole tree on every navigate freezes Inbound/Problems.
     drives, navigationDrives, thisPcExpanded, libraryFolderItems,
     networkOnlyNodes, networkExpanded, homeTreePath, wslLinuxPath,
@@ -7044,7 +7044,7 @@ ${classified.detail}`,
     const items: Array<{ path: string; iconPath?: string }> = [];
     const walk = (nodes: typeof treeData) => {
       for (const n of nodes) {
-        // Virtual bndz views skip shell prefetch unless they declare iconPath (e.g. Continuum Home â†’ shell:Profile).
+        // Virtual bndz views skip shell prefetch unless they declare iconPath (e.g. Continuum Home -> shell:Profile).
         if (n.useShellIcon !== false && (n.iconPath || (n.path && !String(n.path).startsWith('/bndz/')))) {
           items.push({ path: n.path || '', iconPath: n.iconPath });
         }
@@ -7070,7 +7070,7 @@ ${classified.detail}`,
     const tabLimits = getTabLimitBehavior(config);
     if (isDualPane) {
        if (tabLimits.alwaysKeep1stPaneVisible && panes.length >= 2) {
-         // Keep pane 1 (first) visible â€” collapse by removing the inactive/other pane only.
+         // Keep pane 1 (first) visible -- collapse by removing the inactive/other pane only.
          const keep = panes[0] || activePane;
          setPanes([keep]);
          setActivePaneId(keep.id);
@@ -7146,7 +7146,7 @@ ${classified.detail}`,
             viewMode: tab.viewMode,
           },
         };
-        setToastMessage('View locked â€” sort, filter, and columns frozen.');
+        setToastMessage('View locked -- sort, filter, and columns frozen.');
       }
       return { ...p, tabs };
     }));
@@ -7265,7 +7265,7 @@ ${classified.detail}`,
       navigate: (path) => setCurrentPath(path, paneId),
       setFilter: setFilterText,
       toast: setToastMessage,
-      // Settings â†’ Remember permanent variables
+      // Settings -> Remember permanent variables
       setPermanentVariable: (name, value) => {
         const current = normalizePermanentVariables(config.permanentVariables);
         updateConfig({
@@ -7288,25 +7288,25 @@ ${classified.detail}`,
    * the normal toggle-filter-clear behaviour.
    *
    * Navigation triggers (no '>' prefix required):
-   *   %AppData%, %LOCALAPPDATA%, %TEMP%, %USERPROFILE% â€” any %VAR%
-   *   C:\path, D:\ etc.       â€” drive letters
-   *   shell:Downloads etc.    â€” shell known folders
-   *   \\server\share          â€” UNC paths
-   *   ::scripts               â€” address-bar quick scripts
+   *   %AppData%, %LOCALAPPDATA%, %TEMP%, %USERPROFILE% -- any %VAR%
+   *   C:\path, D:\ etc.       -- drive letters
+   *   shell:Downloads etc.    -- shell known folders
+   *   \\server\share          -- UNC paths
+   *   ::scripts               -- address-bar quick scripts
    *
    * Command mode ('>' prefix):
-   *   >refresh / >reload      â€” reload active folder
-   *   >dual / >split          â€” toggle dual pane
-   *   >preview / >inspector   â€” toggle preview panel
-   *   >settings / >config     â€” open settings dialog
-   *   >rename                 â€” batch rename plugin
-   *   >find [query]           â€” fast search plugin (or new finding tab if query given)
-   *   >search [query]         â€” alias for >find
-   *   >go / >cd [path]        â€” navigate
-   *   >metadata               â€” metadata inspector plugin
-   *   >tabset                 â€” save tabset
-   *   >palette / >commands    â€” open command palette
-   *   >plugins / >store / >hub â€” Extension Hub
+   *   >refresh / >reload      -- reload active folder
+   *   >dual / >split          -- toggle dual pane
+   *   >preview / >inspector   -- toggle preview panel
+   *   >settings / >config     -- open settings dialog
+   *   >rename                 -- batch rename plugin
+   *   >find [query]           -- fast search plugin (or new finding tab if query given)
+   *   >search [query]         -- alias for >find
+   *   >go / >cd [path]        -- navigate
+   *   >metadata               -- metadata inspector plugin
+   *   >tabset                 -- save tabset
+   *   >palette / >commands    -- open command palette
+   *   >plugins / >store / >hub -- Extension Hub
    */
   const tryOmnibarSubmit = async (raw: string): Promise<boolean> => {
     const trimmed = raw.trim();
@@ -7375,7 +7375,7 @@ ${classified.detail}`,
         return true;
       }
       setToastMessage(`Unknown command: '${cmd}'. Try: refresh, dual, preview, settings, find, go, terminal, filters, palette, hub`);
-      return true; // consumed â€” error toast shown
+      return true; // consumed -- error toast shown
     }
 
     // --- Path navigation mode (no prefix required) ---
@@ -7562,7 +7562,7 @@ ${classified.detail}`,
     clientX: number,
     clientY: number,
   ) => {
-    // Settings â†’ Folder contents preview (+ In list / In tree + mouse-up buttons)
+    // Settings -> Folder contents preview (+ In list / In tree + mouse-up buttons)
     if (!config.folderContentsPreview) return;
     try {
       const items = await IPC.getDirContents(folderPath);
@@ -7634,7 +7634,7 @@ ${classified.detail}`,
           ? (canonSources[0].split(/[/\\]/).pop() || 'item')
           : `${canonSources.length} items`;
         const approved = await confirm({
-          title: 'Intent Â· strict confirm',
+          title: 'Intent | strict confirm',
           message: `Archive/Clean intent requires confirm before moving ${labelPreview} to ${destCanon}.`,
           type: 'warning',
           confirmLabel: 'Move',
@@ -7663,7 +7663,7 @@ ${classified.detail}`,
         : isMeshDropSend ? 'Mesh Drop'
         : op === 'copy' ? 'Copying' : 'Moving';
       if (isMeshDropSend) {
-        // Mesh Drop opens the pairing dialog â€” no fake progress toast.
+        // Mesh Drop opens the pairing dialog -- no fake progress toast.
         dismissToast(`xfer-${opId}`);
       }
 
@@ -7674,7 +7674,7 @@ ${classified.detail}`,
           dismissToast(`xfer-${opId}`);
           pushToast({ kind: 'error', title: `${verb} failed`, message: result.error || label });
         } else if (isMeshDropSend) {
-          pushToast({ kind: 'info', title: 'Mesh Drop', message: 'Pairing dialog opened â€” share the Mesh Code with your peer.' });
+          pushToast({ kind: 'info', title: 'Mesh Drop', message: 'Pairing dialog opened -- share the Mesh Code with your peer.' });
         }
         return;
       }
@@ -7682,7 +7682,7 @@ ${classified.detail}`,
       lastLocalTransferRef.current = { action: op, sources: canonSources, destDir: destCanon, operationId: opId };
       localTransferByOpRef.current.set(opId, { action: op, sources: canonSources, destDir: destCanon });
 
-      // Mesh paths must never fall through to Windows FS ops (toWindowsPath mangles /mesh/â€¦).
+      // Mesh paths must never fall through to Windows FS ops (toWindowsPath mangles /mesh/...).
       if (isMeshPath(destCanon) || canonSources.some(isMeshPath)) {
         dismissToast(`xfer-${opId}`);
         xferMetaRef.current.delete(opId);
@@ -7696,7 +7696,7 @@ ${classified.detail}`,
         return;
       }
 
-      // Budget governor â€” soft warn / hard block before local copy/move lands.
+      // Budget governor -- soft warn / hard block before local copy/move lands.
       try {
         if (IPC.isNative) {
           let incomingBytes = 0;
@@ -7748,10 +7748,10 @@ ${classified.detail}`,
           }
         }
       } catch {
-        /* governor / policy optional â€” never block drops on IPC failure */
+        /* governor / policy optional -- never block drops on IPC failure */
       }
 
-      // Drop onto RAM zone root â†’ stage API (preserves folder trees into the mount).
+      // Drop onto RAM zone root -> stage API (preserves folder trees into the mount).
       const ramZoneId = parseBndzRamZoneId(destCanon);
       const ramZoneRoot = ramZoneId ? bndzRamVirtualPath(ramZoneId) : null;
       if (ramZoneId && ramZoneRoot && normalizePanePath(destCanon) === ramZoneRoot) {
@@ -7801,7 +7801,7 @@ ${classified.detail}`,
           sourceWinPaths: resolvedSources,
           sourceNames: resolvedSources.map(basenameFromWinPath),
         });
-        // Soft invalidate after paint â€” paste listener already owns optimism.
+        // Soft invalidate after paint -- paste listener already owns optimism.
         window.setTimeout(() => {
           try {
             window.dispatchEvent(new CustomEvent('bndz-invalidate-path', { detail: { path: destPane } }));
@@ -7849,7 +7849,7 @@ ${classified.detail}`,
           } catch { /* ignore */ }
         }
       });
-      // Tombstones keep source rows hidden â€” avoid 200ms RAM refresh fighting optimistic UI.
+      // Tombstones keep source rows hidden -- avoid 200ms RAM refresh fighting optimistic UI.
       if (!IPC.isNative && op === 'move' && sourcePath) {
         let newFs = fileSystem;
         for (const sp of canonSources) {
@@ -7888,7 +7888,7 @@ ${classified.detail}`,
         pushToast({ kind: 'warning', title: 'Nothing to retry', message: 'No recent local transfer is available to replay.' });
         return;
       }
-      // Prefer host failedPaths[] (partial batch) â€” only resubmit what actually failed.
+      // Prefer host failedPaths[] (partial batch) -- only resubmit what actually failed.
       const failed = (detail?.failedPaths || []).filter(Boolean);
       const sources = failed.length > 0
         ? pending.sources.filter((s) => failed.some((f) => f.replace(/\\/g, '/').toLowerCase() === s.replace(/\\/g, '/').toLowerCase())
@@ -7979,7 +7979,7 @@ ${classified.detail}`,
   };
   const menuAct = (fn: () => void) => runMenubarAction(() => { fn(); closeMenu(); });
 
-  /** Prefer live list cache over the empty virtual FS tree â€” toolbar/menubar/hotkeys must use this. */
+  /** Prefer live list cache over the empty virtual FS tree -- toolbar/menubar/hotkeys must use this. */
   const getCachedPaneContents = React.useCallback((panePath: string) => {
     const norm = normalizePanePath(panePath);
     return (pathContentsCache[panePath] || pathContentsCache[norm] || []) as any[];
@@ -8044,7 +8044,7 @@ ${classified.detail}`,
     }
     if (kind === 'ini') {
       openPathInExplorer(target);
-      setToastMessage('Opening configuration file locationâ€¦');
+      setToastMessage('Opening configuration file location...');
       return;
     }
     const parent = target.replace(/[\\/][^\\/]+$/, '');
@@ -8088,7 +8088,7 @@ ${classified.detail}`,
       setToastMessage('Select item(s) to duplicate.');
       return;
     }
-    // Same-folder copy via Copy To path â€” dest optimism + select + green tint (host collision rename).
+    // Same-folder copy via Copy To path -- dest optimism + select + green tint (host collision rename).
     await copyOrMoveToTarget('copy', currentTab.path, paths, { skipConfirm: true });
   };
 
@@ -8189,13 +8189,13 @@ ${classified.detail}`,
   const pasteHereAs = async () => {
     if (!pasteSpecialRequireClipboard()) return;
     if (clipboard.items.length !== 1) {
-      setToastMessage('Paste Here Asâ€¦ works with one clipboard item.');
+      setToastMessage('Paste Here As... works with one clipboard item.');
       return;
     }
     const src = toWindowsPath(clipboard.items[0]);
     const base = src.split(/[/\\]/).pop() || 'item';
     const raw = await requestNativePrompt({
-      title: 'Paste Here Asâ€¦',
+      title: 'Paste Here As...',
       message: 'Enter the destination file or folder name.',
       defaultValue: base,
       confirmLabel: 'Paste',
@@ -8209,7 +8209,7 @@ ${classified.detail}`,
     const pasteAsRes = await IPC.executeFsOperation(`paste-as-${Date.now()}`, op, src, destFile, false, asName, 'high');
     if (clipboard.action === 'cut') clearClipboard();
     if (isQueuedIpcResult(pasteAsRes)) {
-      setToastMessage(`Paste as "${asName}" queued â€” see transfer panel.`);
+      setToastMessage(`Paste as "${asName}" queued -- see transfer panel.`);
       return;
     }
     setToastMessage(pasteAsRes?.ok === false ? (pasteAsRes.error || 'Paste failed.') : `Pasted as "${asName}".`);
@@ -8225,14 +8225,14 @@ ${classified.detail}`,
     for (const src of clipboard.items) {
       const win = toWindowsPath(src);
       const base = win.split(/[/\\]/).pop() || 'Folder';
-      // Prefer creating a folder named after each clipboard item (files â†’ folder of parent name skipped; use basename without ext for files)
+      // Prefer creating a folder named after each clipboard item (files -> folder of parent name skipped; use basename without ext for files)
       const folderName = base.includes('.') && !base.endsWith('\\') ? base.replace(/\.[^.]+$/, '') || base : base;
       const target = `${dest}\\${folderName}`;
       const res = await IPC.executeFsOperation(`paste-struct-${Date.now()}-${created}`, 'create-dir', target, '', false, folderName);
       if (isQueuedIpcResult(res)) queued += 1;
       else if (res?.ok !== false) created += 1;
     }
-    if (queued) setToastMessage(`Folder create queued (${queued}) â€” see transfer panel.`);
+    if (queued) setToastMessage(`Folder create queued (${queued}) -- see transfer panel.`);
     else setToastMessage(created ? `Created ${created} folder(s) from clipboard structure.` : 'Nothing to create.');
     if (!queued) refreshWorkspace();
   };
@@ -8254,7 +8254,7 @@ ${classified.detail}`,
       const base = (win.split('\\').pop() || 'archive').replace(/\.[^.]+$/, '');
       await IPC.extractArchive(win, `${dest}\\${base}`);
     }
-    setToastMessage(`Extracting ${archives.length} archive(s)â€¦`);
+    setToastMessage(`Extracting ${archives.length} archive(s)...`);
     refreshWorkspace();
   };
 
@@ -8263,7 +8263,7 @@ ${classified.detail}`,
     const dest = `${toWindowsPath(currentTab.path)}\\Clipboard-${Date.now()}.zip`;
     const { IPC } = await import('../lib/ipcBridge');
     const res = await IPC.createArchive(clipboard.items.map(toWindowsPath), dest, 'zip');
-    setToastMessage(isQueuedIpcResult(res) ? 'Zip queued â€” see transfer panel.' : (res.ok ? 'Clipboard items zipped.' : (res.error || 'Zip failed.')));
+    setToastMessage(isQueuedIpcResult(res) ? 'Zip queued -- see transfer panel.' : (res.ok ? 'Clipboard items zipped.' : (res.error || 'Zip failed.')));
     refreshWorkspace();
   };
 
@@ -8283,7 +8283,7 @@ ${classified.detail}`,
         if (isQueuedIpcResult(res)) queued += 1;
         else if (res?.ok !== false) created += 1;
       }
-      if (queued) setToastMessage(`Create queued (${queued}) â€” see transfer panel.`);
+      if (queued) setToastMessage(`Create queued (${queued}) -- see transfer panel.`);
       else setToastMessage(`Created ${created} item(s) from clipboard text.`);
       if (!queued) refreshWorkspace();
     } catch {
@@ -8406,13 +8406,13 @@ ${classified.detail}`,
     const storageMode = String(config.tagsStorage || 'Absolute paths');
     const { IPC } = await import('../lib/ipcBridge');
 
-    // Fetch every sidecar once, in parallel â€” previously this fetched each path's
+    // Fetch every sidecar once, in parallel -- previously this fetched each path's
     // sidecar twice (once to compute allHaveTag, once to apply) and did both
     // sequentially, so tagging N items cost 2N+N sequential IPC round-trips.
     const sidecars = await Promise.all(paths.map(p => IPC.getTagSidecar(p)));
     const allHaveTag = sidecars.every(side => entityHasTag(side?.tags, tagKey));
 
-    // Settings â†’ Confirm copying tags (confirm before applying)
+    // Settings -> Confirm copying tags (confirm before applying)
     if (config.confirmCopyingTags && !allHaveTag) {
       const ok = window.confirm(`Apply tag "${tag.label || tagKey}" to ${paths.length} item(s)?\nStorage: ${storageMode}`);
       if (!ok) {
@@ -8556,7 +8556,7 @@ ${classified.detail}`,
     }));
   };
 
-  /** Spatial / Automation â€” focus existing tool tab or open a dedicated closable tab. */
+  /** Spatial / Automation -- focus existing tool tab or open a dedicated closable tab. */
   const openWorkspaceToolTab = (path: string, paneId: string = activePaneId) => {
     const norm = normalizePanePath(path);
     const pane = panes.find(p => p.id === paneId);
@@ -8839,7 +8839,7 @@ ${classified.detail}`,
 
 	const openTabContextMenuAt = (paneId: string, tabIndex: number, clientX: number, clientY: number) => {
     // Always use the themed React tab menu. Host WinUI/WPF popup was unthemed (white)
-    // and a void return caused React to open again after dismiss â€” double menus / flaky clicks.
+    // and a void return caused React to open again after dismiss -- double menus / flaky clicks.
     setTabContextMenu({ x: clientX, y: clientY, paneId, tabIndex });
   };
 
@@ -9005,7 +9005,7 @@ ${classified.detail}`,
   }, [resolveTabHoverAtPoint]);
 
   useEffect(() => {
-    // Coalesce hover updates â€” accumulate coords into a pending ref, flush once per animation
+    // Coalesce hover updates -- accumulate coords into a pending ref, flush once per animation
     // frame. This prevents 3+ React setState calls from firing on every raw pointermove.
     let hoverRafId = 0;
     let pendingHoverX = 0;
@@ -9074,11 +9074,11 @@ ${classified.detail}`,
   const setCurrentPath = (path: string, paneId: string = activePaneId, updateHistory: boolean = true) => {
     const remapped = remapRetiredVirtualPath(path);
     let norm = resolveShellKnownFolderToFs(normalizePanePath(remapped), shortcuts);
-    // Settings â†’ Support volume labels in paths
+    // Settings -> Support volume labels in paths
     const fromLabel = resolveVolumeLabelPath(config, remapped, drives);
     if (fromLabel) norm = normalizePanePath(fromLabel);
 
-    // Settings â†’ Reuse existing tabs when changing the location
+    // Settings -> Reuse existing tabs when changing the location
     if (config.reuseExistingTabsWhenChangingTheLocation) {
       const hit = findReusableTab(panes, norm, paneId);
       if (hit && !(hit.paneId === paneId && panes.find(p => p.id === paneId)?.activeTabIndex === hit.tabIndex)) {
@@ -9098,7 +9098,7 @@ ${classified.detail}`,
       }
     }
 
-    // Settings â†’ Auto-create any missing folders
+    // Settings -> Auto-create any missing folders
     if (
       config.autoCreateAnyMissingFolders
       && norm
@@ -9163,7 +9163,7 @@ ${classified.detail}`,
           history: newHistory,
           historyIndex: newHistoryIndex,
           selectedItems: [],
-          // View bar is sole authority â€” smart views filter content, never force layout.
+          // View bar is sole authority -- smart views filter content, never force layout.
           viewMode: tab.viewMode,
           millerRootPath: resolveMillerRootOnNavigate(tab.millerRootPath, tab.viewMode, norm, tab.path),
         };
@@ -9203,7 +9203,7 @@ ${classified.detail}`,
   };
   setCurrentPathRef.current = setCurrentPath;
 
-  // FilesMerge tabs â†’ BNDZ cwd (avoid echo loops via normalized compare).
+  // FilesMerge tabs -> BNDZ cwd (avoid echo loops via normalized compare).
   useEffect(() => {
     if (!isFilesHostBoot()) return;
     const normKey = (p: string) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
@@ -9240,7 +9240,7 @@ ${classified.detail}`,
     return () => (window as any).chrome?.webview?.removeEventListener('message', onMsg);
   }, []);
 
-  // Files engines â†’ BNDZ list (blend): seed cache and skip GET_DIR_CONTENTS for that path.
+  // Files engines -> BNDZ list (blend): seed cache and skip GET_DIR_CONTENTS for that path.
   useEffect(() => {
     if (!isFilesHostBoot()) return;
     return subscribeFilesHostListing((path, items, complete) => {
@@ -9390,7 +9390,7 @@ ${classified.detail}`,
       const expectedRemoteMtime = detail.expectedRemoteMtime as string | undefined;
       if (!meshPath || !localPath) return;
       (window as any).__bndzMeshEditSession = { meshPath, localPath, expectedRemoteMtime };
-      setToastMessage('Remote edit armed â€” dispatch bndz-mesh-write-back after saving the hydrated file.', 'success');
+      setToastMessage('Remote edit armed -- dispatch bndz-mesh-write-back after saving the hydrated file.', 'success');
     };
     const onMeshWriteBack = () => {
       const session = (window as any).__bndzMeshEditSession as
@@ -9436,7 +9436,7 @@ ${classified.detail}`,
       }
       updateConfig({ sharedLibraries: next });
       openBottomPlugin('remote-mesh');
-      setToastMessage(next.length > prev.length ? 'Added to Shared Libraries (Remote â†’ Buckets & Shares).' : 'Already in Shared Libraries.');
+      setToastMessage(next.length > prev.length ? 'Added to Shared Libraries (Remote -> Buckets & Shares).' : 'Already in Shared Libraries.');
     };
     window.addEventListener('bndz-add-shared-libraries', onAddShared);
     return () => window.removeEventListener('bndz-add-shared-libraries', onAddShared);
@@ -9461,8 +9461,8 @@ ${classified.detail}`,
     return () => window.removeEventListener('bndz-inbound-copy', onInboundCopy);
   }, []);
 
-  // Native OLE drag-hover: warm drop targets (list / tree / breadcrumb / tabs) â€” no HTML5.
-  // C4.2: arm FluidDragStack for inbound desktopâ†’list when host sends path sample.
+  // Native OLE drag-hover: warm drop targets (list / tree / breadcrumb / tabs) -- no HTML5.
+  // C4.2: arm FluidDragStack for inbound desktop->list when host sends path sample.
   useEffect(() => {
     const leafName = (p: string) => {
       const parts = String(p || '').replace(/\\/g, '/').split('/').filter(Boolean);
@@ -9482,7 +9482,7 @@ ${classified.detail}`,
       setExternalDragHover(clientX, clientY);
       applyFileDragHoverAtPoint(clientX, clientY);
 
-      // Outbound BNDZ OLE / in-app file-drag owns FluidDrag â€” never double-arm inbound.
+      // Outbound BNDZ OLE / in-app file-drag owns FluidDrag -- never double-arm inbound.
       if (getFileDragSession() || isOleDragHandoffActive() || pointerFileDragActiveRef.current) return;
       if (configRef.current?.fluidDragStacks === false) return;
 
@@ -9605,7 +9605,7 @@ ${classified.detail}`,
     });
   }, [applyFileDragHoverAtPoint, addTab, bottomPluginTab]);
 
-  // Host-side inbound commit fallback â€” paint dest rows + select + tint (same as paste/drop).
+  // Host-side inbound commit fallback -- paint dest rows + select + tint (same as paste/drop).
   useEffect(() => {
     const onHostCommitted = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -9648,7 +9648,7 @@ ${classified.detail}`,
     return () => window.removeEventListener('bndz-inbound-host-committed', onHostCommitted);
   }, []);
 
-  // Host: AllowExternalDrop=true (except BNDZ OLE) â€” Path A file: nav + Path B WPF PreviewDrop + forceCommit.
+  // Host: AllowExternalDrop=true (except BNDZ OLE) -- Path A file: nav + Path B WPF PreviewDrop + forceCommit.
   useEffect(() => {
     const onExternalDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -9675,7 +9675,7 @@ ${classified.detail}`,
         });
       } catch { /* ignore */ }
 
-      // Spatial / Automation own inbound drops â€” never let preview loupe swallow list drops.
+      // Spatial / Automation own inbound drops -- never let preview loupe swallow list drops.
       if (hitTestExclusiveWorkspaceDropSurface(clientX, clientY)) return;
 
       setExternalDragPaths(paths);
@@ -9706,7 +9706,7 @@ ${classified.detail}`,
       setToastMessage(
         typeof reason === 'string'
           ? (formats ? `${reason} (${formats})` : reason)
-          : 'Drop failed â€” no file paths extracted.',
+          : 'Drop failed -- no file paths extracted.',
       );
     };
 
@@ -9771,7 +9771,7 @@ ${classified.detail}`,
         const cur = typeof tab?.path === 'string' ? normalizePanePath(tab.path) : '';
         if (cur) requestFilesHostDirListing(cur);
       }
-      // Dense FE nudges â€” WinUIEx / NonClientRegionSupport settle late; list select
+      // Dense FE nudges -- WinUIEx / NonClientRegionSupport settle late; list select
       // used to be the only thing that forced the app-region bitmap to include sidebar.
       if (IPC.isNative) {
         for (const ms of [40, 120, 280, 600, 1100, 2000, 3500]) {
@@ -9821,12 +9821,12 @@ ${classified.detail}`,
       unsub = IPC.onOpenPath(path => {
         if (!path) return;
         const norm = normalizePanePath(path);
-        // Settings â†’ Open command line start path in a new tab
+        // Settings -> Open command line start path in a new tab
         if (config.openCommandLineStartPathInNewTab) {
           addTab(activePaneId, norm);
           return;
         }
-        // Settings â†’ Open new instance always (multi-instance)
+        // Settings -> Open new instance always (multi-instance)
         if (config.openNewInstanceAlways && config.allowMultipleInstances) {
           void IPC.openPathInNewWindow(norm).then(r => {
             if (!r.ok) setCurrentPath(norm);
@@ -9907,7 +9907,7 @@ ${classified.detail}`,
     }));
   };
 
-  /** Global Escape â€” dismiss stuck overlays in priority order */
+  /** Global Escape -- dismiss stuck overlays in priority order */
   useEffect(() => {
     const layers = [
       registerEscapeLayer({
@@ -10182,7 +10182,7 @@ ${classified.detail}`,
           const { IPC } = await import('../lib/ipcBridge');
           const res = await IPC.syncFolders(pathA, pathB, 'dual-pane-sync', 'copy', mode === 'mirror');
           if (isQueuedIpcResult(res)) {
-              pushToast({ kind: 'info', title: 'Sync queued', message: 'Running in the transfer panelâ€¦' });
+              pushToast({ kind: 'info', title: 'Sync queued', message: 'Running in the transfer panel...' });
               return;
           }
           if (res.ok) {
@@ -10214,7 +10214,7 @@ ${classified.detail}`,
   const refreshActiveList = () => {
     const pane = panes.find(p => p.id === activePaneId);
     const tabPath = pane?.tabs[pane.activeTabIndex]?.path;
-    // Single force-refetch for the active tab â€” do not also fan out invalidatePath
+    // Single force-refetch for the active tab -- do not also fan out invalidatePath
     // (that double-scheduled the same listing and could freeze the renderer long enough
     // for WebView2 to raise RenderProcessUnresponsive).
     if (tabPath) void refetchPath(tabPath);
@@ -10352,7 +10352,7 @@ ${classified.detail}`,
         localized: !!config.useLocalizedSearchAndFilterPatterns,
         includePath: !!config.findFilesLocation,
       });
-      // Settings â†’ Find â†’ Let folders pass all filters
+      // Settings -> Find -> Let folders pass all filters
       if (config.letFoldersPassAllFilters) {
         const kept = new Set(contents.map((c: any) => c.id ?? c.path ?? c.name));
         const folders = beforeFilter.filter((item: any) => {
@@ -10484,7 +10484,7 @@ ${classified.detail}`,
     toast: setToastMessage,
   }), [panes, addTab, closeTabAt, goUp, openFolderInOppositePane, refetchPath, setToastMessage, getSortedContentsForActivePane, config, updateConfig]);
 
-  // Keyboard state â€” type-ahead find in file list (Explorer-style)
+  // Keyboard state -- type-ahead find in file list (Explorer-style)
   typeAheadCtxRef.current = {
     activePaneId,
     focusedItemId,
@@ -10550,7 +10550,7 @@ ${classified.detail}`,
       const inList = !!(ae?.closest?.('[data-list-body]') || ae?.hasAttribute?.('data-list-body'));
       const onTabChrome = !!(ae?.closest?.('[data-tabstrip], .bndz-tab-item') || (e.target as HTMLElement | null)?.closest?.('[data-tabstrip], .bndz-tab-item'));
       const editable = isEditableTarget(e.target) || isEditableTarget(ae);
-      // Modals / settings own keyboard â€” never type-ahead into the list behind them.
+      // Modals / settings own keyboard -- never type-ahead into the list behind them.
       if (ae?.closest?.('[role="dialog"], [data-bndz-dialog], .bndz-native-dialog, .bndz-config-dialog')) {
         return;
       }
@@ -10595,7 +10595,7 @@ ${classified.detail}`,
         return;
       }
 
-      // Settings â†’ Skip single spaces: Space alone does not advance type-ahead.
+      // Settings -> Skip single spaces: Space alone does not advance type-ahead.
       if (config.skipSingleSpaces && char === ' ') return;
 
       const now = Date.now();
@@ -10678,7 +10678,7 @@ ${classified.detail}`,
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 
-  // Keyboard state (navigation, shortcuts â€” separate from type-ahead capture handler)
+  // Keyboard state (navigation, shortcuts -- separate from type-ahead capture handler)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
@@ -10767,7 +10767,7 @@ ${classified.detail}`,
         scheduleQuickActionsBar(true, true);
         return;
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End' || e.key === 'PageDown' || e.key === 'PageUp') {
-        // Find â†’ Enable navigation keys gates list arrow navigation while a filter is active.
+        // Find -> Enable navigation keys gates list arrow navigation while a filter is active.
         if (filterText.trim() && getFindBehavior(config).enableNavigationKeys === false) {
           return;
         }
@@ -10806,7 +10806,7 @@ ${classified.detail}`,
              scheduleQuickActionsBar(true, true);
            } else {
              selectionAnchorRef.current = { paneId: activePaneId, itemId: nextItem.id };
-             // Arrow focus snaps selection to the new item (Settings â†’ selectAllOnItemChange reinforces this).
+             // Arrow focus snaps selection to the new item (Settings -> selectAllOnItemChange reinforces this).
              if (config.selectAllOnItemChange !== false || !e.ctrlKey) {
                setSelectedItems([nextItem.id], activePaneId);
                scheduleSelectionChrome([nextItem.id], true);
@@ -11017,7 +11017,7 @@ ${classified.detail}`,
     const compactRowHeight = settingsRt.ui.rowHeight;
     const listFontPx = resolvePanelFont(config, 'list').size;
     const configuredRowH = readSettingNumber(config, 'rowHeight', 0);
-    // Settings â†’ Fonts â†’ List row height is authoritative when set; auto path stays snug.
+    // Settings -> Fonts -> List row height is authoritative when set; auto path stays snug.
     const autoRowH = Math.max(22, Math.min(28, Math.ceil(listFontPx * 1.55) + 1));
     const detailsRowHeight = configuredRowH > 0
       ? configuredRowH
@@ -11180,7 +11180,7 @@ ${classified.detail}`,
         || !!(entity as any)?.isShellItem;
 
       // Shell namespace folders (MTP, Control Panel categories): navigate in-pane.
-      // Non-folder shell applets: ShellExecute â€” never fake a folder navigate.
+      // Non-folder shell applets: ShellExecute -- never fake a folder navigate.
       if (shellParsing && entity.type === 'directory') {
         setCurrentPath(entityPath, pane.id);
         if (isGlobal) {
@@ -11200,7 +11200,7 @@ ${classified.detail}`,
         return;
       }
 
-      // Shortcuts / .lnk / .url â€” resolve and navigate or ShellExecute (never Quick Preview the link blob).
+      // Shortcuts / .lnk / .url -- resolve and navigate or ShellExecute (never Quick Preview the link blob).
       const entityExt = String(entity.extension || entity.name?.split('.').pop() || '')
         .toLowerCase()
         .replace(/^\./, '');
@@ -11226,7 +11226,7 @@ ${classified.detail}`,
               }
             } catch { /* fall through to shell open */ }
           }
-          // File-target shortcut, broken link, or file symlink â€” let Explorer shell open it.
+          // File-target shortcut, broken link, or file symlink -- let Explorer shell open it.
           IPC.executeContextMenuVerb(winPath, 'open');
         });
         return;
@@ -11349,7 +11349,7 @@ ${classified.detail}`,
           if (openOnIconOnly) {
             const t = e.target as HTMLElement;
             if (!t.closest('.bndz-clipboard-icon-slot, .bndz-list-thumb, img, canvas')) {
-              // Select only â€” open requires an icon hit.
+              // Select only -- open requires an icon hit.
             } else {
               openEntity(entity);
               return;
@@ -11381,7 +11381,7 @@ ${classified.detail}`,
       }
     };
 
-    /** Right-click selection only â€” never open/navigate (avoids dual-pane surprise opens). */
+    /** Right-click selection only -- never open/navigate (avoids dual-pane surprise opens). */
     const selectEntityForContextMenu = (entityId: string) => {
       setActivePaneId(pane.id);
       setFocusedItemId(entityId);
@@ -11418,12 +11418,12 @@ ${classified.detail}`,
       // Right-click must fall through to the context-menu handler, never open a pane.
       if (e.button !== 1) return;
       e.preventDefault();
-      // Settings â†’ On middle mouse down (thumbnail/icons): folder contents peek when enabled.
+      // Settings -> On middle mouse down (thumbnail/icons): folder contents peek when enabled.
       if (config.onMiddleMouseDown && entity.type === 'directory' && config.folderContentsPreview) {
         void openFolderContentsPeek(buildEntityPath(entity), String(entity.name || ''), e.clientX, e.clientY);
         return;
       }
-      // Settings â†’ Enable blow ups on file icons as well â†’ middle-click Quick Look any file.
+      // Settings -> Enable blow ups on file icons as well -> middle-click Quick Look any file.
       if (config.enableBlowUpsOnFileIconsAsWell && entity.type !== 'directory') {
         const ext = String(entity.extension || entity.name?.split('.').pop() || '').toLowerCase().replace(/^\./, '');
         if (isShellActivateExt(ext)) return;
@@ -11478,10 +11478,10 @@ ${classified.detail}`,
       const textStyle = filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {};
       const mutedColClass = (settingsRt.list.lighterDetailColumns || !!config.lighterTextInDetailsColumns) ? 'bndz-detail-col-muted' : '';
       const metaColClass = `bndz-list-select-cell bndz-list-col-muted px-2 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`;
-      // Settings â†’ Use empty cell defaults
+      // Settings -> Use empty cell defaults
       const emptyDefault = (value: React.ReactNode): React.ReactNode => {
         if (value !== null && value !== undefined && value !== '') return value;
-        return config.useEmptyCellDefaults ? <span className="text-gray-600">â€”</span> : null;
+        return config.useEmptyCellDefaults ? <span className="text-gray-600">--</span> : null;
       };
       const customColId = parseCustomColumnListId(colId);
       if (customColId) {
@@ -11665,7 +11665,7 @@ ${classified.detail}`,
           const loc = formatUiPath(String((entity as any).originalLocation || '')) || String((entity as any).originalLocation || '');
           return (
             <div key={colId} className={`${metaColClass} font-mono text-[10px]`} title={loc}>
-              {loc || <span className="text-gray-600">â€”</span>}
+              {loc || <span className="text-gray-600">--</span>}
             </div>
           );
         }
@@ -11673,7 +11673,7 @@ ${classified.detail}`,
           const op = formatUiPath(String((entity as any).originalPath || '')) || String((entity as any).originalPath || '');
           return (
             <div key={colId} className={`${metaColClass} font-mono text-[10px]`} title={op}>
-              {op || <span className="text-gray-600">â€”</span>}
+              {op || <span className="text-gray-600">--</span>}
             </div>
           );
         }
@@ -11687,7 +11687,7 @@ ${classified.detail}`,
                   Link
                 </span>
               ) : (
-                <span className="text-gray-600 text-[11px]">â€”</span>
+                <span className="text-gray-600 text-[11px]">--</span>
               )}
             </div>
           );
@@ -11697,7 +11697,7 @@ ${classified.detail}`,
           const target = formatUiPath(targetRaw) || targetRaw;
           return (
             <div key={colId} className={`${metaColClass} font-mono text-[10px]`} title={target}>
-              {target || <span className="text-gray-600">â€”</span>}
+              {target || <span className="text-gray-600">--</span>}
             </div>
           );
         }
@@ -11713,7 +11713,7 @@ ${classified.detail}`,
                   {label}
                 </span>
               ) : (
-                <span className="text-gray-600 text-[11px]">â€”</span>
+                <span className="text-gray-600 text-[11px]">--</span>
               )}
             </div>
           );
@@ -11809,7 +11809,7 @@ ${classified.detail}`,
             }}
           />
         )}
-        {/* Tab Strip â€” dnd-kit horizontal reorder (same pattern as column headers) */}
+        {/* Tab Strip -- dnd-kit horizontal reorder (same pattern as column headers) */}
         <PaneTabStrip
           paneId={pane.id}
           tabs={pane.tabs}
@@ -11874,7 +11874,7 @@ ${classified.detail}`,
           onPointerFileDragOverTab={(idx) => activateTabForFileDragImmediate(pane.id, idx)}
         />
         
-        {/* Breadcrumb Row â€” Files NavigationToolbar-height address strip under filesHost */}
+        {/* Breadcrumb Row -- Files NavigationToolbar-height address strip under filesHost */}
         {!isImmersiveWorkspace && (
         <div className={`bndz-files-address-strip flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1.5 shrink-0 ${isDualPane && !isActive ? 'opacity-90' : ''}`}
              style={{
@@ -11886,7 +11886,7 @@ ${classified.detail}`,
             <ToolbarButton launcherIcon={launcherIconUrl('nav_up')} className="bndz-files-nav-btn" onClick={() => goUp(pane.id)} />
             <div 
               className="bndz-breadcrumb-slot bndz-files-address-well flex flex-1 min-w-0 basis-0 items-center text-[13px] px-2 overflow-x-auto overflow-y-hidden whitespace-nowrap cursor-text relative"
-              title="Click to edit path Â· double-click empty for Command Hub"
+              title="Click to edit path | double-click empty for Command Hub"
               onClick={() => {
                  if (!isGlobal) {
                      if (isDualPane && pane.id !== activePaneId) setActivePaneId(pane.id);
@@ -11945,7 +11945,7 @@ ${classified.detail}`,
                             }
                             import('../lib/ipcBridge').then(async ({ IPC }) => {
                               const expand = (p: string) => IPC.expandEnvironmentPath(p);
-                              // Settings â†’ Honor relative paths
+                              // Settings -> Honor relative paths
                               const honoredRaw = resolveHonoredPath(config, raw, currentTab.path);
 
                               // XYplorer-style: path ? filter pattern
@@ -12000,7 +12000,7 @@ ${classified.detail}`,
                      const path = item.path;
                      setCurrentPath(path, pane.id);
                      setEditingAddressBarPaneId(null);
-                     // Settings â†’ Select match on drop down: highlight same-named item in the opened folder.
+                     // Settings -> Select match on drop down: highlight same-named item in the opened folder.
                      if (config.selectMatchOnDropDown) {
                        const leaf = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
                        if (leaf) {
@@ -12109,7 +12109,7 @@ ${classified.detail}`,
                     if (computedViewMode === 'grid') updateConfig({ gridIconSize: v });
                     else updateConfig({ listIconSize: v });
                   }}
-                  title={computedViewMode === 'grid' ? 'Grid icon size' : 'List density (narrow â†’ wide columns)'}
+                  title={computedViewMode === 'grid' ? 'Grid icon size' : 'List density (narrow -> wide columns)'}
                 />
               )}
               </div>
@@ -12166,9 +12166,9 @@ ${classified.detail}`,
             <Icons8Icon id="search" size={12} className="opacity-70" />
             <span className="truncate">
               Filter
-              {filterText.trim() && !filterText.trimStart().startsWith('> ') ? `: â€œ${filterText.trim()}â€` : ''}
-              {pane.filterRegex?.trim() ? ` Â· regex /${pane.filterRegex.trim()}/` : ''}
-              {contents ? ` Â· ${contents.length} match(es)` : ''}
+              {filterText.trim() && !filterText.trimStart().startsWith('> ') ? `: "${filterText.trim()}"` : ''}
+              {pane.filterRegex?.trim() ? ` | regex /${pane.filterRegex.trim()}/` : ''}
+              {contents ? ` | ${contents.length} match(es)` : ''}
             </span>
             <button
               type="button"
@@ -12191,10 +12191,10 @@ ${classified.detail}`,
             <Icons8Icon id="search" size={12} className="opacity-70" />
             <span className="truncate">
               {isFindingTabActive
-                ? `Finding: â€œ${currentTab.findingQuery || ''}â€`
-                : `Search: â€œ${filterText.trimStart().replace(/^>\s*/, '')}â€`}
-              {contents ? ` Â· ${contents.length} result(s)` : ''}
-              {isGlobal && globalSearchEngine ? ` Â· ${globalSearchEngine}` : ''}
+                ? `Finding: "${currentTab.findingQuery || ''}"`
+                : `Search: "${filterText.trimStart().replace(/^>\s*/, '')}"`}
+              {contents ? ` | ${contents.length} result(s)` : ''}
+              {isGlobal && globalSearchEngine ? ` | ${globalSearchEngine}` : ''}
             </span>
           </div>
         )}
@@ -12266,7 +12266,7 @@ ${classified.detail}`,
            }`}
            style={{
              ...(config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }),
-             // Settings â†’ Mouse â†’ Scroll margin: keep focused/selected rows clear of edges
+             // Settings -> Mouse -> Scroll margin: keep focused/selected rows clear of edges
              ...(Number(config.scrollMargin) > 0
                ? {
                    scrollPaddingTop: Number(config.scrollMargin),
@@ -12348,7 +12348,7 @@ ${classified.detail}`,
 
               const buildSelectMeta = (): MarqueeSelectMeta | undefined => {
                 const rows = listRows?.length ?? 0;
-                // Always use arithmetic hit-test for non-empty lists â€” O(n) AABB vs O(nÃ—5Ã—elementsFromPoint).
+                // Always use arithmetic hit-test for non-empty lists -- O(n) AABB vs O(nx5xelementsFromPoint).
                 if (rows === 0) return undefined;
                 if (computedViewMode === 'grid' || computedViewMode === 'list') {
                   const minW = computedViewMode === 'list'
@@ -12389,12 +12389,12 @@ ${classified.detail}`,
               };
 
               const rowEl = (e.target as HTMLElement).closest('.fs-item-wrapper') as HTMLElement | null;
-              // Multi-signal hit test (listGestureHit): gutters / empty / row chrome â†’ marquee;
-              // icon, name, column cells â†’ item select+drag. Never convert item presses to marquee.
+              // Multi-signal hit test (listGestureHit): gutters / empty / row chrome -> marquee;
+              // icon, name, column cells -> item select+drag. Never convert item presses to marquee.
               const gestureIntent = classifyListPointerDown(e.target, e.clientX, e.clientY);
               if (gestureIntent === 'marquee') {
                 if (mouseRt.enableSurroundSelection === false) {
-                  // Surround selection off â€” empty-canvas press only clears selection.
+                  // Surround selection off -- empty-canvas press only clears selection.
                   setSelectedItems([], pane.id);
                   scheduleSelectionChrome([], true);
                   scheduleQuickActionsBar(false);
@@ -12411,7 +12411,7 @@ ${classified.detail}`,
                 return;
               }
 
-              // Item hit â†’ select / drag / double-click.
+              // Item hit -> select / drag / double-click.
               if (!rowEl) return;
               const entityId = rowEl.getAttribute('data-id');
               if (!entityId) return;
@@ -12426,16 +12426,16 @@ ${classified.detail}`,
               // Marking first made canStartDragFromList always fail (double-click guard).
               const disallowListDrag = mouseRt.disallowDragFromList || !!config.disallowLeftDraggingFromFileList;
               const mayArmDrag = canStartDragFromList(disallowListDrag);
-              // Settings â†’ Allow dragging items by the thumbnail (default off: icon press does not arm drag).
+              // Settings -> Allow dragging items by the thumbnail (default off: icon press does not arm drag).
               const hitTarget = e.target as HTMLElement;
               const inListIconWell = !!hitTarget.closest('.bndz-list-icon-well');
               const hitOnThumb = !inListIconWell && !!hitTarget.closest('.bndz-clipboard-icon-slot, img, canvas');
               const thumbDragOk = mouseRt.dragByThumbnail
                 || !!config.allowDraggingItemsByTheThumbnail
                 || inListIconWell
-                // Native shell: Explorer-parity â€” icon column is a valid drag handle.
+                // Native shell: Explorer-parity -- icon column is a valid drag handle.
                 || IPC.isNative;
-              // Settings â†’ Allow dragging from a background window (inactive / unfocused host).
+              // Settings -> Allow dragging from a background window (inactive / unfocused host).
               const bgDragOk = mouseRt.allowDraggingFromBackground
                 || !!config.allowDraggingFromABackgroundWindow
                 || document.hasFocus()
@@ -12466,7 +12466,7 @@ ${classified.detail}`,
               markPointerDown();
               listItemPressGuardRef.current = { entityId, at: performance.now() };
 
-              // Select immediately on press â€” Explorer feel; don't wait for pointerup/WebView2 onClick.
+              // Select immediately on press -- Explorer feel; don't wait for pointerup/WebView2 onClick.
               if (!ctrlKey && !shiftKey) {
                 if (!wasSelected) {
                   setSelectedItems([entityId], pane.id);
@@ -12522,7 +12522,7 @@ ${classified.detail}`,
 
               const syncDragModifiers = (e: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }) => {
                 const copy = isCopyDragModifier(e);
-                // Guard: modifier unchanged â€” no-op to prevent spurious React commits on every move.
+                // Guard: modifier unchanged -- no-op to prevent spurious React commits on every move.
                 if (dropModifierRef.current.copy === copy) return;
                 dropModifierRef.current.copy = copy;
                 if (listGestureRef.current?.mode === 'drag') {
@@ -12589,7 +12589,7 @@ ${classified.detail}`,
 
 
               let dragPointerY: number | null = null;
-              // Throttle drop-target hit-tests â€” only re-run when pointer moves > 2px.
+              // Throttle drop-target hit-tests -- only re-run when pointer moves > 2px.
               let lastHitTestX = -999;
               let lastHitTestY = -999;
               let chromeCacheRects: DOMRect[] = [];
@@ -12676,7 +12676,7 @@ ${classified.detail}`,
                   beginFileDragSession(dragSession);
                   if (localRawPaths.length) {
                     IPC.notifyFileDragActive(true, localRawPaths);
-                    // Do not START_DRAG at threshold â€” keep React/fluid ghosts + in-app cancel.
+                    // Do not START_DRAG at threshold -- keep React/fluid ghosts + in-app cancel.
                     // OLE begins at window boundary (no ReleaseCapture).
                   } else {
                     IPC.postOleDndDebug({
@@ -12717,7 +12717,7 @@ ${classified.detail}`,
                     }, listDragGhostElRef.current, ev.clientX, ev.clientY);
                   }
                   bindKeyModifiers();
-                  // Do NOT setPointerCapture during file drag â€” WebView2 poisons
+                  // Do NOT setPointerCapture during file drag -- WebView2 poisons
                   // elementsFromPoint and breaks tab-hover hit testing. Window listeners suffice.
                 }
 
@@ -12734,7 +12734,7 @@ ${classified.detail}`,
                   if (cachedNavTreeScroll) autoScrollNearEdges(cachedNavTreeScroll, ev.clientY, { edgePx: 48, maxStepPx: 24 });
                   const _dragPerfT0 = (window as any).__BNDZ_PERF_DEBUG__ ? performance.now() : 0;
 
-                  // Outbound desktop handoff BEFORE ghost/hit-test work â€” otherwise the handoff
+                  // Outbound desktop handoff BEFORE ghost/hit-test work -- otherwise the handoff
                   // frame still paints a React ghost on the wallpaper (shell drag image is unavailable).
                   if (
                     !outboundHandoffAttempted
@@ -12764,7 +12764,7 @@ ${classified.detail}`,
                         hideGhost: () => onHostOleDragEscalated(),
                         why: 'list-boundary',
                       });
-                      // Detach FE gesture immediately â€” do not wait for OLE_DRAG_ESCALATED.
+                      // Detach FE gesture immediately -- do not wait for OLE_DRAG_ESCALATED.
                       // Otherwise pointerup never arrives (button released outside WebView) and
                       // WinUI stays "pressed" until the user clicks wallpaper.
                       oleDragStarted = true;
@@ -12799,7 +12799,7 @@ ${classified.detail}`,
                       ? panesRef.current.find(p => p.id === hover.paneId)?.tabs[hover.tabIndex]?.path
                       : null;
                     // Use the last computed hover state (1-frame lag is imperceptible) to decide
-                    // whether a folder target exists â€” avoids repeating the 5-probe elementsFromPoint
+                    // whether a folder target exists -- avoids repeating the 5-probe elementsFromPoint
                     // calls that already ran in the hover RAF from the previous pointer tick.
                     const lastHover = lastDragHoverStateRef.current?.state;
                     if (!lastHover?.navTreePath && !lastHover?.breadcrumbPath) {
@@ -12857,7 +12857,7 @@ ${classified.detail}`,
                 }
 
                 if (gesture?.mode === 'drag' && !oleDragStarted) {
-                  // Sync hover before drop resolution â€” WebView2 poisons elementsFromPoint on pointer-up.
+                  // Sync hover before drop resolution -- WebView2 poisons elementsFromPoint on pointer-up.
                   applyFileDragHoverAtPoint(ev.clientX, ev.clientY);
                   const archiveTarget = hitTestArchiveRootAtPoint(ev.clientX, ev.clientY);
                   if (archiveTarget) {
@@ -13125,7 +13125,7 @@ ${classified.detail}`,
                         explicitDropTarget,
                       };
                       if (shouldCommitInternalFileDrop(dropOpts)) {
-                        // Settings â†’ Native drag and drop context menu (Copy / Move / Cancel at drop).
+                        // Settings -> Native drag and drop context menu (Copy / Move / Cancel at drop).
                         if (settingsRt.shell.nativeDragDropContextMenu || !!config.nativeDragAndDropContextMenu) {
                           setDropActionMenu({
                             x: ev.clientX,
@@ -13173,21 +13173,21 @@ ${classified.detail}`,
                   const ownerBridge = getPaneFileListBridge(ownerPaneId);
                   if (isDoubleTap && gesture.entityId) {
                     listEntityDblRef.current = null;
-                    // Resolve entity from the OWNER pane listing â€” not this render's contents/path.
+                    // Resolve entity from the OWNER pane listing -- not this render's contents/path.
                     const ownerContents = ownerBridge?.contents;
                     const ownerPath = ownerBridge?.panePath || panePath;
                     const entity = ownerContents?.find((x: any) => x.id === gesture.entityId)
                       || safeGetDirContents(fileSystem, ownerPath)?.find((x: any) => x.id === gesture.entityId);
                     if (entity) {
                       suppressRowClickRef.current = true;
-                      // Must arm before open â€” native dblclick fires after this pointerup.
+                      // Must arm before open -- native dblclick fires after this pointerup.
                       suppressNativeDblUntilRef.current = performance.now() + 700;
                       ownerBridge?.handleEntityDoubleClicked(entity);
                     }
                   } else if (gesture.entityId) {
                     listEntityDblRef.current = { paneId: ownerPaneId, entityId: gesture.entityId, at: now };
                   }
-                  // WebView2 often drops row onClick â€” commit click side-effects on pointerup.
+                  // WebView2 often drops row onClick -- commit click side-effects on pointerup.
                   const clickHandler = ownerBridge?.handleEntityClicked ?? null;
                   if (!isDoubleTap && clickHandler && gesture.entityId && !gesture.selectedOnPress) {
                     suppressRowClickRef.current = true;
@@ -13230,7 +13230,7 @@ ${classified.detail}`,
                 endFileDragSession();
                 clearDragSession();
                 if (!oleDragStarted && !hostOleEscalated && !nativeOleDragRef.current && !outboundHandoffAttempted) {
-                  // Native outbound: boundary START_DRAG owns disarm â€” not pointer-up flicker.
+                  // Native outbound: boundary START_DRAG owns disarm -- not pointer-up flicker.
                   const wasNativeFileDrag = IPC.isNative && gesture?.mode === 'drag';
                   if (!wasNativeFileDrag) IPC.notifyFileDragActive(false);
                 }
@@ -13240,7 +13240,7 @@ ${classified.detail}`,
                 if (ev.pointerId !== capturePointerId) return;
                 if (oleDragStarted || nativeOleDragRef.current || hostOleEscalated) return;
                 const gest = listGestureRef.current;
-                // WebView2 pointercancel at rim â€” START_DRAG while LMB may still be down.
+                // WebView2 pointercancel at rim -- START_DRAG while LMB may still be down.
                 if (IPC.isNative && gest && hasMetDragThreshold() && gest.mode === 'drag') {
                   const session = getFileDragSession();
                   const handoffPaths = (session?.paths ?? [])
@@ -13304,7 +13304,7 @@ ${classified.detail}`,
           {loadingPaths.has(normPanePath) && !isPaneLoading && (listRows?.length ?? 0) > 0 && (
             <div className="sticky top-0 z-10 mx-2 mt-1 mb-1 flex items-center gap-2 rounded border border-sky-500/20 bg-sky-950/40 px-2.5 py-1 text-[10px] text-sky-200/90 pointer-events-none">
               <Icons8Icon id="loading" size={12} spin />
-              <span>Loading more itemsâ€¦</span>
+              <span>Loading more items...</span>
             </div>
           )}
           {pathLoadErrors[normPanePath] && !isPaneLoading && (listRows?.length ?? 0) === 0 && (
@@ -13324,14 +13324,14 @@ ${classified.detail}`,
           )}
           {isPaneLoading && (
              <ListPaneSkeleton
-               label={`Streaming ${formatUiPath(panePath) || panePath.split('/').pop() || panePath}â€¦`}
+               label={`Streaming ${formatUiPath(panePath) || panePath.split('/').pop() || panePath}...`}
                rows={16}
              />
           )}
           {!isPaneLoading && isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading)) && (
              <div className="flex flex-col items-center justify-center h-full gap-3 text-amber-400/80 min-h-[200px]">
                <Icons8Icon id="loading" size={22} spin />
-               <span className="text-[11px]">Searching{globalSearchEngine === 'indexed' ? ' local cache' : config.enableEverythingSearch !== false ? ' with Everything' : ''}â€¦</span>
+               <span className="text-[11px]">Searching{globalSearchEngine === 'indexed' ? ' local cache' : config.enableEverythingSearch !== false ? ' with Everything' : ''}...</span>
              </div>
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzHomePath(normPanePath) && (
@@ -13366,7 +13366,7 @@ ${classified.detail}`,
               onRevealFolder={p => setCurrentPath(normalizePanePath(toPanePath(p)), pane.id)}
               onIndexInvite={() => {
                 void IPC.reindexBndzDefaults().then(r => {
-                  if (r?.ok) setToastMessage('Indexing default librariesâ€¦');
+                  if (r?.ok) setToastMessage('Indexing default libraries...');
                   else setToastMessage(r?.error || 'Could not start indexing.', 'warning');
                 });
               }}
@@ -13688,7 +13688,7 @@ ${classified.detail}`,
                       <BndzPlaque tone="error" size="lg" className="bndz-plaque--hex-well" />
                       <span className="text-[12px] text-rose-200/90 max-w-md">
                         {/^IPC timeout:/i.test(pathLoadErrors[normPanePath])
-                          ? 'Folder load timed out. The host may be busy â€” retry in a moment.'
+                          ? 'Folder load timed out. The host may be busy -- retry in a moment.'
                           : pathLoadErrors[normPanePath]}
                       </span>
                       <button
@@ -13702,7 +13702,7 @@ ${classified.detail}`,
                   ) : isGlobal && globalSearchEngine === 'indexed-empty' ? (
                     <BndzIndexEmptyState
                       title="No indexed hits for this query"
-                      hint="Build or refresh the local search index so global search feels like Everything â€” without walking the whole disk."
+                      hint="Build or refresh the local search index so global search feels like Everything -- without walking the whole disk."
                       onIndexed={() => {
                         void refetchPath(normPanePath);
                       }}
@@ -13716,7 +13716,7 @@ ${classified.detail}`,
                           : isGlobal && globalSearchEngine === 'windows-search'
                             ? 'No Windows Search hits. Try a shorter query or enable the BNDZ index.'
                           : isGlobal && config.enableEverythingSearch === false
-                            ? 'No results. Everything is off â€” enable it in Settings or build the BNDZ index.'
+                            ? 'No results. Everything is off -- enable it in Settings or build the BNDZ index.'
                           : isGlobal ? 'No global search results.'
                           : (config.showMessageWhenListIsEmpty !== false ? 'This folder is empty.' : '')}
                       </span>
@@ -13830,7 +13830,7 @@ ${classified.detail}`,
   };
   const currentFolderListing = useMemo(() => {
     const pane = normalizePanePath(currentTab.path);
-    // This PC / Libraries synthesize list entities â€” they are not in pathContentsCache.
+    // This PC / Libraries synthesize list entities -- they are not in pathContentsCache.
     if (pane === '/' || pane === '/this-pc') {
       return navigationDrives.map(d => {
         const normalizedName = d.name.replace(/^\/+/, '/');
@@ -13914,7 +13914,7 @@ ${classified.detail}`,
       if (syn) return syn;
     }
     if (selectionSource.length > 0) {
-      // Selection exists but entity not resolved yet â€” do not fall back to stale focus/location.
+      // Selection exists but entity not resolved yet -- do not fall back to stale focus/location.
       return null;
     }
     const fromFocus = resolveInCurrentFolder(focusedItemId) || getResolvedEntity(focusedItemId);
@@ -13940,7 +13940,7 @@ ${classified.detail}`,
       return { entity: ent, path: p };
     };
     // With 2+ items explicitly selected, Quick Look browses just that selection.
-    // With 0 or 1 selected (the common case â€” Space on a single file), browse the
+    // With 0 or 1 selected (the common case -- Space on a single file), browse the
     // whole folder like macOS Quick Look / Explorer preview do, so arrow keys can
     // page through every file in the folder, not just the one item you started on.
     if (currentTab.selectedItems.length > 1) {
@@ -13975,14 +13975,14 @@ ${classified.detail}`,
     const name = item.entity?.name || '';
     const dot = name.lastIndexOf('.');
     const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
-    // Apps / installers: ShellExecute only â€” QL + PE metadata hangs the UI.
+    // Apps / installers: ShellExecute only -- QL + PE metadata hangs the UI.
     if (item.entity?.type !== 'directory' && isShellActivateExt(ext)) {
-      setToastMessage('Use double-click to launch apps â€” Quick Look skips executables.');
+      setToastMessage('Use double-click to launch apps -- Quick Look skips executables.');
       return;
     }
     if (item?.path) {
       // Video still pauses/stashes into the floating player. Audio uses a shared
-      // decoder â€” leave it playing so Space pop-out never glitches playback.
+      // decoder -- leave it playing so Space pop-out never glitches playback.
       if (isVideoExt(ext)) requestMediaHandoff(item.path);
     }
     setQuickPreviewIndex(idx);
@@ -14046,7 +14046,7 @@ ${classified.detail}`,
   }, [currentTab.selectedItems, currentTab.path, pathContentsCache, fileSystem, panes]);
 
   // Color/theme fills live on documentElement via applySettingsRuntime (fillToBackground).
-  // Do NOT dump raw colorConfig JSON onto this node â€” that clobbered gradients and live preview.
+  // Do NOT dump raw colorConfig JSON onto this node -- that clobbered gradients and live preview.
 
   const fluidDragEnabled = config.fluidDragStacks !== false;
 
@@ -14109,10 +14109,10 @@ ${classified.detail}`,
           break;
         }
         void (async () => {
-          const dest = await IPC.openFolderDialog('Download Mesh files toâ€¦');
+          const dest = await IPC.openFolderDialog('Download Mesh files to...');
           if (!dest) return;
           const res = await meshDownloadSelection(meshSel, dest);
-          setToastMessage(res.ok ? 'Mesh download startedâ€¦' : (res.error || 'Download failed'), res.ok ? 'success' : 'warning');
+          setToastMessage(res.ok ? 'Mesh download started...' : (res.error || 'Download failed'), res.ok ? 'success' : 'warning');
         })();
         break;
       }
@@ -14136,7 +14136,7 @@ ${classified.detail}`,
               },
             }));
             openPreviewWithTab('preview');
-            setToastMessage('Remote file hydrated â€” save writes back to the host.', 'success');
+            setToastMessage('Remote file hydrated -- save writes back to the host.', 'success');
           } catch (e: any) {
             setToastMessage(e?.message || 'Could not open remote file', 'warning');
           }
@@ -14145,17 +14145,17 @@ ${classified.detail}`,
       }
       case 'mesh-ephemeral':
         openBottomPlugin('remote-mesh', { tab: 'ephemeral' });
-        setToastMessage('Remote Â· Ephemeral (Incus)', 'info');
+        setToastMessage('Remote | Ephemeral (Incus)', 'info');
         break;
       case 'archive-extract': {
         const archivePath = bottomSelectionTargets.paths[0];
         if (!archivePath) break;
         void (async () => {
-          const dest = await IPC.openFolderDialog('Extract archive toâ€¦');
+          const dest = await IPC.openFolderDialog('Extract archive to...');
           if (!dest) return;
           const res = await IPC.extractArchive(toWindowsPath(archivePath), dest);
           if (isQueuedIpcResult(res)) {
-            setToastMessage('Extract queued â€” see transfer panel.', 'info');
+            setToastMessage('Extract queued -- see transfer panel.', 'info');
             return;
           }
           setToastMessage(res.ok ? `Extracted to ${dest}` : (res.error || 'Extract failed'), res.ok ? 'success' : 'warning');
@@ -14185,7 +14185,7 @@ ${classified.detail}`,
         if (!folderPath) break;
         void IPC.indexBndzLocation(folderPath).then(res => {
           setToastMessage(
-            res.ok ? 'Indexing folder for BNDZ searchâ€¦' : (res.error || 'Indexing failed.'),
+            res.ok ? 'Indexing folder for BNDZ search...' : (res.error || 'Indexing failed.'),
             res.ok ? 'success' : 'warning',
           );
           if (res.ok) window.dispatchEvent(new CustomEvent('bndz-index-roots-changed'));
@@ -14229,11 +14229,11 @@ ${classified.detail}`,
           setToastMessage('No audio files selected.', 'warning');
           break;
         }
-        setToastMessage(`Analyzing ${audioPaths.length} audio file${audioPaths.length > 1 ? 's' : ''}â€¦`, 'info');
+        setToastMessage(`Analyzing ${audioPaths.length} audio file${audioPaths.length > 1 ? 's' : ''}...`, 'info');
         void IPC.analyzeMusicBatch(audioPaths.map(p => toWindowsPath(p)), true).then(res => {
           if (res.ok) {
             setToastMessage(
-              `Analyzed ${res.analyzed ?? audioPaths.length} file${(res.analyzed ?? audioPaths.length) > 1 ? 's' : ''} â€” BPM + Key written`,
+              `Analyzed ${res.analyzed ?? audioPaths.length} file${(res.analyzed ?? audioPaths.length) > 1 ? 's' : ''} -- BPM + Key written`,
               'success',
             );
             for (const p of audioPaths) invalidateExtendedMetadata(p);
@@ -14266,7 +14266,7 @@ ${classified.detail}`,
         const { patch, toast } = applyWorkIntentPack(next, { installedPluginIds: installedPluginIdSet });
         updateConfig(patch);
         setToastMessage(toast);
-        // Only open when pack resolved an installed plugin â€” never toast-spam missing ones.
+        // Only open when pack resolved an installed plugin -- never toast-spam missing ones.
         if (patch.bottomPanelDefaultPlugin) openBottomPlugin(String(patch.bottomPanelDefaultPlugin));
         break;
       }
@@ -14425,9 +14425,9 @@ ${classified.detail}`,
                           if (pane) setCurrentPath(pane);
                           else setToastMessage('Could not open that path.');
                         }
-                      })}><Icons8Icon id="folder_open_ui" size={14} /> Openâ€¦ <span className="ml-auto text-[10px] text-gray-500">Ctrl+O</span></div>
+                      })}><Icons8Icon id="folder_open_ui" size={14} /> Open... <span className="ml-auto text-[10px] text-gray-500">Ctrl+O</span></div>
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('openas'))}>
-                        <Icons8Icon id="folder_open_ui" size={14} /> Open withâ€¦ <span className="ml-auto text-[10px] text-gray-500">Ctrl+Alt+Enter</span>
+                        <Icons8Icon id="folder_open_ui" size={14} /> Open with... <span className="ml-auto text-[10px] text-gray-500">Ctrl+Alt+Enter</span>
                       </div>
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         void (async () => {
@@ -14444,7 +14444,7 @@ ${classified.detail}`,
                           const { IPC } = await import('../lib/ipcBridge');
                           IPC.shellExecute('runCommand', `"${win}" ${args}`, workDir);
                         })();
-                      })}><Icons8Icon id="cmd" size={14} /> Open with Argumentsâ€¦</div>
+                      })}><Icons8Icon id="cmd" size={14} /> Open with Arguments...</div>
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         addTab(activePaneId, currentTab.path);
                         setToastMessage('Opened a throw-away clone tab.');
@@ -14456,7 +14456,7 @@ ${classified.detail}`,
                       const entity = pathContentsCache[currentTab.path]?.find((x: any) => x.id === sel);
                       if (entity) beginInlineRename(currentTab.path, sel, entity);
                     })}><Icons8Icon id="pencil_ui" size={14} /> Rename</div>
-                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('batch-rename'))}><Icons8Icon id="batch_rename" size={14} /> Batch / Smart Renameâ€¦</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('batch-rename'))}><Icons8Icon id="batch_rename" size={14} /> Batch / Smart Rename...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       setClipboardState(getSelectedEntityPaths(), 'cut');
                     })}><Icons8Icon id="cut" size={14} /> Cut</div>
@@ -14493,7 +14493,7 @@ ${classified.detail}`,
                             title={rp}
                             onMouseDown={menuAct(() => setCurrentPath(rp))}
                           >
-                            {rp.replace(/^\//, '').replace(/\//g, ' â€º ') || 'This PC'}
+                            {rp.replace(/^\//, '').replace(/\//g, ' > ') || 'This PC'}
                           </div>
                         ))
                       )}
@@ -14513,7 +14513,7 @@ ${classified.detail}`,
                               const dest = `${toWindowsPath(currentTab.path)}\\Archive-${Date.now()}.zip`;
                               const { IPC } = await import('../lib/ipcBridge');
                               const res = await IPC.createArchive(paths.map(toWindowsPath), dest, 'zip');
-                              setToastMessage(isQueuedIpcResult(res) ? 'Archive queued â€” see transfer panel.' : (res.ok ? 'Archive created.' : (res.error || 'Archive failed.')));
+                              setToastMessage(isQueuedIpcResult(res) ? 'Archive queued -- see transfer panel.' : (res.ok ? 'Archive created.' : (res.error || 'Archive failed.')));
                             })}>ZIP Archive</div>
                             <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
@@ -14521,7 +14521,7 @@ ${classified.detail}`,
                               const { IPC } = await import('../lib/ipcBridge');
                               const target = toWindowsPath(paths[0]);
                               const res = await IPC.createLink(`${target}.lnk`, target, 'shortcut');
-                              setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued â€” see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
+                              setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued -- see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
                             })}>Shortcut</div>
                             {fileMenuShellNewItems.length > 0 && (
                               <>
@@ -14551,14 +14551,14 @@ ${classified.detail}`,
                     </MenubarSubmenu>
 
                     <MenubarSubmenu label="Copy / Move / Backup" iconId="copy_to">
-                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}><Icons8Icon id="copy_to" size={14} /> Copy Toâ€¦</div>
-                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}><Icons8Icon id="cut" size={14} /> Move Toâ€¦</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}><Icons8Icon id="copy_to" size={14} /> Copy To...</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}><Icons8Icon id="cut" size={14} /> Move To...</div>
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const other = panes.find(p => p.id !== activePaneId);
                         const dest = other?.tabs[other.activeTabIndex]?.path;
                         if (dest) void copyOrMoveToTarget('copy', dest);
                         else void copyOrMoveToTarget('copy');
-                      })}><Icons8Icon id="copy" size={14} /> Backup Toâ€¦ (copy)</div>
+                      })}><Icons8Icon id="copy" size={14} /> Backup To... (copy)</div>
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -14629,7 +14629,7 @@ ${classified.detail}`,
                       }
                       openQuickPreview();
                     })}><Icons8Icon id="eye_ui" size={14} /> Floating Preview <span className="ml-auto text-[10px] text-gray-500">Space</span></div>
-                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('share'))}><Icons8Icon id="share" size={14} /> Shareâ€¦</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('share'))}><Icons8Icon id="share" size={14} /> Share...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}><Icons8Icon id="config" size={14} /> Configuration...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Icons8Icon id="wrench" size={14} /> Customize Toolbar...</div>
@@ -14640,11 +14640,11 @@ ${classified.detail}`,
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       await import('../lib/settingsExport').then(m => m.exportSettingsBundle(config as Record<string, unknown>));
                       setToastMessage('Settings exported.');
-                    })}><Icons8Icon id="download" size={14} /> Export Settingsâ€¦</div>
+                    })}><Icons8Icon id="download" size={14} /> Export Settings...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const r = await import('../lib/settingsExport').then(m => m.importSettingsBundle(s => updateConfig(s as any)));
                       setToastMessage(r.message);
-                    })}><Icons8Icon id="upload" size={14} /> Import Settingsâ€¦</div>
+                    })}><Icons8Icon id="upload" size={14} /> Import Settings...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('ini'); })}><Icons8Icon id="config" size={14} /> Open Configuration File</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#e81123]/80 cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
@@ -14696,7 +14696,7 @@ ${classified.detail}`,
                         const { IPC } = await import('../lib/ipcBridge');
                         const target = toWindowsPath(paths[0]);
                         const res = await IPC.createLink(`${target}.lnk`, target, 'shortcut');
-                        setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued â€” see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed.')));
+                        setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued -- see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed.')));
                       })}>New Shortcut</div>
                     </MenubarSubmenu>
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -14749,11 +14749,11 @@ ${classified.detail}`,
                         );
                         return (
                           <>
-                            {fileRow('Paste Here to New Subfolderâ€¦', () => { void pasteIntoNewSubfolder(); }, 'Ctrl+Shift+V')}
-                            {fileRow('Paste Here with Pathâ€¦', () => {
+                            {fileRow('Paste Here to New Subfolder...', () => { void pasteIntoNewSubfolder(); }, 'Ctrl+Shift+V')}
+                            {fileRow('Paste Here with Path...', () => {
                               void pasteIntoActivePane({ recreateSourceStructure: true });
                             })}
-                            {fileRow('Paste Here Asâ€¦', () => { void pasteHereAs(); })}
+                            {fileRow('Paste Here As...', () => { void pasteHereAs(); })}
                             <div className="h-[1px] bg-[#444] my-1" />
                             {fileRow('Paste (Move)', () => { void pasteIntoActivePane({ forceAction: 'cut' }); })}
                             {fileRow('Paste (Copy)', () => { void pasteIntoActivePane({ forceAction: 'copy' }); })}
@@ -14762,16 +14762,16 @@ ${classified.detail}`,
                               setToastMessage('Backup paste (copy) started.');
                             })}
                             <div className="h-[1px] bg-[#444] my-1" />
-                            {/* Link paste always live â€” pasteAsLinksFromClipboard falls back to CF_HDROP when BNDZ clipboard is empty */}
+                            {/* Link paste always live -- pasteAsLinksFromClipboard falls back to CF_HDROP when BNDZ clipboard is empty */}
                             <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('shortcut'); })}>Paste As Shortcut(s)</div>
                             <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('hardlink'); })}>Paste As Hard Link(s)</div>
-                            {/* One symlink row â€” files AND folders; backend auto-detects file vs dir flag */}
+                            {/* One symlink row -- files AND folders; backend auto-detects file vs dir flag */}
                             <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('symlink'); })}>Paste As Symbolic Link(s)</div>
-                            {/* Junction: folder targets only â€” always clickable; backend rejects file targets */}
+                            {/* Junction: folder targets only -- always clickable; backend rejects file targets */}
                             <div
                               key="junction"
                               className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2"
-                              title="NTFS junction â€” folder targets only"
+                              title="NTFS junction -- folder targets only"
                               onMouseDown={actAlways(() => { void pasteAsLinksFromClipboard('junction'); })}
                             >
                               Paste As Junction(s) <span className="ml-auto text-[10px] text-white/30 pl-3">folders</span>
@@ -14799,7 +14799,7 @@ ${classified.detail}`,
                               setToastMessage('Clipboard marked as Copied.');
                             })}
                             <div className="h-[1px] bg-[#444] my-1" />
-                            {fileRow('Edit Clipboardâ€¦', () => { void editClipboardPaths(); })}
+                            {fileRow('Edit Clipboard...', () => { void editClipboardPaths(); })}
                             <div
                               className={clipboardHistory.length ? 'px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2' : 'px-3 py-1 text-sm text-gray-500 cursor-default select-none'}
                               onMouseDown={clipboardHistory.length ? actAlways(() => {
@@ -14848,11 +14848,11 @@ ${classified.detail}`,
                     </div>
                     {config.logActionsAndEnableUndoRedo !== false && (
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>
-                        <Icons8Icon id="clock_ui" size={14} /> Historyâ€¦
+                        <Icons8Icon id="clock_ui" size={14} /> History...
                       </div>
                     )}
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>
-                      <Icons8Icon id="clock_ui" size={14} /> Action Log / Recent Opsâ€¦
+                      <Icons8Icon id="clock_ui" size={14} /> Action Log / Recent Ops...
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
@@ -14879,19 +14879,19 @@ ${classified.detail}`,
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}>Browse...</div>
                     </MenubarSubmenu>
 
-                    <MenubarSubmenu label="Backup Toâ€¦">
+                    <MenubarSubmenu label="Backup To...">
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         const other = panes.find(p => p.id !== activePaneId);
                         const dest = other?.tabs[other.activeTabIndex]?.path;
                         if (dest) void copyOrMoveToTarget('copy', dest);
                         else void copyOrMoveToTarget('copy');
                       })}>Other Pane (copy)</div>
-                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}>Browseâ€¦</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}>Browse...</div>
                     </MenubarSubmenu>
 
                     <MenubarSubmenu label="Compare">
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => startFolderCompare())}>Compare / Sync Folders</div>
-                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => openBottomPlugin('find'))}>Find Differencesâ€¦</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => openBottomPlugin('find'))}>Find Differences...</div>
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -14899,7 +14899,7 @@ ${classified.detail}`,
                       <Icons8Icon id="sparkles_ui" size={14} /> Smart Rename
                     </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => openBottomPlugin('find'))}>
-                      <Icons8Icon id="file_search_ui" size={14} /> Find Filesâ€¦
+                      <Icons8Icon id="file_search_ui" size={14} /> Find Files...
                     </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { omniFilterRef.current?.focus(); })}>Find Now / Quick Search</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
@@ -14913,7 +14913,7 @@ ${classified.detail}`,
                         setFilterText(q.startsWith('> ') ? q : `> ${q.trim()}`);
                         omniFilterRef.current?.focus();
                       })();
-                    })}>Global Searchâ€¦</div>
+                    })}>Global Search...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#e81123] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const tab = currentTab;
@@ -14960,12 +14960,12 @@ ${classified.detail}`,
                         closeMenu();
                       })}
                     >
-                      <span className="w-4 text-center text-[11px]">{config.autoSyncFolderSizes !== false ? 'âœ“' : ''}</span>
+                      <span className="w-4 text-center text-[11px]">{config.autoSyncFolderSizes !== false ? '*' : ''}</span>
                       <Icons8Icon id="folder_size_sync" size={14} className={config.autoSyncFolderSizes !== false ? '' : 'opacity-50'} />
                       Auto Sync Folder Sizes
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    {/* Show hidden files toggle â€” synced with Settings â†’ showHiddenFiles */}
+                    {/* Show hidden files toggle -- synced with Settings -> showHiddenFiles */}
                     <div
                       className={`px-3 py-1 bndz-menubar-row cursor-pointer text-sm flex items-center gap-2 ${config.showHiddenFiles ? 'text-emerald-300' : 'text-gray-200'}`}
                       onMouseDown={menuAct(() => {
@@ -14979,11 +14979,11 @@ ${classified.detail}`,
                         closeMenu();
                       })}
                     >
-                      <span className="w-4 text-center text-[11px] shrink-0">{config.showHiddenFiles ? 'âœ“' : ''}</span>
+                      <span className="w-4 text-center text-[11px] shrink-0">{config.showHiddenFiles ? '*' : ''}</span>
                       <Icons8Icon id="eye" size={14} className={config.showHiddenFiles ? '' : 'opacity-50'} />
                       Show Hidden Files
                     </div>
-                    {/* Show system files toggle â€” synced with Settings â†’ showSystemFiles */}
+                    {/* Show system files toggle -- synced with Settings -> showSystemFiles */}
                     <div
                       className={`px-3 py-1 bndz-menubar-row cursor-pointer text-sm flex items-center gap-2 ${config.showSystemFiles ? 'text-emerald-300' : 'text-gray-200'}`}
                       onMouseDown={menuAct(() => {
@@ -14996,7 +14996,7 @@ ${classified.detail}`,
                         closeMenu();
                       })}
                     >
-                      <span className="w-4 text-center text-[11px] shrink-0">{config.showSystemFiles ? 'âœ“' : ''}</span>
+                      <span className="w-4 text-center text-[11px] shrink-0">{config.showSystemFiles ? '*' : ''}</span>
                       <Icons8Icon id="filter" size={14} className={config.showSystemFiles ? '' : 'opacity-50'} />
                       Show System Files
                     </div>
@@ -15136,11 +15136,11 @@ ${classified.detail}`,
                         <div className="px-3 py-1 text-sm text-gray-500 italic">(No tabs)</div>
                       )}
                     </MenubarSubmenu>
-                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>Historyâ€¦</div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>History...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                      // Native FM: jump straight into the address bar â€” never browser prompt().
+                      // Native FM: jump straight into the address bar -- never browser prompt().
                       focusAddressBar();
-                    })}>Go toâ€¦ / Go Now</div>
+                    })}>Go to... / Go Now</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('app'); })}>Application Folder</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData Folder</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -15155,7 +15155,7 @@ ${classified.detail}`,
                         if (q.trim()) addFindingTab(activePaneId, q.trim());
                         closeMenu();
                       })();
-                    })}><Icons8Icon id="file_search_ui" size={14} /> New Finding Tabâ€¦</div>
+                    })}><Icons8Icon id="file_search_ui" size={14} /> New Finding Tab...</div>
                  </MenubarPortalMenu>
              )}
          </div>
@@ -15240,20 +15240,20 @@ ${classified.detail}`,
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Keyboard Shortcuts');
                         setIsConfigDialogOpen(true);
-                      })}>Keyboard Shortcutsâ€¦</div>
+                      })}>Keyboard Shortcuts...</div>
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Refresh, Icons, History');
                         setIsConfigDialogOpen(true);
-                      })}>File Iconsâ€¦</div>
-                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}>Toolbarâ€¦</div>
+                      })}>File Icons...</div>
+                      <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}>Toolbar...</div>
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Tree and List');
                         setIsConfigDialogOpen(true);
-                      })}>Treeâ€¦</div>
+                      })}>Tree...</div>
                       <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                         setConfigInitialTab('Tabs');
                         setIsConfigDialogOpen(true);
-                      })}>List / Tabsâ€¦</div>
+                      })}>List / Tabs...</div>
                     </MenubarSubmenu>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>
@@ -15359,7 +15359,7 @@ ${classified.detail}`,
                     </MenubarSubmenu>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const tag = lastAppliedTagRef.current;
-                      if (!tag) { setToastMessage('No previous label â€” apply a tag first.'); return; }
+                      if (!tag) { setToastMessage('No previous label -- apply a tag first.'); return; }
                       void applyTagToSelection(tag);
                     })}>Apply Last Label</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
@@ -15381,7 +15381,7 @@ ${classified.detail}`,
                       })));
                       setToastMessage(comment ? 'Comment saved.' : 'Comment cleared.');
                       refreshWorkspace();
-                    })}>Commentâ€¦</div>
+                    })}>Comment...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     {availableTags.map(tag => {
                         const tagColor = tag.color || '#FACC15';
@@ -15396,7 +15396,7 @@ ${classified.detail}`,
                     })}
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setTagAssignmentActive(true); })}>
-                      <TagGlyph color="#9CA3AF" size={12} /> Tag assignment modeâ€¦
+                      <TagGlyph color="#9CA3AF" size={12} /> Tag assignment mode...
                     </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); })}>
                       <TagGlyph color="#9CA3AF" size={12} /> Manage Tags...
@@ -15412,7 +15412,7 @@ ${classified.detail}`,
                       a.click();
                       URL.revokeObjectURL(a.href);
                       setToastMessage('Tags database exported.');
-                    })}>Export Tags Databaseâ€¦</div>
+                    })}>Export Tags Database...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const input = document.createElement('input');
                       input.type = 'file';
@@ -15432,7 +15432,7 @@ ${classified.detail}`,
                         }
                       };
                       input.click();
-                    })}>Import Tags Databaseâ€¦</div>
+                    })}>Import Tags Database...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const { IPC } = await import('../lib/ipcBridge');
                       const tags = await IPC.getTagsConfig();
@@ -15540,7 +15540,7 @@ ${classified.detail}`,
                         updateConfig({ workspaceLayoutPresets: [...(config.workspaceLayoutPresets || []), preset] });
                         setToastMessage(`Saved layout: ${name.trim()}`);
                       })();
-                    })}>Save Window Layoutâ€¦</div>
+                    })}>Save Window Layout...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       const presets = config.workspaceLayoutPresets || [];
                       if (!presets.length) { setToastMessage('No saved layouts.'); return; }
@@ -15591,7 +15591,7 @@ ${classified.detail}`,
                       <Icons8Icon id="lock_ui" size={13} className="opacity-80" /> Register Product...
                     </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
-                      setToastMessage('Checking for updatesâ€¦');
+                      setToastMessage('Checking for updates...');
                       void IPC.checkForUpdates(config.updateCheckUrl, !!config.includeBetaVersions).then(r => {
                         if (r.error) setToastMessage(`Update check failed: ${r.error}`);
                         else if (r.updateAvailable) setToastMessage(`Update available: v${r.latestVersion}. See About BNDZ to download.`);
@@ -15607,7 +15607,7 @@ ${classified.detail}`,
              )}
          </div>
          </div>
-         {/* Native-host: trailing flex gap â€” WinUI Caption owns window-drag here (never IPC BeginDrag). */}
+         {/* Native-host: trailing flex gap -- WinUI Caption owns window-drag here (never IPC BeginDrag). */}
          {isNativeShellHostBoot() && (
            <div
              className="bndz-menubar-drag-strip"
@@ -15668,7 +15668,7 @@ ${classified.detail}`,
                      title={toolbarTitle}
                      disabled={toolbarDisabled}
                      onContextMenu={(e) => {
-                       // Settings â†’ Show last actions in toolbar button menu
+                       // Settings -> Show last actions in toolbar button menu
                        if ((item.id !== 'undo' && item.id !== 'redo') || !config.showLastActionsInToolbarButtonMenu) return;
                        e.preventDefault();
                        setShowHistoryDialog(true);
@@ -15932,10 +15932,10 @@ ${classified.detail}`,
         data-tutorial="omnibar"
         className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0 gap-2"
         style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}
-        title="Filter Â· path Â· >command Â· ::script â€” double-click for Command Hub"
+        title="Filter | path | >command | ::script -- double-click for Command Hub"
         onDoubleClick={(e) => {
           const t = e.target as HTMLElement;
-          // Empty bar / chrome / icon â†’ Command Hub. Filled input keeps word-select.
+          // Empty bar / chrome / icon -> Command Hub. Filled input keeps word-select.
           if (t.tagName === 'INPUT' && filterText.trim()) return;
           e.preventDefault();
           const handled = dispatchCustomEvent(config, 'double-click-white-omnibar', buildCeaHandlers(activePaneId));
@@ -15955,7 +15955,7 @@ ${classified.detail}`,
             type="text"
             className="bndz-omnibar-input flex-1 text-white border border-[#444] px-2 py-[2px] text-[12px] focus:outline-none transition-colors placeholder-[#666]"
             style={{ background: 'var(--bndz-surface-raised)' }}
-            placeholder="Filter Â· path Â· >command Â· ::script â€” dbl-click for Hub"
+            placeholder="Filter | path | >command | ::script -- dbl-click for Hub"
             value={filterText}
             onChange={(e) => {
                if (activeTab.viewLocked) {
@@ -16190,7 +16190,7 @@ ${classified.detail}`,
                     ) : (
                       <div className="mx-3 my-2 px-3 py-3 text-center rounded-md border border-dashed border-[#333] bg-[#151515]/80">
                         <p className="text-[10px] text-gray-500 leading-relaxed">
-                          {drivesReady ? 'No local drives detected.' : 'Scanning local drivesâ€¦'}
+                          {drivesReady ? 'No local drives detected.' : 'Scanning local drives...'}
                         </p>
                         {drivesReady && (
                           <button
@@ -16232,7 +16232,7 @@ ${classified.detail}`,
                                  className={`sidebar-pin-row group/pin relative flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 bndz-sidebar-nav-hit ${isQaSelected ? 'sidebar-pin-row-selected' : ''} ${favoriteDrag?.sourcePath === qaPath ? 'opacity-40' : ''} ${isFavoriteDropTarget ? 'bg-amber-400/15 border-amber-400/80 text-white' : isQaSelected ? '' : 'border-transparent hover:border-amber-400/70'}`}
                                  onPointerDown={(e) => {
                                    if (e.button !== 0 || isRenaming) return;
-                                   // Grip owns reorder â€” don't navigate from the drag handle.
+                                   // Grip owns reorder -- don't navigate from the drag handle.
                                    if ((e.target as HTMLElement)?.closest?.('[data-favorite-grip]')) return;
                                    e.stopPropagation();
                                    const target = collapseKnownFolderShadowPath(s.path, shortcuts);
@@ -16247,7 +16247,7 @@ ${classified.detail}`,
                                    if (isRenaming) return;
                                    e.stopPropagation();
                                    const target = collapseKnownFolderShadowPath(s.path, shortcuts);
-                                   // Settings â†’ Open favorite files directly
+                                   // Settings -> Open favorite files directly
                                    if (config.openFavoriteFilesDirectly) {
                                      const looksFile = /\.[A-Za-z0-9]{1,8}$/.test(target.split(/[/\\]/).pop() || '')
                                        && !target.toLowerCase().includes('/shell:');
@@ -16394,7 +16394,7 @@ ${classified.detail}`,
                           openWorkspaceToolTab(path);
                           return;
                         }
-                        // Same path as Drives / Rapid Access â€” clears suppressNavClickUntilRef
+                        // Same path as Drives / Rapid Access -- clears suppressNavClickUntilRef
                         // so tree LMB isn't eaten after list RMB / boot pointer races.
                         sidebarNavigateFromPointer(path);
                       }}
@@ -16527,7 +16527,7 @@ ${classified.detail}`,
                              renderPane(panes[0], 0)
                            )}
                            </div>
-                           {/* DualPane DiffPlex compare strip â€” shown when diff mode is active */}
+                           {/* DualPane DiffPlex compare strip -- shown when diff mode is active */}
                            {config.dualPaneFeature !== false && isDualPane && panes[1] && dualPaneDiffActive && (() => {
                              const p1Tab = panes[0]?.tabs[panes[0]?.activeTabIndex];
                              const p2Tab = panes[1]?.tabs[panes[1]?.activeTabIndex];
@@ -16675,14 +16675,14 @@ ${classified.detail}`,
                      className={`bndz-resize-handle h-1.5 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-[80] touch-none ${
                        !layoutBottomOpen || bottomImmersive ? 'opacity-0 pointer-events-none h-0 min-h-0 overflow-hidden' : ''
                      }`}
-                     title="Drag to resize Â· Double-click to reset default height"
+                     title="Drag to resize | Double-click to reset default height"
                      onDoubleClick={(e) => {
                        e.preventDefault();
                        e.stopPropagation();
                        resetBottomPanelLayout();
                      }}
                   />
-                  {/* Bottom Plugin Panel â€” always mounted; collapsed via panelRef when hidden */}
+                  {/* Bottom Plugin Panel -- always mounted; collapsed via panelRef when hidden */}
                   <ResizablePanel
                      id="bottom"
                      panelRef={bottomPanelRef}
@@ -16807,7 +16807,7 @@ ${classified.detail}`,
          </ResizablePanelGroup>
       </div>
 
-      {/* Transfer queue (native background jobs) â€” sole live progress surface */}
+      {/* Transfer queue (native background jobs) -- sole live progress surface */}
       <FileTransferQueuePanel enabled={fileOpsRt.showTransferPanel || config.showTransferQueuePanel !== false} />
       <TransferActivityToast />
 
@@ -16849,16 +16849,16 @@ ${classified.detail}`,
            {getListIxBehavior(config).showDragStatusBox && (pointerFileDragActive || !!listDragGhost) && (
              <span className="text-sky-300/90 ml-2 font-medium">
                {listDragGhost?.copy || listDragGhost?.dropHint?.toLowerCase().includes('copy')
-                 ? 'Dragging â€” drop to copy'
-                 : 'Dragging â€” drop to move'}
+                 ? 'Dragging -- drop to copy'
+                 : 'Dragging -- drop to move'}
              </span>
            )}
            {isGlobal && isGlobalSearchLoading && (
-             <span className="text-amber-400/90 ml-2">Searchingâ€¦</span>
+             <span className="text-amber-400/90 ml-2">Searching...</span>
            )}
            {isGlobal && !isGlobalSearchLoading && globalSearchEngine && (
              <span className="text-amber-400/70 ml-2">
-               Global Â· {globalSearchEngine === 'indexed' ? 'Indexed search'
+               Global | {globalSearchEngine === 'indexed' ? 'Indexed search'
                  : globalSearchEngine === 'indexed-empty' ? 'Index (no hits)'
                  : globalSearchEngine === 'windows-search' ? 'Windows Search'
                  : globalSearchEngine === 'everything' ? 'Everything'
@@ -16881,12 +16881,12 @@ ${classified.detail}`,
                className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-[#cce4f7] hover:text-white"
                title="Clear tag filter"
              >
-               Tag: {activeTagFilter} Ã—
+               Tag: {activeTagFilter} x
              </button>
            )}
            {layoutBottomOpen && activeBottomPluginLabel && (
              <span className="ml-2 bndz-status-meta hidden sm:inline">
-               Plugin Â· {activeBottomPluginLabel}
+               Plugin | {activeBottomPluginLabel}
              </span>
            )}
            {folderSizeSync?.active && (
@@ -16911,7 +16911,7 @@ ${classified.detail}`,
             )}
             {getHoverPending() && config.showFileInfoTips !== false && config.listHoverTooltipsEnabled !== false && (
               <span className={`bndz-shift-hint hidden md:inline-flex ${isShiftKeyHeld() ? 'bndz-shift-hint-active' : ''}`}>
-                <kbd>â‡§</kbd> Shift + hover for file details
+                <kbd>Shift+</kbd> Shift + hover for file details
               </span>
             )}
             {(() => {
@@ -16922,7 +16922,7 @@ ${classified.detail}`,
                 <div className="flex items-center gap-2" title={`${formatSize(totalFree)} free of ${formatSize(totalCap)} (${pctFree}% free)`}>
                   <Icons8Icon id="hard_drive_ui" size={12} />
                   <span className="bndz-glass-chip text-[10px] px-2 py-0.5 font-mono text-[#c8c8c8]">
-                    {drives.length} vol Â· {formatSize(totalFree)} free ({pctFree}%)
+                    {drives.length} vol | {formatSize(totalFree)} free ({pctFree}%)
                   </span>
                 </div>
               );
@@ -16990,7 +16990,7 @@ ${classified.detail}`,
       {isSaveTabsetOpen && (
         <NativeDialogShell
           open={isSaveTabsetOpen}
-          title="Save Tabset Asâ€¦"
+          title="Save Tabset As..."
           variant="sheet"
           size="sm"
           zIndexClass="z-50"
@@ -17043,7 +17043,7 @@ ${classified.detail}`,
           footerButtons={[{ label: 'Close', onClick: () => setIsLoadTabsetOpen(false) }]}
           maxHeightClass="max-h-[80vh]"
         >
-          {/* Settings â†’ Tabsets can revert after saving settings */}
+          {/* Settings -> Tabsets can revert after saving settings */}
           {config.tabsetsCanRevertAfterSavingSettings && getTabsetRevertSnapshot() && (
             <button
               type="button"
@@ -17128,7 +17128,7 @@ ${classified.detail}`,
             label="Configuration"
             resetKey={configInitialTab || 'config'}
             onError={() => {
-              setToastMessage('Configuration hit a render error â€” try Reload UI or reopen Config.', 'warning');
+              setToastMessage('Configuration hit a render error -- try Reload UI or reopen Config.', 'warning');
             }}
             fallback={
               <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55">
@@ -17521,7 +17521,7 @@ ${classified.detail}`,
             const { IPC } = await import('../lib/ipcBridge');
             const result = await IPC.restoreRecycleItems(paths);
             if (isQueuedIpcResult(result)) {
-              setToastMessage('Restore queued â€” see transfer panel.');
+              setToastMessage('Restore queued -- see transfer panel.');
               return;
             }
             if (result.restored > 0) {

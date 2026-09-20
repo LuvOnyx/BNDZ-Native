@@ -12,8 +12,8 @@ export type PanelFontTokens = {
 };
 
 /**
- * BNDZ font pack — Navigation Tree / Files-modern default is Segoe UI Variable.
- * Bundled faces (Outfit, Figtree, …) remain selectable in Fonts settings.
+ * BNDZ font pack -- Navigation Tree / Files-modern default is Segoe UI Variable.
+ * Bundled faces (Outfit, Figtree, ...) remain selectable in Fonts settings.
  */
 const FONT_PRESETS: Record<string, string> = {
   'Segoe UI Variable': '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
@@ -75,7 +75,7 @@ export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelF
   const isNativeHost = typeof document !== 'undefined'
     && document.documentElement.dataset.bndzShell === 'native-host';
 
-  // Match Navigation Tree Files-modern sizing — do not shrink the tree and leave chrome mismatched.
+  // Match Navigation Tree Files-modern sizing -- do not shrink the tree and leave chrome mismatched.
   const zoneDefaults: Record<PanelFontZone, { size: number; weight: number; lineHeight: number }> = {
     list: { size: isNativeHost ? 13.5 : 13, weight: baseWeight, lineHeight: 1.35 },
     tabs: { size: readSettingNumber(config, 'tabsFontSize', 0) || readSettingNumber(config, 'tabFontSize', 11) || 11, weight: baseWeight, lineHeight: 1.25 },

@@ -49,7 +49,7 @@ export const PRESET_CATEGORIES = [
 ] as const;
 
 /**
- * Power / host extras — OFF by default so the live menu stays Explorer-short.
+ * Power / host extras -- OFF by default so the live menu stays Explorer-short.
  * Enable individually in Shell Menus → Optional stock items.
  */
 export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
@@ -62,14 +62,14 @@ export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
   { id: 'smart-rename', label: 'Smart Rename', desc: 'Batch rename on files', iconVerb: 'sparkles', surfaces: ['file'] as const },
   { id: 'spatial-pin', label: 'Pin to Spatial Canvas', desc: 'Drop selection onto Spatial', iconVerb: 'map', surfaces: ['file', 'folder'] as const },
   { id: 'automation', label: 'Send to Automation', desc: 'Open Automations with selected paths', iconVerb: 'emblem-shared', surfaces: ['file', 'folder'] as const },
-  { id: 'mesh-drop', label: 'Mesh Drop…', desc: 'Ship selection over Mesh Drop', iconVerb: 'share', surfaces: ['file', 'folder'] as const },
+  { id: 'mesh-drop', label: 'Mesh Drop...', desc: 'Ship selection over Mesh Drop', iconVerb: 'share', surfaces: ['file', 'folder'] as const },
   { id: 'change-icon', label: 'Change Icon', desc: 'Icon Studio submenu on Properties', iconVerb: 'picture_ui', surfaces: ['file', 'folder'] as const },
   { id: 'photo-studio', label: 'Edit in Photo Studio', desc: 'Full layered image editor', iconVerb: 'picture_ui', surfaces: ['file'] as const },
 ] as const;
 
 export type OptionalStockContextId = (typeof OPTIONAL_STOCK_CONTEXT_ITEMS)[number]['id'];
 
-/** Default: empty — shorter core menu. */
+/** Default: empty -- shorter core menu. */
 export const DEFAULT_ENABLED_STOCK_CONTEXT_IDS: OptionalStockContextId[] = ['photo-studio'];
 
 export function isOptionalStockContextEnabled(
@@ -105,7 +105,7 @@ export const STOCK_BNDZ_MENU: StockMenuRow[] = [
   { id: 'sep-before-custom', label: '', kind: 'sep', surfaces: ['file', 'folder', 'background'] },
   { id: 'custom-zone', label: 'Your custom items', kind: 'zone', surfaces: ['file', 'folder', 'background'] },
   { id: 'sep-after-custom', label: '', kind: 'sep', surfaces: ['file', 'folder', 'background'] },
-  { id: 'open-in', label: 'Open in…', iconVerb: 'open', kind: 'submenu', surfaces: ['file', 'folder'] },
+  { id: 'open-in', label: 'Open in...', iconVerb: 'open', kind: 'submenu', surfaces: ['file', 'folder'] },
   { id: 'archive', label: 'Archive', iconVerb: 'archive', kind: 'submenu', surfaces: ['file', 'folder'] },
   { id: 'create-link', label: 'Create Link', iconVerb: 'link', kind: 'submenu', surfaces: ['file', 'folder'] },
   { id: 'copy-path', label: 'Copy Path', iconVerb: 'copypath', kind: 'item', surfaces: ['file', 'folder'] },
@@ -155,7 +155,7 @@ export const SHELL_MENU_PRESETS: MenuPreset[] = [
   // ── View (in-app) ─────────────────────────────────────────────────────
   { id: 'view-refresh', category: 'View', label: 'Refresh', desc: 'Reload folder listing', surfaces: ['app'], action: { name: 'Refresh', command: 'refresh', iconVerb: 'refresh' } },
   { id: 'view-details', category: 'View', label: 'Details View', desc: 'Switch list to details', surfaces: ['app'], action: { name: 'Details View', command: 'powershell.exe -NoP -C "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\'^+\')"', iconVerb: 'layers' } },
-  { id: 'view-separator', category: 'Structure', label: 'Menu Separator', desc: 'Visual divider in menu', surfaces: ['app', 'global'], action: { name: '—', command: '', iconVerb: 'filetext' } },
+  { id: 'view-separator', category: 'Structure', label: 'Menu Separator', desc: 'Visual divider in menu', surfaces: ['app', 'global'], action: { name: '--', command: '', iconVerb: 'filetext' } },
 
   // ── Navigate ──────────────────────────────────────────────────────────
   { id: 'nav-explorer', category: 'Navigate', label: 'Reveal in Explorer', desc: 'openExplorer verb', surfaces: ['app'], action: { name: 'Open in Explorer', command: 'openExplorer', iconVerb: 'openexplorer' } },
@@ -193,7 +193,7 @@ export const SHELL_MENU_PRESETS: MenuPreset[] = [
   // ── Network ───────────────────────────────────────────────────────────
   { id: 'net-share', category: 'Network', label: 'Share Folder', desc: 'fsmgmt.msc', surfaces: ['app', 'global'], action: { name: 'Shared Folders', command: 'fsmgmt.msc', targetMode: 'directory', iconVerb: 'share' } },
   { id: 'net-connections', category: 'Network', label: 'Network Connections', desc: 'ncpa.cpl', surfaces: ['app', 'global'], action: { name: 'Network Connections', command: 'ncpa.cpl', targetMode: 'all', iconVerb: 'share' } },
-  { id: 'net-ping', category: 'Network', label: 'Ping Host File', desc: 'Ping from name', surfaces: ['app', 'global'], action: { name: 'Ping…', command: 'cmd.exe /k ping %1', targetMode: 'all', iconVerb: 'share' } },
+  { id: 'net-ping', category: 'Network', label: 'Ping Host File', desc: 'Ping from name', surfaces: ['app', 'global'], action: { name: 'Ping...', command: 'cmd.exe /k ping %1', targetMode: 'all', iconVerb: 'share' } },
   { id: 'net-map', category: 'Network', label: 'Map Network Drive', desc: 'net use dialog', surfaces: ['app', 'global'], action: { name: 'Map Network Drive', command: 'rundll32.exe shell32.dll,SHHelpShortcuts_RunDLL Connect', targetMode: 'all', iconVerb: 'harddrive' } },
 
   // ── Media ─────────────────────────────────────────────────────────────
@@ -216,7 +216,7 @@ export function presetsForSurface(surface: 'app' | 'global'): MenuPreset[] {
   return SHELL_MENU_PRESETS.filter(p => p.surfaces.includes(surface));
 }
 
-/** Default Explorer inject list — seed when Windows Explorer tab is empty. */
+/** Default Explorer inject list -- seed when Windows Explorer tab is empty. */
 export const DEFAULT_STOCK_GLOBAL_ACTIONS: Array<MenuActionSeed & { id: string }> = [
   { id: 'stock-open-bndz', name: 'Open in BNDZ', command: 'bndz-open-path', targetMode: 'directory', iconVerb: 'open' },
   { id: 'stock-index', name: 'Index folder in BNDZ', command: 'bndz-open-path', targetMode: 'directory', iconVerb: 'search' },

@@ -45,7 +45,7 @@ function normalizeVerb(raw: Record<string, unknown>): VerbEntry {
   };
 }
 
-/** Explorer verb forge UI — lives inside Shell Menus (not a sibling plugin). */
+/** Explorer verb forge UI -- lives inside Shell Menus (not a sibling plugin). */
 export function ShellVerbForgePanel() {
   const [verbs, setVerbs] = useState<VerbEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,11 +159,11 @@ export function ShellVerbForgePanel() {
         </PluginToolbarButton>
       </div>
       <p className="shrink-0 px-3 py-2 text-[11px] text-white/45 leading-relaxed border-b border-white/[0.05]">
-        Register HKCU Explorer verbs that launch BNDZ with path arguments — same Deploy surface as Windows Explorer menus, no sibling plugin.
+        Register HKCU Explorer verbs that launch BNDZ with path arguments -- same Deploy surface as Windows Explorer menus, no sibling plugin.
       </p>
       <div className="flex flex-1 min-h-0 gap-3 p-3">
         <div className="w-[38%] min-w-[140px] flex flex-col gap-1 overflow-y-auto bndz-scrollbar">
-          {loading && <div className="text-xs text-gray-500 px-2 py-4">Loading verbs…</div>}
+          {loading && <div className="text-xs text-gray-500 px-2 py-4">Loading verbs...</div>}
           {!loading && verbs.length === 0 && (
             <PluginEmptyState icon="shell_menus" title="No verbs yet" hint="Create a verb and deploy it to Explorer." />
           )}
@@ -180,7 +180,7 @@ export function ShellVerbForgePanel() {
             >
               <div className="font-semibold truncate">{v.label}</div>
               <div className="text-[10px] text-gray-500 truncate">
-                {v.deployed ? '● Deployed' : '○ Not deployed'} · {v.targetClass}
+                {v.deployed ? '● Deployed' : '○ Not deployed'} | {v.targetClass}
               </div>
             </button>
           ))}

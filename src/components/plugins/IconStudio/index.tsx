@@ -61,8 +61,8 @@ function IconStudioInner({
                     <div className="bndz-iconstudio-opsrail-title">Icon Studio</div>
                     <div className="bndz-iconstudio-opsrail-meta">
                         {targetCount > 0
-                            ? `${targetCount} target${targetCount !== 1 ? 's' : ''} selected · pick an icon and apply`
-                            : 'Pick a library · choose an icon · select items in the list to apply'}
+                            ? `${targetCount} target${targetCount !== 1 ? 's' : ''} selected | pick an icon and apply`
+                            : 'Pick a library | choose an icon | select items in the list to apply'}
                     </div>
                 </div>
                 <div className="bndz-iconstudio-opsrail-actions">

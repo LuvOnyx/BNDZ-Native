@@ -124,7 +124,7 @@ export default function ImageZoomPreview({
       }
       const { IPC } = await import('../lib/ipcBridge');
       if (!IPC.isNative) return false;
-      // Hard cap — decoding multi‑MB base64 on the UI thread freezes WebView2.
+      // Hard cap -- decoding multi‑MB base64 on the UI thread freezes WebView2.
       const result = await IPC.getMediaBlob(win, 2 * 1024 * 1024);
       if (!result.base64 || !result.mime || result.error) return false;
       if (result.base64.length > 2.8e6) return false; // ~2MB binary ≈ 2.7M b64 chars
@@ -156,7 +156,7 @@ export default function ImageZoomPreview({
     const { x, y } = offsetRef.current;
     const s = scaleRef.current;
     el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${s})`;
-    // Luma filter comes from CSS classes (.is-luma / --luma) — never inline blowout.
+    // Luma filter comes from CSS classes (.is-luma / --luma) -- never inline blowout.
     el.style.filter = '';
     rafRef.current = null;
   }, []);
@@ -172,7 +172,7 @@ export default function ImageZoomPreview({
     const minScale = Math.max(0.05, fit * 0.2);
     const clamped = Math.min(24, Math.max(minScale, next));
     scaleRef.current = clamped;
-    // Avoid setState churn — ResizeObserver + fit feedback loops froze the WebView.
+    // Avoid setState churn -- ResizeObserver + fit feedback loops froze the WebView.
     if (Math.abs(lastDisplayRef.current - clamped) > 0.002) {
       lastDisplayRef.current = clamped;
       setDisplayScale(clamped);
@@ -401,7 +401,7 @@ export default function ImageZoomPreview({
               scheduleFit();
             }}
             onError={(e) => {
-              // Prefer the already-warm CAS/shell thumb — never jump straight into a
+              // Prefer the already-warm CAS/shell thumb -- never jump straight into a
               // multi‑MB GET_MEDIA_BLOB + atob that freezes the host on PNG/ICO open.
               if (fallbackSrc && imgSrc !== fallbackSrc) {
                 setImgSrc(fallbackSrc);
@@ -425,7 +425,7 @@ export default function ImageZoomPreview({
 
       <div className="bndz-image-preview-chrome">
         <span className="bndz-image-preview-hint">
-          {isLoupe ? 'Scroll zoom · Drag pan · Move cursor for loupe' : isLuma ? 'Luma · Scroll zoom · Drag pan' : 'Scroll to zoom · Drag to pan'}
+          {isLoupe ? 'Scroll zoom | Drag pan | Move cursor for loupe' : isLuma ? 'Luma | Scroll zoom | Drag pan' : 'Scroll to zoom | Drag to pan'}
         </span>
         <div className="bndz-image-preview-tools">
           <button type="button" onClick={zoomOut} className="bndz-media-transport-btn" title="Zoom out">

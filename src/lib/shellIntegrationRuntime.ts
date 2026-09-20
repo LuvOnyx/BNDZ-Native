@@ -32,7 +32,7 @@ async function applyShellSetting(
         message: `${result.message}\n\nRestart BNDZ as administrator to ${label}?\n\nAll Shell Integration settings will be applied on restart.`,
       }, '--apply-shell --elevated');
       if (!elevated) {
-        // UAC Cancel — do not pretend the setting applied; caller must not stamp fingerprint.
+        // UAC Cancel -- do not pretend the setting applied; caller must not stamp fingerprint.
         return {
           ...result,
           success: false,
@@ -43,7 +43,7 @@ async function applyShellSetting(
     }
     return result;
   } catch (err) {
-    // Soft-fail — never block navigation / settings UI on hung registry writes.
+    // Soft-fail -- never block navigation / settings UI on hung registry writes.
     console.warn(`[shell] ${label} skipped:`, err);
     return { success: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -73,7 +73,7 @@ let applyChain: Promise<void> = Promise.resolve();
 let _applyInProgress = false;
 
 async function applyBackendSettingsInner(config: AppConfig): Promise<boolean> {
-  if (_applyInProgress) return false; // already running — skip to avoid IPC queue saturation
+  if (_applyInProgress) return false; // already running -- skip to avoid IPC queue saturation
   _applyInProgress = true;
   let elevationCancelled = false;
   const track = async (
@@ -107,7 +107,7 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<boolean> {
     const status = await withTimeout(IPC.getDefaultFileManagerStatus(), 8_000, 'SHELL_INTEGRATION_RESULT');
     alreadyDefault = !!status?.active;
   } catch {
-    /* continue — apply best-effort */
+    /* continue -- apply best-effort */
   }
 
   if (isDefaultFm && !inContextMenu) {
@@ -136,7 +136,7 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<boolean> {
     () => IPC.setIconStudioShellMenu(iconStudioShell),
   );
 
-  // Always call deploy — empty / disabled undeploys lingering HKCU shell\BNDZ keys.
+  // Always call deploy -- empty / disabled undeploys lingering HKCU shell\BNDZ keys.
   try {
     const actions = (config.injectGlobalContextMenu && config.globalContextMenuActions?.length)
       ? config.globalContextMenuActions.map((a: any) => ({
@@ -159,7 +159,7 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<boolean> {
   }
 }
 
-/** Debounced shell apply — skips when fingerprint unchanged to avoid IPC spam/timeouts. */
+/** Debounced shell apply -- skips when fingerprint unchanged to avoid IPC spam/timeouts. */
 export function scheduleBackendSettings(config: AppConfig, force = false): void {
   pendingConfig = config;
   if (debounceTimer) clearTimeout(debounceTimer);
@@ -178,7 +178,7 @@ export function scheduleBackendSettings(config: AppConfig, force = false): void 
     applyChain = applyChain
       .then(() => applyBackendSettingsInner(cfg))
       .then((ok) => {
-        // Only stamp fingerprint when elevation was not cancelled — otherwise Settings
+        // Only stamp fingerprint when elevation was not cancelled -- otherwise Settings
         // would skip re-apply and leave HKCU/HKLM out of sync with the toggled UI.
         if (ok) lastAppliedFingerprint = fp;
       })

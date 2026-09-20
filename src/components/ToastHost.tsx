@@ -69,7 +69,7 @@ function windowsCategoryAllowed(config: Record<string, unknown>, category: Toast
   return merged[category] !== false;
 }
 
-/** Push a toast from anywhere — no React context required */
+/** Push a toast from anywhere -- no React context required */
 export function pushToast(payload: ToastPayload | string, kind?: ToastKind) {
   if (typeof payload === 'string') {
     window.dispatchEvent(new CustomEvent('bndz-toast', {
@@ -163,7 +163,7 @@ export default function ToastHost() {
       const item: ToastItem = {
         id: d.id || generateId(),
         kind: d.kind || 'success',
-        title: d.title || (d.kind === 'error' ? 'Error' : d.kind === 'warning' ? 'Notice' : d.kind === 'progress' ? 'Working…' : 'Done'),
+        title: d.title || (d.kind === 'error' ? 'Error' : d.kind === 'warning' ? 'Notice' : d.kind === 'progress' ? 'Working...' : 'Done'),
         message: d.message,
         progress: d.progress,
         duration: d.duration ?? (d.kind === 'error' ? 6000 : 4000),

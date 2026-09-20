@@ -152,7 +152,7 @@ export default function FiltersPlugin({
             variant="embedded"
             subtitle={panelTab === 'groups'
                 ? 'Group this folder into piles by type and theme'
-                : `${activeCount} active of ${filters.length} rules · color-code the list`}
+                : `${activeCount} active of ${filters.length} rules | color-code the list`}
             toolbar={(
                 <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
                     <PluginTab active={panelTab === 'rules'} onClick={() => setPanelTab('rules')}>Rules</PluginTab>
@@ -170,11 +170,11 @@ export default function FiltersPlugin({
                 <PluginHeroStrip
                     icon={<BndzPlaque tone="search" size="md" className="bndz-filters-hero-plaque" />}
                     name="Rules studio"
-                    typeLabel="Easy templates · advanced editor"
+                    typeLabel="Easy templates | advanced editor"
                     meta={
                         <span className="bndz-panel-muted text-xs">
-                            {activeCount} active · {filters.length} total
-                            {editing ? ` · editing “${editing.name}”` : ' · tint rows by type, size, age'}
+                            {activeCount} active | {filters.length} total
+                            {editing ? ` | editing "${editing.name}"` : ' | tint rows by type, size, age'}
                         </span>
                     }
                     actions={
@@ -218,7 +218,7 @@ export default function FiltersPlugin({
                                 <span className="w-2.5 h-2.5 rounded-full ring-2 ring-white/10" style={{ background: tpl.badgeColor }} />
                                 <span className="text-[12px] font-semibold text-white/95">{tpl.name}</span>
                             </div>
-                            <p className="text-[10px] bndz-panel-muted mt-0.5">One-click rule · edit after</p>
+                            <p className="text-[10px] bndz-panel-muted mt-0.5">One-click rule | edit after</p>
                         </button>
                     ))}
                 </div>
@@ -285,7 +285,7 @@ export default function FiltersPlugin({
                                             <span className="bndz-plugin-kind-pill !text-[9px] shrink-0">
                                                 {MATCH_LABELS[f.matchType] || f.matchType}
                                             </span>
-                                            <span className="bndz-mono truncate">{f.matchValue || '—'}</span>
+                                            <span className="bndz-mono truncate">{f.matchValue || '--'}</span>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>

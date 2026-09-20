@@ -1,4 +1,4 @@
-/** Per-tab accent colors — right-click tab → pick color */
+/** Per-tab accent colors -- right-click tab → pick color */
 export const TAB_ACCENT_PRESETS = [
   { id: 'default', label: 'Default', color: '' },
   { id: 'sky', label: 'Sky', color: '#38bdf8' },
@@ -12,9 +12,9 @@ export const TAB_ACCENT_PRESETS = [
 ] as const;
 
 /**
- * Colored tab chrome — same chip silhouette as uncolored tabs.
+ * Colored tab chrome -- same chip silhouette as uncolored tabs.
  * CSS owns plaque / native-host fill; we only set slit + under-plaque tint vars.
- * Never set inline `background` — that clears plaques and shrinks the painted chip.
+ * Never set inline `background` -- that clears plaques and shrinks the painted chip.
  */
 export function tabAccentStyle(color?: string | null, _isActive?: boolean): Record<string, string> | undefined {
   if (!color) return undefined;

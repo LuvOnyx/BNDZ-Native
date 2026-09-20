@@ -6,7 +6,7 @@ export { isNonFsShellIconPath } from './shellPaths';
 
 export type IconRequestKind = 'shell' | 'thumbnail';
 
-/** Canonical list/grid CAS thumb size — one size = one cache key = warm after first visit. */
+/** Canonical list/grid CAS thumb size -- one size = one cache key = warm after first visit. */
 export const LIST_THUMB_PX = 96;
 
 /** Live list-thumb size from settings (thumbnailSizePreset1). */
@@ -26,13 +26,13 @@ export function getRuntimeListThumbPx(): number {
 export function getRuntimeHiResThumbPx(): number {
   return runtimeHiResThumbPx;
 }
-/** Side-panel / Quick Look CAS size — still tiny vs full-file stream. */
+/** Side-panel / Quick Look CAS size -- still tiny vs full-file stream. */
 export const PREVIEW_THUMB_PX = 256;
 
 interface IconCacheEntry {
   data: string | null;
   status: 'ready' | 'loading' | 'error';
-  /** Epoch ms when error was recorded — skip retries until TTL or cache buster. */
+  /** Epoch ms when error was recorded -- skip retries until TTL or cache buster. */
   errorAt?: number;
 }
 
@@ -69,7 +69,7 @@ function canonicalizeIconPath(path: string): string {
   let win = (resolveShellIconPath(path) || toWindowsPath(path) || '').trim();
   if (!win) return '';
   win = win.replace(/\//g, '\\');
-  // Shell / GUID paths keep case — version prefix busts poisoned white-doc CLSID cache entries.
+  // Shell / GUID paths keep case -- version prefix busts poisoned white-doc CLSID cache entries.
   if (/^shell:/i.test(win) || win.includes('::{')) return `shellns:v4:${win}`;
   // Collapse trailing separators except drive roots (C:\).
   if (/^[A-Za-z]:\\/.test(win)) {
@@ -91,7 +91,7 @@ function iconKey(path: string, isDirectory: boolean, kind: IconRequestKind, thum
     : thumbPx >= 40 ? 48
     : 32;
   const base = `${kind}:${win}:${isDirectory ? 'd' : 'f'}`;
-  // Shell glyphs are size-banded too — zoomed grid must not reuse a 32px bitmap.
+  // Shell glyphs are size-banded too -- zoomed grid must not reuse a 32px bitmap.
   return `${base}:${kind === 'thumbnail' ? thumbPx : band}`;
 }
 
@@ -119,7 +119,7 @@ function notify(key: string) {
 
 function toDataUrl(res: string | null): string | null {
   if (!res) return null;
-  // Stale URLs from before bndz-media scheme — rewrite so we don't hit folder-map 404s.
+  // Stale URLs from before bndz-media scheme -- rewrite so we don't hit folder-map 404s.
   if (res.includes('/assets/native-icon/')) {
     const hash = res.split('/').pop()?.replace(/\.png$/i, '') ?? '';
     if (/^[a-f0-9]{16,}$/i.test(hash)) return `bndz-media://cas/${hash.toLowerCase()}.png`;
@@ -164,7 +164,7 @@ export function hydrateShellGlyphMap(glyphs: Record<string, string> | null | und
   void warmImageBitmaps([...typeGlyphCache.values()].slice(0, 48));
 }
 
-/** Decode-once so subsequent paints skip PNG decode cost. Prefer Image() over fetch —
+/** Decode-once so subsequent paints skip PNG decode cost. Prefer Image() over fetch --
  *  bndz-media:// is cross-origin from http://bndz.local; fetch needs CORS headers. */
 const bitmapWarmed = new Set<string>();
 async function warmImageBitmaps(urls: string[]): Promise<void> {
@@ -192,7 +192,7 @@ async function warmImageBitmaps(urls: string[]): Promise<void> {
         img.src = url;
       });
     } catch {
-      /* best-effort — never surface to console as uncaught */
+      /* best-effort -- never surface to console as uncaught */
     }
   }
 }
@@ -215,7 +215,7 @@ function commitCache(key: string, data: string | null, typeKey?: string | null, 
   if (existing?.data && !data) return;
   if (data) {
     lruSet(cache, key, { data, status: 'ready' }, MAX_ICON_CACHE);
-    // Extension type glyphs only. NEVER write per-path folder icons into __folder__ —
+    // Extension type glyphs only. NEVER write per-path folder icons into __folder__ --
     // that poisons every directory with Downloads/Desktop/etc.
     if (typeKey && typeKey.startsWith('.')) lruSet(typeGlyphCache, typeKey, data, MAX_TYPE_GLYPH, FOLDER_GLYPH_KEY);
     void warmImageBitmaps([data]);
@@ -241,7 +241,7 @@ export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequ
   const entry = cache.get(key);
   if (entry?.status === 'ready' && entry.data) return entry.data;
   if (kind === 'shell') {
-    // Provisional only — do NOT cache.set ready, or per-path fetch never runs.
+    // Provisional only -- do NOT cache.set ready, or per-path fetch never runs.
     if (isDirectory) {
       const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
       if (folderGlyph) return folderGlyph;
@@ -329,7 +329,7 @@ export function requestNativeIcon(
       commitCache(key, glyph, typeKey?.startsWith('.') ? typeKey : null, kind);
       return Promise.resolve(glyph);
     }
-    // Folder glyph not hydrated yet — leave unresolved; listing SHELL_GLYPH_MAP will refill.
+    // Folder glyph not hydrated yet -- leave unresolved; listing SHELL_GLYPH_MAP will refill.
     cache.delete(key);
     return Promise.resolve(null);
   }
@@ -337,10 +337,10 @@ export function requestNativeIcon(
   const cached = cache.get(key);
   if (cached?.status === 'ready' && cached.data) return Promise.resolve(cached.data);
   if (cached?.status === 'loading' && inflight.has(key)) return inflight.get(key)!;
-  // Negative CAS — thumbnails only; shell icons retry on next visible row.
+  // Negative CAS -- thumbnails only; shell icons retry on next visible row.
   if (kind !== 'shell' && isNegativeFresh(cached)) return Promise.resolve(null);
 
-  // Type glyphs from the shared map are ~32px — never reuse them for zoomed tiles.
+  // Type glyphs from the shared map are ~32px -- never reuse them for zoomed tiles.
   const shareTypeGlyph = kind === 'shell' && thumbPx < 64;
 
   if (shareTypeGlyph && typeKey?.startsWith('.')) {
@@ -371,7 +371,7 @@ export function requestNativeIcon(
   if (!cached?.data) lruSet(cache, key, { data: cached?.data ?? null, status: 'loading' }, MAX_ICON_CACHE);
 
   // Priority: viewport shells ≥1700; thumbs 1000+; offscreen shells lower.
-  // Split queues: shell concurrency ≥6, thumb ≤3 — shells never wait behind media extract.
+  // Split queues: shell concurrency ≥6, thumb ≤3 -- shells never wait behind media extract.
   const boost = Math.max(0, priorityBoost | 0);
   const priority = kind === 'thumbnail'
     ? 1000 + Math.min(900, boost)
@@ -381,7 +381,7 @@ export function requestNativeIcon(
   const queueKind = kind === 'thumbnail' ? 'thumb' as const : 'shell' as const;
   const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority, queueKind)
     .then(data => {
-      // Never pass FOLDER_GLYPH_KEY — per-path folder extracts must not poison the shared glyph.
+      // Never pass FOLDER_GLYPH_KEY -- per-path folder extracts must not poison the shared glyph.
       // Hi-res shell extracts must not overwrite the shared ~32px type glyph either.
       commitCache(key, data, shareTypeGlyph && typeKey?.startsWith('.') ? typeKey : null, kind);
       return data;
@@ -412,7 +412,7 @@ function applyBatchChunk(
     const win = canonicalizeIconPath(req.path);
     const raw = lookupBatchIcon(batch, win, req.path, toWindowsPath(req.path));
     const data = toDataUrl(raw);
-    // Directories: store per-path only — never as __folder__.
+    // Directories: store per-path only -- never as __folder__.
     const typeKey = kind === 'shell' && !req.isDirectory
       ? hostIconCacheKey(req.path, req.isDirectory)
       : null;
@@ -556,7 +556,7 @@ export async function prefetchMediaThumbnailsForEntities(
         /* fall through to miss refill */
       }
     }
-    // Only refill batch misses — never re-await every path after a warm batch hit.
+    // Only refill batch misses -- never re-await every path after a warm batch hit.
     const misses = chunk.filter(r => !hasReadyCachedIcon(r.path, r.isDirectory, 'thumbnail', thumbPx));
     if (misses.length) {
       await Promise.all(misses.map(r => requestNativeIcon(r.path, r.isDirectory, 'thumbnail', thumbPx)));
@@ -618,7 +618,7 @@ export function listingPrefetchFromConfig(config: {
     typeof document !== 'undefined'
       ? document.documentElement?.dataset?.bndzShell
       : undefined;
-  // Hosted/native shells share one WebView2 IPC pump — never flood cold navigate with 50k thumbs
+  // Hosted/native shells share one WebView2 IPC pump -- never flood cold navigate with 50k thumbs
   // (Photos & Videos + create-all-at-once was blanking the whole native face).
   if (shell === 'files-host' || shell === 'native-host') {
     return {
@@ -682,7 +682,7 @@ export function applyIconCacheBuster(buster: number | undefined) {
   if (!buster || buster === lastAppliedCacheBuster) return;
   lastAppliedCacheBuster = buster;
   clearIconCache();
-  // Host ThumbNegatives + disk CAS — FE buster alone cannot un-poison failed SVG thumbs.
+  // Host ThumbNegatives + disk CAS -- FE buster alone cannot un-poison failed SVG thumbs.
   void import('./ipcBridge').then(({ IPC }) => {
     if (IPC.isNative) void IPC.clearIconCache?.();
   });

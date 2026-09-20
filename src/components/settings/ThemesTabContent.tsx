@@ -97,7 +97,7 @@ export default function ThemesTabContent({ activeTheme, onSelectTheme }: ThemesT
         <div>
           <h1 className="text-[22px] font-bold text-white mb-1.5 leading-tight tracking-tight">Themes</h1>
           <p className="text-[12px] text-[#a8a8b0] max-w-[540px] leading-relaxed">
-            Pick a complete workspace look — sidebar, toolbar, panels, and context menus update together.
+            Pick a complete workspace look -- sidebar, toolbar, panels, and context menus update together.
             Fine-tune any color afterward in the <strong className="text-violet-300/90 font-semibold">Colors</strong> tab.
           </p>
         </div>

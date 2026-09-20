@@ -43,7 +43,7 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     'batch-rename': [
       'Pattern, numbering, and case transforms',
       'Live preview against the current selection',
-      'Drop magnets — rename, tag, and route on Explorer → BNDZ release',
+      'Drop magnets -- rename, tag, and route on Explorer → BNDZ release',
       'Safe undo via the action log',
     ],
     find: [
@@ -53,25 +53,25 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
     ],
     dropstack: [
       'Stage files from many folders',
-      'Inbound intake — clipboard, OCR captures, folder watchers',
+      'Inbound intake -- clipboard, OCR captures, folder watchers',
       'Drop policies that block, warn, or reroute',
       'Batch copy or move into the active pane',
     ],
 
     filters: [
       'Visual color filters for list rows',
-      'Smart groups — cluster the folder into piles',
+      'Smart groups -- cluster the folder into piles',
       'Persisted with workspace settings',
     ],
     metadata: [
       'Sidecar tags and custom columns',
       'Bulk edit across selections',
-      'Image encode queue — JPEG, PNG, WebP',
+      'Image encode queue -- JPEG, PNG, WebP',
     ],
     'storage-cleanup': [
       'Large-file discovery and deep clean',
       'Capacity what-if planning',
-      'Library health — broken links, orphans, and repairs',
+      'Library health -- broken links, orphans, and repairs',
     ],
     'folder-sync': [
       'Robocopy-backed folder sync jobs',
@@ -114,7 +114,7 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
 }
 
 function versionLabel(plugin: PluginManifest): string {
-  return plugin.isNative ? '1.0 · Built-in' : '1.0 · Imported';
+  return plugin.isNative ? '1.0 | Built-in' : '1.0 | Imported';
 }
 
 export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void; embedded?: boolean }) {
@@ -182,14 +182,14 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           const builtIn = pluginRegistry.find((p: PluginManifest) => p.id === json.id);
           if (!builtIn?.component && json.isNative !== false) {
             showNativeAlert(
-              'This manifest describes a built-in extension that must ship with BNDZ — use Install in the catalog instead of JSON import.',
+              'This manifest describes a built-in extension that must ship with BNDZ -- use Install in the catalog instead of JSON import.',
               'Extension Hub',
               'error',
             );
             return;
           }
           if (!builtIn && json.isNative === true) {
-            showNativeAlert('Imported manifests cannot register native host plugins — set isNative to false or use a built-in id.', 'Extension Hub', 'error');
+            showNativeAlert('Imported manifests cannot register native host plugins -- set isNative to false or use a built-in id.', 'Extension Hub', 'error');
             return;
           }
           const newPlugin: PluginManifest = { ...json, isInstalled: true };
@@ -224,7 +224,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
           <input
             ref={searchRef}
             type="text"
-            placeholder="Search by name, id, or description…"
+            placeholder="Search by name, id, or description..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bndz-native-input w-full !py-1.5 !pl-8 !pr-3 !text-[12px]"
@@ -278,7 +278,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
         </span>
       </div>
 
-      {/* ── Body — catalog + detail ── */}
+      {/* ── Body -- catalog + detail ── */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
 
         {/* Catalog list */}
@@ -395,7 +395,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
                       onClick={() => fileInputRef.current?.click()}
                       className="bndz-hub-btn-ghost px-3 py-2 text-[12px] font-semibold"
                     >
-                      Replace via import…
+                      Replace via import...
                     </button>
                   </div>
                 </div>
@@ -444,7 +444,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
                         </div>
                         <div className="bndz-plugin-field-label">Status</div>
                         <div className="bndz-plugin-field-value">
-                          {activePlugin.isInstalled ? 'Installed — available in the workspace' : 'Not installed'}
+                          {activePlugin.isInstalled ? 'Installed -- available in the workspace' : 'Not installed'}
                         </div>
                       </div>
                     </section>
@@ -469,7 +469,7 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
                     <div>
                       <h2 className="bndz-plugin-section-title mb-1">Capabilities</h2>
                       <p className="text-[11.5px] text-white/35 mb-4 leading-relaxed">
-                        What this extension unlocks inside BNDZ — not marketing fluff.
+                        What this extension unlocks inside BNDZ -- not marketing fluff.
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -505,8 +505,8 @@ export function PluginStoreDialog({ onClose, embedded }: { onClose?: () => void;
                           <div className="text-[13px] font-semibold text-white/90">{versionLabel(activePlugin)}</div>
                           <div className="text-[11px] text-white/38 mt-0.5">
                             {activePlugin.isNative
-                              ? 'Shipped with BNDZ · updated with the app'
-                              : 'Imported manifest · replace any time'}
+                              ? 'Shipped with BNDZ | updated with the app'
+                              : 'Imported manifest | replace any time'}
                           </div>
                         </div>
                         {activePlugin.isInstalled && <span className="bndz-hub-pill">Current</span>}
@@ -598,7 +598,7 @@ function CatalogRow({
         <p className="text-[11px] text-white/38 truncate mt-0.5 leading-snug">{plugin.description}</p>
         <div className="flex items-center gap-2 mt-1.5 text-[9.5px] text-white/25 font-medium tracking-wide uppercase">
           <span>{plugin.targetPanel === 'bottom' ? 'Bottom panel' : 'Sidebar'}</span>
-          <span className="opacity-40">·</span>
+          <span className="opacity-40">|</span>
           <span>{plugin.isNative ? 'Native' : 'Web'}</span>
         </div>
       </div>

@@ -4,7 +4,7 @@ const RESIZE_HANDLE_SELECTOR =
 
 const SPATIAL_BOARD_SELECTOR = '[data-spatial-board], .bndz-spatial-board';
 
-/** True while a panel separator is being dragged — list must not scroll/select underneath. */
+/** True while a panel separator is being dragged -- list must not scroll/select underneath. */
 let panelResizeDepth = 0;
 
 export function beginPanelResizeGuard(): void {
@@ -51,7 +51,7 @@ export function resetWorkspacePointerChrome(): void {
 function isResizeHandleTarget(target: EventTarget | null): boolean {
   const el = target as Element | null;
   if (!el?.closest) return false;
-  // Only treat actual separators as resize targets — not every element that
+  // Only treat actual separators as resize targets -- not every element that
   // happens to sit under a transient body cursor style.
   return !!(
     el.closest('.bndz-resize-handle')

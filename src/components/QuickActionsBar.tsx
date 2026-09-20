@@ -14,7 +14,7 @@ export type QuickAction = {
 type Props = {
   count: number;
   actions: QuickAction[];
-  /** Master settings toggle — when false, bar never renders. */
+  /** Master settings toggle -- when false, bar never renders. */
   enabled?: boolean;
   /** When false, bar stays hidden even if count > 0 (e.g. during double-click window). */
   visible?: boolean;

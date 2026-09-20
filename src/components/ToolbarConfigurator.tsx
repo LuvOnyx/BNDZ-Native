@@ -178,7 +178,7 @@ function PaletteDraggable({ item, onAdd }: { item: typeof AVAILABLE_ITEMS[0]; on
       {...attributes}
       className={`bndz-tb-palette-row group ${isDragging ? 'bndz-tb-palette-row--dragging' : ''}`}
       onClick={onAdd}
-      title={`Add “${item.label}” to toolbar`}
+      title={`Add "${item.label}" to toolbar`}
     >
       <div className="bndz-tb-palette-icon" style={cat ? { borderColor: `${cat.color}44` } : undefined}>
         <ListItemIcon item={item} />
@@ -370,7 +370,7 @@ export default function ToolbarConfigurator({
   return (
     <BndzWindowFrame
       title="Toolbar Designer"
-      subtitle="Compose your command bar — drag, order, save"
+      subtitle="Compose your command bar -- drag, order, save"
       iconId="wrench"
       onClose={onClose}
       zIndexClass="z-[200]"
@@ -386,7 +386,7 @@ export default function ToolbarConfigurator({
               <input
                 ref={searchRef}
                 type="text"
-                placeholder="Search commands…"
+                placeholder="Search commands..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="bndz-native-input w-full !py-2 !pl-8 !pr-3 !text-[12px]"
@@ -476,7 +476,7 @@ export default function ToolbarConfigurator({
                   + New profile
                 </button>
                 <span className="ml-auto text-[11px] text-white/30 hidden sm:inline">
-                  Reorder by dragging · drop on remove zone to delete
+                  Reorder by dragging | drop on remove zone to delete
                 </span>
               </div>
 
@@ -486,7 +486,7 @@ export default function ToolbarConfigurator({
                   <div className={`bndz-tb-chrome${config.compactToolbar ? ' bndz-compact-toolbar' : ''}`}>
                     <div className="bndz-tb-chrome-caption">
                       <span className="text-[10px] text-white/30 tracking-wide">
-                        Matches main toolbar{config.compactToolbar ? ' · compact' : ''}
+                        Matches main toolbar{config.compactToolbar ? ' | compact' : ''}
                       </span>
                     </div>
                     <ToolbarDropZone empty={currentLayout.length === 0}>

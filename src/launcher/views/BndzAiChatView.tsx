@@ -2,7 +2,7 @@
  * BndzAiChatView.tsx
  *
  * Multi-turn AI chat panel (Raycast-style, single-column).
- * Header: back arrow + single-line "Ask follow-up…" input
+ * Header: back arrow + single-line "Ask follow-up..." input
  * Body: list of QA cards; newest card scrolls to top (old cards slide up)
  * Footer: BNDZ badge + "Ask AI" label, plain "Actions ⌘K" text button
  *
@@ -706,7 +706,7 @@ const BndzAiChatView: React.FC<BndzAiChatViewProps> = ({
     }
   };
 
-  const placeholder = pairs.length === 0 ? 'Ask AI anything…' : 'Ask follow-up…';
+  const placeholder = pairs.length === 0 ? 'Ask AI anything...' : 'Ask follow-up...';
 
   return (
     <div className="w-full h-full">
@@ -764,7 +764,7 @@ const BndzAiChatView: React.FC<BndzAiChatViewProps> = ({
                   Ask AI anything
                 </div>
                 <div className="text-[12px] text-[var(--text-muted)] leading-relaxed">
-                  Ideas, code, writing, quick answers — start typing to begin a new conversation.
+                  Ideas, code, writing, quick answers -- start typing to begin a new conversation.
                 </div>
               </div>
             </div>

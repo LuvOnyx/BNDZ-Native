@@ -170,7 +170,7 @@ export default function BndzHomeView({
         const free = Number(d.freeSpace) || 0;
         const freeRatio = total > 0 ? free / total : undefined;
         return {
-          name: d.label ? `${letter}: · ${d.label}` : `${letter}:`,
+          name: d.label ? `${letter}: | ${d.label}` : `${letter}:`,
           path: toPanePath(name.startsWith('/') ? name : `/${name}`),
           letter,
           kind: 'drive' as const,
@@ -233,7 +233,7 @@ export default function BndzHomeView({
       setLoading(false);
     }
     refreshDeck(!cached);
-    // Never leave Continuum stuck on "Loading…" if IPC hangs in headless host.
+    // Never leave Continuum stuck on "Loading..." if IPC hangs in headless host.
     const failsafe = window.setTimeout(() => {
       setLoading(false);
       setDeckSyncing(false);
@@ -457,8 +457,8 @@ export default function BndzHomeView({
           >
             {fileCount > 0
               ? `${fileCount.toLocaleString()} files indexed`
-                + (library.images ? ` · ${library.images.toLocaleString()} photos` : '')
-                + (library.videos ? ` · ${library.videos.toLocaleString()} videos` : '')
+                + (library.images ? ` | ${library.images.toLocaleString()} photos` : '')
+                + (library.videos ? ` | ${library.videos.toLocaleString()} videos` : '')
               : 'Places are live. Index libraries to fill the Home rail.'}
           </motion.p>
         </header>
@@ -486,7 +486,7 @@ export default function BndzHomeView({
                   (e.target as HTMLInputElement).blur();
                 }
               }}
-              placeholder="Go anywhere — path, alias, collection…  (/)"
+              placeholder="Go anywhere -- path, alias, collection...  (/)"
               spellCheck={false}
               autoComplete="off"
               aria-autocomplete="list"
@@ -527,12 +527,12 @@ export default function BndzHomeView({
         <section className="bndz-home-workspaces" aria-label="Workspaces">
           <div className="bndz-home-section-label">
             <span>Workspaces</span>
-            <span className="bndz-home-muted">Zero-launch tools · no external setup</span>
+            <span className="bndz-home-muted">Zero-launch tools | no external setup</span>
           </div>
           <div className="bndz-ws-launch-grid">
             <WorkspaceLaunchCard
               title="Pillar Board"
-              desc="Open Spatial with Sandbox, Health, Inbound, Capacity, Sync, and Automation pinned — live pillars in under 30 seconds."
+              desc="Open Spatial with Sandbox, Health, Inbound, Capacity, Sync, and Automation pinned -- live pillars in under 30 seconds."
               icon="view_grid"
               accent="#34d399"
               badge="Selling pillars"
@@ -549,7 +549,7 @@ export default function BndzHomeView({
             />
             <WorkspaceLaunchCard
               title="Spatial Canvas"
-              desc="Blank freeform board — organize references across folders without moving files on disk."
+              desc="Blank freeform board -- organize references across folders without moving files on disk."
               icon="view_grid"
               accent="#c4a35a"
               features={['Drop from panes', 'Sticky notes', 'Pan & zoom']}
@@ -634,7 +634,7 @@ export default function BndzHomeView({
           <div className="bndz-home-section-label">
             <span>Home</span>
             <span className="bndz-home-muted">
-              {loading ? 'Loading Home…' : deckSyncing ? 'Refreshing…' : '← → snap · Space Quick Look · click opens'}
+              {loading ? 'Loading Home...' : deckSyncing ? 'Refreshing...' : '← → snap | Space Quick Look | click opens'}
             </span>
           </div>
           <div
@@ -660,7 +660,7 @@ export default function BndzHomeView({
                   onClick={() => { onIndexInvite?.(); }}
                 >
                   <span className="bndz-home-rail-empty-title">Home rail is empty</span>
-                  <span>Index Desktop, Documents, Pictures, Music, and Videos — then the rail lights with real CAS thumbs.</span>
+                  <span>Index Desktop, Documents, Pictures, Music, and Videos -- then the rail lights with real CAS thumbs.</span>
                 </button>
               ) : continuum.map((item, i) => {
                 const path = toPanePath(item.path || item.id || '');
@@ -704,8 +704,8 @@ export default function BndzHomeView({
                 <span>Folder peek</span>
                 <span className="bndz-home-muted">
                   {peekItems.length > 0
-                    ? `${peekItems.length} neighbor${peekItems.length === 1 ? '' : 's'} · same folder`
-                    : 'Open folder · Space for Quick Look'}
+                    ? `${peekItems.length} neighbor${peekItems.length === 1 ? '' : 's'} | same folder`
+                    : 'Open folder | Space for Quick Look'}
                 </span>
               </div>
               <div className="bndz-home-peek-rail">
@@ -744,7 +744,7 @@ export default function BndzHomeView({
                   );
                 })}
                 {peekItems.length === 0 && continuum[railFocus] && (
-                  <span className="bndz-home-peek-empty">No indexed neighbors yet — Space still Quick Looks this file.</span>
+                  <span className="bndz-home-peek-empty">No indexed neighbors yet -- Space still Quick Looks this file.</span>
                 )}
               </div>
             </div>
@@ -755,7 +755,7 @@ export default function BndzHomeView({
           <div className="bndz-home-section-label">
             <span>Places</span>
             <span className="bndz-home-muted">
-              {spatialArmed ? 'Letter opens · release Alt to cancel' : 'Hold Alt · Spatial Jump'}
+              {spatialArmed ? 'Letter opens | release Alt to cancel' : 'Hold Alt | Spatial Jump'}
             </span>
           </div>
           <div className="bndz-home-places-row">
@@ -816,7 +816,7 @@ export default function BndzHomeView({
           <section className="bndz-home-ghost" aria-label="Session trail">
             <div className="bndz-home-section-label">
               <span>Session trail</span>
-              <span className="bndz-home-muted">This session · fades with time</span>
+              <span className="bndz-home-muted">This session | fades with time</span>
             </div>
             <div className="bndz-home-ghost-row">
               {ghost.map((g, i) => (

@@ -25,7 +25,7 @@ export function packGridTracks(
   return { cols, tileWidth };
 }
 
-/** Map grid icon slider (16–256) onto the nearest Files grid item width. */
+/** Map grid icon slider (16-256) onto the nearest Files grid item width. */
 export function filesGridItemWidthFromIcon(gridIconSize: number): number {
   const icon = Math.max(16, Math.min(256, gridIconSize));
   const t = (icon - 16) / (256 - 16);
@@ -34,7 +34,7 @@ export function filesGridItemWidthFromIcon(gridIconSize: number): number {
 }
 
 export type GridTileMetricsOpts = {
-  /** Appearance → Show cards — reserved for optional card frame; Files Grid is frame-less. */
+  /** Appearance → Show cards -- reserved for optional card frame; Files Grid is frame-less. */
   cardChrome?: boolean;
 };
 
@@ -45,14 +45,14 @@ export type GridTileMetricsOpts = {
 export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts) {
   const iconHint = Math.max(16, Math.min(256, gridIconSize));
   const itemWidth = Math.max(96, filesGridItemWidthFromIcon(iconHint));
-  // Never drop captions at low zoom — welcoming surface must always show readable names.
+  // Never drop captions at low zoom -- welcoming surface must always show readable names.
   const dense = false;
   const cardChrome = !!opts?.cardChrome;
 
   // Files GridViewBrowserTemplate: Margin="12" on thumbnail presenter.
   const thumbMargin = itemWidth <= 100 ? 8 : 12;
   const displayIcon = Math.max(16, itemWidth - thumbMargin * 2);
-  // Fetch size near Files bands (96 / 128 / 256 / 384) — never below display needs.
+  // Fetch size near Files bands (96 / 128 / 256 / 384) -- never below display needs.
   const icon =
     itemWidth <= 120 ? Math.max(displayIcon, 96)
     : itemWidth <= 180 ? Math.max(displayIcon, 128)
@@ -103,7 +103,7 @@ export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts
   };
 }
 
-/** This PC drive cards — scale with the same icon size slider as folders. */
+/** This PC drive cards -- scale with the same icon size slider as folders. */
 export function driveGridMetrics(gridIconSize: number) {
   const itemWidth = Math.max(140, filesGridItemWidthFromIcon(gridIconSize) + 40);
   const icon = Math.max(28, Math.min(120, gridIconSize));
@@ -144,7 +144,7 @@ export function driveListMetrics(listIconSize: number) {
   };
 }
 
-/** Details — Files GetDetailsViewRowHeight ladder (Compact→XL: 24–44), snug default. */
+/** Details -- Files GetDetailsViewRowHeight ladder (Compact→XL: 24-44), snug default. */
 export function detailsTileMetrics(detailsIconSize: number) {
   const icon = Math.max(12, Math.min(48, detailsIconSize));
   const rowHeight =
@@ -160,7 +160,7 @@ export function detailsTileMetrics(detailsIconSize: number) {
 
 /**
  * Files List view: compact multi-column name rows.
- * Heights from GetListViewRowHeight (24–44); tile width expands with icon for fewer columns at large sizes.
+ * Heights from GetListViewRowHeight (24-44); tile width expands with icon for fewer columns at large sizes.
  */
 export function listTileMetrics(listIconSize: number) {
   const icon = Math.max(12, Math.min(96, listIconSize));

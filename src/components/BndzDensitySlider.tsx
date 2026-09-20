@@ -19,8 +19,8 @@ function clamp(n: number, min: number, max: number) {
 }
 
 /**
- * FM views-bar density control — recessed glass rail, accent fill, soft squircle thumb
- * (Uiverse craft translated into BNDZ tokens / squircles — not a raw dump).
+ * FM views-bar density control -- recessed glass rail, accent fill, soft squircle thumb
+ * (Uiverse craft translated into BNDZ tokens / squircles -- not a raw dump).
  *
  * Scrubbing stays butter-smooth by painting a local/live value and coalescing
  * expensive parent updates to at most one rAF tick; config commits on release.

@@ -7,7 +7,7 @@ type Props = {
   currentPath?: string;
   root?: string;
   error?: string;
-  /** Whole multi-root job finished — show Complete instead of spinning. */
+  /** Whole multi-root job finished -- show Complete instead of spinning. */
   complete?: boolean;
 };
 
@@ -24,7 +24,7 @@ export default function IndexProgressChip({ filesIndexed, currentPath, root, err
     >
       <Icons8Icon id={complete && !error ? 'check' : 'database_ui'} size={12} className="shrink-0 opacity-80" />
       {error ? (
-        <span className="truncate text-red-300/90">Index failed · {error}</span>
+        <span className="truncate text-red-300/90">Index failed | {error}</span>
       ) : complete ? (
         <span className="truncate text-emerald-300/90">
           Indexed {filesIndexed.toLocaleString()}
@@ -32,8 +32,8 @@ export default function IndexProgressChip({ filesIndexed, currentPath, root, err
       ) : (
         <span className="truncate">
           Indexing {filesIndexed.toLocaleString()}
-          {file ? <span className="text-[#888] ml-1">· {file}</span> : null}
-          {rootLabel && !file ? <span className="text-[#888] ml-1">· {rootLabel}</span> : null}
+          {file ? <span className="text-[#888] ml-1">| {file}</span> : null}
+          {rootLabel && !file ? <span className="text-[#888] ml-1">| {rootLabel}</span> : null}
         </span>
       )}
       {!error && !complete && <Icons8Icon id="loading" size={10} spin className="shrink-0 opacity-70" />}

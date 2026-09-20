@@ -70,7 +70,7 @@ export default function MonacoMicroEditor({
       <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-white/[0.06] bg-[#1a1d24] shrink-0">
         <div className="min-w-0">
           <div className="text-[11px] font-medium text-white truncate">{fileName}</div>
-          <div className="text-[10px] text-[#7a8088]">Zero-Launch · {lang.toUpperCase()}</div>
+          <div className="text-[10px] text-[#7a8088]">Zero-Launch | {lang.toUpperCase()}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {status && <span className="text-[10px] text-[#7eb8e8]">{status}</span>}
@@ -82,7 +82,7 @@ export default function MonacoMicroEditor({
               disabled={!dirty || saving}
               onClick={() => void save()}
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving...' : 'Save'}
             </button>
           )}
         </div>

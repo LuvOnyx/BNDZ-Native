@@ -102,7 +102,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const [naturalImageSize, setNaturalImageSize] = useState<{ w: number; h: number } | null>(null);
   const svgBlobUrlRef = useRef<string | null>(null);
   const showLensStage = config.showLensStage !== false;
-  // Session survives RightPreviewPanel remounts on selection change — config alone can lag
+  // Session survives RightPreviewPanel remounts on selection change -- config alone can lag
   // and would briefly reopen a user-collapsed Lens.
   const [lensCollapsed, setLensCollapsed] = useState(() =>
     getLensStageCollapsed(config.lensCollapsedByDefault === true),
@@ -241,7 +241,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         setFolderStats(null);
         setFolderChildren([]);
      }
-  // Depend on the selected folder's cache entry only — not the whole pathContentsCache object.
+  // Depend on the selected folder's cache entry only -- not the whole pathContentsCache object.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, config.folderContentsPreview, config.folderContentsPreviewSortedBy, path, folderBrowsePath, pathContentsCache?.[folderBrowsePath || '']]);
 
@@ -319,12 +319,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     if (isMarkdown) setMdView('render');
     if (isAudio || isVideo) setActiveTab('media');
     else setActiveTab('preview');
-    // Never auto-expand / reset lens on selection change — only force-collapse for archives
+    // Never auto-expand / reset lens on selection change -- only force-collapse for archives
     // (no Lens UI) without writing the user's persisted preference.
     if (isArchive || isTorrent) setLensCollapsed(true);
   }, [path, entity?.id, isAudio, isVideo, isHtml, isArchive, isTorrent]);
 
-  // Docked preview is selection-bound — pause shared audio when leaving the playing file
+  // Docked preview is selection-bound -- pause shared audio when leaving the playing file
   // (otherwise folder selection keeps the previous WAV UI/session feeling "stuck").
   useEffect(() => {
     if (isAudio || isVideo) return;
@@ -334,7 +334,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   const previewRt = buildSettingsRuntime(config).preview;
 
-  // Hashing is expensive — only compute when Details is visible.
+  // Hashing is expensive -- only compute when Details is visible.
   useEffect(() => {
     if (activeTab !== 'details' || !path || !entity) return;
     const shellIsDir = entityShellIsDirectory(entity, path);
@@ -397,7 +397,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       ? Number(mediaAv.playOnlyTheFirstSecondsValue) || 0
       : 0,
     keepPlayingWhenHidden: !!(mediaAv.keepPlayingWhenInfoPanelIsHidden || mediaAv.playAlsoWhenInfoPanelIsHidden),
-    // Video/audio seeking needs byte-range on bndz-stream — prefer stream for both.
+    // Video/audio seeking needs byte-range on bndz-stream -- prefer stream for both.
     preferBlob: (previewRt.preferBlob || !nativePreviewHandling) && !isVideo && !isAudio,
     onOpenFloating: onOpenFloatingPreview,
     skipIntroMs: config.skipVideoPreview && isVideo
@@ -499,7 +499,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           <BndzPlaque tone="panel" size="lg" />
           <div className="bndz-preview-empty-title">Inspector idle</div>
           <p className="bndz-preview-empty-desc">
-            Select a file for preview, metadata, and media transport — or open a workspace.
+            Select a file for preview, metadata, and media transport -- or open a workspace.
           </p>
           <div className="bndz-preview-empty-actions">
             <button
@@ -552,7 +552,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     if (!path) return;
     const win = toWindowsPath(path);
     const { IPC } = await import('../lib/ipcBridge');
-    const dest = await IPC.openFolderDialog('Extract archive to…');
+    const dest = await IPC.openFolderDialog('Extract archive to...');
     if (!dest) return;
     const res = await IPC.extractArchive(win, dest);
     if (isQueuedIpcResult(res)) return;
@@ -593,7 +593,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               className={`bndz-preview-contents-row w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
                 selectedChild === c.name ? 'is-selected' : ''
               }`}
-              title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
+              title={c.type === 'directory' ? 'Click to browse | Double-click to open in list' : 'Double-click to show in folder'}
             >
               <Icons8Icon id={c.type === 'directory' ? 'explorer' : 'file_ui'} size={10} className="shrink-0" />
               <span className="truncate flex-1 min-w-0">{c.name}</span>
@@ -601,7 +601,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             </button>
           ))}
           {folderStats && folderStats.files + folderStats.folders > folderChildren.length && (
-            <div className="bndz-panel-muted px-2 py-1">+ more items…</div>
+            <div className="bndz-panel-muted px-2 py-1">+ more items...</div>
           )}
         </div>
       </div>
@@ -623,7 +623,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               type="button"
               onClick={() => onNavigate?.(`/vf/${cat.id}`)}
               className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-300 hover:bg-violet-500/10 text-left transition-colors"
-              title={`${cat.paths.length} item(s) · Open virtual catalog`}
+              title={`${cat.paths.length} item(s) | Open virtual catalog`}
             >
               <Icons8Icon id="table_ui" size={10} className="shrink-0" />
               <span className="truncate flex-1 min-w-0">{cat.name}</span>
@@ -680,13 +680,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       if (isSvg) {
           const wantInspect = inspectMode !== 'passthrough';
-          // SVG is still 2D — Loupe/Luma tint/magnify the rasterized image.
+          // SVG is still 2D -- Loupe/Luma tint/magnify the rasterized image.
           if (wantInspect) {
             const src = virtualUrl || svgPreviewUrl || '';
             if (!src) {
               return (
                 <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
-                  <div className="text-xs text-gray-500 animate-pulse">Loading SVG…</div>
+                  <div className="text-xs text-gray-500 animate-pulse">Loading SVG...</div>
                 </div>
               );
             }
@@ -707,7 +707,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           if (!src) {
             return (
               <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
-                <div className="text-xs text-gray-500 animate-pulse">{svgPreviewUrl === null ? 'Loading SVG…' : 'SVG unavailable'}</div>
+                <div className="text-xs text-gray-500 animate-pulse">{svgPreviewUrl === null ? 'Loading SVG...' : 'SVG unavailable'}</div>
               </div>
             );
           }
@@ -733,7 +733,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               The quick brown fox jumps over the lazy dog
             </div>
             <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[16px] opacity-70 text-center">
-              0123456789 · ABCDEFGHIJKLMNOPQRSTUVWXYZ
+              0123456789 | ABCDEFGHIJKLMNOPQRSTUVWXYZ
             </div>
             <div className="text-[11px] opacity-40 truncate max-w-full">{entity.name}</div>
           </div>
@@ -741,7 +741,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isModel && previewAllowed) {
-        // 3D / RAGE (.ydr/.ybn/…) — dedicated Orbit viewport only.
+        // 3D / RAGE (.ydr/.ybn/...) -- dedicated Orbit viewport only.
         // Loupe / Luma inspection modes are image-only and never wrap this path.
         const webGlReady = probeWebGL();
         const canShow = webGlReady && (isGpuNativeModelExt(ext) || isRageConvertModelExt(ext));
@@ -749,7 +749,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           return (
             <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
               <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
-              <p>WebGL is unavailable — enable GPU acceleration to preview 3D models.</p>
+              <p>WebGL is unavailable -- enable GPU acceleration to preview 3D models.</p>
             </div>
           );
         }
@@ -764,7 +764,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         if (modelPreview.loading) {
           return (
             <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 animate-pulse bndz-preview-stage">
-              Preparing {ext.toUpperCase()} mesh…
+              Preparing {ext.toUpperCase()} mesh...
             </div>
           );
         }
@@ -778,15 +778,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         }
         return (
           <div className={`relative w-full h-full min-h-[240px] bndz-preview-media-frame bndz-preview-border-${mediaBorderType} bndz-rage-preview-stage`}>
-            <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport…</div>}>
+            <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport...</div>}>
               <GpuModelViewport src={modelPreview.url} title={entity.name} badge={modelPreview.badge} />
             </Suspense>
             <div className="pointer-events-none absolute left-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] text-white/80">
-              {isRageConvertModelExt(ext) ? 'FiveM · orbit' : '3D orbit'} · drag to rotate
+              {isRageConvertModelExt(ext) ? 'FiveM | orbit' : '3D orbit'} | drag to rotate
             </div>
             {(modelPreview.vertices || modelPreview.triangles) ? (
               <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
-                {modelPreview.vertices?.toLocaleString()} verts · {modelPreview.triangles?.toLocaleString()} tris
+                {modelPreview.vertices?.toLocaleString()} verts | {modelPreview.triangles?.toLocaleString()} tris
               </div>
             ) : null}
           </div>
@@ -794,7 +794,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isImage) {
-          // Always use the inspection viewport for images so Luma/Loupe can apply —
+          // Always use the inspection viewport for images so Luma/Loupe can apply --
           // never fall through to a static hero thumb while the mode bar is visible.
           const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
@@ -804,7 +804,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           if (!primarySrc) {
             return (
               <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
-                <div className="text-xs text-gray-500 animate-pulse">Loading image…</div>
+                <div className="text-xs text-gray-500 animate-pulse">Loading image...</div>
               </div>
             );
           }
@@ -829,7 +829,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     : undefined}
                 >
                   {entity.name}
-                  {showOriginalDims && naturalImageSize ? ` · ${naturalImageSize.w}×${naturalImageSize.h}` : ''}
+                  {showOriginalDims && naturalImageSize ? ` | ${naturalImageSize.w}×${naturalImageSize.h}` : ''}
                 </div>
               )}
               {!showPreviewCaption && showOriginalDims && naturalImageSize && (
@@ -849,13 +849,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       // 3a. Word (.docx)
       if (isDocx && previewAllowed) {
           return (
-            <Suspense fallback={<div className="p-4 text-gray-500 text-sm">Loading document preview…</div>}>
+            <Suspense fallback={<div className="p-4 text-gray-500 text-sm">Loading document preview...</div>}>
               <DocxPreviewPanel url={virtualUrl} title={entity.name} />
             </Suspense>
           );
       }
 
-      // 3a2. Other Office (xlsx/pptx/xls/.doc) — honest open-externally, not hex/binary dump
+      // 3a2. Other Office (xlsx/pptx/xls/.doc) -- honest open-externally, not hex/binary dump
       if (isOfficeOther && previewAllowed) {
           return (
             <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-3 p-6 text-center bndz-preview-stage">
@@ -899,7 +899,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               </div>
               {mdView === 'render' ? (
                 isLoadingContent ? (
-                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading markdown…</div>
+                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading markdown...</div>
                 ) : contentError ? (
                   <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 m-2 rounded">{contentError}</div>
                 ) : fileContent != null ? (
@@ -909,7 +909,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 fileContent != null && path ? (
                   <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
                 ) : (
-                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source…</div>
+                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>
                 )
               )}
             </div>
@@ -944,7 +944,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 fileContent != null && path ? (
                   <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
                 ) : (
-                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source…</div>
+                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>
                 )
               )}
             </div>
@@ -961,7 +961,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           if (fileContent != null && path) {
               if (isCode) {
                 return (
-                  <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading editor…</div>}>
+                  <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading editor...</div>}>
                     <MonacoMicroEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} />
                   </Suspense></div>
                 );
@@ -1048,14 +1048,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                  )}
                  {isDir && folderStats && (
                     <div className="text-xs bndz-panel-muted text-center font-medium tracking-wide">
-                       {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
+                       {folderStats.folders} folders | {folderStats.files} files | {formatSize(folderStats.size)}
                     </div>
                  )}
                  {isDir && !folderStats && !isDrive && (() => {
                     const pane = normalizePanePath(path || '');
                     return pane !== '/' && pane !== '/this-pc' && !isRecycleBinPath(pane) && !isBndzVirtualPath(pane) && !pane.toLowerCase().startsWith('/shell:');
                  })() && (
-                    <div className="bndz-panel-muted text-center animate-pulse">Calculating folder size…</div>
+                    <div className="bndz-panel-muted text-center animate-pulse">Calculating folder size...</div>
                  )}
                  {isDrive && (entity as any).driveInfo && (
                     <div className="text-xs bndz-panel-muted text-center">
@@ -1118,7 +1118,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   const setInspectionMode = useCallback((mode: InspectionShaderMode) => {
     setInspectMode(mode);
-    // Inspection lives on Workspace — jump there if the user is on Details/Media.
+    // Inspection lives on Workspace -- jump there if the user is on Details/Media.
     setActiveTab('preview');
     updateConfig({ inspectionShaderMode: mode });
   }, [updateConfig]);
@@ -1205,7 +1205,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               className={`flex-1 min-h-0 flex flex-col ${activeTab === 'preview' ? '' : 'hidden'}`}
               aria-hidden={activeTab !== 'preview'}
             >
-              <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform…</div>}>
+              <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform...</div>}>
                 <AudioWaveformEditor path={path} title={entity.name} />
               </Suspense>
             </div>
@@ -1287,7 +1287,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                                      <div className="text-gray-500">Contents:</div>
                                      <div className="text-gray-300">
                                         {folderStats
-                                          ? `${folderStats.files} files · ${folderStats.folders} folders · ${formatSize(folderStats.size)}`
+                                          ? `${folderStats.files} files | ${folderStats.folders} folders | ${formatSize(folderStats.size)}`
                                           : 'Calculating...'}
                                      </div>
                                   </>
@@ -1389,7 +1389,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                       <p className="bndz-panel-section-title mt-1">Folder</p>
                       {folderStats && (
                         <p className="bndz-panel-muted mt-2 bndz-mono">
-                          {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
+                          {folderStats.folders} folders | {folderStats.files} files | {formatSize(folderStats.size)}
                         </p>
                       )}
                     </div>

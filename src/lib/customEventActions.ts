@@ -1,4 +1,4 @@
-/** XYplorer Custom Event Actions — trigger → action (+ optional script) */
+/** XYplorer Custom Event Actions -- trigger → action (+ optional script) */
 
 export type CeaAction =
   | 'none'

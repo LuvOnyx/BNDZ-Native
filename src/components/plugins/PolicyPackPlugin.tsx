@@ -18,7 +18,7 @@ export const PolicyPackPluginDef = {
   id: 'policy-packs',
   name: 'Policy Packs',
   icon: 'shield_ui',
-  description: 'Shareable folder policies — enforce extensions, size, tags, and deny patterns on drop/move.',
+  description: 'Shareable folder policies -- enforce extensions, size, tags, and deny patterns on drop/move.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -140,7 +140,7 @@ export default function PolicyPackPlugin({
           icon={<Icons8Icon id="shield_ui" size={40} />}
           name="Drop policies"
           typeLabel="Policy packs"
-          meta={<span className="text-xs text-gray-400">eslint for directories — enforce on drop/move</span>}
+          meta={<span className="text-xs text-gray-400">eslint for directories -- enforce on drop/move</span>}
           actions={
             <PluginHeroActionButton icon="add_ui" onClick={newPack} variant="primary">
               New pack

@@ -109,7 +109,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
     webBase
     && webBase.replace(/\/$/, '').toLowerCase() !== DEFAULT_MESH_DROP_WEB_BASE.replace(/\/$/, '').toLowerCase(),
   );
-  // QR / phone scan must not advertise a dead public web receiver — prefer deep link.
+  // QR / phone scan must not advertise a dead public web receiver -- prefer deep link.
   const qrTarget = shareMode === 'qr' ? (deepLink || meshCode) : '';
 
   useEffect(() => {
@@ -128,7 +128,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
   const createOffer = useCallback(async () => {
     if (!paths.length) return;
     setBusy(true);
-    setStatus('Generating encrypted Mesh Code…');
+    setStatus('Generating encrypted Mesh Code...');
     try {
       const r = await IPC.meshDropCreateOffer(paths, `${paths.length} item(s)`);
       if (!r.ok || !r.meshCode) throw new Error(r.error || 'Failed to create offer');
@@ -172,7 +172,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
       if (r.ok && r.answer) {
         setAnswerCode(r.answer);
         setRelayPolling(false);
-        setStatus('Relay delivered answer — connect to stream');
+        setStatus('Relay delivered answer -- connect to stream');
         return;
       }
       relayPollRef.current = window.setTimeout(tick, 2000);
@@ -191,7 +191,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
       return;
     }
     setBusy(true);
-    setStatus('Connecting to peer…');
+    setStatus('Connecting to peer...');
     try {
       const r = await IPC.meshDropAcceptOffer(code, destDir.trim());
       if (!r.ok || !r.answerCode) throw new Error(r.error || 'Failed to accept');
@@ -199,7 +199,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
       setSessionId(r.sessionId ?? '');
       if (relayBase && relayRoomId) {
         await IPC.meshDropRelaySubmitAnswer(relayBase, relayRoomId, r.answerCode);
-        setStatus('Answer posted to relay — waiting for host to stream');
+        setStatus('Answer posted to relay -- waiting for host to stream');
       } else {
         setStatus('Send the Answer Code back to the host (or use Relay tab)');
       }
@@ -213,11 +213,11 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
   const connectAndSend = async () => {
     if (!sessionId || !answerCode.trim()) return;
     setBusy(true);
-    setStatus('Establishing encrypted P2P tunnel…');
+    setStatus('Establishing encrypted P2P tunnel...');
     try {
       const conn = await IPC.meshDropConnect(sessionId, answerCode.trim());
       if (!conn.ok) throw new Error(conn.error || 'Connection failed');
-      setStatus('Streaming files directly to peer…');
+      setStatus('Streaming files directly to peer...');
       const send = await IPC.meshDropSend(sessionId);
       if (!send.ok) throw new Error(send.error || 'Transfer failed');
       pushToast({ kind: 'success', title: 'Mesh Drop complete', message: 'Files streamed directly to peer.' });
@@ -241,12 +241,12 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
 
   const scanLan = async () => {
     setLanScanning(true);
-    setStatus('Scanning LAN for BNDZ peers…');
+    setStatus('Scanning LAN for BNDZ peers...');
     try {
       const r = await IPC.meshDropDiscoverLan();
       const peers = (r.peers as Record<string, unknown>[]).map(normalizePeer);
       setLanPeers(peers);
-      setStatus(peers.length ? `Found ${peers.length} peer(s) on your network` : 'No LAN peers found — use Mesh Code or Deep Link');
+      setStatus(peers.length ? `Found ${peers.length} peer(s) on your network` : 'No LAN peers found -- use Mesh Code or Deep Link');
     } finally {
       setLanScanning(false);
     }
@@ -259,7 +259,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
       return;
     }
     setBusy(true);
-    setStatus(`Fetching offer from ${peer.displayName}…`);
+    setStatus(`Fetching offer from ${peer.displayName}...`);
     try {
       const r = await IPC.meshDropFetchLanOffer(peer.address, peer.port);
       if (!r.ok || !r.meshCode) throw new Error(r.error || 'Could not fetch LAN offer');
@@ -281,12 +281,12 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
     if (!roomId) return;
     setRelayRoomId(roomId);
     setBusy(true);
-    setStatus('Resolving relay room…');
+    setStatus('Resolving relay room...');
     try {
       const r = await IPC.meshDropRelayResolveOffer(relayBase, roomId);
       if (!r.ok || !r.meshCode) throw new Error(r.error || 'Room not found or expired');
       setPasteCode(r.meshCode);
-      setStatus('Offer loaded from relay — choose destination and accept');
+      setStatus('Offer loaded from relay -- choose destination and accept');
     } catch (e) {
       setStatus((e as Error).message);
     } finally {
@@ -301,7 +301,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
   };
 
   const displayCode = meshCode
-    ? (showFullCode ? meshCode : `${meshCode.slice(0, 96)}…`)
+    ? (showFullCode ? meshCode : `${meshCode.slice(0, 96)}...`)
     : '';
 
   return (
@@ -312,7 +312,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
           <span className="bndz-meshdrop-sigil"><EmblemIcon id="share-check" size={22} /></span>
           <div className="min-w-0 flex-1">
             <h2 className="bndz-meshdrop-title">Mesh Drop</h2>
-            <p className="bndz-meshdrop-sub">Zero-trust WebRTC P2P · encrypted pairing · unlimited size</p>
+            <p className="bndz-meshdrop-sub">Zero-trust WebRTC P2P | encrypted pairing | unlimited size</p>
           </div>
           <button type="button" className="bndz-meshdrop-close" onClick={onClose} aria-label="Close">×</button>
         </header>
@@ -362,7 +362,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                     });
                   }}
                 >
-                  Add files…
+                  Add files...
                 </button>
                 <button
                   type="button"
@@ -377,7 +377,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                     });
                   }}
                 >
-                  Add folder…
+                  Add folder...
                 </button>
                 {paths.length > 0 && (
                   <button type="button" className="bndz-meshdrop-btn" onClick={() => setSendPaths([])}>Clear</button>
@@ -424,7 +424,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                     <div>
                       <label className="bndz-meshdrop-label">Deep link (bndz://)</label>
                       <div className="bndz-meshdrop-code-row">
-                        <code className="bndz-meshdrop-code bndz-meshdrop-code--link">{deepLink.slice(0, 100)}…</code>
+                        <code className="bndz-meshdrop-code bndz-meshdrop-code--link">{deepLink.slice(0, 100)}...</code>
                         <button type="button" className="bndz-meshdrop-btn" onClick={() => copyText(deepLink, 'Deep link')}>Copy</button>
                       </div>
                       <p className="bndz-meshdrop-micro">Paste into another BNDZ desktop (Receive → paste). Phone browsers need a hosted receiver.</p>
@@ -447,9 +447,9 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                     {qrDataUrl ? (
                       <img src={qrDataUrl} alt="Mesh Drop QR code" className="bndz-meshdrop-qr" />
                     ) : (
-                      <div className="bndz-meshdrop-qr-placeholder">Generating QR…</div>
+                      <div className="bndz-meshdrop-qr-placeholder">Generating QR...</div>
                     )}
-                    <p className="bndz-meshdrop-micro text-center">Encodes a bndz:// deep link — open on another BNDZ desktop, or paste Mesh Code on Receive.</p>
+                    <p className="bndz-meshdrop-micro text-center">Encodes a bndz:// deep link -- open on another BNDZ desktop, or paste Mesh Code on Receive.</p>
                   </div>
                 )}
 
@@ -465,11 +465,11 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                               <button type="button" className="bndz-meshdrop-btn" onClick={() => copyText(relayJoinUrl, 'Relay link')}>Copy</button>
                             </div>
                             <p className="bndz-meshdrop-micro">
-                              {relayPolling ? 'Waiting for receiver answer on relay…' : 'Answer received — connect below.'}
+                              {relayPolling ? 'Waiting for receiver answer on relay...' : 'Answer received -- connect below.'}
                             </p>
                           </>
                         ) : (
-                          <p className="bndz-meshdrop-micro">Creating relay room…</p>
+                          <p className="bndz-meshdrop-micro">Creating relay room...</p>
                         )}
                       </>
                     ) : (
@@ -482,7 +482,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                   <div className="bndz-meshdrop-panel">
                     <p className="bndz-meshdrop-micro mb-2">This machine is broadcasting on your LAN. Receivers on the same subnet can discover you under Receive → LAN.</p>
                     <button type="button" className="bndz-meshdrop-btn" onClick={() => void scanLan()} disabled={lanScanning}>
-                      {lanScanning ? 'Scanning…' : 'Refresh LAN peers'}
+                      {lanScanning ? 'Scanning...' : 'Refresh LAN peers'}
                     </button>
                   </div>
                 )}
@@ -491,7 +491,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                 <textarea
                   className="bndz-meshdrop-input"
                   rows={3}
-                  placeholder="Paste answer code here…"
+                  placeholder="Paste answer code here..."
                   value={answerCode}
                   onChange={e => setAnswerCode(e.target.value)}
                 />
@@ -529,7 +529,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                 value={destDir}
                 onChange={e => setDestDir(e.target.value)}
               />
-              <button type="button" className="bndz-meshdrop-btn" onClick={() => void pickDestFolder()}>Browse…</button>
+              <button type="button" className="bndz-meshdrop-btn" onClick={() => void pickDestFolder()}>Browse...</button>
             </div>
 
             {receiveChannel === 'paste' && (
@@ -538,7 +538,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                 <textarea
                   className="bndz-meshdrop-input"
                   rows={4}
-                  placeholder="Paste Mesh Code, https://…/mesh-drop#BNDZMD:… or bndz://mesh-drop?code=…"
+                  placeholder="Paste Mesh Code, https://.../mesh-drop#BNDZMD:... or bndz://mesh-drop?code=..."
                   value={pasteCode}
                   onChange={e => onPasteInput(e.target.value)}
                 />
@@ -546,7 +546,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                   <div className="mt-3">
                     <label className="bndz-meshdrop-label">Answer Code (auto-submitted if relay used)</label>
                     <div className="bndz-meshdrop-code-row">
-                      <code className="bndz-meshdrop-code">{answerCode.slice(0, 80)}…</code>
+                      <code className="bndz-meshdrop-code">{answerCode.slice(0, 80)}...</code>
                       <button type="button" className="bndz-meshdrop-btn" onClick={() => copyText(answerCode, 'Answer Code')}>Copy</button>
                     </div>
                   </div>
@@ -561,7 +561,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
             {receiveChannel === 'lan' && (
               <div className="bndz-meshdrop-panel">
                 <button type="button" className="bndz-meshdrop-btn mb-3" onClick={() => void scanLan()} disabled={lanScanning}>
-                  {lanScanning ? 'Scanning LAN…' : 'Scan for nearby senders'}
+                  {lanScanning ? 'Scanning LAN...' : 'Scan for nearby senders'}
                 </button>
                 {lanPeers.length === 0 ? (
                   <p className="bndz-meshdrop-micro">No peers found. Ensure sender has Mesh Drop open on the same network.</p>

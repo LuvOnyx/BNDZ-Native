@@ -34,7 +34,7 @@ export function folderColorWebUrl(id?: string | null): string | undefined {
 /** Suggested mapping for common color-filter comments / expressions. */
 export function suggestFolderColorForFilter(expression: string): FolderColorId | undefined {
   const t = expression.toLowerCase();
-  // Recent-change filters use green row chrome only — no auto folder icon.
+  // Recent-change filters use green row chrome only -- no auto folder icon.
   if (t.includes('agem:') || t.includes('modified') || t.includes('recent')) return undefined;
   if (t.includes('empty')) return 'gray';
   if (t.includes('encrypted') || t.includes('system')) return 'red';

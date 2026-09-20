@@ -23,7 +23,7 @@ export function applyNativeShellDocumentMark(): void {
   }
 }
 
-/** True on BNDZShell craft WebView (`nativeShell=1&pane=…`) — React islands only, no DOM list. */
+/** True on BNDZShell craft WebView (`nativeShell=1&pane=...`) -- React islands only, no DOM list. */
 export function isNativeCraftIslandBoot(): boolean {
   try {
     const sp = new URLSearchParams(window.location.search);

@@ -1,4 +1,4 @@
-﻿// Reference copy from SuperCmd (MIT) â€” https://github.com/SuperCmdLabs/SuperCmd
+﻿// Reference copy from SuperCmd (MIT) -- https://github.com/SuperCmdLabs/SuperCmd
 // BNDZ-adapted implementations live alongside in src/launcher/components/
 // Re-sync: .\scripts\sync-supercmd-launcher-ui.ps1
 /**
@@ -17,7 +17,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-// Lazy-loaded native addon — provides getPasteboardChangeCount() which returns
+// Lazy-loaded native addon -- provides getPasteboardChangeCount() which returns
 // NSPasteboard.general.changeCount (an integer that increments on every write).
 // Checking this is O(1) and avoids all pasteboard data reads when nothing changed.
 type NativeHelpersAddon = { getPasteboardChangeCount?: () => number };
@@ -82,7 +82,7 @@ export interface ClipboardItem {
     format?: string;
     // For files
     filename?: string;
-    // Original file path at the moment of copy — used as a fallback preview
+    // Original file path at the moment of copy -- used as a fallback preview
     // source when our saved copy is missing or fails to decode.
     sourcePath?: string;
   };
@@ -279,7 +279,7 @@ function isFrontmostAppBlacklisted(): boolean {
 }
 
 // macOS pasteboard privacy conventions (nspasteboard.me):
-// - Password managers (Keychain Access, 1Password, Bitwarden, …) set
+// - Password managers (Keychain Access, 1Password, Bitwarden, ...) set
 //   `org.nspasteboard.ConcealedType` or `org.nspasteboard.TransientType`
 //   to opt out of clipboard history managers.
 // - `org.nspasteboard.source` carries the originating bundle ID even when
@@ -574,7 +574,7 @@ function readClipboardFilePath(knownImgHash?: string): string | null {
     const asText = decodeFileUrlCandidate(clipboard.readText());
     if (asText && fs.existsSync(asText)) return asText;
   } catch {}
-  // Always try osascript as a fallback — it reliably catches file URLs on
+  // Always try osascript as a fallback -- it reliably catches file URLs on
   // all macOS versions regardless of how Electron exposes pasteboard UTIs.
   // Cache the result per clipboard signature so we don't spawn a subprocess
   // on every poll when the clipboard hasn't changed.
@@ -705,7 +705,7 @@ function pollClipboard(): void {
   try {
     // Cheap pre-check: NSPasteboard.changeCount increments on every write.
     // If it hasn't changed since the last poll, nothing is on the clipboard that
-    // we haven't already seen — skip all IPC reads entirely.
+    // we haven't already seen -- skip all IPC reads entirely.
     const addon = getNativeHelpersAddon();
     if (addon?.getPasteboardChangeCount) {
       const currentChangeCount = addon.getPasteboardChangeCount();
@@ -716,7 +716,7 @@ function pollClipboard(): void {
     const { fingerprint: imageFingerprint, rawGifData, fallbackImage } = getClipboardImageFingerprint();
 
     // A file URL on the pasteboard (Finder copy) takes priority over
-    // readImage() — Finder places the file's *generic icon* as the clipboard
+    // readImage() -- Finder places the file's *generic icon* as the clipboard
     // image, not the actual contents, and a filename-only text representation,
     // which would otherwise produce two extra junk entries per copy.
     const clipboardFilePath = readClipboardFilePath(imageFingerprint.slice(0, 16));
@@ -742,7 +742,7 @@ function pollClipboard(): void {
       }
       // Whether or not this specific path was handled *this* poll, the
       // pasteboard currently holds a file reference. Skip image/text paths
-      // entirely — otherwise we'd create:
+      // entirely -- otherwise we'd create:
       //   (a) a generic-document-icon image entry from readImage(), and
       //   (b) a bare-filename text entry from readText()
       // alongside the real file entry.
@@ -757,7 +757,7 @@ function pollClipboard(): void {
     }
 
     // Check for images (higher priority than text).
-    // toPNG() is deferred to addImageItem — only runs when a genuinely new
+    // toPNG() is deferred to addImageItem -- only runs when a genuinely new
     // image is detected, not on every steady-state poll.
     if (imageFingerprint && imageFingerprint !== lastClipboardImageHash) {
       if (shouldSkipCurrentClipboard()) {
@@ -805,7 +805,7 @@ function handleClipboardFileCopy(filePath: string): boolean {
       // Copy the file as-is into our images dir. Going through
       // nativeImage.createFromBuffer() drops unsupported formats (HEIC, SVG,
       // some WebP), so keep the original bytes and let the renderer <img>
-      // tag — which uses the system image decoder via file:// — render it.
+      // tag -- which uses the system image decoder via file:// -- render it.
       const imageId = crypto.randomUUID();
       const ext = path.extname(filePath).toLowerCase().replace(/^\./, '') || 'bin';
       const imagePath = path.join(getImagesDir(), `${imageId}.${ext}`);
@@ -854,7 +854,7 @@ function handleClipboardFileCopy(filePath: string): boolean {
     }
   }
 
-  // Non-image file (or image capture failed) — add a single file entry
+  // Non-image file (or image capture failed) -- add a single file entry
   // keyed on the real path with filename metadata.
   addTextItem(filePath);
   return true;
@@ -1058,7 +1058,7 @@ export function copyItemToClipboard(id: string): boolean {
 
           // For non-PNG formats, also write a PNG fallback so apps that only
           // understand standard raster images can still paste.
-          // Skip this for PNG — rawData IS already the PNG bytes.
+          // Skip this for PNG -- rawData IS already the PNG bytes.
           //
           // IMPORTANT: getClipboardImageFingerprint() checks PNG before TIFF, so the
           // next poll will fingerprint public.png regardless of the primary UTI. We
@@ -1069,7 +1069,7 @@ export function copyItemToClipboard(id: string): boolean {
             if (!fallbackImage.isEmpty()) {
               const fallbackPng = fallbackImage.toPNG();
               clipboard.writeBuffer('public.png', fallbackPng);
-              // Seed from PNG — matches what the poll will compute.
+              // Seed from PNG -- matches what the poll will compute.
               lastClipboardImageHash = buildImageFingerprint('png', fallbackPng);
             } else {
               // No PNG written; poll will read the original UTI.
@@ -1083,7 +1083,7 @@ export function copyItemToClipboard(id: string): boolean {
           const image = nativeImage.createFromPath(item.content);
           clipboard.writeImage(image);
           // Rare fallback path (unknown format/missing UTI). Don't call toPNG() here
-          // — the next poll will detect the write as a new image once and save it.
+          // -- the next poll will detect the write as a new image once and save it.
         }
       }
     } else {

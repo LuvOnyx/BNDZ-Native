@@ -46,10 +46,10 @@ export default function UdcEditorTab({ commands, onChange }: Props) {
         icon="zap_ui"
         description="Custom palette and :: address-bar commands. Built-ins are always available."
       />
-      <SettingsSection title="Built-in commands" description="Shipped with BNDZ — not editable.">
+      <SettingsSection title="Built-in commands" description="Shipped with BNDZ -- not editable.">
         <div className="space-y-1 text-[11px] text-gray-400 font-mono">
           {BUILTIN_USER_COMMANDS.map(c => (
-            <div key={c.id}>::{c.action} — {c.label}</div>
+            <div key={c.id}>::{c.action} -- {c.label}</div>
           ))}
         </div>
       </SettingsSection>

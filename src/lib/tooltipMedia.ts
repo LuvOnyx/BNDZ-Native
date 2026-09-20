@@ -40,7 +40,7 @@ export async function resolveTooltipMedia(
       if (dataUrl) {
         return { kind: 'image', src: dataUrl, alt: winPath.split(/[/\\]/).pop() };
       }
-    } catch { /* no CAS — skip stream fallback (missing files 404 spam) */ }
+    } catch { /* no CAS -- skip stream fallback (missing files 404 spam) */ }
     return null;
   }
 

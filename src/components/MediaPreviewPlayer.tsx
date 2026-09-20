@@ -120,7 +120,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
         playbackRate: snap.playbackRate,
       };
       publishMediaHandoff(handoff);
-      // Shared session keeps decoding — UI handoff only, no pause gap.
+      // Shared session keeps decoding -- UI handoff only, no pause gap.
       return handoff;
     }
     const el = mediaRef.current;
@@ -182,7 +182,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     });
   }, [filePath, applyHandoffVideo, isAudio]);
 
-  // Shared audio session — bind UI; never tear down decoder on remount / Quick Look.
+  // Shared audio session -- bind UI; never tear down decoder on remount / Quick Look.
   useEffect(() => {
     if (!isAudio || !filePath) return;
     syncFromSession();
@@ -194,7 +194,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
 
     let cancelled = false;
 
-    // Panel waveform / prior Quick Look already owns this path — bind UI only.
+    // Panel waveform / prior Quick Look already owns this path -- bind UI only.
     // Re-fetching a blob here freezes the main thread and can stall Space pop-out.
     if (audioPlaybackSession.samePath(filePath)) {
       const snap = audioPlaybackSession.getSnapshot();
@@ -227,7 +227,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
           if (!cancelled) setLoadError(result.error || 'Could not load media file.');
           return null;
         }
-        // Avoid per-byte main-thread loops — decode via data URL fetch.
+        // Avoid per-byte main-thread loops -- decode via data URL fetch.
         const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
         return URL.createObjectURL(blob);
       } catch (err: any) {
@@ -247,7 +247,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
       }
       if (cancelled) return;
       audioPlaybackSession.clearError();
-      // Never force-reload when session already has this path — Space pop-out must be seamless.
+      // Never force-reload when session already has this path -- Space pop-out must be seamless.
       const reloaded = audioPlaybackSession.load(filePath, nextSrc, { force: false });
       loadedPathRef.current = filePath;
       syncFromSession();
@@ -271,7 +271,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     return () => { cancelled = true; };
   }, [isAudio, filePath, src, preferBlob, autoplay, syncFromSession]);
 
-  // Video path — per-instance element (needs visible surface).
+  // Video path -- per-instance element (needs visible surface).
   useEffect(() => {
     if (isAudio) return;
     setPlaying(false);
@@ -453,7 +453,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     } catch { /* unsupported */ }
   };
 
-  // Space opens Quick Look at the app level — never steal it for play/pause here.
+  // Space opens Quick Look at the app level -- never steal it for play/pause here.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -535,7 +535,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
             style={captionStyle}
           >
             {title}
-            {showDimensions && duration > 0 ? ` · ${formatTime(duration)}` : ''}
+            {showDimensions && duration > 0 ? ` | ${formatTime(duration)}` : ''}
           </div>
         )}
         {loadError ? (
@@ -649,7 +649,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
                 <button
                   type="button"
                   onClick={() => {
-                    // Audio uses shared session — no pause. Video still stashes.
+                    // Audio uses shared session -- no pause. Video still stashes.
                     if (filePath && type === 'video') stashPlayback();
                     onOpenFloating?.();
                   }}

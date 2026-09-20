@@ -17,7 +17,7 @@ interface PluginPanelShellProps {
   scrollable?: boolean;
   /**
    * Terminal mode: collapse chrome so the xterm hole matches the visible panel
-   * opening (no padded header/footer stealing ~20–30% of the frame).
+   * opening (no padded header/footer stealing ~20-30% of the frame).
    */
   density?: 'default' | 'terminal';
 }

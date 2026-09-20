@@ -85,7 +85,7 @@ export function useHealthProblemMap(
           }
         }
 
-        // Also map children of current dir by joining — covers when problem path equals entity path
+        // Also map children of current dir by joining -- covers when problem path equals entity path
         const exact = { ...next };
         for (const e of items) {
           const full = pathKey(joinPanePath(currentPath, e));
@@ -100,7 +100,7 @@ export function useHealthProblemMap(
             if (!k.startsWith(folderPrefix) && k !== full) continue;
             if (!worst || SEVERITY_RANK[v.severity] > SEVERITY_RANK[worst.severity]) worst = v;
           }
-          if (worst) next[full] = { ...worst, title: `Contains issues — ${worst.title}` };
+          if (worst) next[full] = { ...worst, title: `Contains issues -- ${worst.title}` };
         }
 
         setMap(next);

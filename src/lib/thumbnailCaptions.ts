@@ -1,4 +1,4 @@
-/** Grid caption line count — treat legacy `false`/empty as default (2). */
+/** Grid caption line count -- treat legacy `false`/empty as default (2). */
 export function resolveThumbnailCaptionLines(raw: unknown): number {
   if (raw === false || raw == null || raw === '') return 2;
   const n = Number(raw);

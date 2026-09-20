@@ -91,7 +91,7 @@ export function bindFloatingTooltipHandlers(
   opts?: {
     surface?: TooltipSurface;
     context?: HoverBoxContext;
-    /** Lazy content — built on first hover so virtualized rows stay cheap. */
+    /** Lazy content -- built on first hover so virtualized rows stay cheap. */
     resolveContent?: () => HoverTooltipContent | null;
   },
 ): {
@@ -113,7 +113,7 @@ export function bindFloatingTooltipHandlers(
     ? Math.min(2.5, Math.max(0.75, tipZoom > 5 ? tipZoom / 100 : tipZoom))
     : 1;
   // visibleTime / verbatim / clipped / junctions are applied in FloatingTooltipHost
-  // and entityTooltip.ts — keep bind path free of dead voids.
+  // and entityTooltip.ts -- keep bind path free of dead voids.
   void opts?.context;
 
   return {
@@ -125,7 +125,7 @@ export function bindFloatingTooltipHandlers(
       const payload = hoverBox
         ? { ...resolved, mode: 'hoverbox' as const, zoomScale }
         : { ...resolved, zoomScale };
-      // Advanced floating tooltips only appear while Left Shift is held — never on plain hover.
+      // Advanced floating tooltips only appear while Left Shift is held -- never on plain hover.
       const showImmediately = false;
       setHoverPending(payload, e.clientX, e.clientY, theme, showImmediately, delayMs);
     },

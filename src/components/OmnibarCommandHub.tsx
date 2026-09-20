@@ -21,7 +21,7 @@ type Row =
   | { key: string; kind: 'command'; insert: string; name: string; sub: string; icon?: string };
 
 /**
- * Omnibar Command Hub — double-click the fuzzy bar for places + commands.
+ * Omnibar Command Hub -- double-click the fuzzy bar for places + commands.
  * Instrument plaque craft (not SaaS modal).
  */
 export default function OmnibarCommandHub({
@@ -79,7 +79,7 @@ export default function OmnibarCommandHub({
         kind: 'command' as const,
         insert: `>${c.name}`,
         name: c.label,
-        sub: `>${c.name} — ${c.hint}`,
+        sub: `>${c.name} -- ${c.hint}`,
         icon: c.icon,
       }));
 
@@ -169,7 +169,7 @@ export default function OmnibarCommandHub({
             <div className="min-w-0">
               <div className="text-[13px] font-semibold text-[#e8eef6] tracking-wide">Command Hub</div>
               <div className="text-[10px] text-white/35 truncate">
-                Places · paths · &gt;commands — double-click the fuzzy bar anytime
+                Places | paths | &gt;commands -- double-click the fuzzy bar anytime
               </div>
             </div>
           </div>
@@ -185,7 +185,7 @@ export default function OmnibarCommandHub({
             value={query}
             onChange={e => setQuery(e.target.value)}
             className="bndz-omnibar-hub-input"
-            placeholder="Jump to folder, type a path, or >command…"
+            placeholder="Jump to folder, type a path, or >command..."
             spellCheck={false}
             autoComplete="off"
           />
@@ -253,7 +253,7 @@ export default function OmnibarCommandHub({
           <span><kbd>↑↓</kbd> move</span>
           <span><kbd>Enter</kbd> go</span>
           <span><kbd>Esc</kbd> close</span>
-          <span className="ml-auto opacity-50">Also: %AppData% · C:\ · shell: · &gt;find</span>
+          <span className="ml-auto opacity-50">Also: %AppData% | C:\ | shell: | &gt;find</span>
         </div>
       </div>
     </div>

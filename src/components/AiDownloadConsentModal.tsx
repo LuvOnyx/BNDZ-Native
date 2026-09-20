@@ -52,7 +52,7 @@ export default function AiDownloadConsentModal({
     <NativeDialogShell
       open={open}
       title="Enable Local AI"
-      subtitle="One-time download · fully offline after"
+      subtitle="One-time download | fully offline after"
       tone="info"
       variant="sheet"
       size="lg"
@@ -63,7 +63,7 @@ export default function AiDownloadConsentModal({
       bodyClassName="space-y-4"
     >
       <p className="text-[13px] bndz-native-dialog-muted leading-relaxed">
-        BNDZ runs AI features entirely on your PC — no API keys, no cloud, no subscription.
+        BNDZ runs AI features entirely on your PC -- no API keys, no cloud, no subscription.
         The first time you use AI, we download a small language model once.
       </p>
 
@@ -95,7 +95,7 @@ export default function AiDownloadConsentModal({
         <Icons8Icon id="shield_ui" size={14} className="shrink-0 mt-0.5" />
         <p className="text-[11px] leading-relaxed">
           Stored in <code>%LOCALAPPDATA%\BNDZ\models</code>.
-          Built into BNDZ — not a separate app or service.
+          Built into BNDZ -- not a separate app or service.
         </p>
       </div>
 
@@ -104,7 +104,7 @@ export default function AiDownloadConsentModal({
           <div className="flex items-center justify-between text-[11px]">
             <span className="bndz-native-dialog-muted flex items-center gap-1.5">
               <Icons8Icon id="loading" size={12} spin />
-              Downloading model…
+              Downloading model...
             </span>
             <span className="bndz-native-dialog-muted font-mono">{pct}%</span>
           </div>

@@ -18,7 +18,7 @@ type WidgetMode =
   | { kind: 'free'; sticky: SpatialSticky; boardName: string }
   | { kind: 'pin'; item: CanvasItem; boardName: string };
 
-/** Desktop sticky widget — prefers free Spatial stickies; falls back to pin captions. */
+/** Desktop sticky widget -- prefers free Spatial stickies; falls back to pin captions. */
 export default function StickyWidgetEditor({ stickyId }: Props) {
   const [mode, setMode] = useState<WidgetMode | null>(null);
   const [text, setText] = useState('');
@@ -107,7 +107,7 @@ export default function StickyWidgetEditor({ stickyId }: Props) {
     return (
       <div className="bndz-sticky-widget bndz-sticky-widget--loading">
         <div className="bndz-sticky-widget-shimmer" />
-        <span>Opening sticky…</span>
+        <span>Opening sticky...</span>
       </div>
     );
   }
@@ -181,7 +181,7 @@ export default function StickyWidgetEditor({ stickyId }: Props) {
           value={text}
           onChange={e => onChange(e.target.value)}
           onBlur={onBlur}
-          placeholder="Write a sticky note…"
+          placeholder="Write a sticky note..."
           spellCheck
         />
       </div>

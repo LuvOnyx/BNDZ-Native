@@ -182,12 +182,12 @@ export default function LauncherActionsOverlay({ open, command, onClose, onExecu
       <div ref={sheetRef} className="launcher-actions-sheet" onClick={e => e.stopPropagation()}>
         <div className="px-3 py-2 border-b border-[var(--footer-border)]">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-subtle)] mb-1.5">
-            Actions — {command.title}
+            Actions -- {command.title}
           </div>
           <input
             ref={inputRef}
             className="bndz-search-input text-[0.9rem]"
-            placeholder="Filter actions…"
+            placeholder="Filter actions..."
             value={filter}
             onChange={e => { setFilter(e.target.value); setSelectedIndex(0); }}
           />

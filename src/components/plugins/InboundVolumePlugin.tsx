@@ -21,7 +21,7 @@ export const InboundVolumePluginDef = {
   id: 'inbound-volume',
   name: 'Inbound Volume',
   icon: 'download_ui',
-  description: 'Clipboard catcher, OCR capture inbox, and inbound file watcher — capture, review, and copy into your library.',
+  description: 'Clipboard catcher, OCR capture inbox, and inbound file watcher -- capture, review, and copy into your library.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -122,7 +122,7 @@ export default function InboundVolumePlugin({
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // Poll watcher state lightly — never list the whole inbox on an interval (disk thrash).
+  // Poll watcher state lightly -- never list the whole inbox on an interval (disk thrash).
   useEffect(() => {
     if (watchPollRef.current) clearInterval(watchPollRef.current);
     watchPollRef.current = setInterval(async () => {
@@ -162,7 +162,7 @@ export default function InboundVolumePlugin({
       } else {
         await IPC.inboundStartWatching();
         setWatching(true);
-        pushToast({ kind: 'success', title: 'Watcher started', message: 'New file drops and images only — not the current clipboard, and not every Ctrl+C.' });
+        pushToast({ kind: 'success', title: 'Watcher started', message: 'New file drops and images only -- not the current clipboard, and not every Ctrl+C.' });
       }
     } catch (e) {
       pushToast({ kind: 'error', title: 'Watch toggle failed', message: String(e) });
@@ -215,7 +215,7 @@ export default function InboundVolumePlugin({
         pushToast({ kind: 'success', title: 'Copied to library', message: `${names} copied into active folder.` });
       } else {
         const errDetail = Array.isArray(r.errors) && r.errors.length > 0
-          ? ` — ${r.errors[0]}` : '';
+          ? ` -- ${r.errors[0]}` : '';
         pushToast({
           kind: r.copiedCount ? 'warning' : 'error',
           title: r.copiedCount ? 'Partial copy' : 'Copy failed',
@@ -241,7 +241,7 @@ export default function InboundVolumePlugin({
       icon="download_ui"
       iconColor="#60a5fa"
       variant="embedded"
-      subtitle="Clipboard · OCR captures · folder watchers"
+      subtitle="Clipboard | OCR captures | folder watchers"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -275,7 +275,7 @@ export default function InboundVolumePlugin({
           meta={
             <span className="bndz-panel-muted text-xs">
               {entries.length} capture{entries.length === 1 ? '' : 's'}
-              {watching && <span className="text-emerald-400 ml-1.5">· watching</span>}
+              {watching && <span className="text-emerald-400 ml-1.5">| watching</span>}
             </span>
           }
           actions={
@@ -329,7 +329,7 @@ export default function InboundVolumePlugin({
                   </div>
                   <div className="text-sm font-semibold text-white mb-1">Inbox empty</div>
                   <p className="text-xs text-gray-500 text-center max-w-xs leading-relaxed mb-4">
-                    Copy files, images, or text, then press <strong className="text-gray-300">Capture now</strong>. Watch is off until you enable it — it only saves new file drops and screenshots, not every text copy.
+                    Copy files, images, or text, then press <strong className="text-gray-300">Capture now</strong>. Watch is off until you enable it -- it only saves new file drops and screenshots, not every text copy.
                   </p>
                   <div className="flex gap-2">
                     <PluginToolbarButton icon="download_ui" onClick={() => void captureNow()} disabled={busy}>
@@ -368,11 +368,11 @@ export default function InboundVolumePlugin({
                             </span>
                             {entry.size != null && entry.size > 0 && (
                               <>
-                                <span className="text-white/10">·</span>
+                                <span className="text-white/10">|</span>
                                 <span>{formatBytes(entry.size)}</span>
                               </>
                             )}
-                            <span className="text-white/10">·</span>
+                            <span className="text-white/10">|</span>
                             <span>{relativeTime(entry.capturedUtc)}</span>
                           </div>
                         </div>
@@ -383,7 +383,7 @@ export default function InboundVolumePlugin({
                             disabled={isCopying || busy}
                             title="Copy into active folder"
                           >
-                            {isCopying ? 'Copying…' : 'Copy in'}
+                            {isCopying ? 'Copying...' : 'Copy in'}
                           </PluginToolbarButton>
                           <PluginToolbarButton
                             icon="delete"
@@ -458,9 +458,9 @@ export default function InboundVolumePlugin({
               <PluginCard>
                 <PluginSectionTitle icon="data_information">How Inbound Volume works</PluginSectionTitle>
                 <ul className="mt-3 space-y-1.5 text-xs text-gray-400 leading-relaxed list-disc list-inside">
-                  <li><strong className="text-gray-300">Capture now</strong> — grabs the current clipboard (files, images, or text) into the inbound staging area.</li>
-                  <li><strong className="text-gray-300">Watch mode</strong> — opt-in. Saves new file drops and images only after you click Watch (never auto-starts, never rewrites the same screenshot).</li>
-                  <li><strong className="text-gray-300">Copy in</strong> — copies captured content from staging into your active folder via the native host.</li>
+                  <li><strong className="text-gray-300">Capture now</strong> -- grabs the current clipboard (files, images, or text) into the inbound staging area.</li>
+                  <li><strong className="text-gray-300">Watch mode</strong> -- opt-in. Saves new file drops and images only after you click Watch (never auto-starts, never rewrites the same screenshot).</li>
+                  <li><strong className="text-gray-300">Copy in</strong> -- copies captured content from staging into your active folder via the native host.</li>
                 </ul>
               </PluginCard>
             </div>

@@ -1,5 +1,5 @@
 /**
- * Lens Stage — content twins, folder orbit, media peers for the focused file.
+ * Lens Stage -- content twins, folder orbit, media peers for the focused file.
  * Preview-mounted; does not touch list drag/marquee.
  */
 import React, { useEffect, useState } from 'react';
@@ -199,7 +199,7 @@ export default function BndzLensStage({
         <button
           type="button"
           className="bndz-lens-brand bndz-lens-brand-btn"
-          title={collapsed ? 'Expand Lens' : 'Collapse Lens — preview goes full height'}
+          title={collapsed ? 'Expand Lens' : 'Collapse Lens -- preview goes full height'}
           onClick={() => onToggleCollapsed?.()}
         >
           <span className="bndz-lens-mark" aria-hidden />
@@ -207,10 +207,10 @@ export default function BndzLensStage({
             <div className="bndz-lens-title">Lens</div>
             {!collapsed && (
               <div className="bndz-lens-sub">
-                {loading ? 'Resolving twins…'
+                {loading ? 'Resolving twins...'
                   : twins.length > 0
                     ? `${twins.length} content twin${twins.length === 1 ? '' : 's'}`
-                    : 'Orbit · peers · twins'}
+                    : 'Orbit | peers | twins'}
               </div>
             )}
           </div>
@@ -245,7 +245,7 @@ export default function BndzLensStage({
           {facts?.camera && <span>{facts.camera}</span>}
           {facts?.taken && <span>{facts.taken}</span>}
           {stage?.sha256 && (
-            <span className="bndz-lens-hash" title={stage.sha256}>SHA-256 · {stage.sha256.slice(0, 12)}…</span>
+            <span className="bndz-lens-hash" title={stage.sha256}>SHA-256 | {stage.sha256.slice(0, 12)}...</span>
           )}
         </div>
       )}
@@ -261,7 +261,7 @@ export default function BndzLensStage({
             exit={{ opacity: 0 }}
           >
             <Icons8Icon id="loading" size={16} spin />
-            <span>Building Lens…</span>
+            <span>Building Lens...</span>
           </motion.div>
         ) : (
           <motion.div
@@ -290,7 +290,7 @@ export default function BndzLensStage({
             />
             <Section
               title="Media peers"
-              hint="Same kind · near size"
+              hint="Same kind | near size"
               items={media}
               onOpen={openFile}
               onNavigate={onNavigate}

@@ -561,7 +561,7 @@ export default function PropertiesPlugin({
                                                     className="bndz-props-linkbtn"
                                                     onClick={() => setActiveTab('customize')}
                                                 >
-                                                    Change icon…
+                                                    Change icon...
                                                 </button>
                                             )}
                                         </div>
@@ -623,9 +623,9 @@ export default function PropertiesPlugin({
                                                     <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
                                                     <PluginFieldRow label="Size" mono>
                                                         {isDir && !config?.showFolderSizeOnPropertiesTab
-                                                          ? <span className="bndz-panel-muted">—</span>
+                                                          ? <span className="bndz-panel-muted">--</span>
                                                           : isDir && folderSizeLoading
-                                                            ? <span className="bndz-panel-muted">Calculating…</span>
+                                                            ? <span className="bndz-panel-muted">Calculating...</span>
                                                             : isDir && folderByteSize != null
                                                               ? (
                                                                 <>
@@ -754,7 +754,7 @@ export default function PropertiesPlugin({
                                                     value={tagDraft}
                                                     onChange={e => setTagDraft(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTagChip(); } }}
-                                                    placeholder="Add tag…"
+                                                    placeholder="Add tag..."
                                                     className={`flex-1 ${PLUGIN_INPUT_CLASS}`}
                                                 />
                                                 <PluginToolbarButton onClick={addTagChip}>Add</PluginToolbarButton>
@@ -772,7 +772,7 @@ export default function PropertiesPlugin({
                         <PluginCard className="bndz-props-overview">
                             <PluginSectionTitle icon="icon_studio">Folder / shortcut icon</PluginSectionTitle>
                             <p className="text-xs bndz-panel-muted leading-relaxed mb-4">
-                                Pick a modern .ico or .png — BNDZ writes it through Icon Studio the same way Files Customization does, with restore-default when you want Explorer stock back.
+                                Pick a modern .ico or .png -- BNDZ writes it through Icon Studio the same way Files Customization does, with restore-default when you want Explorer stock back.
                             </p>
                             <div className="bndz-props-overview-row mb-4">
                                 <div className="bndz-props-icon-tile bndz-props-icon-tile--lg">
@@ -788,7 +788,7 @@ export default function PropertiesPlugin({
                                     <div className="bndz-props-overview-name truncate">{displayName}</div>
                                     <div className="flex flex-wrap gap-2">
                                         <PluginHeroActionButton icon="folder_open_ui" variant="primary" onClick={() => applyCustomIcon('pick')} disabled={iconBusy}>
-                                            {iconBusy ? 'Working…' : 'Choose icon'}
+                                            {iconBusy ? 'Working...' : 'Choose icon'}
                                         </PluginHeroActionButton>
                                         <PluginHeroActionButton icon="refresh" onClick={() => applyCustomIcon('restore')} disabled={iconBusy}>
                                             Restore default
@@ -869,7 +869,7 @@ export default function PropertiesPlugin({
                         {hash.loading && (
                             <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col gap-2 items-center justify-center rounded-lg">
                                 <Icons8Icon id="loading" size={24} spin className="text-emerald-400" />
-                                <div className="text-xs text-emerald-400 font-medium">Computing…</div>
+                                <div className="text-xs text-emerald-400 font-medium">Computing...</div>
                             </div>
                         )}
                         <div className="flex flex-col gap-3">

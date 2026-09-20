@@ -63,7 +63,7 @@ function scrollCreatedIntoView(entityId: string) {
       byId.scrollIntoView({ block: 'nearest' });
       return;
     }
-    // FileListRow uses data-id on .fs-item-wrapper (not id="fs-item-â€¦").
+    // FileListRow uses data-id on .fs-item-wrapper (not id="fs-item-...").
     const safe = (typeof CSS !== 'undefined' && CSS.escape)
       ? CSS.escape(entityId)
       : entityId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -83,7 +83,7 @@ export async function finishCreateAndRename(ctx: FinishCreateContext): Promise<v
   } else if (awaitRefetch) {
     await ctx.refetchPath(panePath);
   } else {
-    // Background refresh â€” keep create/rename snappy; don't leave UI waiting on listing IPC.
+    // Background refresh -- keep create/rename snappy; don't leave UI waiting on listing IPC.
     void ctx.refetchPath(panePath);
   }
 
@@ -91,7 +91,7 @@ export async function finishCreateAndRename(ctx: FinishCreateContext): Promise<v
     || (ctx.finalWinPath ? ctx.finalWinPath.split(/[/\\]/).filter(Boolean).pop() : undefined);
   if (!name) return;
 
-  // Cache ref can lag one frame behind setState after refetch â€” brief retry.
+  // Cache ref can lag one frame behind setState after refetch -- brief retry.
   let entity = findCreatedEntity(ctx.getListing(panePath), name);
   if (!entity) {
     for (let i = 0; i < 10 && !entity; i++) {

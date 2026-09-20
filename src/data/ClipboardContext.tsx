@@ -369,7 +369,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       try {
         const shell = await IPC.getShellClipboard();
         if (shell?.ok && shell.paths?.length) {
-          // Shell CF_HDROP is Explorer truth — always prefer it on paste.
+          // Shell CF_HDROP is Explorer truth -- always prefer it on paste.
           const shellAction: ClipboardAction = shell.action === 'cut' || shell.cut ? 'cut' : 'copy';
           const shellItems = shell.paths.map(p => toWindowsPath(p)).filter(Boolean);
           if (shellItems.length) {
@@ -466,7 +466,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       } catch { /* ignore */ }
     }
 
-    // Dest optimism + transfer stash — Explorer shows rows before disk settles.
+    // Dest optimism + transfer stash -- Explorer shows rows before disk settles.
     try {
       const { basenameFromWinPath } = await import('../lib/pasteCompletion');
       window.dispatchEvent(new CustomEvent('bndz-paste-started', {
@@ -502,7 +502,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Sync paste completed in-process — refresh + select now.
+    // Sync paste completed in-process -- refresh + select now.
     window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: panePath } }));
     try {
       window.dispatchEvent(new CustomEvent('bndz-paste-completed', {

@@ -17,7 +17,7 @@ const MAX_TILES = 24;
 const MIN_FILE_BYTES = 512 * 1024;
 const GAP = 0.006; // fractional gap between tiles
 
-/** Squarified treemap — folders-first, top-N by size, sqrt weighting so one huge file cannot eat the view. */
+/** Squarified treemap -- folders-first, top-N by size, sqrt weighting so one huge file cannot eat the view. */
 export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes }: Props) {
   const prepared = useMemo(() => {
     const dirs = items.filter(i => i.type === 'directory');
@@ -62,7 +62,7 @@ export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes
     <div className="bndz-sizemap bndz-sizemap--treemap">
       {rects.map((r, i) => {
         const isDir = r.item.type === 'directory';
-        const isOther = r.item.name.endsWith(' more…');
+        const isOther = r.item.name.endsWith(' more...');
         const hue = isOther ? 215 : isDir ? 208 : 262;
         const sat = isDir ? 58 : 42;
         const lit = 24 + Math.min(22, Math.log10(r.displaySize + 1) * 3.2);
@@ -84,7 +84,7 @@ export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes
               ['--bndz-size-sat' as string]: `${sat}%`,
               ['--bndz-size-lit' as string]: `${lit}%`,
             }}
-            title={`${r.item.name} — ${formatSize(r.displaySize)}`}
+            title={`${r.item.name} -- ${formatSize(r.displaySize)}`}
             onClick={() => {
               if (isDir && r.item.path && !isOther) onNavigate(r.item.path);
             }}
@@ -125,7 +125,7 @@ function layoutTreemap(items: Item[]): Rect[] {
     const rest = pool.slice(MAX_TILES - 1);
     const restSum = rest.reduce((s, x) => s + x.displaySize, 0);
     top.push({
-      item: { name: `${rest.length} more…`, type: 'file' },
+      item: { name: `${rest.length} more...`, type: 'file' },
       displaySize: restSum,
     });
     sized = top;

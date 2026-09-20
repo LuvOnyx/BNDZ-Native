@@ -59,12 +59,12 @@ export default function MusicStudioPanel({ paths, folderPath }: Props) {
 
   const runAnalyze = async () => {
     if (!audioPaths.length) {
-      setError('Select one or more audio files (mp3, wav, flac, m4a…).');
+      setError('Select one or more audio files (mp3, wav, flac, m4a...).');
       return;
     }
     setBusy(true);
     setError(null);
-    setStatus(`Analyzing ${audioPaths.length} clip${audioPaths.length === 1 ? '' : 's'}…`);
+    setStatus(`Analyzing ${audioPaths.length} clip${audioPaths.length === 1 ? '' : 's'}...`);
     setRows([]);
     try {
       const r = await IPC.analyzeMusicBatch(audioPaths, writeTags);
@@ -96,7 +96,7 @@ export default function MusicStudioPanel({ paths, folderPath }: Props) {
         }
       }
 
-      setStatus(`Done — ${r.analyzed} analyzed${r.failed ? `, ${r.failed} failed` : ''}${writeTags ? ' · tags written' : ''}`);
+      setStatus(`Done -- ${r.analyzed} analyzed${r.failed ? `, ${r.failed} failed` : ''}${writeTags ? ' | tags written' : ''}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus(null);
@@ -133,7 +133,7 @@ export default function MusicStudioPanel({ paths, folderPath }: Props) {
               {audioPaths.length
                 ? `${audioPaths.length} audio file${audioPaths.length === 1 ? '' : 's'} in selection`
                 : folderPath
-                  ? 'No audio in selection — pick songs in the list first'
+                  ? 'No audio in selection -- pick songs in the list first'
                   : 'Select audio in the file list'}
             </div>
           </div>
@@ -157,7 +157,7 @@ export default function MusicStudioPanel({ paths, folderPath }: Props) {
             onClick={() => void runAnalyze()}
             className="bndz-hub-btn-primary px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40"
           >
-            {busy ? 'Detecting…' : 'Detect BPM + Key'}
+            {busy ? 'Detecting...' : 'Detect BPM + Key'}
           </button>
           {filterCamelot && (
             <button type="button" className="bndz-lens-chip" onClick={() => setFilterCamelot(null)}>
@@ -179,7 +179,7 @@ export default function MusicStudioPanel({ paths, folderPath }: Props) {
               className={`bndz-music-camelot-chip${filterCamelot === code ? ' is-active' : ''}`}
               title="Show this key and harmonic neighbors"
             >
-              {code} · {count}
+              {code} | {count}
             </button>
           ))}
         </div>

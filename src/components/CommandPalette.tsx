@@ -78,7 +78,7 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
           <input
             type="text"
             autoFocus
-            placeholder="Search commands, plugins, actions…"
+            placeholder="Search commands, plugins, actions..."
             className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder-gray-500"
             value={query}
             onChange={e => setQuery(e.target.value)}

@@ -6,7 +6,7 @@ export function clampLauncherBackgroundPercent(value: number, fallback: number):
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-/** Map 0–100 blur slider to px (SuperCmd-style). */
+/** Map 0-100 blur slider to px (SuperCmd-style). */
 export function launcherBackgroundBlurPercentToPx(percent: number): number {
   const p = clampLauncherBackgroundPercent(percent, DEFAULT_LAUNCHER_BACKGROUND_BLUR_PERCENT);
   return Math.round(4 + (p / 100) * 20);

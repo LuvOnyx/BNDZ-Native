@@ -10,7 +10,7 @@ import { getFileDragSession } from './lib/fileDragSession';
 import { installOleDragEscalateGhostHook } from './lib/fileDragUiCleanup';
 import { configureExplorerGradeDragThreshold } from './lib/dragController';
 
-// Eager init — external OLE drops must not race the lazy FS-event listener registration.
+// Eager init -- external OLE drops must not race the lazy FS-event listener registration.
 IPC.init();
 if (typeof window !== 'undefined' && !!(window as any).chrome?.webview) {
   configureExplorerGradeDragThreshold(true);
@@ -20,14 +20,14 @@ if (typeof window !== 'undefined' && !!(window as any).chrome?.webview) {
     IPC.postOleDndDebug({ kind: 'ole-smoke-arm', pathCount: list.length, sample: list.slice(0, 2) });
   };
 }
-// Host ExecuteScript calls window.__bndzDismissDragGhost before DoDragDrop — install before first paint.
+// Host ExecuteScript calls window.__bndzDismissDragGhost before DoDragDrop -- install before first paint.
 installOleDragEscalateGhostHook();
 
 const filesHost = isFilesHostBoot();
 const nativeShell = isNativeShellBoot();
 const deferHeavyBoot = filesHost || nativeShell;
 
-// Full font pack is heavy — on native shell / FilesHost, paint chrome first, hydrate faces when idle.
+// Full font pack is heavy -- on native shell / FilesHost, paint chrome first, hydrate faces when idle.
 const loadFontPack = () => {
   void import('./lib/bndzFontPack');
 };
@@ -40,7 +40,7 @@ if (deferHeavyBoot) {
 }
 
 // Re-arm live automation watchers/schedules without requiring the Automation view.
-// filesHost: defer — contending with first GET_DIR_CONTENTS / settings floods the pipe.
+// filesHost: defer -- contending with first GET_DIR_CONTENTS / settings floods the pipe.
 const scheduleBootAutomations = () => {
   void import('./lib/automationStore').then(({ restoreArmedAutomationsOnBoot }) => {
     void restoreArmedAutomationsOnBoot();
@@ -58,9 +58,9 @@ if (deferHeavyBoot) {
  * Explorer → BNDZ hover/drop bridge.
  *
  * Chromium's IDropTarget returns DROPEFFECT_NONE (forbidden X) unless dragover
- * calls preventDefault. That is required even when native OLE is also registered —
+ * calls preventDefault. That is required even when native OLE is also registered --
  * if OLE owns the HWND, HTML5 events never fire; if Chromium still owns it, this
- * is the only way to get a copy cursor. Drop preventDefault only when paths extract —
+ * is the only way to get a copy cursor. Drop preventDefault only when paths extract --
  * empty File.path leaves Path A (NavigationStarting file:) available.
  */
 function installExternalOleDragBridge() {
@@ -103,7 +103,7 @@ function installExternalOleDragBridge() {
 
   const onDragEnter = (e: DragEvent) => {
     const types = e.dataTransfer?.types;
-    // Explorer→WebView2 often has empty types on enter — still accept to kill the X cursor.
+    // Explorer→WebView2 often has empty types on enter -- still accept to kill the X cursor.
     if (types?.length && !hasFilePayload(types) && e.dataTransfer?.effectAllowed === 'none') return;
     e.preventDefault();
     if (e.dataTransfer) {
@@ -115,7 +115,7 @@ function installExternalOleDragBridge() {
   const onDragOver = (e: DragEvent) => {
     const types = e.dataTransfer?.types;
     if (types?.length && !hasFilePayload(types)) return;
-    // MUST preventDefault — otherwise Chromium reports DROPEFFECT_NONE (X cursor).
+    // MUST preventDefault -- otherwise Chromium reports DROPEFFECT_NONE (X cursor).
     e.preventDefault();
     if (e.dataTransfer) {
       const copy = e.ctrlKey || e.altKey;
@@ -151,7 +151,7 @@ function installExternalOleDragBridge() {
       const dt = e.dataTransfer;
       const allowed = String(dt?.effectAllowed || '').toLowerCase();
       const dropFx = String(dt?.dropEffect || '').toLowerCase();
-      // Explorer same-volume default is MOVE — HTML5 must not force COPY and leave desktop icons behind.
+      // Explorer same-volume default is MOVE -- HTML5 must not force COPY and leave desktop icons behind.
       const preferMove = liveSession?.op === 'move'
         || (!e.ctrlKey && (dropFx === 'move' || allowed.includes('move')));
       window.dispatchEvent(new CustomEvent('bndz-external-drop', {

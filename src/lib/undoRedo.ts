@@ -1,6 +1,6 @@
 import { IPC } from './ipcBridge';
 
-// Single source of truth for the undo/redo deadline — passed all the way into the
+// Single source of truth for the undo/redo deadline -- passed all the way into the
 // underlying nativeCall so the IPC layer's own timeout can never fire first and
 // silently swallow a slow-but-successful backend response (the bug that produced
 // "IPC timeout: UNDO_REDO_RESULT" toasts on large undo/redo operations).

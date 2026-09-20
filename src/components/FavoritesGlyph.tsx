@@ -8,7 +8,7 @@ type Props = {
 };
 
 /**
- * Favorites / Rapid access glyph — former tintable tag bookmark silhouette.
+ * Favorites / Rapid access glyph -- former tintable tag bookmark silhouette.
  */
 export function FavoritesGlyph({ color = '#FACC15', size = 14, className = '', title }: Props) {
   return (

@@ -18,7 +18,7 @@ export function contextMenuToneClass(tone?: ContextMenuTone): string {
 export const submenuPanelClass =
   'bndz-context-submenu absolute top-0 min-w-[200px] z-[500] max-h-[calc(100vh-24px)] overflow-visible';
 
-/** Submenu close grace — short enough to feel native when gliding, long enough to cross the gap. */
+/** Submenu close grace -- short enough to feel native when gliding, long enough to cross the gap. */
 const SUBMENU_CLOSE_MS = 45;
 
 /** Wrap a menu item action so it stops event propagation after firing. */
@@ -42,7 +42,7 @@ interface ContextSubmenuProps {
   onOpen?: () => void;
 }
 
-/** Hover-open submenu — CSS group-hover is unreliable in WebView2. */
+/** Hover-open submenu -- CSS group-hover is unreliable in WebView2. */
 export function ContextSubmenu({
   label,
   iconId,
@@ -150,7 +150,7 @@ interface ContextMenuItemProps {
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
   disabled?: boolean;
-  /** Semantic accent — red close/delete, green add/new, blue open/primary. */
+  /** Semantic accent -- red close/delete, green add/new, blue open/primary. */
   tone?: ContextMenuTone;
 }
 
@@ -186,7 +186,7 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
   );
 });
 
-/** Nested flyout — opens to the right/left so it does not cover items below in the parent menu. */
+/** Nested flyout -- opens to the right/left so it does not cover items below in the parent menu. */
 export function ContextNestedSubmenu({
   label,
   iconVerb,

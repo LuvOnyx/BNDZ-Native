@@ -1,4 +1,4 @@
-/** Mesh Drop share-link helpers — deep links, web links, paste parsing. */
+/** Mesh Drop share-link helpers -- deep links, web links, paste parsing. */
 
 import { isMeshDropCode, meshDropCodeChecksum } from './meshDrop';
 

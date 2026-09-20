@@ -15,7 +15,7 @@ function jobIsActive(j: FileTransferJobDto): boolean {
 const EMPTY_QUEUE: FileTransferQueueState = { queuedCount: 0, activeCount: 0, jobs: [] };
 
 /**
- * Floating transfer loader — push-first; light fallback poll only while idle.
+ * Floating transfer loader -- push-first; light fallback poll only while idle.
  * Small ops should appear instantly via `bndz-transfer-started` and leave quickly.
  */
 export default function TransferActivityToast() {
@@ -101,7 +101,7 @@ export default function TransferActivityToast() {
   const rawPct = Math.max(0, Math.min(100, Math.round(primary?.progress ?? (showOptimistic ? 12 : 0))));
   const isDelete = (primary?.action || '').toLowerCase() === 'delete' || (primary?.action || '').toLowerCase() === 'purge';
   const running = active.length > 0 || showOptimistic;
-  // No fake 6% floor — small ops should not look mid-flight.
+  // No fake 6% floor -- small ops should not look mid-flight.
   const pct = running && rawPct <= 0 ? (showOptimistic ? 12 : 0) : rawPct;
   const showBar = running && !isDelete;
 
@@ -148,8 +148,8 @@ export default function TransferActivityToast() {
           )}
           <div className="bndz-xfer-toast-line truncate">
             {primary
-              ? (formatTransferProgressLine(primary) || primary.label || primary.currentFile || 'Working…')
-              : (optimistic?.label || 'Working…')}
+              ? (formatTransferProgressLine(primary) || primary.label || primary.currentFile || 'Working...')
+              : (optimistic?.label || 'Working...')}
           </div>
           {active.length > 1 && (
             <div className="bndz-xfer-toast-more">

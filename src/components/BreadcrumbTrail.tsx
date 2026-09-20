@@ -10,11 +10,11 @@ type Props = {
   segments: BreadcrumbSeg[];
   dropTarget: string | null;
   onNavigate: (path: string, opts?: { newTab?: boolean }) => void;
-  /** Double-click empty rail chrome (not a crumb) — Command Hub / CEA. */
+  /** Double-click empty rail chrome (not a crumb) -- Command Hub / CEA. */
   onWhiteDoubleClick?: () => void;
 };
 
-/** Rough px width for a segment label + separator — conservative so we keep paths visible. */
+/** Rough px width for a segment label + separator -- conservative so we keep paths visible. */
 function estimateSegWidth(label: string): number {
   return Math.min(220, Math.max(28, label.length * 6.5 + 10)) + 14;
 }
@@ -53,9 +53,9 @@ async function showBreadcrumbOverflowHostMenu(
 }
 
 /**
- * Breadcrumb rail — only collapses middle segments when the row is genuinely tight.
+ * Breadcrumb rail -- only collapses middle segments when the row is genuinely tight.
  * File drag hover/drop uses pointer + native OLE (see fileDragHover.ts).
- * Overflow "…" uses the host WPF menu when native so it isn't clipped by WebView.
+ * Overflow "..." uses the host WPF menu when native so it isn't clipped by WebView.
  */
 export function BreadcrumbTrail({
   segments,
@@ -120,7 +120,7 @@ export function BreadcrumbTrail({
           e.stopPropagation();
           onNavigate(seg.path, { newTab: true });
         }}
-        title="Click to navigate · Ctrl/middle-click new tab · Drop to move/copy"
+        title="Click to navigate | Ctrl/middle-click new tab | Drop to move/copy"
         data-breadcrumb-path={seg.path}
       >
         {seg.label}
@@ -132,7 +132,7 @@ export function BreadcrumbTrail({
     <div
       ref={railRef}
       className="relative flex items-center min-w-0 w-full flex-nowrap overflow-visible"
-      title="Click path to navigate · click empty to edit · double-click empty for Command Hub"
+      title="Click path to navigate | click empty to edit | double-click empty for Command Hub"
       onDoubleClick={(e) => {
         if (!onWhiteDoubleClick) return;
         const t = e.target as HTMLElement;
@@ -163,7 +163,7 @@ export function BreadcrumbTrail({
             }}
             title={`${mid.length} hidden segment(s)`}
           >
-            …
+            ...
           </button>
           {menuOpen && (!IPC.isNative || isNativeShellHostBoot()) && (
             <div

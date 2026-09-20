@@ -1,5 +1,5 @@
 /**
- * Spacebot PortalComposer pattern — chat composer with drag-drop context files.
+ * Spacebot PortalComposer pattern -- chat composer with drag-drop context files.
  * Source: spacebot/interface/src/components/portal/PortalComposer.tsx
  */
 import React, { useRef, useState } from 'react';
@@ -143,7 +143,7 @@ export function PortalComposer({
               onSend();
             }
           }}
-          placeholder={placeholder || `Message ${agentName}…`}
+          placeholder={placeholder || `Message ${agentName}...`}
           rows={2}
           disabled={disabled}
           className="flex-1 resize-none bg-[#252525] border border-[#454545] px-2 py-1.5 text-[12px] text-gray-100 outline-none focus:border-[#094771] min-h-[40px]"

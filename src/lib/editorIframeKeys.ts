@@ -73,7 +73,7 @@ export function useEditorIframeKeyBridge(opts: {
 
       if (typingHost && inRoot && !inFrame) return;
 
-      // Iframe already owns focus — native events go there; parent only stops bubble.
+      // Iframe already owns focus -- native events go there; parent only stops bubble.
       if (inFrame) return;
 
       e.preventDefault();

@@ -1,5 +1,5 @@
 /**
- * Imperative drag-ghost positioning — avoids React re-renders on every pointermove.
+ * Imperative drag-ghost positioning -- avoids React re-renders on every pointermove.
  */
 export function setDragGhostPosition(el: HTMLElement | null | undefined, x: number, y: number) {
   if (!el) return;

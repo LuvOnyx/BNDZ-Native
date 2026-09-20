@@ -1,4 +1,4 @@
-/** Shared Remote types — mirrors BNDZBackend MeshModels.cs */
+/** Shared Remote types -- mirrors BNDZBackend MeshModels.cs */
 
 export type MeshProviderKind = 0 | 1; // Ssh | S3
 export type MeshConnectionState = 0 | 1 | 2 | 3 | 4;
@@ -50,7 +50,7 @@ export type MeshSyncRule = {
 
 export const MESH_STATE_LABEL: Record<number, string> = {
   0: 'Offline',
-  1: 'Connecting…',
+  1: 'Connecting...',
   2: 'Online',
   3: 'Degraded',
   4: 'Error',

@@ -1,7 +1,7 @@
 /**
  * Honest GPU / compositor status for BNDZ Perf HUD.
  * Classifies Chromium ANGLE / WebGL renderer strings and host CDP SystemInfo.
- * Does not strip UI — only reports whether paint is on the user's GPU.
+ * Does not strip UI -- only reports whether paint is on the user's GPU.
  */
 
 export type GpuCompositing = 'gpu' | 'software' | 'unknown';
@@ -74,7 +74,7 @@ function classifyRenderer(renderer: string, vendor = ''): {
       hardwareAccelerated: false,
       compositing: 'software',
       angleBackend: angleBackend || 'software',
-      detail: 'Software rasterizer / Basic Render Driver — not using discrete/iGPU',
+      detail: 'Software rasterizer / Basic Render Driver -- not using discrete/iGPU',
     };
   }
 
@@ -219,7 +219,7 @@ export function mergeGpuStatus(host: HostGpuPayload | null | undefined, client =
     featureStatus,
     source: renderer && client.renderer ? 'merged' : (renderer ? 'cdp' : client.source),
     flagsRequested: FLAGS_REQUESTED,
-    detail: detailParts.join(' · ') || fromStrings.detail,
+    detail: detailParts.join(' | ') || fromStrings.detail,
   };
 }
 

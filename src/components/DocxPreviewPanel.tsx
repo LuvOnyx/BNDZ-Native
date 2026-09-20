@@ -40,7 +40,7 @@ export default function DocxPreviewPanel({ url, title }: DocxPreviewPanelProps) 
   }, [url]);
 
   if (loading) {
-    return <div className="p-4 text-xs text-gray-400 animate-pulse">Loading document…</div>;
+    return <div className="p-4 text-xs text-gray-400 animate-pulse">Loading document...</div>;
   }
   if (error) {
     return <div className="p-4 text-xs text-red-400 border border-red-500/20 bg-red-500/5 m-2 rounded">{error}</div>;

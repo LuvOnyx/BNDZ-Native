@@ -217,9 +217,9 @@ function ContextMenuView({
 
   const staticShareMain: import('../lib/ipcBridge').ShareMenuItem[] = !isBackground && targetPaths.length > 0
     ? [
-        { id: 'share', label: 'Share with apps…', kind: 'verb' as const, verb: 'share', group: 'main' as const },
+        { id: 'share', label: 'Share with apps...', kind: 'verb' as const, verb: 'share', group: 'main' as const },
         ...(menu.isDirectory
-          ? [{ id: 'grantaccess', label: 'Give access to…', kind: 'verb' as const, verb: 'grantaccess', group: 'main' as const }]
+          ? [{ id: 'grantaccess', label: 'Give access to...', kind: 'verb' as const, verb: 'grantaccess', group: 'main' as const }]
           : []),
       ]
     : [];
@@ -253,7 +253,7 @@ function ContextMenuView({
     return () => { active = false; };
   }, [isBackground, itemKind, targetPaths[0], menu.x, menu.y]);
 
-  /** Open file location — shortcut target, app folder, or cross-folder item parent. */
+  /** Open file location -- shortcut target, app folder, or cross-folder item parent. */
   const openLocationTarget: OpenLocationTarget | null = (() => {
     if (isBackground || targetPaths.length !== 1) return null;
     const win = toWindowsPath(targetPaths[0]);
@@ -340,7 +340,7 @@ function ContextMenuView({
       IPC.executeContextMenuVerb(wins.length === 1 ? wins[0] : wins, 'sendto', undefined, undefined, false, item.target);
     } else if (item.kind === 'copy-to-device' && item.target) {
       IPC.executeContextMenuVerb(wins.length === 1 ? wins[0] : wins, 'copy-to-device', undefined, undefined, false, item.target);
-      setToastMessage(`Sending to ${item.label?.replace(/^Send to\s+/i, '').replace(/…$/, '') || 'device'}…`);
+      setToastMessage(`Sending to ${item.label?.replace(/^Send to\s+/i, '').replace(/...$/, '') || 'device'}...`);
     } else if (item.kind === 'open' && item.target) {
       addTab(activePaneId, item.target);
     } else if (item.verb) {
@@ -484,11 +484,11 @@ function ContextMenuView({
     );
   };
 
-  /** Weave a shell bucket into the BNDZ menu at Explorer-like positions — never a dump folder. */
+  /** Weave a shell bucket into the BNDZ menu at Explorer-like positions -- never a dump folder. */
   const renderShellSlot = (slot: ShellMergeSlot, opts?: { pending?: boolean; withSep?: boolean }) => {
     if (!shellMergeEnabled) return null;
     const items = shellSlots[slot];
-    // No skeleton placeholders — paint static BNDZ verbs immediately; shell rows patch in silently.
+    // No skeleton placeholders -- paint static BNDZ verbs immediately; shell rows patch in silently.
     if (!items.length) return null;
     return (
       <>
@@ -519,7 +519,7 @@ function ContextMenuView({
 
   // The rich BNDZ context menu is ALWAYS the primary menu (file list, tree, sidebar,
   // preview). Native OS shell verbs never render as a standalone menu that could
-  // preempt/replace it after an async fetch — they only appear MERGED into the rich
+  // preempt/replace it after an async fetch -- they only appear MERGED into the rich
   // menu via `filterSupplementalNativeItems` (rendered as `supplementalNative` below).
   // This guarantees the tree and listview show identical structure with no swap/flicker.
 
@@ -700,7 +700,7 @@ function ContextMenuView({
                 }
                 const zipPath = `${base.replace(/\\+$/, '')}\\New Compressed Folder.zip`;
                 const res = await IPC.createArchive([], zipPath, 'zip');
-                setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'Compressed folder created.' : (res.error || 'Failed to create zip.')));
+                setToastMessage(isQueuedIpcResult(res) ? 'Archive queued -- see transfer panel.' : (res.ok ? 'Compressed folder created.' : (res.error || 'Failed to create zip.')));
                 if (!isQueuedIpcResult(res) && res.ok) {
                   runRefresh();
                   window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
@@ -723,7 +723,7 @@ function ContextMenuView({
                 const linkPath = `${base.replace(/\\+$/, '')}\\New Shortcut.lnk`;
                 const target = base;
                 const res = await IPC.createLink(linkPath, target, 'shortcut');
-                setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
+                setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued -- see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
                 if (!isQueuedIpcResult(res) && res.success) {
                   runRefresh();
                   window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
@@ -813,7 +813,7 @@ function ContextMenuView({
           <ContextMenuItem label="Invert selection" iconVerb="type" onClick={() => { onInvertSelection(); onClose(); }} />
         )}
         {menu.surface === 'list-background' && ctxBeh.findFilesCommandsInListContextMenu && onOpenFind && (
-          <ContextMenuItem label="Find Files…" iconVerb="find" onClick={() => { onOpenFind(); onClose(); }} />
+          <ContextMenuItem label="Find Files..." iconVerb="find" onClick={() => { onOpenFind(); onClose(); }} />
         )}
         {menu.surface === 'list-background' && ctxBeh.navigationCommandsInListContextMenu && (
           <>
@@ -908,7 +908,7 @@ function ContextMenuView({
     const IPC = await runIpc();
     const res = await IPC.extractArchive(win, dest);
     const folder = dest.split('\\').pop() || 'extracted';
-    setToastMessage(isQueuedIpcResult(res) ? 'Extract queued — see transfer panel.' : (res.ok ? `Extracted to ${folder}` : (res.error || 'Extract failed.')));
+    setToastMessage(isQueuedIpcResult(res) ? 'Extract queued -- see transfer panel.' : (res.ok ? `Extracted to ${folder}` : (res.error || 'Extract failed.')));
     onClose();
   };
 
@@ -916,13 +916,13 @@ function ContextMenuView({
     const panePaths = resolveContextTargetPanePaths(menu);
     const win = toWindowsPath(panePaths[0] || targetPaths[0]);
     const IPC = await runIpc();
-    const dest = await IPC.openFolderDialog('Extract archive to…');
+    const dest = await IPC.openFolderDialog('Extract archive to...');
     if (!dest) {
       onClose();
       return;
     }
     const res = await IPC.extractArchive(win, dest);
-    setToastMessage(isQueuedIpcResult(res) ? 'Extract queued — see transfer panel.' : (res.ok ? `Extracted to ${dest}` : (res.error || 'Extract failed.')));
+    setToastMessage(isQueuedIpcResult(res) ? 'Extract queued -- see transfer panel.' : (res.ok ? `Extracted to ${dest}` : (res.error || 'Extract failed.')));
     onClose();
   };
 
@@ -949,7 +949,7 @@ function ContextMenuView({
       {isArchive && (
         <>
           <ContextMenuItem
-            label="Extract…"
+            label="Extract..."
             iconVerb="extract"
             className="font-semibold"
             onClick={() => void extractToBrowse()}
@@ -976,7 +976,7 @@ function ContextMenuView({
         </>
       )}
 
-      {/* Primary open — folder / shortcut / app / file */}
+      {/* Primary open -- folder / shortcut / app / file */}
       <ContextMenuItem
         label="Open"
         iconVerb="open"
@@ -1174,7 +1174,7 @@ function ContextMenuView({
             </>
           )}
           {shareLoading && shareSendTo.length === 0 && shareCloud.length === 0 && (
-            <div className="px-3 py-1.5 text-[11px] text-[#888]">Loading share options…</div>
+            <div className="px-3 py-1.5 text-[11px] text-[#888]">Loading share options...</div>
           )}
           {shareError && !shareLoading && (
             <div className="px-3 py-1.5 text-[11px] text-rose-300/90">{shareError}</div>
@@ -1205,7 +1205,7 @@ function ContextMenuView({
             return (
               <ContextMenuItem
                 key={key}
-                label={tagged ? `Untag · ${label}` : label}
+                label={tagged ? `Untag | ${label}` : label}
                 onClick={() => { void onToggleTag(tag); onClose(); }}
                 trailing={tagged ? '✓' : undefined}
                 iconNode={
@@ -1245,7 +1245,7 @@ function ContextMenuView({
           onClick={() => {
             void import('../lib/ipcBridge').then(({ IPC }) => {
               IPC.indexBndzLocation(normEntityPath).then(res => {
-                setToastMessage(res.ok ? 'Indexing folder for BNDZ search…' : (res.error || 'Indexing failed.'));
+                setToastMessage(res.ok ? 'Indexing folder for BNDZ search...' : (res.error || 'Indexing failed.'));
                 if (res.ok) window.dispatchEvent(new CustomEvent('bndz-index-roots-changed'));
               });
             });
@@ -1403,7 +1403,7 @@ function ContextMenuView({
         <>
           {isFolder && !isBndzVirtualPath(entityPath) && stockOn('mesh-drop') && (
             <ContextMenuItem
-              label="Launch Ephemeral Mesh host…"
+              label="Launch Ephemeral Mesh host..."
               iconVerb="cloud_ui"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-ephemeral' } }));
@@ -1413,7 +1413,7 @@ function ContextMenuView({
           )}
           {stockOn('mesh-drop') && (
           <ContextMenuItem
-            label="Mesh Drop…"
+            label="Mesh Drop..."
             iconVerb="emblem-shared"
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
@@ -1429,7 +1429,7 @@ function ContextMenuView({
                 }}
               />
               <ContextMenuItem
-                label="Download from Mesh…"
+                label="Download from Mesh..."
                 iconVerb="download"
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-download' } }));
@@ -1438,7 +1438,7 @@ function ContextMenuView({
               />
               {!menu.isDirectory && (
                 <ContextMenuItem
-                  label="Edit Remote…"
+                  label="Edit Remote..."
                   iconVerb="edit"
                   onClick={() => {
                     window.dispatchEvent(new CustomEvent('bndz-command-deck-tool', { detail: { id: 'mesh-edit-remote' } }));
@@ -1466,14 +1466,14 @@ function ContextMenuView({
         </>
       )}
 
-      {/* Launch Ready A1: Ghost-Link / RAM Staging product chrome removed — no restore/stage verbs. */}
+      {/* Launch Ready A1: Ghost-Link / RAM Staging product chrome removed -- no restore/stage verbs. */}
 
       {(!!config.customItemsInTheContextMenu && (config.customContextMenuActions?.length || 0) > 6) && (
         <>
           <div className="px-2 py-1.5">
             <input
               type="text"
-              placeholder="Filter menu…"
+              placeholder="Filter menu..."
               value={menuFilter}
               onChange={e => setMenuFilter(e.target.value)}
               className="w-full bg-[#111] border border-[#333] rounded px-2 py-1 text-[11px] text-white outline-none focus:border-[#0078d4]"
@@ -1486,14 +1486,14 @@ function ContextMenuView({
 
       {!!config.customItemsInTheContextMenu && config.customContextMenuActions?.filter((action: any) => {
         const isSep = action.id === 'separator' || String(action.id || '').startsWith('separator_')
-          || action.command === 'separator' || action.name === 'separator' || action.name === '—';
+          || action.command === 'separator' || action.name === 'separator' || action.name === '--';
         if (isSep) return true;
         const label = (action.name || action.label || '').toLowerCase();
         const q = menuFilter.trim().toLowerCase();
         return !q || label.includes(q);
       }).map((action: any, idx: number) => {
         const isSep = action.id === 'separator' || String(action.id || '').startsWith('separator_')
-          || action.command === 'separator' || action.name === 'separator' || action.name === '—';
+          || action.command === 'separator' || action.name === 'separator' || action.name === '--';
         if (isSep) return <div key={idx} className="bndz-context-menu-sep" />;
         const cmd = (action.command || '').trim();
         const iconVerb =
@@ -1575,7 +1575,7 @@ function ContextMenuView({
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.zip` : 'Archive.zip';
             const res = await IPC.createArchive(wins, `${parent}\\${name}`, 'zip');
-            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'ZIP archive created.' : (res.error || 'Archive failed.')));
+            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued -- see transfer panel.' : (res.ok ? 'ZIP archive created.' : (res.error || 'Archive failed.')));
             onClose();
           }}
         />
@@ -1589,7 +1589,7 @@ function ContextMenuView({
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.7z` : 'Archive.7z';
             const res = await IPC.createArchive(wins, `${parent}\\${name}`, '7z');
-            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? '7z archive created.' : (res.error || 'Archive failed.')));
+            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued -- see transfer panel.' : (res.ok ? '7z archive created.' : (res.error || 'Archive failed.')));
             onClose();
           }}
         />
@@ -1603,7 +1603,7 @@ function ContextMenuView({
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.rar` : 'Archive.rar';
             const res = await IPC.createArchive(wins, `${parent}\\${name}`, 'rar' as any);
-            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'RAR archive created.' : (res.error || 'Archive failed.')));
+            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued -- see transfer panel.' : (res.ok ? 'RAR archive created.' : (res.error || 'Archive failed.')));
             onClose();
           }}
         />
@@ -1620,7 +1620,7 @@ function ContextMenuView({
           <>
             <div className="bndz-context-menu-sep" />
             <ContextMenuItem
-              label="Extract…"
+              label="Extract..."
               iconVerb="extract"
               onClick={async e => { e.stopPropagation(); await extractToBrowse(); }}
             />
@@ -1655,7 +1655,7 @@ function ContextMenuView({
               const linkPath = `${parent}\\${base} - Shortcut`;
               const IPC = await runIpc();
               const res = await IPC.createLink(linkPath, target, 'shortcut');
-              setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
+              setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued -- see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
               if (!isQueuedIpcResult(res)) runRefresh();
               onClose();
             }}
@@ -1679,7 +1679,7 @@ function ContextMenuView({
                 const linkPath = `${parent}\\${base}${suffix}`;
                 const IPC = await runIpc();
                 const res = await IPC.createLink(linkPath, target, lt);
-                setToastMessage(isQueuedIpcResult(res) ? `${label} queued — see transfer panel.` : (res.success ? `${label} created.` : (res.error || 'Failed to create link.')));
+                setToastMessage(isQueuedIpcResult(res) ? `${label} queued -- see transfer panel.` : (res.success ? `${label} created.` : (res.error || 'Failed to create link.')));
                 onClose();
               }}
             />
@@ -1710,7 +1710,7 @@ function ContextMenuView({
           onOpen={ensureIconLibraries}
         >
           {iconLibs.length === 0 ? (
-            <div className={`${menuItemClass} text-gray-500`}>Loading icon libraries…</div>
+            <div className={`${menuItemClass} text-gray-500`}>Loading icon libraries...</div>
           ) : iconLibs.map((lib: any) => (
             <ContextNestedSubmenu
               key={lib.id}
