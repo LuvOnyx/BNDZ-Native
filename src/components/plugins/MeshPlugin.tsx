@@ -796,20 +796,28 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   }, [popout, nativeTerm]);
 
   // Pop-out window: adopt handed-off session and show terminal; otherwise main Remote UI.
+  // Retry briefly — main may still be depositing while this WebView boots (overlap speedup).
   useEffect(() => {
     if (!popout || !nativeTerm) return;
     let cancelled = false;
+    const delays = [0, 40, 100, 200, 400, 800];
     void (async () => {
-      try {
-        const adopted = await IPC.nativeTerminalHandoffAdopt();
+      for (const ms of delays) {
         if (cancelled) return;
-        if (adopted?.ok) {
-          setSessionId(adopted.sessionId || null);
-          setSessionLabel(adopted.label || null);
-          setTab('terminal');
-          setBusy(false);
-        }
-      } catch { /* ignore */ }
+        if (ms) await new Promise((r) => window.setTimeout(r, ms));
+        if (cancelled) return;
+        try {
+          const adopted = await IPC.nativeTerminalHandoffAdopt();
+          if (cancelled) return;
+          if (adopted?.ok) {
+            setSessionId(adopted.sessionId || null);
+            setSessionLabel(adopted.label || null);
+            setTab('terminal');
+            setBusy(false);
+            return;
+          }
+        } catch { /* ignore and retry */ }
+      }
     })();
     return () => { cancelled = true; };
   }, [popout, nativeTerm]);

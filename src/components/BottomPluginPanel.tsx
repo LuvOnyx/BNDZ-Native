@@ -449,24 +449,32 @@ export default function BottomPluginPanel(props: any & {
                     const name = activePlugin?.name;
                     const tabId = activeTab;
                     void (async () => {
-                      // Remote: deposit warm ConPTY BEFORE opening pop-out so the new window can adopt mid-prompt.
+                      // Remote: hide overlay + start deposit, but do NOT block window creation on deposit.
+                      // WebView boot dwarfs deposit; awaiting deposit first made pop-out feel stuck.
+                      // Pop-out MeshPlugin retries adopt until the handoff lands.
+                      let depositP: Promise<void> | null = null;
                       if (tabId === 'remote-mesh') {
-                        try {
-                          const dep = await IPC.nativeTerminalHandoffDeposit();
-                          window.dispatchEvent(new CustomEvent('bndz-remote-mesh-popout', {
-                            detail: {
-                              open: true,
-                              handedOff: !!dep?.ok,
-                              sessionId: dep?.sessionId,
-                              label: dep?.label,
-                            },
-                          }));
-                        } catch { /* ignore */ }
                         try {
                           IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
                         } catch { /* ignore */ }
+                        depositP = (async () => {
+                          try {
+                            const dep = await IPC.nativeTerminalHandoffDeposit();
+                            window.dispatchEvent(new CustomEvent('bndz-remote-mesh-popout', {
+                              detail: {
+                                open: true,
+                                handedOff: !!dep?.ok,
+                                sessionId: dep?.sessionId,
+                                label: dep?.label,
+                              },
+                            }));
+                          } catch { /* ignore */ }
+                        })();
                       }
                       const r = await IPC.openPluginWindow(tabId, { title: name });
+                      if (depositP) {
+                        try { await depositP; } catch { /* ignore */ }
+                      }
                       if (!r?.ok) {
                         pushToast({
                           kind: 'error',

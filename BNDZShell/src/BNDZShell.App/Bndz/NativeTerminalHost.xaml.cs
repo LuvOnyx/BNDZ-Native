@@ -134,7 +134,13 @@ public sealed partial class NativeTerminalHost : UserControl
 		}
 
 		if (!string.IsNullOrEmpty(_sessionId) && Width >= 48 && Height >= 48)
-			EnsureTermAtSize();
+		{
+			// Warm handoff / remount: skip 100ms debounce so pop-out paints as soon as the hole exists.
+			if (_warmPty is not null && _term is null)
+				TryMountTermNow();
+			else
+				EnsureTermAtSize();
+		}
 	}
 
 	public void SetStripActive(bool active)
