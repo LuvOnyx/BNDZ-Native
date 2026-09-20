@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 export type ListGroupHeaderRowProps = {
   label: string;
@@ -8,9 +8,9 @@ export type ListGroupHeaderRowProps = {
 };
 
 /**
- * In-list type/date group strip (FOLDERS / IMAGES / …).
+ * In-list type/date group strip (FOLDERS / IMAGES / â€¦).
  * Uses the same chrome as the sticky overlay (`.bndz-list-sticky-group-header`)
- * and sits flush against the previous row — no top margin / top border gap.
+ * row stays flush (uniform height); strip air via content-box clip so labels stay centered. Was: â€” no top margin / top border gap.
  */
 function ListGroupHeaderRow({ label, count, rowHeight, sticky }: ListGroupHeaderRowProps) {
   return (

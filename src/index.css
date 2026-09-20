@@ -2596,25 +2596,23 @@ html.theme-light .bndz-preview-contents-row.is-selected {
 .bndz-list-sticky-group-header,
 .bndz-list-group-header {
   --bndz-sticky-group-tuck: 8px;
+  --bndz-group-strip-air: 5px;
   color: color-mix(in srgb, var(--accent, #0078d4) 78%, #ffffff 22%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.12) 100%), var(--list-bg, #252526);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.12) calc(100% - 1px), var(--border-subtle, rgba(255, 255, 255, 0.1)) calc(100% - 1px), var(--border-subtle, rgba(255, 255, 255, 0.1)) 100%), var(--list-bg, #252526);
+  /* Paint only the content box so equal air above/below the strip clears selection chrome
+     without shifting the label off-center (padding alone with full-bleed bg did that). */
+  background-clip: content-box, content-box;
   border-top: 0;
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-bottom: none;
   box-shadow: none;
   margin: 0;
-  padding-top: 0;
-  /* Top stays flush (no dark seam); light air under the strip so rows aren't glued on */
-  padding-bottom: 6px;
+  padding-top: var(--bndz-group-strip-air);
+  padding-bottom: var(--bndz-group-strip-air);
   box-sizing: border-box;
 }
 .bndz-list-group-header {
-  /* Kill any leftover dark seam between last file row and next type strip */
+  /* Keep row flush under column chrome; air comes from content-box clip, not margin */
   margin-top: 0 !important;
-}
-.bndz-vlist-row:has(.bndz-list-group-header) {
-  /* Give virtualized group rows a little extra room for the bottom pad */
-  padding-bottom: 0;
-  margin-bottom: 6px;
 }
 /* Cover the dark seam under filter/column chrome while stuck â€” paint upward only
    so the label stays put (inline border-box height unchanged). */
@@ -2634,8 +2632,9 @@ html.theme-light .bndz-preview-contents-row.is-selected {
 html.theme-light .bndz-list-sticky-group-header,
 html.theme-light .bndz-list-group-header {
   color: rgba(0, 0, 0, 0.88) !important;
-  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 calc(100% - 1px), rgba(0, 0, 0, 0.1) calc(100% - 1px), rgba(0, 0, 0, 0.1) 100%) !important;
+  background-clip: content-box, content-box !important;
+  border-bottom: none !important;
   box-shadow: none !important;
 }
 html.theme-light .bndz-list-sticky-group-header.absolute::before,
