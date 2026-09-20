@@ -67,9 +67,15 @@ public sealed partial class NativeTerminalHost : UserControl
 
 		// Dispose(HwndHost) / DestroyWindow pumps the UI queue. Stale NATIVE_TERMINAL_LAYOUT
 		// (visible:true) must not remount mid-park — that nested mount/park StackOverflows BNDZ.
-		if (Volatile.Read(ref _parkGate) != 0)
+		if (Volatile.Read(ref _parkGate) != 0 || Volatile.Read(ref _teardownActive) != 0)
 		{
-			TermLog($"ApplyBounds ignore visible during park size={width:F0}x{height:F0}");
+			TermLog($"ApplyBounds ignore visible during teardown/park size={width:F0}x{height:F0}");
+			return;
+		}
+		if (_parkedInactive && string.IsNullOrEmpty(_sessionId))
+		{
+			TermLog("ApplyBounds ignore visible: parked with no session");
+			SoftCollapseHost();
 			return;
 		}
 
