@@ -56,7 +56,7 @@ export default function MeshIncusAdminPanel({ endpoint, onClose }: Props) {
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
               referrerPolicy="no-referrer"
             />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-[#07090e]/80 to-transparent" aria-hidden />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-[#07090e]/55" aria-hidden />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-gray-500">

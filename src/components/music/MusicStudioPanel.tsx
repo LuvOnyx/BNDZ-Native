@@ -121,7 +121,7 @@ export default function MusicStudioPanel({ paths, folderPath }: Props) {
     <div className="bndz-music-studio flex flex-col gap-3">
       <div className="bndz-plugin-card bndz-music-studio-hero !p-3">
         <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border border-amber-400/30 bg-gradient-to-br from-amber-500/20 to-sky-500/10 shadow-[0_0_24px_rgba(196,163,90,0.15)]">
+          <div className="bndz-plugin-glyph-well">
             <Icons8Icon id="music_ui" size={18} />
           </div>
           <div className="min-w-0 flex-1">

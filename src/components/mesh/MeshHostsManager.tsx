@@ -172,7 +172,7 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
       )}
 
       {editorHost !== null && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => !busy && setEditorHost(null)}>
+        <div className="bndz-native-scrim fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => !busy && setEditorHost(null)}>
           <div className="w-full max-w-2xl" onClick={e => e.stopPropagation()}>
             <MeshHostEditor
               host={editorHost === 'new' ? null : editorHost}

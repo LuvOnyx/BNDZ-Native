@@ -8595,6 +8595,62 @@ html.bndz-panel-resizing .bndz-resize-handle {
 
 /* ?? Native dialogs (Win11-style alert + sheet) ??????????????????????????? */
 
+
+/* Wave B: mesh/plugin native tiles (replace SaaS gradient chips) */
+.bndz-mesh-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.5rem 0.75rem;
+}
+.bndz-mesh-tile--sky {
+  border-color: rgba(56, 189, 248, 0.16);
+}
+.bndz-mesh-tile--violet {
+  border-color: rgba(139, 92, 246, 0.16);
+}
+.bndz-native-dialog-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(20, 24, 32, 0.96);
+}
+.bndz-plugin-glyph-well {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(196, 163, 90, 0.28);
+  background: rgba(196, 163, 90, 0.10);
+}
+.bndz-action-log-rail {
+  position: absolute;
+  left: 7px;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.10);
+}
+html.theme-light .bndz-mesh-tile {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+html.theme-light .bndz-native-dialog-header {
+  background: rgba(244, 245, 247, 0.96);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+html.theme-light .bndz-plugin-glyph-well {
+  background: rgba(196, 163, 90, 0.12);
+  border-color: rgba(146, 116, 48, 0.35);
+}
+html.theme-light .bndz-action-log-rail {
+  background: rgba(0, 0, 0, 0.12);
+}
+
 .bndz-native-scrim {
   background:
     radial-gradient(ellipse at 50% 42%, rgba(20, 28, 40, 0.35) 0%, transparent 55%),
@@ -13546,7 +13602,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.07);
-  background: linear-gradient(155deg, rgba(56,189,248,0.06) 0%, rgba(0,0,0,0.2) 100%);
+  background: rgba(0,0,0,0.22);
 }
 .bndz-mesh-stat-value {
   font-size: 20px;

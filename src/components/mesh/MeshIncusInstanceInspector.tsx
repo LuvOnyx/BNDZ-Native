@@ -173,12 +173,12 @@ export default function MeshIncusInstanceInspector({
   const devices = detail?.devices || detail?.Devices || {};
 
   return (
-    <div className="bndz-mesh-incus-inspector fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-sm" onClick={() => !busy && onClose()}>
+    <div className="bndz-mesh-incus-inspector bndz-native-scrim fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-3 sm:p-6" onClick={() => !busy && onClose()}>
       <div
-        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bndz-scrollbar rounded-2xl border border-sky-400/20 bg-gradient-to-br from-[#0c1824] via-[#0a121c] to-[#080e14] shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        className="bndz-native-dialog w-full max-w-3xl max-h-[90vh] overflow-y-auto bndz-scrollbar"
         onClick={e => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-3 border-b border-white/[0.06] bg-[#0c1824]/95 backdrop-blur-md">
+        <div className="bndz-native-dialog-header sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-white truncate flex items-center gap-2">
               <Icons8Icon id="server_ui" size={16} />

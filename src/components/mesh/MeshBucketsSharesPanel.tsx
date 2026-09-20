@@ -181,7 +181,7 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
             {buckets.map(b => (
               <div
                 key={b.id}
-                className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-gradient-to-br from-sky-500/[0.08] to-transparent px-3 py-2"
+                className="bndz-mesh-tile bndz-mesh-tile--sky"
               >
                 <Icons8Icon id="cloud_ui" size={16} className="text-sky-300 shrink-0" />
                 <div className="min-w-0 flex-1">
@@ -258,7 +258,7 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
             {shared.map(s => (
               <div
                 key={s.id}
-                className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-gradient-to-br from-violet-500/[0.07] to-transparent px-3 py-2"
+                className="bndz-mesh-tile bndz-mesh-tile--violet"
               >
                 <Icons8Icon id="emblem-shared" size={16} className="text-violet-300 shrink-0" />
                 <div className="min-w-0 flex-1">

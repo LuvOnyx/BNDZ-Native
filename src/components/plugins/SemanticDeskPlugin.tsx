@@ -165,7 +165,7 @@ export default function SemanticDeskPlugin({ currentPath, focusedPath, embedded 
       />
 
       {emb && !onnxReady && (
-        <div className="mx-3 mb-2 rounded-xl border border-amber-400/25 bg-gradient-to-br from-amber-950/40 via-[#1a1408] to-[#0c0e14] p-3 space-y-2">
+        <div className="bndz-mesh-tile mx-3 mb-2">
           <div className="flex items-start gap-2">
             <Icons8Icon id="info_ui" size={14} className="text-amber-300 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">

@@ -252,7 +252,7 @@ export default function ActionLogPlugin() {
           {!loading && loggingEnabled && visibleItems.length > 0 && (
             <div className="relative pl-3">
               {/* Timeline rail */}
-              <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-sky-400/40 via-white/10 to-transparent" />
+              <div className="bndz-action-log-rail" />
 
               <div className="space-y-1.5">
                 {visibleItems.map((entry, index) => {

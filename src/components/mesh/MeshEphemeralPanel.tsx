@@ -552,7 +552,7 @@ export default function MeshEphemeralPanel({ onNavigate, onStatus, onOpenTermina
       />
 
       {draft && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => !busy && setEditor(null)}>
+        <div className="bndz-native-scrim fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => !busy && setEditor(null)}>
           <div className="w-full max-w-2xl bndz-mesh-ephemeral-editor" onClick={e => e.stopPropagation()}>
             <EndpointEditor
               endpoint={draft}

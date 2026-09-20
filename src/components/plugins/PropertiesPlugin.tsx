@@ -867,7 +867,7 @@ export default function PropertiesPlugin({
                     <PluginCard className="max-w-xl relative">
                         <PluginSectionTitle icon="key_ui">Cryptographic hashes</PluginSectionTitle>
                         {hash.loading && (
-                            <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col gap-2 items-center justify-center rounded-lg">
+                            <div className="absolute inset-0 z-10 bndz-native-scrim flex flex-col gap-2 items-center justify-center rounded-lg">
                                 <Icons8Icon id="loading" size={24} spin className="text-emerald-400" />
                                 <div className="text-xs text-emerald-400 font-medium">Computing...</div>
                             </div>

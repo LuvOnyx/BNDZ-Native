@@ -26,7 +26,7 @@ export default function MeshHostEditor({ host, onSave, onCancel, busy }: Props) 
   const patch = (p: Partial<MeshHost>) => setDraft(prev => ({ ...prev, ...p }));
 
   return (
-    <div className="bndz-mesh-host-editor flex flex-col gap-4 p-4 rounded-xl border border-white/10 bg-[#12141a]/95 backdrop-blur-md max-h-[min(72vh,640px)] overflow-y-auto bndz-scrollbar">
+    <div className="bndz-mesh-host-editor bndz-native-dialog flex flex-col gap-4 p-4 max-h-[min(72vh,640px)] overflow-y-auto bndz-scrollbar">
       <div className="flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <Icons8Icon id="cloud_ui" size={18} className="text-sky-400" />
