@@ -727,6 +727,8 @@ export const IPC = {
     width: number;
     height: number;
     visible: boolean;
+    /** Clears sticky soft-park — only when Remote+Terminal is intentional. */
+    unpark?: boolean;
   }): void {
     if (!this.isNative) return;
     try {
