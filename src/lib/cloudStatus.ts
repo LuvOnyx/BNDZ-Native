@@ -1,4 +1,4 @@
-/** Cloud provider path detection + sync status badges for list rows. */
+﻿/** Cloud provider path detection + sync status badges for list rows. */
 
 import type { EmblemId } from '../components/EmblemIcon';
 
@@ -13,9 +13,11 @@ export type CloudProvider = {
 };
 
 export type CloudBadge = {
+  /** @deprecated Prefer emblem — kept for tone styling */
   label: string;
   tone: 'sky' | 'amber' | 'emerald' | 'gray';
   title: string;
+  emblem: EmblemId;
 };
 
 export type CloudStatusKind = 'available' | 'online-only' | 'pinned' | 'offline' | 'syncing' | 'error' | 'missing';
@@ -48,15 +50,35 @@ export function cloudBadgeForPath(fullPath: string, providers: CloudProvider[]):
   if (!match) return null;
   const status = match.syncStatus || 'available';
   if (status === 'online-only') {
-    return { label: '☁', tone: 'amber', title: `${match.name} — online-only (not downloaded)` };
+    return {
+      label: '',
+      tone: 'amber',
+      title: `${match.name} — online-only (not downloaded)`,
+      emblem: 'state-download',
+    };
   }
   if (status === 'pinned') {
-    return { label: '📌', tone: 'emerald', title: `${match.name} — always keep on device` };
+    return {
+      label: '',
+      tone: 'emerald',
+      title: `${match.name} — always keep on device`,
+      emblem: 'state-ok',
+    };
   }
   if (status === 'missing') {
-    return { label: '!', tone: 'gray', title: `${match.name} — unavailable` };
+    return {
+      label: '',
+      tone: 'gray',
+      title: `${match.name} — unavailable`,
+      emblem: 'state-error',
+    };
   }
-  return { label: '☁', tone: 'sky', title: match.name };
+  return {
+    label: '',
+    tone: 'sky',
+    title: match.name,
+    emblem: 'cloud-sync',
+  };
 }
 
 export function cloudSidebarStatusLabel(status?: string): string {
@@ -94,7 +116,7 @@ export function resolveEntityCloudStatus(
     return { kind: 'syncing', title: `${name} — syncing`, emblem: 'state-sync' };
   }
   if (provider || raw === 'available') {
-    return { kind: 'available', title: `${name} — available locally`, emblem: 'state-ok' };
+    return { kind: 'available', title: `${name} — available locally`, emblem: 'cloud-sync' };
   }
   return null;
 }

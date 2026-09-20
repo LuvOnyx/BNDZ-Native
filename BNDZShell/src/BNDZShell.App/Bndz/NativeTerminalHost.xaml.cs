@@ -194,14 +194,23 @@ public sealed partial class NativeTerminalHost : UserControl
 		if (string.IsNullOrWhiteSpace(sessionId))
 			throw new ArgumentException("sessionId required", nameof(sessionId));
 
-		Close(notify: false);
+		CancelTermDebounce();
+		Interlocked.Increment(ref _createGen);
+		if (_term is not null)
+			DisposeTerm(stopPty: true);
+		else if (_warmPty is not null)
+		{
+			try { _warmPty.StopExternalTermOnly(); } catch { /* ignore */ }
+			_warmPty = null;
+		}
+		// Avoid Close()/SoftCollapse here — MainWindow ApplyBounds sizes the host for mount.
 
 		_sessionId = sessionId;
 		_label = string.IsNullOrWhiteSpace(label) ? "Local" : label.Trim();
 		_pendingCmd = string.IsNullOrWhiteSpace(commandLine) ? null : commandLine.Trim();
 		_pendingCwd = string.IsNullOrWhiteSpace(workingDirectory) ? null : workingDirectory.Trim();
 		_awaitingSizedStart = true;
-		// Close parks inactive; arm remount for the new session.
+		// Arm remount for the new session (no SoftCollapse from Open).
 		_parkedInactive = false;
 		_ignoreHideUntilTick = Environment.TickCount64 + 2000;
 

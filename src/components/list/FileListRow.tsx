@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   consumeMarqueeDragOccurred,
   clearDragSession,
@@ -8,7 +8,7 @@ import {
 import { createEntityTooltipHandlers } from '../../lib/entityTooltip';
 import { shouldSuppressNativeEntityTitle } from '../../lib/tooltipSettings';
 import { highlightNameMatch } from '../../lib/liveFilterHighlight';
-import { cloudBadgeForPath } from '../../lib/cloudStatus';
+import { cloudBadgeForPath, resolveEntityCloudStatus } from '../../lib/cloudStatus';
 import { protectDirectionalFormatting } from '../../lib/bidiProtection';
 import {
   evaluateColorFilter,
@@ -198,7 +198,10 @@ function FileListRow(props: FileListRowProps) {
     ),
     config,
   );
-  const cloudBadge = cloudBadgeForPath(toWindowsPath(joinPanePath(panePath, entity)), cloudProviders);
+  const cloudResolved = resolveEntityCloudStatus(entity as any, panePath, cloudProviders);
+  const cloudBadge = cloudResolved
+    ? { emblem: cloudResolved.emblem, title: cloudResolved.title, tone: (cloudResolved.kind === 'online-only' ? 'amber' : cloudResolved.kind === 'pinned' ? 'emerald' : cloudResolved.kind === 'error' ? 'gray' : 'sky') as 'sky' | 'amber' | 'emerald' | 'gray', label: '' }
+    : cloudBadgeForPath(toWindowsPath(joinPanePath(panePath, entity)), cloudProviders);
   const jobTicketOverdue = isDir ? jobTicketOverdueMap[entityWinPath.toLowerCase()] : undefined;
   const healthBadge = healthProblemMap[entityWinPath.toLowerCase()]
     || healthProblemMap[toWindowsPath(entityWinPath).toLowerCase()];
@@ -210,7 +213,7 @@ function FileListRow(props: FileListRowProps) {
         setInlineRename(null);
         return;
       }
-      // Extension confirm cancelled / validation failed — keep editing and restore focus.
+      // Extension confirm cancelled / validation failed â€” keep editing and restore focus.
       requestAnimationFrame(() => {
         const el = document.querySelector('.bndz-inline-rename-input') as HTMLInputElement | null;
         el?.focus();
@@ -393,7 +396,7 @@ function FileListRow(props: FileListRowProps) {
         handleEntityClicked(e, entity.id);
       }}
       onDoubleClick={() => {
-        // Gesture pointerup already opened this item — native dblclick would hit the
+        // Gesture pointerup already opened this item â€” native dblclick would hit the
         // *new* row under the cursor after navigate (folder+1) or ShellExecute twice.
         if (performance.now() < (suppressNativeDblUntilRef.current || 0)) {
           return;
@@ -597,7 +600,7 @@ function FileListRow(props: FileListRowProps) {
                     <div className="bndz-grid-caption-meta truncate">
                       {typeof entity.size === 'number' ? formatSize(entity.size) : ''}
                       {(entity as any).width && (entity as any).height
-                        ? ` · ${(entity as any).width}×${(entity as any).height}`
+                        ? ` Â· ${(entity as any).width}Ã—${(entity as any).height}`
                         : ''}
                     </div>
                   )}
@@ -639,7 +642,9 @@ function FileListRow(props: FileListRowProps) {
                 </div>
               </div>
               {cloudBadge && (
-                <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
+                <span className="inline-flex items-center mr-1 shrink-0" title={cloudBadge.title}>
+                  <EmblemIcon id={cloudBadge.emblem} size={14} title={cloudBadge.title} />
+                </span>
               )}
               {(entity as any).isGhostLink && (
                 <span className="bndz-ghostlink-emblem inline-flex items-center mr-1 shrink-0" title={(entity as any).linkTarget || 'Symbolic link'}>
@@ -709,7 +714,7 @@ function FileListRow(props: FileListRowProps) {
                 <div className="bndz-list-marquee-trail" aria-hidden />
               </div>
               {cloudBadge && (
-                <span className={`text-[10px] px-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : 'text-[#7eb8e8]/80'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
+                <span className="inline-flex items-center px-1 shrink-0" title={cloudBadge.title}><EmblemIcon id={cloudBadge.emblem} size={14} title={cloudBadge.title} /></span>
               )}
             </>
           )}
@@ -720,3 +725,6 @@ function FileListRow(props: FileListRowProps) {
 }
 
 export default React.memo(FileListRow, arePropsEqual);
+
+
+
