@@ -51,6 +51,8 @@ public sealed partial class NativeTerminalHost : UserControl
 		private bool _warmRemountOnUnpark;
 		/// <summary>Serialize warm remount so FE layout cannot nest Dispose/Destroy (crash after a few switches).</summary>
 		private int _remountBusy;
+		/// <summary>Close clicked while warm remount in flight — run Close after remount settles.</summary>
+		private bool _closeAfterRemount;
 		/// <summary>HWNDs reparented to HWND_MESSAGE on keepAlive park — restored on unpark.</summary>
 		private readonly System.Collections.Generic.List<(IntPtr Hwnd, IntPtr Parent)> _parkedHwnds = new(4);
 	public event EventHandler<bool>? TermMountFinished;
@@ -172,6 +174,11 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// </summary>
 	private void ParkTermHwnd(string reason, bool keepAlive = true)
 	{
+		if (Volatile.Read(ref _remountBusy) != 0)
+		{
+			TermLog($"ParkTermHwnd skip during remount reason={reason}");
+			return;
+		}
 		// Re-entrant park (Dispose/DestroyWindow pumps NATIVE_TERMINAL_LAYOUT) must not nest
 		// another DestroyTermControlUi - that StackOverflowException killed BNDZ @ 12:55 CT.
 		if (Interlocked.CompareExchange(ref _parkGate, 1, 0) != 0)
@@ -336,12 +343,30 @@ public sealed partial class NativeTerminalHost : UserControl
 			TermLog($"RemountWarmSurfaceAfterUnpark mount failed size={Width:F0}x{Height:F0}");
 			return;
 		}
+		// Re-assert hole size — TryMount used to SoftCollapse to 0x0 via DisposeTerm.
+		Margin = new Thickness(x, y, 0, 0);
+		Width = width;
+		Height = height;
+		Opacity = 1;
+		Visibility = Visibility.Visible;
+		IsHitTestVisible = true;
+
 		if (_term is not null)
 		{
 			TryShowTermHwnds(_term);
 			PulseTermPaintAfterUnpark(width, height);
 		}
 		TermLog($"RemountWarmSurfaceAfterUnpark done warm={_warmPty is not null} term={_term is not null} size={Width:F0}x{Height:F0}");
+
+		if (_closeAfterRemount)
+		{
+			_closeAfterRemount = false;
+			// Remount callers clear _remountBusy in finally AFTER this method returns.
+			// Drop the gate first or Close would re-defer forever.
+			Interlocked.Exchange(ref _remountBusy, 0);
+			TermLog("Close running after remount");
+			Close(notify: true);
+		}
 	}
 
 	private void SoftCollapseHost()
@@ -534,6 +559,14 @@ public sealed partial class NativeTerminalHost : UserControl
 
 		public void Close(bool notify = true)
 	{
+		_warmRemountOnUnpark = false;
+		if (Volatile.Read(ref _remountBusy) != 0)
+		{
+			_closeAfterRemount = true;
+			TermLog("Close deferred until remount idle");
+			return;
+		}
+
 		_ignoreHideUntilTick = 0;
 		var sid = _sessionId;
 		// Soft-collapse + drop session BEFORE DisposeTerm. DestroyWindow pumps the UI queue;
@@ -650,10 +683,19 @@ public sealed partial class NativeTerminalHost : UserControl
 			TermPTY? warm = _warmPty;
 			TermLog($"TryMountTermNow cmd={cmd} size={Width:F0}x{Height:F0} warm={warm is not null} uiThread={dq?.HasThreadAccess}");
 
-			// Drop any leftover UI control only â€” never StopExternalTermOnly while warm remounting.
-			DisposeTerm(stopPty: false);
-			warm ??= _warmPty;
 
+			// Drop leftover UI only. Never SoftCollapse here — DisposeTerm SoftCollapses to 0x0
+			// and wiped FinishWarmRemount's hole size (log: mounted size=0x0). Remount already
+			// nulled _term + disposed the old control.
+			if (_term is not null)
+			{
+				DisposeTerm(stopPty: false);
+				warm ??= _warmPty;
+			}
+			else
+			{
+				try { TermSlot.Children.Clear(); } catch { /* ignore */ }
+			}
 			var term = new EasyTerminalControl
 			{
 				StartupCommandLine = cmd,
@@ -999,6 +1041,8 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// </summary>
 	private void PulseTermPaintAfterUnpark(double width, double height)
 	{
+		if (Volatile.Read(ref _remountBusy) != 0 || _parkedInactive || string.IsNullOrEmpty(_sessionId))
+			return;
 		try
 		{
 			InvalidateMeasure();
@@ -1024,7 +1068,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		}
 		dq.TryEnqueue(DispatcherQueuePriority.Normal, () =>
 		{
-			if (_term is null || _softParked) return;
+			if (_term is null || _softParked || _parkedInactive || string.IsNullOrEmpty(_sessionId) || Volatile.Read(ref _remountBusy) != 0) return;
 			if (w < 48 || h < 48) return;
 			try
 			{
