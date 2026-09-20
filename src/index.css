@@ -2595,6 +2595,7 @@ html.theme-light .bndz-preview-contents-row.is-selected {
 /* List sticky / in-list group headers (FOLDERS / IMAGES / …) — flush to prior row */
 .bndz-list-sticky-group-header,
 .bndz-list-group-header {
+  --bndz-sticky-group-tuck: 8px;
   color: color-mix(in srgb, var(--accent, #0078d4) 78%, #ffffff 22%);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.12) 100%), var(--list-bg, #252526);
   border-top: 0;
@@ -2608,6 +2609,20 @@ html.theme-light .bndz-preview-contents-row.is-selected {
   /* Kill any leftover dark seam between last file row and next type strip */
   margin-top: 0 !important;
 }
+/* Cover the dark seam under filter/column chrome while stuck — paint upward only
+   so the label stays put (inline border-box height unchanged). */
+.bndz-list-sticky-group-header.absolute::before,
+.bndz-list-group-header.sticky::before,
+.bndz-list-sticky-group-header.sticky::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--bndz-sticky-group-tuck, 8px);
+  background: inherit;
+  pointer-events: none;
+}
 
 html.theme-light .bndz-list-sticky-group-header,
 html.theme-light .bndz-list-group-header {
@@ -2615,6 +2630,11 @@ html.theme-light .bndz-list-group-header {
   background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
   box-shadow: none !important;
+}
+html.theme-light .bndz-list-sticky-group-header.absolute::before,
+html.theme-light .bndz-list-group-header.sticky::before,
+html.theme-light .bndz-list-sticky-group-header.sticky::before {
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
 }
 
 html.theme-light .bndz-list-sticky-group-header .text-gray-500,
@@ -7191,7 +7211,12 @@ html[data-marquee-active] .bndz-list-col-gutter {
 }
 
 .bndz-file-list-scroll {
-  padding: var(--bndz-list-overall-spacing, 0px);
+  /* Split shorthand so Tailwind pt-0 / sticky flush can win.
+     Top padding here left a 5–10px dark seam under column/filter chrome
+     while type group strips were stuck. */
+  padding-inline: var(--bndz-list-overall-spacing, 0px);
+  padding-bottom: var(--bndz-list-overall-spacing, 0px);
+  padding-top: 0;
   scrollbar-gutter: stable;
 }
 
