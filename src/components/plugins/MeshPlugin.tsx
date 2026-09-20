@@ -445,6 +445,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   /** Prevents auto-open from fighting an explicit Close. */
   const autoLocalOpenedRef = useRef(false);
   const layoutPulseTimersRef = useRef<number[]>([]);
+  const allowUnparkRef = useRef(false);
   const [liveShareOn, setLiveShareOn] = useState(false);
   const [livePeers, setLivePeers] = useState<any[]>([]);
 
@@ -827,14 +828,17 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   useEffect(() => {
     if (!nativeTerm) return;
     if (!pluginActive || tab !== 'terminal') {
+      allowUnparkRef.current = false;
       clearLayoutPulses();
       IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
       return;
     }
+    allowUnparkRef.current = true;
     if (!sessionId) return;
     const publish = () => {
       const r = measureHole();
       if (r.width >= 24 && r.height >= 24) {
+        if (!allowUnparkRef.current) return;
         IPC.nativeTerminalLayout({ ...r, visible: true, unpark: true });
       }
     };
@@ -842,6 +846,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     const t1 = window.setTimeout(publish, 32);
     const t2 = window.setTimeout(publish, 160);
     return () => {
+      allowUnparkRef.current = false;
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };

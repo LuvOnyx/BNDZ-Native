@@ -65,17 +65,15 @@ public sealed partial class NativeTerminalHost : UserControl
 	{
 				if (!visible || width < 24 || height < 24)
 		{
-			// Open grace: FE remount / hole cleanup still fires visible:false ~1s after Open and
-			// SoftCollapses mid-mount (Term mounted size=0x0 ? Destroy StackOverflow). Ignore
-			// hide+undersized until grace ends; intentional plugin-switch after grace still parks.
-			if (Environment.TickCount64 < _ignoreHideUntilTick
+			// Undersized *show* during open grace only — never swallow intentional visible:false
+			// (plugin leave). Ignoring leave hide made the first tab click look like a no-op.
+			if (visible
+				&& Environment.TickCount64 < _ignoreHideUntilTick
 				&& !string.IsNullOrEmpty(_sessionId))
 			{
-				TermLog($"ApplyBounds hide ignored (open grace) visible={visible} size={width:F0}x{height:F0}");
+				TermLog($"ApplyBounds undersized-show ignored (open grace) size={width:F0}x{height:F0}");
 				return;
 			}
-			// HWND airspace: WinUI Margin/Visibility/size on this host do NOT move TermControl's
-			// HwndHost. Detach TermControl from the tree (Destroy HWND) while keeping ConPTY warm.
 			ParkTermHwnd(reason: "ApplyBounds-hide");
 			return;
 		}
@@ -96,13 +94,16 @@ public sealed partial class NativeTerminalHost : UserControl
 
 		// Sticky soft-park: after plugin leave, ignore visible:true unless FE sends unpark
 		// (Remote+Terminal intentional). Stale hole/open pulses were un-hiding HWND over the next plugin.
-		if (_softParked && !unpark)
+		if (_softParked)
 		{
-			TermLog($"ApplyBounds show ignored (softParked sticky) size={width:F0}x{height:F0}");
-			return;
-		}
-		if (unpark)
+			// FE sometimes still sends unpark:true ~200ms after leave (Mesh effect race). Hold both.
+			if (!unpark || Environment.TickCount64 < _ignoreShowUntilTick)
+			{
+				TermLog($"ApplyBounds show ignored (softParked sticky) unpark={unpark} size={width:F0}x{height:F0}");
+				return;
+			}
 			_softParked = false;
+		}
 
 		_parkedInactive = false;
 		_ignoreShowUntilTick = 0;
@@ -165,8 +166,8 @@ public sealed partial class NativeTerminalHost : UserControl
 			{
 				TryHideTermHwnds(_term, reparentToMessage: false);
 				_softParked = true;
-				_ignoreShowUntilTick = Environment.TickCount64 + 750;
-				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=750ms");
+				_ignoreShowUntilTick = Environment.TickCount64 + 800;
+				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=800ms");
 				return;
 			}
 
