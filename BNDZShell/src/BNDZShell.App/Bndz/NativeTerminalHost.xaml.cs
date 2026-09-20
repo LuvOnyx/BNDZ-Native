@@ -178,6 +178,8 @@ public sealed partial class NativeTerminalHost : UserControl
 		_pendingCmd = string.IsNullOrWhiteSpace(commandLine) ? null : commandLine.Trim();
 		_pendingCwd = string.IsNullOrWhiteSpace(workingDirectory) ? null : workingDirectory.Trim();
 		_awaitingSizedStart = true;
+		// Close parks inactive; arm remount for the new session.
+		_parkedInactive = false;
 
 		TermLog($"Open sid={_sessionId} label={_label} cwd={_pendingCwd ?? ""} cmd={_pendingCmd ?? "(default shell)"}");
 	}
