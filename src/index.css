@@ -1,6 +1,6 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
-/* Hide classic number steppers app-wide — type values or use custom controls */
+/* Hide classic number steppers app-wide â€” type values or use custom controls */
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
@@ -44,7 +44,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --bndz-surface-raised: #2b2b2b;
   --bndz-surface-chrome: #252526;
   --bndz-surface-panel: #252526;
-  /* Charcoal hairline — never white-10% on dark Contents Preview / chrome edges. */
+  /* Charcoal hairline â€” never white-10% on dark Contents Preview / chrome edges. */
   --bndz-border-subtle: #2a2a30;
   --border-subtle: #2a2a30;
   --bndz-transfer-accent: #0078d4;
@@ -494,7 +494,7 @@ input[type="number"]::-webkit-inner-spin-button {
     position: fixed;
     inset: 0;
     z-index: 900;
-    /* Soft vignette — not a frosted SaaS modal veil */
+    /* Soft vignette â€” not a frosted SaaS modal veil */
     background:
       radial-gradient(ellipse 70% 55% at 50% 42%, rgba(18, 24, 36, 0.35) 0%, transparent 70%),
       rgba(6, 8, 12, 0.82);
@@ -929,7 +929,7 @@ input[type="number"]::-webkit-inner-spin-button {
     cursor: pointer;
   }
 
-  /* Never overlay Expand/New over the iframe — duplicates steal menu clicks. */
+  /* Never overlay Expand/New over the iframe â€” duplicates steal menu clicks. */
   .bndz-design-board-hostbar,
   .bndz-design-board > .bndz-design-board-actions,
   .bndz-design-board-dock-strip {
@@ -966,7 +966,7 @@ input[type="number"]::-webkit-inner-spin-button {
     background: linear-gradient(180deg, rgba(28, 30, 38, 0.96), rgba(18, 20, 26, 0.94));
   }
 
-  /* ── Fabric Photo Studio (Photoshop-like) ── */
+  /* â”€â”€ Fabric Photo Studio (Photoshop-like) â”€â”€ */
   .bndz-ps-app {
     flex: 1;
     min-height: 0;
@@ -1313,7 +1313,7 @@ input[type="number"]::-webkit-inner-spin-button {
     color: #fff;
   }
 
-  /* ── Design Board (exact ProDesign / Figma.html host) ── */
+  /* â”€â”€ Design Board (exact ProDesign / Figma.html host) â”€â”€ */
   .bndz-design-board {
     position: relative;
     height: 100%;
@@ -1381,7 +1381,7 @@ input[type="number"]::-webkit-inner-spin-button {
     height: 100%;
     border-radius: 0;
   }
-  /* Expand without remounting iframe — escape bottom panel chrome via fixed viewport. */
+  /* Expand without remounting iframe â€” escape bottom panel chrome via fixed viewport. */
   .bndz-design-board.bndz-design-board--viewport {
     position: fixed;
     inset: 0;
@@ -2206,7 +2206,7 @@ html[data-theme] .bndz-chrome-preview {
   color: var(--panel-preview-text);
 }
 
-/* Do NOT paint every descendant — dark islands (metadata strip) keep their own ink */
+/* Do NOT paint every descendant â€” dark islands (metadata strip) keep their own ink */
 html[data-theme] .bndz-chrome-preview .text-\[\#666\],
 html[data-theme] .bndz-chrome-preview .text-gray-400,
 html[data-theme] .bndz-chrome-preview .text-gray-500 {
@@ -2217,7 +2217,7 @@ html[data-theme] .bndz-chrome-bottom {
   color: var(--panel-bottom-text);
 }
 
-/* Do NOT paint every descendant — dark plugin cards keep their own ink */
+/* Do NOT paint every descendant â€” dark plugin cards keep their own ink */
 html[data-theme] .bndz-chrome-bottom .text-gray-400,
 html[data-theme] .bndz-chrome-bottom .text-gray-500,
 html[data-theme] .bndz-chrome-bottom .text-\[\#888\] {
@@ -2232,13 +2232,13 @@ html.theme-light .nav-tree-row:hover {
   background: rgba(0, 0, 0, 0.05) !important;
 }
 
-/* ── Light themes: readable text on pale chrome ── */
+/* â”€â”€ Light themes: readable text on pale chrome â”€â”€ */
 html.theme-light .bndz-chrome-sidebar {
   background: var(--sidebar-bg, #ffffff) !important;
   border-color: var(--border-subtle, rgba(0, 0, 0, 0.1)) !important;
 }
 
-/* Section rails keep tinted washes — BLACK titles (not white-on-dark) */
+/* Section rails keep tinted washes â€” BLACK titles (not white-on-dark) */
 html.theme-light .bndz-chrome-sidebar .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab),
 html.theme-light .bndz-chrome-sidebar .sidebar-section-header:not(.bndz-status-bar-tree-tab) {
   color: rgba(0, 0, 0, 0.88) !important;
@@ -2467,7 +2467,7 @@ html.theme-light .bndz-bottom-tab-active {
   color: rgba(0, 0, 0, 0.92) !important;
 }
 
-/* ═══ Light theme — global token reset + force readable chrome ═══ */
+/* â•â•â• Light theme â€” global token reset + force readable chrome â•â•â• */
 html.theme-light {
   color-scheme: light;
   --bndz-glass-bg: rgba(255, 255, 255, 0.94);
@@ -2502,7 +2502,7 @@ html.theme-light .bndz-file-list-scroll {
   color: rgba(0, 0, 0, 0.88) !important;
 }
 
-/* Contents Preview — dark charcoal edges (Tailwind bare `border` = currentColor ≈ white). */
+/* Contents Preview â€” dark charcoal edges (Tailwind bare `border` = currentColor â‰ˆ white). */
 .bndz-preview-contents-panel {
   border: 1px solid var(--bndz-border-subtle, #2a2a30) !important;
 }
@@ -2538,7 +2538,7 @@ html.theme-light .bndz-plugin-footer {
   background: color-mix(in srgb, var(--panel-bottom-bg, #f8f8fa) 94%, rgba(0, 0, 0, 0.04) 6%) !important;
 }
 
-/* Preview tabs — dark defaults are unreadable on white */
+/* Preview tabs â€” dark defaults are unreadable on white */
 html.theme-light .bndz-preview-tabstrip {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, transparent 100%), var(--panel-preview-bg, #fff) !important;
   border-bottom-color: rgba(0, 0, 0, 0.08) !important;
@@ -2592,7 +2592,7 @@ html.theme-light .bndz-preview-contents-row.is-selected {
   color: rgba(0, 0, 0, 0.92) !important;
 }
 
-/* List sticky / in-list group headers (FOLDERS / IMAGES / …) — flush to prior row */
+/* List sticky / in-list group headers (FOLDERS / IMAGES / â€¦) â€” flush to prior row */
 .bndz-list-sticky-group-header,
 .bndz-list-group-header {
   --bndz-sticky-group-tuck: 8px;
@@ -2603,13 +2603,20 @@ html.theme-light .bndz-preview-contents-row.is-selected {
   box-shadow: none;
   margin: 0;
   padding-top: 0;
-  padding-bottom: 0;
+  /* Top stays flush (no dark seam); light air under the strip so rows aren't glued on */
+  padding-bottom: 6px;
+  box-sizing: border-box;
 }
 .bndz-list-group-header {
   /* Kill any leftover dark seam between last file row and next type strip */
   margin-top: 0 !important;
 }
-/* Cover the dark seam under filter/column chrome while stuck — paint upward only
+.bndz-vlist-row:has(.bndz-list-group-header) {
+  /* Give virtualized group rows a little extra room for the bottom pad */
+  padding-bottom: 0;
+  margin-bottom: 6px;
+}
+/* Cover the dark seam under filter/column chrome while stuck â€” paint upward only
    so the label stays put (inline border-box height unchanged). */
 .bndz-list-sticky-group-header.absolute::before,
 .bndz-list-group-header.sticky::before,
@@ -2643,7 +2650,7 @@ html.theme-light .bndz-list-group-header-count {
   color: rgba(0, 0, 0, 0.55) !important;
 }
 
-/* Hardcoded Tailwind whites inside pale FM panels — skip dark preview / plugin islands */
+/* Hardcoded Tailwind whites inside pale FM panels â€” skip dark preview / plugin islands */
 html.theme-light .bndz-chrome-sidebar .nav-tree-scroll .text-white,
 html.theme-light .bndz-chrome-sidebar .sidebar-pin-row .text-white,
 html.theme-light .bndz-chrome-workspace .bndz-file-list-scroll .text-white,
@@ -2717,7 +2724,7 @@ html.theme-light .bndz-chrome-workspace .text-gray-500 {
   color: rgba(0, 0, 0, 0.72) !important;
 }
 
-/* Status bar is pale paper on light — keep Tailwind muted classes BLACK */
+/* Status bar is pale paper on light â€” keep Tailwind muted classes BLACK */
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-200,
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-300,
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-400,
@@ -2760,7 +2767,7 @@ html.theme-light .bndz-chrome-preview .bg-\[\#252526\] {
   background: var(--panel-preview-bg, #ffffff) !important;
 }
 
-/* Native shell tree — selection text was defaulting to #f3f4f6 */
+/* Native shell tree â€” selection text was defaulting to #f3f4f6 */
 html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row-selected,
 html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row-selected {
   color: rgba(0, 0, 0, 0.9) !important;
@@ -2779,7 +2786,7 @@ html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .side
 
 html.theme-light .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab),
 html.theme-light .sidebar-section-header:not(.bndz-status-bar-tree-tab) {
-  /* Tinted wash rails — BLACK titles (statusbar tree tab stays white-on-dark) */
+  /* Tinted wash rails â€” BLACK titles (statusbar tree tab stays white-on-dark) */
   color: rgba(0, 0, 0, 0.88) !important;
 }
 
@@ -2801,7 +2808,7 @@ html.theme-light .bndz-list-size-label {
   color: rgba(0, 0, 0, 0.86) !important;
 }
 
-/* Meta columns (Type / Size / Modified / etc.) — black ink on pale rows */
+/* Meta columns (Type / Size / Modified / etc.) â€” black ink on pale rows */
 html.theme-light .fs-list-item .bndz-list-select-cell.text-gray-300,
 html.theme-light .fs-list-item .bndz-list-select-cell.text-gray-400,
 html.theme-light .fs-list-item .bndz-list-select-cell.text-gray-500,
@@ -2822,7 +2829,7 @@ html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
   color: var(--status-text, rgba(0, 0, 0, 0.88)) !important;
 }
 
-/* Address / breadcrumb lives on dark chrome — never force black ink here */
+/* Address / breadcrumb lives on dark chrome â€” never force black ink here */
 html.theme-light .bndz-files-address-strip .bndz-breadcrumb,
 html.theme-light .bndz-files-address-strip [data-breadcrumb-path],
 html.theme-light .bndz-breadcrumb-slot,
@@ -2838,7 +2845,7 @@ html.theme-light .bndz-breadcrumb-slot .text-gray-500 {
   color: var(--chrome-dark-muted, rgba(255, 255, 255, 0.55)) !important;
 }
 
-/* ── Pink-mark audit: surface-aware ink (dark surface → white, light → black) ── */
+/* â”€â”€ Pink-mark audit: surface-aware ink (dark surface â†’ white, light â†’ black) â”€â”€ */
 
 /*
  * Rapid Access / menubar / context menus:
@@ -2902,7 +2909,7 @@ html.theme-light .bndz-context-menu-item--accent:hover {
   color: #fff !important;
 }
 
-/* Address / breadcrumb dark strip — white path segments (beat colorConfig22 / gray utilities) */
+/* Address / breadcrumb dark strip â€” white path segments (beat colorConfig22 / gray utilities) */
 html.theme-light .bndz-files-address-strip,
 html.theme-light .bndz-files-address-strip *,
 html.theme-light .bndz-breadcrumb-slot,
@@ -2917,7 +2924,7 @@ html.theme-light .bndz-breadcrumb-slot .text-gray-500 {
   color: rgba(255, 255, 255, 0.55) !important;
 }
 
-/* Sidebar / drives on pale tree — black ink (beat apply-colors --tree-text) */
+/* Sidebar / drives on pale tree â€” black ink (beat apply-colors --tree-text) */
 html.theme-light .bndz-chrome-sidebar .nav-tree-label,
 html.theme-light .bndz-chrome-sidebar .bndz-sidebar-pin-label,
 html.theme-light .bndz-chrome-sidebar .sidebar-pin-row,
@@ -2933,7 +2940,7 @@ html.theme-light .bndz-chrome-sidebar .bndz-drive-card-sub {
   color: rgba(0, 0, 0, 0.55) !important;
 }
 
-/* List column headers — flat pale bar + black text (no chip fills) */
+/* List column headers â€” flat pale bar + black text (no chip fills) */
 html.theme-light .bndz-list-header-bar,
 html.theme-light .bndz-list-header-bar .bndz-list-col-header,
 html.theme-light .bndz-list-header-bar .bndz-list-col-header .bndz-list-col-header-label,
@@ -3021,7 +3028,7 @@ html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-500 
   color: rgba(0, 0, 0, 0.62) !important;
 }
 
-/* Other hardcoded dark wells in preview (not the metadata strip) → pale + black */
+/* Other hardcoded dark wells in preview (not the metadata strip) â†’ pale + black */
 html.theme-light .bndz-chrome-preview .bg-\[\#252526\]:not(.bndz-preview-metadata-strip),
 html.theme-light .bndz-chrome-preview .bg-\[\#1e1e1e\]:not(.bndz-preview-metadata-strip),
 html.theme-light .bndz-chrome-preview .bg-black\/55,
@@ -3030,7 +3037,7 @@ html.theme-light .bndz-chrome-preview .bg-black\/50 {
   color: rgba(0, 0, 0, 0.88) !important;
 }
 
-/* Bottom status bar — pale paper + black type on light themes */
+/* Bottom status bar â€” pale paper + black type on light themes */
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab),
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) * {
   color: rgba(0, 0, 0, 0.88) !important;
@@ -3159,10 +3166,10 @@ html.theme-light .bndz-files-address-strip input::placeholder {
   overflow: hidden !important;
 }
 
-/* GPU promotion for static chrome only — never promote the menubar OR sidebar
+/* GPU promotion for static chrome only â€” never promote the menubar OR sidebar
    (WebView2 app-region / first-click races steal LMB on Drives / Rapid Access).
    Selecting a list row "unlocks" the sidebar only because that interaction
-   re-composites layers — remove the root cause instead. */
+   re-composites layers â€” remove the root cause instead. */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
 .bndz-chrome-toolbar,
@@ -3175,7 +3182,7 @@ html.theme-light .bndz-files-address-strip input::placeholder {
 }
 
 /* Native shell: default the whole document to no-drag. WebView2 NonClientRegionSupport
-   computes an async app-region bitmap — until that settles, unmarked / lagging regions
+   computes an async app-region bitmap â€” until that settles, unmarked / lagging regions
    behave as HTCAPTION and steal LMB on the left sidebar. List selection only "fixed" it
    by forcing a compositor pass. Explicit no-drag + epoch toggles force the bitmap early. */
 html[data-bndz-shell="native-host"],
@@ -3269,7 +3276,7 @@ html[data-list-font-aa="greyscale"] .bndz-file-list-scroll {
 
 .bndz-chrome-menubar {
   overflow: visible;
-  /* No will-change / translate3d — those break WebView2 non-client hit testing on File/Edit. */
+  /* No will-change / translate3d â€” those break WebView2 non-client hit testing on File/Edit. */
 }
 
 .bndz-chrome-preview {
@@ -3496,7 +3503,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   width: 100%;
 }
 
-/* FiveM / RAGE selection preview — keep orbit viewport tall enough in the sidebar */
+/* FiveM / RAGE selection preview â€” keep orbit viewport tall enough in the sidebar */
 .bndz-rage-preview-stage {
   position: relative;
   min-height: 240px;
@@ -4640,7 +4647,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
     0 1px 0 rgba(255, 255, 255, 0.1) inset;
 }
 
-/* Absorb-embed ops meter — replaces PluginStatCard SaaS farms */
+/* Absorb-embed ops meter â€” replaces PluginStatCard SaaS farms */
 .bndz-plugin-ops-meter {
   display: flex;
   flex-wrap: wrap;
@@ -4686,7 +4693,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
     0 16px 36px rgba(0, 0, 0, 0.4);
 }
 
-/* Files-style Properties — overview / expanders / drive ring */
+/* Files-style Properties â€” overview / expanders / drive ring */
 .bndz-props-files { gap: 10px; }
 .bndz-props-overview-row {
   display: flex;
@@ -5581,7 +5588,7 @@ html.theme-light .bndz-plugin-empty {
   color: rgba(148, 163, 184, 0.7);
 }
 
-/* Visual Filters — empty well + template chips (object plaques, soft FM craft) */
+/* Visual Filters â€” empty well + template chips (object plaques, soft FM craft) */
 .bndz-filters-empty-well {
   display: flex;
   align-items: center;
@@ -5841,10 +5848,10 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   touch-action: manipulation;
 }
 
-/* Square thumbnail pane — Files ItemWidth × ItemWidth */
+/* Square thumbnail pane â€” Files ItemWidth Ã— ItemWidth */
 .bndz-view-grid .bndz-grid-icon-well {
   aspect-ratio: 1 / 1;
-  /* Prefer explicit inline iconSlot — do not force 100% (starves caption width). */
+  /* Prefer explicit inline iconSlot â€” do not force 100% (starves caption width). */
   width: auto;
   max-width: 100%;
   border-radius: 0;
@@ -5900,7 +5907,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   text-align: center;
 }
 
-/* Files GridViewItemBackgroundSelected — magenta/purple default selection */
+/* Files GridViewItemBackgroundSelected â€” magenta/purple default selection */
 .bndz-view-grid.fs-item-selected {
   background: color-mix(in srgb, var(--accent, #c026d3) 28%, rgba(38, 24, 48, 0.55)) !important;
   border-color: color-mix(in srgb, var(--accent, #c026d3) 45%, transparent) !important;
@@ -5952,7 +5959,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: none;
 }
 
-/* Large grid/list tiles — Files-style icon wells when zoomed in */
+/* Large grid/list tiles â€” Files-style icon wells when zoomed in */
 .bndz-list-thumb--hero {
   border-radius: 10px;
   padding: 5px;
@@ -6143,7 +6150,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   min-width: 64px;
 }
 
-/* List mode: tiny trail only — wide flex trail was clearing selection on every name click. */
+/* List mode: tiny trail only â€” wide flex trail was clearing selection on every name click. */
 .bndz-view-list .bndz-list-marquee-lead {
   flex: 0 0 6px;
   width: 6px;
@@ -6173,7 +6180,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: none;
 }
 
-/* List-mode selection variants — always accent (magenta/purple), never Explorer blue. */
+/* List-mode selection variants â€” always accent (magenta/purple), never Explorer blue. */
 html[data-selection-style="classic"] .bndz-view-list.fs-item-selected:not([style*="background"]) {
   background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 48%, rgba(28, 14, 40, 0.5)) !important;
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--list-selected-bg, #a855f7) 90%, white) !important;
@@ -6379,7 +6386,7 @@ html[data-tile-cards="on"] .bndz-view-list:not(.bndz-tile--dense):not(.fs-item-s
     0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
-/* Tile-cards ON must not paint over list selection — was swallowing magenta highlight. */
+/* Tile-cards ON must not paint over list selection â€” was swallowing magenta highlight. */
 html[data-tile-cards="on"] .bndz-view-list.fs-item-selected:not(.bndz-tile--dense) {
   border-radius: 10px !important;
   border-color: color-mix(in srgb, var(--list-selected-bg, #a855f7) 55%, transparent) !important;
@@ -6868,7 +6875,7 @@ html[data-darkness-level] #root {
     0 0 0 1px color-mix(in srgb, var(--chip-accent) 12%, transparent);
 }
 
-/* Light themes: black ink on kind chips (All / Folders / Images / …) */
+/* Light themes: black ink on kind chips (All / Folders / Images / â€¦) */
 html.theme-light .bndz-list-filter-chip {
   color: rgba(15, 23, 42, 0.82) !important;
   background: rgba(15, 23, 42, 0.04);
@@ -6933,7 +6940,7 @@ html[data-col-resizing] * {
   cursor: col-resize !important;
 }
 
-/* Flat native list column headers — Explorer density with quieter dividers */
+/* Flat native list column headers â€” Explorer density with quieter dividers */
 .bndz-list-header-bar {
   gap: 0;
   padding: 0;
@@ -6943,7 +6950,7 @@ html[data-col-resizing] * {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-/* Matches .bndz-list-header-bar outer height — reserved when column headers are hidden but tools remain. */
+/* Matches .bndz-list-header-bar outer height â€” reserved when column headers are hidden but tools remain. */
 .bndz-list-header-bar-spacer {
   min-height: 28px;
   height: 28px;
@@ -6980,7 +6987,7 @@ html[data-col-resizing] * {
 .bndz-list-col-header[data-col-id="comment"] { --col-accent: var(--col-accent-comment, #fb923c); }
 .bndz-list-col-header[data-col-id="path"] { --col-accent: var(--col-accent-path, #60a5fa); }
 
-/* No left accent rails — flat header cells only */
+/* No left accent rails â€” flat header cells only */
 .bndz-list-col-header:not(.bndz-list-col-header--gutter)::before {
   display: none;
 }
@@ -7157,7 +7164,7 @@ html[data-marquee-active] .bndz-list-col-gutter {
   cursor: inherit;
 }
 
-/* Trailing empty canvas after columns — grows so full folders still have deselect/marquee space */
+/* Trailing empty canvas after columns â€” grows so full folders still have deselect/marquee space */
 .bndz-list-marquee-trail {
   flex: 1 1 0%;
   min-width: 48px;
@@ -7212,7 +7219,7 @@ html[data-marquee-active] .bndz-list-col-gutter {
 
 .bndz-file-list-scroll {
   /* Split shorthand so Tailwind pt-0 / sticky flush can win.
-     Top padding here left a 5–10px dark seam under column/filter chrome
+     Top padding here left a 5â€“10px dark seam under column/filter chrome
      while type group strips were stuck. */
   padding-inline: var(--bndz-list-overall-spacing, 0px);
   padding-bottom: var(--bndz-list-overall-spacing, 0px);
@@ -7398,7 +7405,7 @@ html[data-marquee-active] .bndz-list-col-gutter {
   white-space: nowrap;
 }
 
-/* Just-pasted / just-dropped rows — green flash until age color-filter / settle. */
+/* Just-pasted / just-dropped rows â€” green flash until age color-filter / settle. */
 .fs-item-recent-paste:not(.fs-item-selected) {
   background: linear-gradient(90deg, rgba(130, 224, 91, 0.22) 0%, rgba(130, 224, 91, 0.06) 48%, transparent 100%) !important;
   box-shadow: inset 3px 0 0 #82e05b;
@@ -7822,7 +7829,7 @@ html[data-density="spacious"] .nav-tree-row {
   min-width: var(--bndz-tab-min-width, 100px);
 }
 
-/* Instrument bottom slit — tracks theme accent or right-click tab color */
+/* Instrument bottom slit â€” tracks theme accent or right-click tab color */
 .bndz-chrome-tabstrip .bndz-tab-item::after {
   content: '';
   position: absolute;
@@ -7933,7 +7940,7 @@ html.theme-light .bndz-tab-item--locked {
   box-shadow: inset 0 -2px 0 var(--accent, #0078d4), 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 45%, transparent) !important;
 }
 
-/* Spatial / Automation — distinct closable workspace chrome */
+/* Spatial / Automation â€” distinct closable workspace chrome */
 .bndz-tab-item--workspace {
   padding-inline: 12px 10px;
   letter-spacing: 0.02em;
@@ -7980,7 +7987,7 @@ html.theme-light .bndz-tab-item--locked {
   background: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Classic Explorer — rectangular, Fluent-like strip (accent = same chrome + slit) */
+/* Classic Explorer â€” rectangular, Fluent-like strip (accent = same chrome + slit) */
 html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
   border-bottom-color: rgba(255, 255, 255, 0.08);
   gap: 1px;
@@ -7988,7 +7995,7 @@ html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
 
 html[data-tab-style="explorer"] .bndz-tab-item {
   border-radius: 10px 10px 0 0 !important;
-  /* Plaque SVG already chamfers — do not double-cut with clip-path */
+  /* Plaque SVG already chamfers â€” do not double-cut with clip-path */
   clip-path: none;
   padding-top: 7px !important;
   padding-bottom: 8px !important;
@@ -8014,7 +8021,7 @@ html[data-tab-style="explorer"] .bndz-tab-close:hover {
   color: #ffffff;
 }
 
-/* Soft Modern — instrument chips with bottom slit (plaque owns silhouette) */
+/* Soft Modern â€” instrument chips with bottom slit (plaque owns silhouette) */
 html[data-tab-style="soft"] .bndz-tab-item {
   border-radius: 10px 10px 0 0 !important;
   clip-path: none;
@@ -8374,7 +8381,7 @@ html[data-theme] .bndz-destination-picker-footer {
   transform: translateY(0.5px);
 }
 
-/* Soft selected chip — category tint via --bndz-settings-nav-* */
+/* Soft selected chip â€” category tint via --bndz-settings-nav-* */
 .bndz-settings-nav [data-slot="tabs-trigger"].bndz-settings-nav-item[data-active],
 .bndz-settings-nav [data-slot="tabs-trigger"].bndz-settings-nav-item[aria-selected="true"] {
   color: #f8fafc !important;
@@ -8496,7 +8503,7 @@ html[data-theme] .bndz-destination-picker-footer {
   }
 }
 
-/* Theme-aware context / menubar menus — flat desktop density (Explorer-like) */
+/* Theme-aware context / menubar menus â€” flat desktop density (Explorer-like) */
 .bndz-context-menu,
 .bndz-context-submenu,
 .bndz-menubar-menu {
@@ -8534,7 +8541,7 @@ html[data-theme] .bndz-destination-picker-footer {
   color: #ffffff;
 }
 
-/* Menubar rows — same accent hover as context items (no hardcoded #007acc) */
+/* Menubar rows â€” same accent hover as context items (no hardcoded #007acc) */
 .bndz-menubar-menu > div.bndz-menubar-row:hover,
 .bndz-menubar-menu .bndz-menubar-row:hover,
 [data-bndz-menubar-menu] > div.bndz-menubar-row:hover,
@@ -8647,7 +8654,7 @@ html.bndz-panel-resizing .bndz-resize-handle {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  /* CSS wash only — no baked PNG plate behind heroes */
+  /* CSS wash only â€” no baked PNG plate behind heroes */
   background:
     radial-gradient(ellipse 80% 60% at 20% 30%, rgba(0, 120, 212, 0.22), transparent 55%),
     radial-gradient(ellipse 70% 50% at 85% 75%, rgba(168, 85, 247, 0.12), transparent 50%);
@@ -8943,7 +8950,7 @@ html.theme-light .bndz-native-dialog-wash {
   margin-top: 2px;
 }
 
-/* About / Register text links — BNDZ ink, not generic AI blue */
+/* About / Register text links â€” BNDZ ink, not generic AI blue */
 .bndz-about-link {
   color: color-mix(in srgb, var(--bndz-text-primary, #e8eaed) 78%, var(--accent, #c4a35a) 22%);
   background: none;
@@ -9106,9 +9113,9 @@ html.theme-light .bndz-native-dialog-wash {
   color: var(--text, #fff);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Extension Hub — instrument workshop (metal / squircle, not SaaS store)
-   ═══════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   Extension Hub â€” instrument workshop (metal / squircle, not SaaS store)
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 @keyframes bndz-hub-glow-pulse {
   0%, 100% { opacity: 0.45; transform: scale(1); }
@@ -9127,7 +9134,7 @@ html.theme-light .bndz-native-dialog-wash {
   to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Root surface — charcoal instrument panel */
+/* Root surface â€” charcoal instrument panel */
 .bndz-hub {
   position: relative;
   isolation: isolate;
@@ -9149,7 +9156,7 @@ html.theme-light .bndz-native-dialog-wash {
 }
 .bndz-hub > * { position: relative; z-index: 1; }
 
-/* Command strip — paper glass */
+/* Command strip â€” paper glass */
 .bndz-hub-command {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, transparent 100%),
@@ -9162,7 +9169,7 @@ html.theme-light .bndz-native-dialog-wash {
   background: rgba(0, 0, 0, 0.20);
 }
 
-/* ── Stat orbs ── */
+/* â”€â”€ Stat orbs â”€â”€ */
 .bndz-hub-stat-orb {
   display: inline-flex;
   align-items: center;
@@ -9192,7 +9199,7 @@ html.theme-light .bndz-native-dialog-wash {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* ── Filter chips — squircle pills with spring transition ── */
+/* â”€â”€ Filter chips â€” squircle pills with spring transition â”€â”€ */
 .bndz-hub-chip {
   font-size: 10.5px;
   font-weight: 600;
@@ -9233,7 +9240,7 @@ html.theme-light .bndz-native-dialog-wash {
   transform: none !important;
 }
 
-/* ── Active badge / installed pill ── */
+/* â”€â”€ Active badge / installed pill â”€â”€ */
 .bndz-hub-pill {
   display: inline-flex;
   align-items: center;
@@ -9259,7 +9266,7 @@ html.theme-light .bndz-native-dialog-wash {
   animation: bndz-hub-glow-pulse 2.4s ease-in-out infinite;
 }
 
-/* ── Catalog row cards ── */
+/* â”€â”€ Catalog row cards â”€â”€ */
 .bndz-hub-row {
   border-radius: 10px;
   border: 1px solid transparent;
@@ -9287,7 +9294,7 @@ html.theme-light .bndz-native-dialog-wash {
   transform: translateX(2px) !important;
 }
 
-/* ── Catalog row icon squircle ── */
+/* â”€â”€ Catalog row icon squircle â”€â”€ */
 .bndz-hub-row-icon {
   width: 42px;
   height: 42px;
@@ -9311,7 +9318,7 @@ html.theme-light .bndz-native-dialog-wash {
   animation: bndz-hub-installed-ring 3.5s ease-in-out infinite;
 }
 
-/* ── Section label (catalog group headers) ── */
+/* â”€â”€ Section label (catalog group headers) â”€â”€ */
 .bndz-hub-section-label {
   font-size: 9.5px;
   font-weight: 700;
@@ -9322,7 +9329,7 @@ html.theme-light .bndz-native-dialog-wash {
   user-select: none;
 }
 
-/* ── Hero section — glass paper card ── */
+/* â”€â”€ Hero section â€” glass paper card â”€â”€ */
 .bndz-hub-hero {
   position: relative;
   overflow: hidden;
@@ -9351,7 +9358,7 @@ html.theme-light .bndz-native-dialog-wash {
 }
 .bndz-hub-hero > * { position: relative; z-index: 1; }
 
-/* ── Hero icon — deep glass squircle ── */
+/* â”€â”€ Hero icon â€” deep glass squircle â”€â”€ */
 .bndz-hub-hero-icon {
   width: 92px;
   height: 92px;
@@ -9379,7 +9386,7 @@ html.theme-light .bndz-native-dialog-wash {
     0 18px 44px rgba(0, 0, 0, 0.50);
 }
 
-/* ── Primary CTA — accent metal, not marketplace rainbow ── */
+/* â”€â”€ Primary CTA â€” accent metal, not marketplace rainbow â”€â”€ */
 .bndz-hub-btn-primary {
   position: relative;
   overflow: hidden;
@@ -9420,7 +9427,7 @@ html.theme-light .bndz-native-dialog-wash {
   filter: brightness(0.96);
 }
 
-/* ── Ghost button ── */
+/* â”€â”€ Ghost button â”€â”€ */
 .bndz-hub-btn-ghost {
   color: rgba(203, 213, 225, 0.80);
   background: rgba(255, 255, 255, 0.04);
@@ -9434,7 +9441,7 @@ html.theme-light .bndz-native-dialog-wash {
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-/* ── Danger / uninstall button ── */
+/* â”€â”€ Danger / uninstall button â”€â”€ */
 .bndz-hub-btn-danger {
   position: relative;
   overflow: hidden;
@@ -9455,7 +9462,7 @@ html.theme-light .bndz-native-dialog-wash {
   filter: brightness(0.96);
 }
 
-/* ── Capability check item ── */
+/* â”€â”€ Capability check item â”€â”€ */
 .bndz-hub-cap-item {
   display: flex;
   align-items: flex-start;
@@ -9482,7 +9489,7 @@ html.theme-light .bndz-native-dialog-wash {
   opacity: 0.85;
 }
 
-/* ── Detail pane empty state ── */
+/* â”€â”€ Detail pane empty state â”€â”€ */
 .bndz-hub-empty {
   display: flex;
   flex-direction: column;
@@ -9493,19 +9500,19 @@ html.theme-light .bndz-native-dialog-wash {
   padding: 24px;
 }
 
-/* ── Catalog panel background ── */
+/* â”€â”€ Catalog panel background â”€â”€ */
 .bndz-hub-catalog-panel {
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.08) 100%),
     rgba(0, 0, 0, 0.12);
 }
 
-/* ── Detail panel background ── */
+/* â”€â”€ Detail panel background â”€â”€ */
 .bndz-hub-detail-panel {
   background: #18191f;
 }
 
-/* ── Version timeline card ── */
+/* â”€â”€ Version timeline card â”€â”€ */
 .bndz-hub-version-card {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
@@ -9523,7 +9530,7 @@ html.theme-light .bndz-native-dialog-wash {
   border-radius: 2px 0 0 2px;
 }
 
-/* ── Search input accent focus ── */
+/* â”€â”€ Search input accent focus â”€â”€ */
 .bndz-hub .bndz-native-input:focus {
   border-color: color-mix(in srgb, var(--accent, #0078d4) 50%, transparent) !important;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
@@ -10030,7 +10037,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   padding: 8px 10px;
 }
 
-/* ── Toolbar Designer (workshop surface — dense metal, not marketplace) ── */
+/* â”€â”€ Toolbar Designer (workshop surface â€” dense metal, not marketplace) â”€â”€ */
 .bndz-tb-root {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 36%),
@@ -11259,7 +11266,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   }
 }
 
-/* Smart Views — light paper surface nested in dark Slate chrome */
+/* Smart Views â€” light paper surface nested in dark Slate chrome */
 .bndz-smart-hub {
   --sv-ink: #1a1d23;
   --sv-ink-muted: rgba(26, 29, 35, 0.62);
@@ -11430,7 +11437,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-/* ── Native FM plaques (static empties / dialog tones / tab grain) ── */
+/* â”€â”€ Native FM plaques (static empties / dialog tones / tab grain) â”€â”€ */
 .bndz-plaque {
   display: inline-flex;
   align-items: center;
@@ -11514,7 +11521,7 @@ html.theme-light .bndz-plaque--hex-well {
     0 8px 22px rgba(160, 30, 30, 0.3);
 }
 
-/* List tab strip rail — Classic Explorer + Soft Modern only (classic shell; not native/files) */
+/* List tab strip rail â€” Classic Explorer + Soft Modern only (classic shell; not native/files) */
 html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip,
 html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="soft"] .bndz-chrome-tabstrip {
   background-image:
@@ -11534,7 +11541,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
 }
 
 /*
- * Soft Explorer / Soft Modern — plaque SVG chips (classic shell only).
+ * Soft Explorer / Soft Modern â€” plaque SVG chips (classic shell only).
  * Native/files host MUST NOT get these: plaque specificity beat the solid-fill
  * overrides, so uncolored tabs stayed on the stubby SVG while colored (accent)
  * tabs looked like proper solid chips.
@@ -11569,7 +11576,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
 }
 
 /*
- * Accent tint under plaque (soft/explorer) — same plaque silhouette as uncolored.
+ * Accent tint under plaque (soft/explorer) â€” same plaque silhouette as uncolored.
  * Skip native/files host: those use full-bleed solid fills (not chamfer plaques).
  */
 html:not([data-bndz-shell="native-host"]):not([data-bndz-shell="files-host"])[data-tab-style="explorer"] .bndz-chrome-tabstrip .bndz-tab-item[data-tab-accent]:not(.bndz-tab-active),
@@ -13398,7 +13405,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   zoom: calc(1 / var(--bndz-interface-scale, 1));
   cursor: default;
 }
-/* Home / Spatial Canvas / Automation: bottom plugin dock collapsed — main workspace fills height.
+/* Home / Spatial Canvas / Automation: bottom plugin dock collapsed â€” main workspace fills height.
    react-resizable-panels v4 uses id + data-panel (not data-panel-id). */
 #workspace-inner.bndz-workspace-inner--tools [data-panel]#main,
 #workspace-inner.bndz-workspace-inner--tools [data-panel]#main > *,
@@ -13671,7 +13678,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   50% { opacity: 1; }
 }
 .bndz-mesh-surface--terminal {
-  /* Terminal owns the body hole — no extra padding fighting FitAddon. */
+  /* Terminal owns the body hole â€” no extra padding fighting FitAddon. */
   min-height: 0;
   flex: 1 1 auto;
 }
@@ -13692,7 +13699,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   font-size: 11px !important;
   line-height: 1.2 !important;
 }
-/* Terminal mode must not shrink the bottom plugin panel — keep full dock height. */
+/* Terminal mode must not shrink the bottom plugin panel â€” keep full dock height. */
 .bndz-bottom-panel[data-terminal-active='true'] .bndz-bottom-content {
   padding-bottom: 0;
   margin-bottom: 0;
@@ -13704,7 +13711,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   flex: 1 1 auto;
   border: none;
   border-radius: 0;
-  /* Pad the frame — never pad .xterm or FitAddon mis-measures ConPTY rows. */
+  /* Pad the frame â€” never pad .xterm or FitAddon mis-measures ConPTY rows. */
   padding: 6px 8px 10px;
   box-sizing: border-box;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
@@ -13725,7 +13732,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
 .bndz-mesh-surface--terminal .bndz-mesh-terminal-frame {
   padding: 0;
 }
-/* FE chrome strip above native TermControl hole — must NOT overlap HWND airspace. */
+/* FE chrome strip above native TermControl hole â€” must NOT overlap HWND airspace. */
 .bndz-mesh-term-chrome {
   position: relative;
   z-index: 2;
@@ -13734,7 +13741,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   pointer-events: auto;
   background: color-mix(in srgb, var(--panel-bottom-bg, #0c0e14) 92%, #000 8%);
 }
-/* Quiet terminal strip actions — match bottom-panel chrome, not chunky plugin buttons. */
+/* Quiet terminal strip actions â€” match bottom-panel chrome, not chunky plugin buttons. */
 .bndz-mesh-term-action {
   appearance: none;
   padding: 3px 8px;
@@ -13789,7 +13796,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   box-shadow: 0 12px 32px rgba(0,0,0,0.22);
 }
 
-/* Incus ephemeral craft — paper/glass depth, not generic SaaS cards */
+/* Incus ephemeral craft â€” paper/glass depth, not generic SaaS cards */
 .bndz-mesh-ephemeral-card {
   position: relative;
   overflow: hidden;
@@ -13852,7 +13859,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   border-color: rgba(168,85,247,0.22) !important;
 }
 
-/* ── Action History craft surface ─────────────────────────────────────────── */
+/* â”€â”€ Action History craft surface â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .bndz-history-shell {
   background:
     radial-gradient(120% 80% at 0% 0%, rgba(56, 189, 248, 0.08), transparent 55%),
@@ -14028,7 +14035,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   transform: translateY(-1px);
 }
 
-/* ── Tag Manager craft surface ────────────────────────────────────────────── */
+/* â”€â”€ Tag Manager craft surface â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .bndz-tagmgr-shell {
   background:
     radial-gradient(100% 70% at 0% 0%, rgba(168, 85, 247, 0.1), transparent 55%),
@@ -14622,7 +14629,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
     inset 0 -1px 0 rgba(0,0,0,0.45);
 }
 .bndz-pin-module {
-  /* Glass DNA lives on .bndz-spatial-card.bndz-pin-module below — keep this as a thin alias only. */
+  /* Glass DNA lives on .bndz-spatial-card.bndz-pin-module below â€” keep this as a thin alias only. */
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -16901,7 +16908,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
 }
 .bndz-gpu-viewport canvas { contain: strict; touch-action: none; }
 .bndz-fluid-drag-stack { pointer-events: none; will-change: transform; }
-/* Hide ghosts during shell DoDragDrop — do NOT disable list/sidebar pointer-events.
+/* Hide ghosts during shell DoDragDrop â€” do NOT disable list/sidebar pointer-events.
    That left the tree dead after init / cancelled OLE when handoff CSS stuck. */
 html.bndz-ole-drag-handoff .bndz-fluid-drag-stack,
 html.bndz-ole-drag-handoff .bndz-fluid-drag-lead,
@@ -16921,7 +16928,7 @@ html.bndz-ole-drag-handoff [data-fluid-badge] {
   pointer-events: none !important;
   transform: none !important;
 }
-/* Menubar stays clickable — OLE handoff must not brick Scripting→Help after a drag. */
+/* Menubar stays clickable â€” OLE handoff must not brick Scriptingâ†’Help after a drag. */
 html.bndz-ole-drag-handoff .bndz-chrome-menubar,
 html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger],
 html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-bndz-menubar-logo] {
@@ -16936,7 +16943,7 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
   pointer-events: none !important;
   margin: 0;
   box-sizing: border-box;
-  /* Lift only — row paint is baked from live getComputedStyle in armTreeGhost */
+  /* Lift only â€” row paint is baked from live getComputedStyle in armTreeGhost */
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.58),
     0 0 0 1px rgba(255, 255, 255, 0.1);
@@ -17416,7 +17423,7 @@ html.bndz-ole-drag-handoff .bndz-chrome-menubar [data-menu-trigger] {
 .bndz-flow-edge--true .react-flow__edge-path { stroke: #34d399; }
 .bndz-flow-edge--false .react-flow__edge-path { stroke: #f87171; }
 
-/* Running / armed edges — glow + React Flow animated dash when pipeline is live */
+/* Running / armed edges â€” glow + React Flow animated dash when pipeline is live */
 .bndz-automation.is-running .bndz-automation-flow .react-flow__edge-path {
   stroke: #38bdf8 !important;
   stroke-width: 2.5px !important;
@@ -18085,7 +18092,7 @@ html[data-bndz-shell="native-host"] #root {
   height: 100%;
 }
 
-/* Mica / Fluent: translucent shell canvas — craft UI stays; SystemBackdrop shows through */
+/* Mica / Fluent: translucent shell canvas â€” craft UI stays; SystemBackdrop shows through */
 html.bndz-mica-backdrop[data-bndz-shell="native-host"],
 html.bndz-mica-backdrop[data-bndz-shell="native-host"] body.bndz-native-host-body,
 html.bndz-mica-backdrop body.bndz-native-host-body {
@@ -18121,7 +18128,7 @@ html[data-bndz-shell="native-host"] .bndz-native-list-slot {
 }
 
 /* Native WinUI list overlay is not used over full-window WebView2 (HWND airspace).
-   Typography + row height come from Settings → Appearance / Fonts (CSS vars). */
+   Typography + row height come from Settings â†’ Appearance / Fonts (CSS vars). */
 html[data-bndz-shell="native-host"] {
   --bndz-list-density: 1;
 }
@@ -18152,7 +18159,7 @@ html[data-bndz-shell="native-host"] .bndz-view-details [data-col-id] {
   padding-top: 1px;
   padding-bottom: 1px;
 }
-/* Large grid/list tiles — Files-style icon wells at max zoom */
+/* Large grid/list tiles â€” Files-style icon wells at max zoom */
 html[data-bndz-shell="native-host"] .bndz-list-thumb--hero {
   border-radius: 10px;
   padding: 6px;
@@ -18173,7 +18180,7 @@ html[data-bndz-shell="native-host"] .bndz-view-list .bndz-list-thumb--hero img {
   filter: none;
 }
 
-/* Drive cards — font follows surface (dark card default; light theme sidebar/list = dark type) */
+/* Drive cards â€” font follows surface (dark card default; light theme sidebar/list = dark type) */
 .bndz-drive-card-title {
   color: rgba(255, 255, 255, 0.9);
 }
@@ -18247,7 +18254,7 @@ html[data-bndz-shell="native-host"] .bndz-drive-card--selected,
     0 1px 0 rgba(255,255,255,0.05) inset !important;
 }
 
-/* Tree selection — Files-modern magenta squircle (not flat Files blue rows) */
+/* Tree selection â€” Files-modern magenta squircle (not flat Files blue rows) */
 html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row,
 html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row {
   min-height: 28px !important;
@@ -18309,7 +18316,7 @@ html[data-bndz-shell="native-host"][data-apply-colors="true"] .bndz-chrome-sideb
   transition: background 0.14s ease, box-shadow 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.14s ease;
 }
 
-/* Rapid access + cloud — same squircle language as tree */
+/* Rapid access + cloud â€” same squircle language as tree */
 html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .sidebar-pin-row,
 html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .sidebar-pin-row {
   min-height: 34px !important;
@@ -18433,8 +18440,8 @@ html[data-bndz-shell="native-host"] [data-window-btn] {
   margin: 0 !important;
   pointer-events: none !important;
 }
-/* WinUI caption buttons overlay the top-right — pad clear space.
-   Drag strip is owned by WinUI InputNonClientPointerSource Caption — never CSS
+/* WinUI caption buttons overlay the top-right â€” pad clear space.
+   Drag strip is owned by WinUI InputNonClientPointerSource Caption â€” never CSS
    app-region:drag (WebView2 NonClientRegionSupport is OFF to stop sidebar LMB steal). */
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar {
   padding-right: max(138px, env(titlebar-area-height, 32px)) !important;
@@ -18450,7 +18457,7 @@ html[data-bndz-shell="native-host"] .bndz-chrome-menubar .bndz-menubar-drag-stri
   z-index: 0;
   app-region: no-drag;
   -webkit-app-region: no-drag;
-  /* Visual affordance only — actual drag is WinUI Caption over this strip. */
+  /* Visual affordance only â€” actual drag is WinUI Caption over this strip. */
   cursor: default;
 }
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-menu-trigger],
@@ -18513,11 +18520,11 @@ html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item {
   padding: 7px 14px 8px !important;
   margin-right: 2px !important;
   font-size: 12.5px !important;
-  /* Hard-kill plaque SVGs — solid CSS chips only on native/files host */
+  /* Hard-kill plaque SVGs â€” solid CSS chips only on native/files host */
   background-image: none !important;
   background-blend-mode: normal !important;
 }
-/* Same full-bleed chip for colored + uncolored — accent only retints the fill + slit */
+/* Same full-bleed chip for colored + uncolored â€” accent only retints the fill + slit */
 html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
 html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active {
   background: var(--bndz-surface-raised, #252830) !important;
@@ -19295,7 +19302,7 @@ html.theme-light .bndz-chrome-tabs .bndz-tab-close:hover {
 
 /*
  * Footer statusbar (tree-tab chrome): keep metal + neon rail on light themes too.
- * Pale paper overrides apply only to non–tree-tab statusbars.
+ * Pale paper overrides apply only to nonâ€“tree-tab statusbars.
  */
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab.bndz-sidebar-section-header,
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab {
@@ -19402,7 +19409,7 @@ html.theme-light .bndz-list-sort-caret--desc {
   border-top-color: rgba(0, 0, 0, 0.72) !important;
 }
 
-/* Pale popup menus — black ink (removed from white-ink chrome list above) */
+/* Pale popup menus â€” black ink (removed from white-ink chrome list above) */
 html.theme-light .bndz-menubar-menu,
 html.theme-light .bndz-menubar-menu *,
 html.theme-light .bndz-context-menu,
@@ -19488,7 +19495,7 @@ html.theme-light .bndz-chrome-bottom .bndz-native-term-hole {
   -webkit-text-fill-color: #e8eef7 !important;
 }
 
-/* Preview empty state — black ink on paper (not gray-on-white) */
+/* Preview empty state â€” black ink on paper (not gray-on-white) */
 html.theme-light .bndz-preview-empty-title {
   color: rgba(0, 0, 0, 0.88) !important;
 }
@@ -19511,7 +19518,7 @@ html.theme-light .bndz-preview-empty-btn.is-accent {
   background: color-mix(in srgb, var(--accent, #c026d3) 10%, #ffffff) !important;
 }
 
-/* Large tile hero wells — pale paper, soft shadow (no dark metal plate) */
+/* Large tile hero wells â€” pale paper, soft shadow (no dark metal plate) */
 html.theme-light .bndz-list-thumb--hero,
 html.theme-light[data-bndz-shell="native-host"] .bndz-list-thumb--hero {
   background: linear-gradient(160deg, #fafbfc 0%, #f2f4f7 55%, #e9ecf1 100%) !important;
@@ -19526,7 +19533,7 @@ html.theme-light[data-bndz-shell="native-host"] .bndz-view-grid .bndz-grid-icon-
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset !important;
 }
 
-/* Inactive list col chips — pale paper + soft separator (FINAL override) */
+/* Inactive list col chips â€” pale paper + soft separator (FINAL override) */
 html.theme-light .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter),
 html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter) {
   background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
@@ -19539,7 +19546,7 @@ html.theme-light .bndz-list-header-bar:not(.bndz-list-header-bar--no-grid) .bndz
   background: rgba(0, 0, 0, 0.10) !important;
 }
 
-/* Light list/grid selection — magenta/accent mix (never Files #0078d7) */
+/* Light list/grid selection â€” magenta/accent mix (never Files #0078d7) */
 html.theme-light .bndz-view-grid.fs-item-selected,
 html.theme-light .bndz-view-list.fs-item-selected,
 html.theme-light .fs-list-item.fs-item-selected,
@@ -19548,7 +19555,7 @@ html.theme-light .fs-grid-item.fs-item-selected {
 }
 
 
-/* Dual-pane DiffPlex strip — tokenized craft (not hardcoded GitHub-dark SaaS) */
+/* Dual-pane DiffPlex strip â€” tokenized craft (not hardcoded GitHub-dark SaaS) */
 .bndz-dual-diff-strip {
   background: color-mix(in srgb, var(--surface-raised, #16161c) 92%, #000);
   color: var(--fg, #e8e8ec);
@@ -19571,7 +19578,7 @@ html.theme-light .bndz-dual-diff-strip__row:hover {
   background: color-mix(in srgb, var(--accent, #c026d3) 10%, #fff);
 }
 
-/* Inline rename — readable on dark and light themes */
+/* Inline rename â€” readable on dark and light themes */
 .bndz-inline-rename-input {
   background: #111 !important;
   color: #fff !important;
@@ -19594,7 +19601,7 @@ html.theme-light .bndz-inline-rename-input {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-/* Floating transfer activity — dense status plaque, not SaaS notification card */
+/* Floating transfer activity â€” dense status plaque, not SaaS notification card */
 .bndz-xfer-toast {
   position: fixed;
   right: 14px;
@@ -19706,7 +19713,7 @@ html.theme-light .bndz-xfer-toast-track {
 }
 
 
-/* ── Branching Time — folder timeline craft (Launch Ready A3) ── */
+/* â”€â”€ Branching Time â€” folder timeline craft (Launch Ready A3) â”€â”€ */
 .bndz-bt-root {
   --bndz-bt-accent: #c4a35a;
   --bndz-bt-rail: color-mix(in srgb, var(--bndz-bt-accent) 45%, #3a4250);
@@ -19996,7 +20003,7 @@ html.theme-light .bndz-xfer-toast-track {
   border-color: color-mix(in srgb, #60a5fa 40%, #2a3140) !important;
 }
 
-/* ── Project Sandbox / Vault craft (Launch Ready A3) ── */
+/* â”€â”€ Project Sandbox / Vault craft (Launch Ready A3) â”€â”€ */
 .bndz-sandbox-root {
   --bndz-sb-accent: #34d399;
   --bndz-sb-ink: #e8f5ef;
@@ -20728,7 +20735,7 @@ html.theme-light .bndz-xfer-toast-track {
 .bndz-batch-opsrail .bndz-plugin-toolbar-btn,
 .bndz-magnet-opsrail .bndz-plugin-toolbar-btn { flex-shrink: 0; }
 
-/* Fast Search mode strip — denser FM shapes with per-mode accent colors */
+/* Fast Search mode strip â€” denser FM shapes with per-mode accent colors */
 .bndz-find-mode-chip {
   border-radius: var(--bndz-radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -20781,7 +20788,7 @@ html.theme-light .bndz-find-mode-chip.is-active .bndz-find-mode-chip-hint {
   color: rgba(15, 23, 42, 0.55);
 }
 
-/* ── Omnibar Command Hub + live suggest (native FM command bar) ── */
+/* â”€â”€ Omnibar Command Hub + live suggest (native FM command bar) â”€â”€ */
 .bndz-omnibar-hub {
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);

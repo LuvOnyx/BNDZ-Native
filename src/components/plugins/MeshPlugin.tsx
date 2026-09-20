@@ -559,25 +559,18 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   const closeTerminalSession = useCallback(() => {
     autoLocalOpenedRef.current = true; // do not auto-reopen after explicit Close
-    const sid = sessionId;
-    const wasNative = nativeTerm;
-    // 1) Drop FE session + leave terminal so LAYOUT(visible:false) parks HWND first.
-    // 2) Defer native Close so DestroyWindow is not nested under the same click stack
-    //    as hosts remount (StackOverflow @ Close — 00:36 / 00:57 CT).
     setNewMenuOpen(false);
+    // Kill native FIRST while still on the terminal tab. Switching to hosts first was
+    // parking (warm keep) then Close (warm kill) — Send-files chrome flash + StackOverflow
+    // @ 01:09 CT. Close owns full teardown; hosts chrome comes after.
+    try {
+      if (nativeTerm) IPC.nativeTerminalClose();
+      else if (sessionId) IPC.meshTerminalClose(sessionId);
+    } catch { /* ignore */ }
     setSessionId(null);
     setSessionLabel(null);
     setBusy(false);
     if (tab === 'terminal') setTab('hosts');
-    try {
-      IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
-    } catch { /* ignore */ }
-    window.setTimeout(() => {
-      try {
-        if (wasNative) IPC.nativeTerminalClose();
-        else if (sid) IPC.meshTerminalClose(sid);
-      } catch { /* ignore */ }
-    }, 0);
   }, [nativeTerm, sessionId, tab]);
 
   /** Leave fullscreen terminal -> main Remote UI without killing warm ConPTY. */
