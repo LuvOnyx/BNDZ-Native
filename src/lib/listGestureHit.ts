@@ -91,12 +91,12 @@ export function hitMarqueeAtPoint(clientX: number, clientY: number): boolean {
 
 /**
  * Combine signals. Precedence:
- * 1) Explicit gutter / empty-canvas wins → marquee
- * 2) Point-sampled marquee zone → marquee
- * 3) Item content → item
- * 4) Any residual press inside a row → item
- * 5) Row chrome without content → marquee
- * 6) Outside any row → marquee
+ * 1) Explicit gutter / empty-canvas wins -> marquee
+ * 2) Point-sampled marquee zone -> marquee
+ * 3) Item content -> item
+ * 4) Any residual press inside a row -> item
+ * 5) Row chrome without content -> marquee
+ * 6) Outside any row -> marquee
  */
 export function classifyListPointerDown(
   target: EventTarget | null,

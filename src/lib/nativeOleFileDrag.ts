@@ -51,7 +51,7 @@ export type OutboundOleBoundaryHandoffOpts = {
 };
 
 /**
- * Boundary handoff: hide React ghost → START_DRAG.
+ * Boundary handoff: hide React ghost -> START_DRAG.
  * Do NOT releasePointerCapture -- that synthesizes button-up and breaks wallpaper commit.
  */
 export function performOutboundOleBoundaryHandoff(opts: OutboundOleBoundaryHandoffOpts): void {

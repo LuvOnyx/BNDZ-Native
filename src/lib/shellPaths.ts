@@ -3,7 +3,7 @@ import { isMeshPath } from './meshPaths';
 import { isVirtualCatalogPath } from './virtualPaths';
 import { isBndzVirtualPath, isBndzRamWritablePath } from './bndzVirtualViews';
 
-/** Paths that must never hit Windows shell extract (fake local paths → white file glyph). */
+/** Paths that must never hit Windows shell extract (fake local paths -> white file glyph). */
 export function isNonFsShellIconPath(path: string | null | undefined): boolean {
   if (!path) return false;
   const n = path.replace(/\\/g, '/');
@@ -54,7 +54,7 @@ export const KNOWN_FOLDER_SHELL: Record<string, string> = {
   Home: 'shell:Profile',
 };
 
-/** Friendly name → canonical shell pane path (address bar / quick navigation). */
+/** Friendly name -> canonical shell pane path (address bar / quick navigation). */
 export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
   desktop: '/shell:Desktop',
   documents: '/shell:Personal',
@@ -82,7 +82,7 @@ export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
   'smart views': '/bndz',
 };
 
-/** Bare aliases → Windows env vars (expanded via host before navigation). */
+/** Bare aliases -> Windows env vars (expanded via host before navigation). */
 export const ENV_PATH_ALIASES: Record<string, string> = {
   appdata: '%AppData%',
   localappdata: '%LocalAppData%',
@@ -102,7 +102,7 @@ export const ENV_PATH_ALIASES: Record<string, string> = {
   homepath: '%HOMEPATH%',
 };
 
-/** shell: known-folder pane → GET_SYSTEM_SHORTCUTS name */
+/** shell: known-folder pane -> GET_SYSTEM_SHORTCUTS name */
 export const SHELL_PANE_TO_SHORTCUT_NAME: Record<string, string> = {
   '/shell:desktop': 'Desktop',
   '/shell:personal': 'Documents',
@@ -202,7 +202,7 @@ export function resolveShellIconPath(path: string | null | undefined): string {
   if (isRecycleBinPath(path)) return SHELL_CLSID.recycleBin;
   const pane = normalizePanePath(path);
 
-  // /shell:Desktop/file.png → expand known folder then join leaf (never pass shell:Desktop\file to host).
+  // /shell:Desktop/file.png -> expand known folder then join leaf (never pass shell:Desktop\file to host).
   if (pane.toLowerCase().startsWith('/shell:')) {
     const rest = pane.slice('/shell:'.length);
     const slash = rest.indexOf('/');
@@ -241,7 +241,7 @@ export function resolveShellIconPath(path: string | null | undefined): string {
     return win;
   }
   // Keep real FS paths as-is for icon extract. Remapping leaf names like
-  // Documents → shell:Personal produced generic white file glyphs.
+  // Documents -> shell:Personal produced generic white file glyphs.
   return win;
 }
 

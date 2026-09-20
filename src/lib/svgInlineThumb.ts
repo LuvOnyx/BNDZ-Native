@@ -1,5 +1,5 @@
 /**
- * Inline SVG → blob: URL for list/Lens thumbs when CAS/stream is empty.
+ * Inline SVG -> blob: URL for list/Lens thumbs when CAS/stream is empty.
  * Avoids bndz-stream (custom-scheme 404s) while Skia raster fills CAS.
  * LRU-capped so blob URLs do not leak forever across long sessions.
  */

@@ -157,7 +157,7 @@ export function hitTestWorkspaceSurfaceAtPoint(clientX: number, clientY: number)
 
 /**
  * Only exclusive workspace canvases own inbound file drops.
- * Preview loupe also stamps data-bndz-workspace-surface -- must not swallow desktop→list.
+ * Preview loupe also stamps data-bndz-workspace-surface -- must not swallow desktop->list.
  */
 export function hitTestExclusiveWorkspaceDropSurface(clientX: number, clientY: number): HTMLElement | null {
   const el = hitTestWorkspaceSurfaceAtPoint(clientX, clientY);
@@ -195,7 +195,7 @@ export function hitTestListFolderAtPoint<T extends ListFolderTarget>(
 
 /**
  * Absolute drop destination for Columns (Miller) view.
- * Folder item → that folder's path; empty column chrome → that column's folder.
+ * Folder item -> that folder's path; empty column chrome -> that column's folder.
  */
 export function hitTestMillerDropPathAtPoint(clientX: number, clientY: number): string | null {
   const item = hitTestClosestAtPoint(clientX, clientY, '[data-miller-path][data-is-dir="true"]')
@@ -246,7 +246,7 @@ export function stashOleDragSession(state?: FileDragSessionState | null) {
   pendingOleSession = stashed;
   if (stashed) {
     window.setTimeout(() => {
-      // Stale OLE stash must not poison later Explorer→BNDZ drops.
+      // Stale OLE stash must not poison later Explorer->BNDZ drops.
       if (pendingOleSession === stashed) pendingOleSession = null;
     }, 60_000);
   }
@@ -489,7 +489,7 @@ export function shouldEscalateFileDragToOle(
   screenX?: number,
   screenY?: number,
 ): boolean {
-  // True leave of the OS window → host OLE. Do NOT treat "outside WebView viewport"
+  // True leave of the OS window -> host OLE. Do NOT treat "outside WebView viewport"
   // alone as escalate -- that killed FluidDragStack tooltips while still inside BNDZ.
   if (typeof screenX === 'number' && typeof screenY === 'number'
     && isPointerOutsideScreenWindow(screenX, screenY)) {

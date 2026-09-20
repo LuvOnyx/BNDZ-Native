@@ -35,7 +35,7 @@ describe('mesh-drop-send route', () => {
     expect(canonicalDropPath(MESH_DROP_INBOX_DEST)).toBe(MESH_DROP_INBOX_DEST);
   });
 
-  it('routes local→mesh as upload', () => {
+  it('routes local->mesh as upload', () => {
     const route = resolveDropRoute('copy', ['C:\\a\\b.txt'], '/mesh/host-1/inbox');
     expect(route.kind).toBe('mesh-upload');
     if (route.kind === 'mesh-upload') {
@@ -44,7 +44,7 @@ describe('mesh-drop-send route', () => {
     }
   });
 
-  it('routes mesh→local as download', () => {
+  it('routes mesh->local as download', () => {
     const route = resolveDropRoute('copy', ['/mesh/host-1/a/b.txt'], '/C:/Users/Public');
     expect(route.kind).toBe('mesh-download');
     if (route.kind === 'mesh-download') {

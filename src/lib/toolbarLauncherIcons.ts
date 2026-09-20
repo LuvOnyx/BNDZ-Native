@@ -6,7 +6,7 @@ export const LAUNCHER_ICON_REV = '22';
  * Drop files in public/launcher-icons/ or public/Media/, change the filename here,
  * bump LAUNCHER_ICON_REV, run npm run build. See also public/ui-icons.catalog.json.
  *
- * Maps toolbar / Emblem / chrome item ids → files under public/launcher-icons/
+ * Maps toolbar / Emblem / chrome item ids -> files under public/launcher-icons/
  * (or public/Ui/ when path starts with Ui/, or public/Media/ when path starts with Media/).
  */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {

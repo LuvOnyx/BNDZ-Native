@@ -97,7 +97,7 @@ export function recallPointerDragHover(clientX: number, clientY: number, slopPx 
   return null;
 }
 
-/** Resolve nav-tree drop path: live hit-test → live ref → recalled/sticky hover. */
+/** Resolve nav-tree drop path: live hit-test -> live ref -> recalled/sticky hover. */
 export function resolveNavTreeDropPath(
   clientX: number,
   clientY: number,

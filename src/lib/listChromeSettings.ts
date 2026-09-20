@@ -1,7 +1,7 @@
 import type { AppConfig } from '../data/configContext';
 
 /**
- * Settings → Colors / List chrome -- applied from list UI consumers (not settingsRuntime-only).
+ * Settings -> Colors / List chrome -- applied from list UI consumers (not settingsRuntime-only).
  * Keeps grid lines, sort-arrow spacing, adaptive colors, and path-trace matching live.
  */
 export function applyListChromeFromConfig(config: AppConfig): void {

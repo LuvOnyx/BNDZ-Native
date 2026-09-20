@@ -18,7 +18,7 @@ type PendingHandler = {
 const pending = new Map<string, PendingHandler>();
 let listenerInstalled = false;
 
-/** Optional host→UI push handlers (ipcBridge registers here). */
+/** Optional host->UI push handlers (ipcBridge registers here). */
 type PushHandler = (data: { type: string; id?: string; payload?: unknown; [key: string]: unknown }) => void;
 const pushHandlers = new Set<PushHandler>();
 

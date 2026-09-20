@@ -1,7 +1,7 @@
 import { BNDZ_HOME, BNDZ_VIEWS_ROOT, BNDZ_RAM_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel, isBndzRamPath, parseBndzRamZoneId } from './bndzVirtualViews';
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH } from './pathUtils';
 
-/** Canonical `/shell:...` roots → Explorer-style labels (never expose raw shell: tokens in UI). */
+/** Canonical `/shell:...` roots -> Explorer-style labels (never expose raw shell: tokens in UI). */
 const SHELL_ROOT_LABELS: Record<string, string> = {
   '/shell:desktop': 'Desktop',
   '/shell:personal': 'Documents',
@@ -21,7 +21,7 @@ const SHELL_ROOT_LABELS: Record<string, string> = {
   '/shell:recyclebin': 'Recycle Bin',
 };
 
-/** Bare shell tokens (no path) → friendly label. */
+/** Bare shell tokens (no path) -> friendly label. */
 const SHELL_TOKEN_LABELS: Record<string, string> = {
   desktop: 'Desktop',
   personal: 'Documents',
@@ -41,7 +41,7 @@ const SHELL_TOKEN_LABELS: Record<string, string> = {
   recyclebin: 'Recycle Bin',
 };
 
-/** Insert spaces into CamelCase shell tokens: ControlPanel → Control Panel. */
+/** Insert spaces into CamelCase shell tokens: ControlPanel -> Control Panel. */
 export function prettifyShellToken(token: string): string {
   const trimmed = (token || '').trim();
   if (!trimmed) return '';

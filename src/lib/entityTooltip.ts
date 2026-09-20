@@ -132,7 +132,7 @@ export function buildEntityTooltipContent(
     }
   }
 
-  // Settings → For junctions as well (surface reparse / junction target in tips)
+  // Settings -> For junctions as well (surface reparse / junction target in tips)
   const attrs = Array.isArray(entity.attributes) ? entity.attributes.map((a: string) => String(a).toLowerCase()) : [];
   const isJunction = entity.linkType === 'junction'
     || attrs.some((a: string) => a.includes('reparse') || a.includes('junction'));
@@ -164,7 +164,7 @@ export function buildEntityTooltipContent(
     if (entity.modified) lines.push({ label: 'Modified', value: formatFsDateTime(entity.modified) });
   }
 
-  // Settings → Show verbatim tooltips (full path as title)
+  // Settings -> Show verbatim tooltips (full path as title)
   const verbatim = !!config.showVerbatimTooltips;
   return {
     title: verbatim ? fullPath.replace(/^\\+/, '') : entity.name,

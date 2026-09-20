@@ -79,7 +79,7 @@ export function useModelPreviewSource(path: string | null | undefined, ext: stri
         const streamUrl = toVirtualStreamUrl(res.path);
         const verts = res.vertices;
         const tris = res.triangles;
-        const badge = `${ext}→${res.format || 'glb'}`;
+        const badge = `${ext}->${res.format || 'glb'}`;
 
         // Prefer blob for Three.js -- custom-scheme MIME mismatches used to blank the viewport
         // even when conversion succeeded (verts/tris known).

@@ -1,4 +1,4 @@
-/** Cross-surface pointer file-drag events (archive preview → main chrome tab hover / drop). */
+/** Cross-surface pointer file-drag events (archive preview -> main chrome tab hover / drop). */
 
 export const POINTER_FILE_DRAG_MOVE = 'bndz-pointer-file-drag-move';
 export const POINTER_FILE_DRAG_END = 'bndz-pointer-file-drag-end';

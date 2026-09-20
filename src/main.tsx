@@ -55,7 +55,7 @@ if (deferHeavyBoot) {
 }
 
 /**
- * Explorer → BNDZ hover/drop bridge.
+ * Explorer -> BNDZ hover/drop bridge.
  *
  * Chromium's IDropTarget returns DROPEFFECT_NONE (forbidden X) unless dragover
  * calls preventDefault. That is required even when native OLE is also registered --
@@ -103,7 +103,7 @@ function installExternalOleDragBridge() {
 
   const onDragEnter = (e: DragEvent) => {
     const types = e.dataTransfer?.types;
-    // Explorer→WebView2 often has empty types on enter -- still accept to kill the X cursor.
+    // Explorer->WebView2 often has empty types on enter -- still accept to kill the X cursor.
     if (types?.length && !hasFilePayload(types) && e.dataTransfer?.effectAllowed === 'none') return;
     e.preventDefault();
     if (e.dataTransfer) {

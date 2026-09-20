@@ -32,7 +32,7 @@ export function showPhotoDataInHoverBox(config: Record<string, any>): boolean {
 }
 
 export function shouldShowRichTooltips(config: Record<string, any>): boolean {
-  // Controls → Tooltips "Show tooltips" gates chrome + rich tips when explicitly off.
+  // Controls -> Tooltips "Show tooltips" gates chrome + rich tips when explicitly off.
   if (config.showTooltips === false) return false;
   if (config.enableRichHoverTooltips === false) return false;
   if (config.showFileInfoTips === false && config.showHoverBox !== true) return false;
@@ -103,7 +103,7 @@ export function bindFloatingTooltipHandlers(
   const requireShift = isShiftRequiredForTooltips(config);
   const hoverBox = !!config.showHoverBox;
   const surface = opts?.surface ?? 'filename';
-  // Settings → Tips timing / tooltip zoom
+  // Settings -> Tips timing / tooltip zoom
   const delayFromTips = Number(config.initialDelayInMilliseconds);
   const delayMs = Number.isFinite(delayFromTips) && delayFromTips > 0
     ? delayFromTips

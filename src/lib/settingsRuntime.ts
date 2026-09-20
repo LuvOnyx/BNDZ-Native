@@ -282,7 +282,7 @@ export function entitySortName(entity: any): string {
   return raw != null ? String(raw) : '';
 }
 
-/** Resolve sort column: pane override → persisted preference → sortMethod setting */
+/** Resolve sort column: pane override -> persisted preference -> sortMethod setting */
 export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): SortColumnId {
   if (pane?.sortColumn) return pane.sortColumn as SortColumnId;
   const persisted = config.listSortColumn as SortColumnId | undefined;
@@ -499,7 +499,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Split `file.tar.gz` → stem `file.tar`, ext `gz` (Explorer-style last segment). */
+/** Split `file.tar.gz` -> stem `file.tar`, ext `gz` (Explorer-style last segment). */
 export function splitFileName(name: string): { stem: string; ext: string } {
   const base = String(name || '').split(/[/\\]/).pop() || '';
   const i = base.lastIndexOf('.');
@@ -556,7 +556,7 @@ export function applyRenameInputSelection(input: HTMLInputElement, entity: any, 
       const extInBox = entity?.type !== 'directory'
         && !!ext
         && !shouldHideRenameExtension(entity, config);
-      // Extension visible → select stem only (Explorer). Hidden → whole field is the stem.
+      // Extension visible -> select stem only (Explorer). Hidden -> whole field is the stem.
       const shouldSelectBase = extInBox
         ? config.excludeFileExtensionFromInitialSelection !== false
         : true;
@@ -788,7 +788,7 @@ export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean 
     return true;
   }
 
-  // Empty / missing categories → fail-OPEN for known maps that have docked handlers.
+  // Empty / missing categories -> fail-OPEN for known maps that have docked handlers.
   if (categories.length === 0) {
     return inKnownDockedMap;
   }
@@ -800,7 +800,7 @@ export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean 
     if (covering.every((cat) => cat.c === false)) return false;
   }
 
-  // Known docked type whose category row is absent from a partial list → fail-open.
+  // Known docked type whose category row is absent from a partial list -> fail-open.
   if (inKnownDockedMap && covering.length === 0) return true;
 
   return false;

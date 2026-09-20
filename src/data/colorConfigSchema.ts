@@ -45,7 +45,7 @@ export const COLOR_CONFIG_SECTIONS: { id: string; title: string; description?: s
   },
 ];
 
-/** Default plugin hero -- classic left wash → mid → cyan veil (visible over panel bg). */
+/** Default plugin hero -- classic left wash -> mid -> cyan veil (visible over panel bg). */
 export const PLUGIN_HERO_DEFAULT =
   '{"mode":"gradient","angle":90,"stops":[{"color":"#0c1220f7","pos":0},{"color":"#080a1094","pos":52},{"color":"#38bdf812","pos":100}]}';
 

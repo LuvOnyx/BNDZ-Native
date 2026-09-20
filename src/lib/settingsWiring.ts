@@ -2,7 +2,7 @@ import type { AppConfig } from '../data/configContext';
 import { KEYBINDING_ACTIONS, resolveShortcut } from './keybindings';
 import { SETTINGS_DEFAULTS } from './settingsDefaults';
 
-/** CamelCase → kebab-case for data-bndz-* attributes */
+/** CamelCase -> kebab-case for data-bndz-* attributes */
 export function configKeyToDataset(key: string): string {
   return key.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
 }
@@ -74,7 +74,7 @@ export function buildMouseRuntime(config: AppConfig) {
   return {
     singleClickOpen: readSettingBool(config, 'openItemsOnSingleClick')
       || readSettingBool(config, 'singleClickToOpenAnItem'),
-    /** Single-click → open only folders (files still need double-click). */
+    /** Single-click -> open only folders (files still need double-click). */
     foldersOnly: readSettingBool(config, 'foldersOnly'),
     /** Single-click open only when the click lands on the icon cell. */
     openOnIconOnly: readSettingBool(config, 'onTheIconOnly'),
@@ -88,7 +88,7 @@ export function buildMouseRuntime(config: AppConfig) {
     disallowDragFromList: readSettingBool(config, 'disallowLeftDraggingFromFileList'),
     disallowDragFromTree: readSettingBool(config, 'disallowLeftDraggingFromFolderTree'),
     pointToSelect: readSettingBool(config, 'pointToSelect'),
-    /** Point-to-select only when hovering/clicking the icon (Settings → toTheIconOnly). */
+    /** Point-to-select only when hovering/clicking the icon (Settings -> toTheIconOnly). */
     onTheIconOnly: readSettingBool(config, 'toTheIconOnly'),
     enableSurroundSelection: readSettingBool(config, 'enableSurroundSelection', true),
     stickyCheckboxSelection: readSettingBool(config, 'stickyCheckboxSelection'),

@@ -21,14 +21,14 @@ export function normalizeHex(v: string, fallback = '#111111'): string {
     return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
   }
   if (t.length === 5) {
-    // #RGBA → #RRGGBBAA
+    // #RGBA -> #RRGGBBAA
     const r = t[1], g = t[2], b = t[3], a = t[4];
     return `#${r}${r}${g}${g}${b}${b}${a}${a}`.toLowerCase();
   }
   return t.toLowerCase();
 }
 
-/** CSS color token from stored hex (supports #RRGGBBAA → rgba()). */
+/** CSS color token from stored hex (supports #RRGGBBAA -> rgba()). */
 export function hexToCssColor(hex: string): string {
   const h = normalizeHex(hex).replace('#', '');
   if (h.length === 8) {

@@ -237,7 +237,7 @@ export default function ActionLogPlugin() {
             <PluginEmptyState
               icon="clock_ui"
               title="Action Log is off"
-              description="Ctrl+Z / Ctrl+Y still work. Enable "Show action history" in Settings → Undo & Action Log to browse this timeline."
+              description='Ctrl+Z / Ctrl+Y still work. Enable "Show action history" in Settings -> Undo & Action Log to browse this timeline.'
             />
           )}
 

@@ -78,7 +78,7 @@ export type ResolvedShortcutInfo = {
   isUrl?: boolean;
 };
 
-/** Shortcut → target's folder (Explorer "Open file location"). */
+/** Shortcut -> target's folder (Explorer "Open file location"). */
 export function openLocationForShortcut(resolved: ResolvedShortcutInfo | null | undefined): OpenLocationTarget | null {
   if (!resolved?.success) return null;
   if (resolved.isUrl) return null;
