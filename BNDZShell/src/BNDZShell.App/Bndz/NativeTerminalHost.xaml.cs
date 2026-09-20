@@ -47,6 +47,8 @@ public sealed partial class NativeTerminalHost : UserControl
 		private long _ignoreShowUntilTick;
 		/// <summary>KeepAlive soft-hide sticky: ignore visible:true until intentional unpark (Remote+Terminal).</summary>
 		private bool _softParked;
+		/// <summary>After keepAlive park, first intentional unpark remounts TermControl UI (ConPTY kept) — ShowWindow alone leaves a blank surface.</summary>
+		private bool _warmRemountOnUnpark;
 		/// <summary>HWNDs reparented to HWND_MESSAGE on keepAlive park — restored on unpark.</summary>
 		private readonly System.Collections.Generic.List<(IntPtr Hwnd, IntPtr Parent)> _parkedHwnds = new(4);
 	public event EventHandler<bool>? TermMountFinished;
@@ -127,6 +129,14 @@ public sealed partial class NativeTerminalHost : UserControl
 
 		if (_term is not null)
 		{
+			// keepAlive park leaves HWND "shown" but TermControl surface blank until Close/New.
+			// Remount UI once on intentional unpark; ConPTY stays in _warmPty across DisposeTerm(false).
+			if (_warmRemountOnUnpark)
+			{
+				_warmRemountOnUnpark = false;
+				RemountWarmSurfaceAfterUnpark(x, y, width, height);
+				return;
+			}
 			TryShowTermHwnds(_term);
 			PulseTermPaintAfterUnpark(width, height);
 			TermLog($"ApplyBounds unpark show size={width:F0}x{height:F0}");
@@ -183,8 +193,9 @@ public sealed partial class NativeTerminalHost : UserControl
 			{
 				TryHideTermHwnds(_term, reparentToMessage: true, trackForRestore: true);
 				_softParked = true;
+				_warmRemountOnUnpark = true;
 				_ignoreShowUntilTick = Environment.TickCount64 + 120;
-				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=120ms reparent=True");
+				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=120ms reparent=True warmRemount=True");
 				return;
 			}
 
@@ -212,6 +223,49 @@ public sealed partial class NativeTerminalHost : UserControl
 				Interlocked.Exchange(ref _parkGate, 0);
 			}
 		}
+	}
+
+	/// <summary>
+	/// Rebuild TermControl after keepAlive HWND_MESSAGE park while preserving ConPTY.
+	/// SoftCollapse + SetParent restore alone leave a blank surface (Mikey: Close/New required).
+	/// </summary>
+	private void RemountWarmSurfaceAfterUnpark(double x, double y, double width, double height)
+	{
+		TermLog($"RemountWarmSurfaceAfterUnpark begin size={width:F0}x{height:F0}");
+		try
+		{
+			DisposeTerm(stopPty: false);
+		}
+		catch (Exception ex)
+		{
+			TermLog($"RemountWarmSurfaceAfterUnpark dispose: {ex.Message}");
+		}
+
+		_parkedInactive = false;
+		_softParked = false;
+		_ignoreShowUntilTick = 0;
+		_parkedHwnds.Clear();
+
+		Margin = new Thickness(Math.Max(0, x), Math.Max(0, y), 0, 0);
+		Width = width;
+		Height = height;
+		HorizontalAlignment = HorizontalAlignment.Left;
+		VerticalAlignment = VerticalAlignment.Top;
+		Visibility = Visibility.Visible;
+		Opacity = 1;
+		IsHitTestVisible = true;
+
+		if (!TryMountTermNow())
+		{
+			TermLog("RemountWarmSurfaceAfterUnpark mount failed");
+			return;
+		}
+		if (_term is not null)
+		{
+			TryShowTermHwnds(_term);
+			PulseTermPaintAfterUnpark(width, height);
+		}
+		TermLog($"RemountWarmSurfaceAfterUnpark done warm={_warmPty is not null} term={_term is not null}");
 	}
 
 	private void SoftCollapseHost()
@@ -588,6 +642,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			CancelTermDebounce();
 			_parkedInactive = true;
 			_softParked = false;
+			_warmRemountOnUnpark = false;
 			_ignoreShowUntilTick = 0;
 			_parkedHwnds.Clear();
 			Interlocked.Exchange(ref _teardownActive, 1);
