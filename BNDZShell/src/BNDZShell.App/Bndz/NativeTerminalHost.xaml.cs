@@ -53,6 +53,12 @@ public sealed partial class NativeTerminalHost : UserControl
 		private int _remountBusy;
 		/// <summary>Close clicked while warm remount in flight — run Close after remount settles.</summary>
 		private bool _closeAfterRemount;
+		/// <summary>Coalesce duplicate FE ApplyBounds show frames (post-remount thrash).</summary>
+		private long _lastShowBoundsTick;
+		private double _lastShowW, _lastShowH, _lastShowX, _lastShowY;
+		/// <summary>Coalesce PulseTermPaintAfterUnpark within a short window.</summary>
+		private long _lastPulsePaintTick;
+
 		/// <summary>HWNDs reparented to HWND_MESSAGE on keepAlive park — restored on unpark.</summary>
 		private readonly System.Collections.Generic.List<(IntPtr Hwnd, IntPtr Parent)> _parkedHwnds = new(4);
 	public event EventHandler<bool>? TermMountFinished;
@@ -127,7 +133,29 @@ public sealed partial class NativeTerminalHost : UserControl
 
 		_parkedInactive = false;
 		_ignoreShowUntilTick = 0;
-		Margin = new Thickness(Math.Max(0, x), Math.Max(0, y), 0, 0);
+
+		// Duplicate FE layout frames after remount/unpark spam Pulse+TryShow dozens of times/sec.
+		var ax = Math.Max(0, x);
+		var ay = Math.Max(0, y);
+		if (_term is not null
+			&& !_warmRemountOnUnpark
+			&& Visibility == Visibility.Visible
+			&& Opacity >= 1
+			&& Math.Abs(_lastShowW - width) < 1.5
+			&& Math.Abs(_lastShowH - height) < 1.5
+			&& Math.Abs(_lastShowX - ax) < 1.5
+			&& Math.Abs(_lastShowY - ay) < 1.5
+			&& Environment.TickCount64 - _lastShowBoundsTick < 90)
+		{
+			return;
+		}
+		_lastShowBoundsTick = Environment.TickCount64;
+		_lastShowW = width;
+		_lastShowH = height;
+		_lastShowX = ax;
+		_lastShowY = ay;
+
+		Margin = new Thickness(ax, ay, 0, 0);
 		Width = width;
 		Height = height;
 		HorizontalAlignment = HorizontalAlignment.Left;
@@ -1043,6 +1071,13 @@ public sealed partial class NativeTerminalHost : UserControl
 	{
 		if (Volatile.Read(ref _remountBusy) != 0 || _parkedInactive || string.IsNullOrEmpty(_sessionId))
 			return;
+		// One paint nudge per short window — FE can call ApplyBounds unpark 20+ times after remount.
+		var now = Environment.TickCount64;
+		if (now - _lastPulsePaintTick < 150
+			&& Math.Abs(_lastShowW - width) < 1.5
+			&& Math.Abs(_lastShowH - height) < 1.5)
+			return;
+		_lastPulsePaintTick = now;
 		try
 		{
 			InvalidateMeasure();
