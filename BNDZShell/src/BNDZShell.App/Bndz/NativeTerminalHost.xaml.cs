@@ -318,10 +318,14 @@ public sealed partial class NativeTerminalHost : UserControl
 	}
 
 
-	public void Close(bool notify = true)
+		public void Close(bool notify = true)
 	{
 		var sid = _sessionId;
-		DisposeTerm();
+		// Soft-collapse + drop session BEFORE DisposeTerm. DestroyWindow pumps the UI queue;
+		// a stale NATIVE_TERMINAL_LAYOUT(visible:true) would remount mid-dispose and StackOverflow.
+		SoftCollapseHost();
+		CancelTermDebounce();
+		_parkedInactive = true;
 		_sessionId = null;
 		_label = "Terminal";
 		_pendingCmd = null;
@@ -329,10 +333,9 @@ public sealed partial class NativeTerminalHost : UserControl
 		_awaitingSizedStart = false;
 		Interlocked.Increment(ref _createGen);
 
-		Visibility = Visibility.Collapsed;
-		IsHitTestVisible = false;
-		Width = double.NaN;
-		Height = double.NaN;
+		DisposeTerm(stopPty: true);
+
+		SoftCollapseHost();
 
 		if (notify && !string.IsNullOrEmpty(sid))
 			SessionClosed?.Invoke(this, sid!);
@@ -476,35 +479,54 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// </param>
 	private void DisposeTerm(bool stopPty = true)
 	{
-		var term = _term;
-		_term = null;
-		if (term is not null)
+		// Same reentrancy gate as ParkTermHwnd — Close used to skip this and StackOverflow.
+		if (Interlocked.CompareExchange(ref _parkGate, 1, 0) != 0)
 		{
-			try
-			{
-				var pty = term.DisconnectConPTYTerm();
-				if (stopPty)
-				{
-					try { pty?.StopExternalTermOnly(); } catch { /* ignore */ }
-				}
-				else if (pty is not null)
-				{
-					_warmPty = pty;
-				}
-			}
-			catch (Exception ex)
-			{
-				Debug.WriteLine($"[NativeTerminalHost] dispose: {ex.Message}");
-			}
-			DestroyTermControlUi(term, stopPty ? "DisposeTerm-stop" : "DisposeTerm-warm");
+			TermLog($"DisposeTerm reentrant skip stopPty={stopPty}");
+			SoftCollapseHost();
+			return;
 		}
-
-		if (stopPty && _warmPty is not null)
+		try
 		{
-			try { _warmPty.StopExternalTermOnly(); } catch { /* ignore */ }
-			_warmPty = null;
+			SoftCollapseHost();
+			CancelTermDebounce();
+			_parkedInactive = true;
+
+			var term = _term;
+			_term = null;
+			if (term is not null)
+			{
+				try
+				{
+					var pty = term.DisconnectConPTYTerm();
+					if (stopPty)
+					{
+						try { pty?.StopExternalTermOnly(); } catch { /* ignore */ }
+					}
+					else if (pty is not null)
+					{
+						_warmPty = pty;
+					}
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine($"[NativeTerminalHost] dispose: {ex.Message}");
+				}
+				DestroyTermControlUi(term, stopPty ? "DisposeTerm-stop" : "DisposeTerm-warm");
+			}
+
+			if (stopPty && _warmPty is not null)
+			{
+				try { _warmPty.StopExternalTermOnly(); } catch { /* ignore */ }
+				_warmPty = null;
+			}
+		}
+		finally
+		{
+			Interlocked.Exchange(ref _parkGate, 0);
 		}
 	}
+
 
 	/// <summary>
 	/// Tear down EasyTerminalControl / TermControl HwndHost on the UI thread.

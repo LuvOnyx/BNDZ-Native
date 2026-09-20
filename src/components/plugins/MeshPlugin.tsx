@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -118,13 +118,13 @@ function NativeTerminalHole({
     <div
       ref={holeRef}
       className="absolute inset-0 w-full h-full bndz-native-term-hole bg-[#07090e]"
-      aria-label={sessionLabel ? `Terminal — ${sessionLabel}` : 'Terminal'}
+      aria-label={sessionLabel ? `Terminal â€” ${sessionLabel}` : 'Terminal'}
       role="application"
     >
-      {/* Only while Open is in flight — never after Close (sessionLabel cleared). */}
+      {/* Only while Open is in flight â€” never after Close (sessionLabel cleared). */}
       {busy && !sessionLabel && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-gray-500 p-6 text-center">
-          Starting terminal…
+          Starting terminalâ€¦
         </div>
       )}
     </div>
@@ -139,14 +139,14 @@ function decodeTerminalB64(b64: string): Uint8Array {
 }
 
 function encodeTerminalUtf8ToB64(data: string): string {
-  // Prefer TextEncoder — unescape(encodeURIComponent) can mangle some VT sequences in WebView2.
+  // Prefer TextEncoder â€” unescape(encodeURIComponent) can mangle some VT sequences in WebView2.
   const bytes = new TextEncoder().encode(data);
   let bin = '';
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
   return btoa(bin);
 }
 
-/** Survives MeshSshTerminalPanel remounts — ConPTY often emits before React commits sessionId. */
+/** Survives MeshSshTerminalPanel remounts â€” ConPTY often emits before React commits sessionId. */
 const meshTerminalOrphanChunks = new Map<string, string[]>();
 type MeshTermWriter = (sid: string, data: string) => boolean;
 const meshTermWriters = new Set<MeshTermWriter>();
@@ -248,7 +248,7 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
       fontSize: theme.fontSize,
       lineHeight: 1.2,
       cursorBlink: true,
-      // Leave false — ConPTY already speaks CRLF/VT; convertEol can desync the DA handshake paint.
+      // Leave false â€” ConPTY already speaks CRLF/VT; convertEol can desync the DA handshake paint.
       convertEol: false,
       allowProposedApi: true,
     });
@@ -316,7 +316,7 @@ function MeshSshTerminalPanel({ sessionId, active }: { sessionId: string | null;
     IPC.meshTerminalAck(sessionId);
     scheduleFit();
     try { term.focus(); } catch { /* ignore */ }
-    // Second ACK after fit settles — covers any bytes that arrived between flush and resize.
+    // Second ACK after fit settles â€” covers any bytes that arrived between flush and resize.
     const t = window.setTimeout(() => {
       IPC.meshTerminalAck(sessionId);
       fitAndResize();
@@ -507,7 +507,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   useEffect(() => {
     return IPC.onMeshSyncProgress(p => {
-      setStatus(`${p.status}${p.currentFile ? ` — ${p.currentFile}` : ''}${p.message ? ` (${p.message})` : ''}`);
+      setStatus(`${p.status}${p.currentFile ? ` â€” ${p.currentFile}` : ''}${p.message ? ` (${p.message})` : ''}`);
     });
   }, []);
 
@@ -543,7 +543,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       } else {
         await IPC.liveShareStart(win);
         setLiveShareOn(true);
-        setStatus('Live Share active — peers see your selection in this folder.');
+        setStatus('Live Share active â€” peers see your selection in this folder.');
         window.dispatchEvent(new CustomEvent('bndz-live-share-changed', { detail: { active: true } }));
       }
     } finally { setBusy(false); }
@@ -559,6 +559,9 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   const closeTerminalSession = useCallback(() => {
     autoLocalOpenedRef.current = true; // do not auto-reopen after explicit Close
+    // Leave terminal view first so LAYOUT(visible:false) wins before native Close/dispose.
+    setNewMenuOpen(false);
+    if (tab === 'terminal') setTab('hosts');
     if (nativeTerm) {
       IPC.nativeTerminalClose();
     } else if (sessionId) {
@@ -567,7 +570,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     setSessionId(null);
     setSessionLabel(null);
     setBusy(false);
-  }, [nativeTerm, sessionId]);
+  }, [nativeTerm, sessionId, tab]);
 
   /** Leave fullscreen terminal -> main Remote UI without killing warm ConPTY. */
   const leaveTerminalView = useCallback(() => {
@@ -588,7 +591,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
       if (local) {
         cwd = resolveLocalShellCwd(currentPath, pluginLaunch);
-        label = `Local · ${cwd}`;
+        label = `Local Â· ${cwd}`;
       } else if (currentPath && isMeshPath(currentPath)) {
         const parsed = parseMeshPath(currentPath);
         if (parsed.hostId && (!hostId || parsed.hostId === hostId)) {
@@ -599,7 +602,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
       if (!local && hostId) {
         const host = hosts.find(h => h.id === hostId);
-        label = host ? `SSH · ${host.alias}` : `SSH · ${hostId}`;
+        label = host ? `SSH Â· ${host.alias}` : `SSH Â· ${hostId}`;
         if (nativeTerm) {
           if (host) commandLine = buildSshCommandLine(host);
           else commandLine = `ssh ${hostId}`;
@@ -613,9 +616,9 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       }
 
       if (nativeTerm) {
-        // One session at a time — close prior WinUI TermControl first.
+        // One session at a time â€” close prior WinUI TermControl first.
         if (sessionId) IPC.nativeTerminalClose();
-        // Wait until the hole has real pixels — TermControl ConPTY starts from Columns/Rows.
+        // Wait until the hole has real pixels â€” TermControl ConPTY starts from Columns/Rows.
         let rect = { x: 0, y: 0, width: 0, height: 0 };
         for (let i = 0; i < 90; i++) {
           await new Promise<void>(r => requestAnimationFrame(() => r()));
@@ -624,7 +627,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           await new Promise<void>(r => window.setTimeout(r, 16));
         }
         if (rect.width < 48 || rect.height < 48) {
-          setStatus('Terminal hole has no size — enlarge the bottom panel and try New');
+          setStatus('Terminal hole has no size â€” enlarge the bottom panel and try New');
           setSessionId(null);
           setSessionLabel(null);
           return;
@@ -706,7 +709,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
 
   const pluginActive = isPluginTabActive !== false;
 
-  // Dismiss New menu only — Esc must NOT leave terminal view (strip ← Remote is enough).
+  // Dismiss New menu only â€” Esc must NOT leave terminal view (strip â† Remote is enough).
   useEffect(() => {
     if (!pluginActive || tab !== 'terminal' || !newMenuOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -786,7 +789,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     void openTerminal(undefined, true);
   }, [pluginActive, tab, sessionId, busy, pluginLaunch?.sessionId, openTerminal]);
 
-  // Hide WinUI overlay when leaving the Remote plugin or Terminal tab — never nativeTerminalClose.
+  // Hide WinUI overlay when leaving the Remote plugin or Terminal tab â€” never nativeTerminalClose.
   // When returning to Terminal with an existing session, re-publish hole bounds (same ConPTY).
   useEffect(() => {
     if (!nativeTerm) return;
@@ -848,7 +851,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       title="Remote"
       icon="cloud_ui"
       iconColor="#38bdf8"
-      subtitle="Remote PCs · send files · temporary cloud · sync · terminal"
+      subtitle="Remote PCs Â· send files Â· temporary cloud Â· sync Â· terminal"
       variant="embedded"
       scrollable={!terminalMode}
       density={terminalMode ? 'terminal' : 'default'}
@@ -865,9 +868,9 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
             <div className="bndz-mesh-opsrail">
               <div className="bndz-mesh-opsrail-copy">
                 <strong>{hosts.length}</strong> host{hosts.length === 1 ? '' : 's'}
-                <em>·</em>
+                <em>Â·</em>
                 <span>{rules.length} sync rule{rules.length === 1 ? '' : 's'}</span>
-                {sessionId ? <><em>·</em><span>terminal open</span></> : null}
+                {sessionId ? <><em>Â·</em><span>terminal open</span></> : null}
               </div>
               <div className="bndz-mesh-opsrail-actions">
                 <PluginToolbarButton onClick={() => void openTerminal(undefined, true)} disabled={busy}>
@@ -914,7 +917,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
           }`}
         >
           {/* Native WinUI TermControl hole (BNDZShell) or classic xterm (WPF host).
-              FE chrome (New / Close / ← Remote) MUST sit above the hole — TermControl HWND
+              FE chrome (New / Close / â† Remote) MUST sit above the hole â€” TermControl HWND
               airspace covers any HTML painted over the same rect. */}
           {(terminalMode || sessionId) && (
             <div
@@ -963,7 +966,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                               className="w-full text-left px-2.5 py-1 text-[11px] text-slate-300/90 hover:bg-white/[0.05] hover:text-slate-100"
                               onClick={() => { setSelectedHostId(h.id); void openTerminal(h.id); }}
                             >
-                              SSH · {h.alias}
+                              SSH Â· {h.alias}
                             </button>
                           ))}
                         </div>
@@ -982,7 +985,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                     <button
                       type="button"
                       className="bndz-mesh-term-action"
-                      title="Back to Remote — keeps terminal session warm"
+                      title="Back to Remote â€” keeps terminal session warm"
                       onClick={() => leaveTerminalView()}
                     >
                       {'\u2190 Remote'}
@@ -1001,7 +1004,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                     />
                     {!sessionId && terminalMode && (
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-gray-500 p-6 text-center z-[1]">
-                        Opening Local PowerShell…
+                        Opening Local PowerShellâ€¦
                       </div>
                     )}
                   </>
@@ -1052,7 +1055,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                 <PluginToolbarButton onClick={() => void saveRules()} disabled={busy}>Save rules</PluginToolbarButton>
               </div>
               {rules.length === 0 ? (
-                <PluginEmptyState icon="sync_folders" title="No mirror rules" description="Push local folders to remote hosts on save — ideal for instant deploys." />
+                <PluginEmptyState icon="sync_folders" title="No mirror rules" description="Push local folders to remote hosts on save â€” ideal for instant deploys." />
               ) : rules.map((r, i) => (
                 <PluginCard key={r.id} className="!p-3 grid gap-2 bndz-mesh-mirror-card">
                   <PluginFieldLabel>Name</PluginFieldLabel>
@@ -1132,7 +1135,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                       <div className="font-medium text-sky-200">{p.machineName || 'Peer'}</div>
                       <div className="text-white/40 mt-1">
                         {p.selectionPaths?.length || 0} selected
-                        {p.cursorPath ? ` · cursor: ${String(p.cursorPath).split(/[/\\]/).pop()}` : ''}
+                        {p.cursorPath ? ` Â· cursor: ${String(p.cursorPath).split(/[/\\]/).pop()}` : ''}
                       </div>
                     </PluginCard>
                   ))}
