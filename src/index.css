@@ -2592,55 +2592,26 @@ html.theme-light .bndz-preview-contents-row.is-selected {
   color: rgba(0, 0, 0, 0.92) !important;
 }
 
-/* List sticky / in-list group headers (FOLDERS / IMAGES / â€¦) â€” flush to prior row */
+/* List sticky / in-list group headers (FOLDERS / IMAGES / …) — restored pre-tweak chrome */
 .bndz-list-sticky-group-header,
 .bndz-list-group-header {
-  --bndz-sticky-group-tuck: 8px;
-  --bndz-group-strip-air: 5px;
   color: color-mix(in srgb, var(--accent, #0078d4) 78%, #ffffff 22%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.12) calc(100% - 1px), var(--border-subtle, rgba(255, 255, 255, 0.1)) calc(100% - 1px), var(--border-subtle, rgba(255, 255, 255, 0.1)) 100%), var(--list-bg, #252526);
-  /* Paint only the content box so equal air above/below the strip clears selection chrome
-     without shifting the label off-center (padding alone with full-bleed bg did that). */
-  background-clip: content-box, content-box;
-  border-top: 0;
-  border-bottom: none;
-  box-shadow: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.12) 100%), var(--list-bg, #252526);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
   margin: 0;
-  padding-top: var(--bndz-group-strip-air);
-  padding-bottom: var(--bndz-group-strip-air);
-  box-sizing: border-box;
+  padding: 0;
 }
 .bndz-list-group-header {
-  /* Keep row flush under column chrome; air comes from content-box clip, not margin */
   margin-top: 0 !important;
-}
-/* Cover the dark seam under filter/column chrome while stuck â€” paint upward only
-   so the label stays put (inline border-box height unchanged). */
-.bndz-list-sticky-group-header.absolute::before,
-.bndz-list-group-header.sticky::before,
-.bndz-list-sticky-group-header.sticky::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: var(--bndz-sticky-group-tuck, 8px);
-  background: inherit;
-  pointer-events: none;
 }
 
 html.theme-light .bndz-list-sticky-group-header,
 html.theme-light .bndz-list-group-header {
   color: rgba(0, 0, 0, 0.88) !important;
-  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 calc(100% - 1px), rgba(0, 0, 0, 0.1) calc(100% - 1px), rgba(0, 0, 0, 0.1) 100%) !important;
-  background-clip: content-box, content-box !important;
-  border-bottom: none !important;
-  box-shadow: none !important;
-}
-html.theme-light .bndz-list-sticky-group-header.absolute::before,
-html.theme-light .bndz-list-group-header.sticky::before,
-html.theme-light .bndz-list-sticky-group-header.sticky::before {
   background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06) !important;
 }
 
 html.theme-light .bndz-list-sticky-group-header .text-gray-500,

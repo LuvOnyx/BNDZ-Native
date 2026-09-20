@@ -8,9 +8,8 @@ export type ListGroupHeaderRowProps = {
 };
 
 /**
- * In-list type/date group strip (FOLDERS / IMAGES / â€¦).
- * Uses the same chrome as the sticky overlay (`.bndz-list-sticky-group-header`)
- * row stays flush (uniform height); strip air via content-box clip so labels stay centered. Was: â€” no top margin / top border gap.
+ * In-list type/date group strip (FOLDERS / IMAGES / …).
+ * Uses the same chrome as the sticky overlay (`.bndz-list-sticky-group-header`).
  */
 function ListGroupHeaderRow({ label, count, rowHeight, sticky }: ListGroupHeaderRowProps) {
   return (

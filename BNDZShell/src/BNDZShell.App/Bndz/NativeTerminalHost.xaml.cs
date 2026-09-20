@@ -368,7 +368,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	{
 		if (string.IsNullOrEmpty(_sessionId)) return;
 		if (Volatile.Read(ref _parkGate) != 0 || _parkedInactive) return;
-		if (Width < 48 || Height < 48 || ActualWidth < 48 || ActualHeight < 48) return;
+		if (Width < 48 || Height < 48) return;
 		if (_term is not null)
 		{
 			_awaitingSizedStart = false;
@@ -420,7 +420,7 @@ public sealed partial class NativeTerminalHost : UserControl
 				_awaitingSizedStart = false;
 				return true;
 			}
-			if (Width < 48 || Height < 48 || ActualWidth < 48 || ActualHeight < 48 || Visibility != Visibility.Visible)
+			if (Width < 48 || Height < 48 || Visibility != Visibility.Visible)
 			{
 				_awaitingSizedStart = true;
 				TermLog($"TryMountTermNow defer size={Width:F0}x{Height:F0} vis={Visibility}");
