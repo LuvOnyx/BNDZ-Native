@@ -37,6 +37,8 @@ public sealed partial class NativeTerminalHost : UserControl
 	private string _cursor = "#7dd3fc";
 	/// <summary>Non-zero while ParkTermHwnd / DestroyTermControlUi is on the stack (Dispose may pump messages).</summary>
 	private int _parkGate;
+	/// <summary>Non-zero for the whole DestroyTermControlUiCore call (incl. async enqueue).</summary>
+	private int _teardownActive;
 	/// <summary>True after a successful hide-park until the next intentional visible ApplyBounds.</summary>
 	private bool _parkedInactive;
 	public event EventHandler<bool>? TermMountFinished;
@@ -99,7 +101,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	private void ParkTermHwnd(string reason)
 	{
 		// Re-entrant park (Dispose/DestroyWindow pumps NATIVE_TERMINAL_LAYOUT) must not nest
-		// another DestroyTermControlUi — that StackOverflowException killed BNDZ @ 12:55 CT.
+		// another DestroyTermControlUi - that StackOverflowException killed BNDZ @ 12:55 CT.
 		if (Interlocked.CompareExchange(ref _parkGate, 1, 0) != 0)
 		{
 			TermLog($"ParkTermHwnd reentrant skip reason={reason} warm={_warmPty is not null}");
@@ -107,6 +109,7 @@ public sealed partial class NativeTerminalHost : UserControl
 			return;
 		}
 
+		var releaseGate = true;
 		try
 		{
 			_parkedInactive = true;
@@ -131,10 +134,9 @@ public sealed partial class NativeTerminalHost : UserControl
 				{
 					TermLog($"ParkTermHwnd detach failed reason={reason}: {ex.Message}");
 				}
-				// Dispose HwndHost on the UI thread. Children.Clear alone orphans it for GC;
-				// HwndHost.Finalize -> DestroyWindow -> DispatcherQueue throws ObjectDisposedException
-				// (CLR 0xe0434352) and kills BNDZ.exe — seen on Remote pop-out handoff.
-				DestroyTermControlUi(term, reason);
+				// Hold gates until DestroyTermControlUiCore finishes (incl. async enqueue).
+				Interlocked.Exchange(ref _teardownActive, 1);
+				releaseGate = DestroyTermControlUi(term, reason, releaseGateAfter: true);
 			}
 			else
 			{
@@ -143,7 +145,11 @@ public sealed partial class NativeTerminalHost : UserControl
 		}
 		finally
 		{
-			Interlocked.Exchange(ref _parkGate, 0);
+			if (releaseGate)
+			{
+				Interlocked.Exchange(ref _teardownActive, 0);
+				Interlocked.Exchange(ref _parkGate, 0);
+			}
 		}
 	}
 
@@ -481,18 +487,21 @@ public sealed partial class NativeTerminalHost : UserControl
 	/// </param>
 	private void DisposeTerm(bool stopPty = true)
 	{
-		// Same reentrancy gate as ParkTermHwnd — Close used to skip this and StackOverflow.
+		// Hold _parkGate through DestroyTermControlUiCore (even if enqueue). Releasing early
+		// let LAYOUT remount mid-DestroyWindow → StackOverflow on Close (00:57 CT).
 		if (Interlocked.CompareExchange(ref _parkGate, 1, 0) != 0)
 		{
 			TermLog($"DisposeTerm reentrant skip stopPty={stopPty}");
 			SoftCollapseHost();
 			return;
 		}
+		var releaseGate = true;
 		try
 		{
 			SoftCollapseHost();
 			CancelTermDebounce();
 			_parkedInactive = true;
+			Interlocked.Exchange(ref _teardownActive, 1);
 
 			var term = _term;
 			_term = null;
@@ -514,7 +523,7 @@ public sealed partial class NativeTerminalHost : UserControl
 				{
 					Debug.WriteLine($"[NativeTerminalHost] dispose: {ex.Message}");
 				}
-				DestroyTermControlUi(term, stopPty ? "DisposeTerm-stop" : "DisposeTerm-warm");
+				releaseGate = DestroyTermControlUi(term, stopPty ? "DisposeTerm-stop" : "DisposeTerm-warm", releaseGateAfter: true);
 			}
 
 			if (stopPty && _warmPty is not null)
@@ -525,18 +534,23 @@ public sealed partial class NativeTerminalHost : UserControl
 		}
 		finally
 		{
-			Interlocked.Exchange(ref _parkGate, 0);
+			if (releaseGate)
+			{
+				Interlocked.Exchange(ref _teardownActive, 0);
+				Interlocked.Exchange(ref _parkGate, 0);
+			}
 		}
 	}
 
-
 	/// <summary>
 	/// Tear down EasyTerminalControl / TermControl HwndHost on the UI thread.
-	/// Never abandon an HwndHost to GC â€” its finalizer calls DestroyWindow via DispatcherQueue
+	/// Never abandon an HwndHost to GC — its finalizer calls DestroyWindow via DispatcherQueue
 	/// and throws ObjectDisposedException (CLR 0xe0434352), killing the whole process.
 	/// Call only after DisconnectConPTYTerm so a warm ConPTY is preserved.
+	/// Returns true if teardown finished synchronously (caller may release gates).
+	/// Returns false if work was enqueued — gates released in the queued finally.
 	/// </summary>
-	private void DestroyTermControlUi(EasyTerminalControl term, string reason)
+	private bool DestroyTermControlUi(EasyTerminalControl term, string reason, bool releaseGateAfter = false)
 	{
 		try
 		{
@@ -544,17 +558,29 @@ public sealed partial class NativeTerminalHost : UserControl
 			if (dq is not null && !dq.HasThreadAccess)
 			{
 				TermLog($"DestroyTermControlUi enqueue reason={reason}");
-				dq.TryEnqueue(() => DestroyTermControlUiCore(term, reason));
-				return;
+				dq.TryEnqueue(() =>
+				{
+					try { DestroyTermControlUiCore(term, reason); }
+					finally
+					{
+						if (releaseGateAfter)
+						{
+							Interlocked.Exchange(ref _teardownActive, 0);
+							Interlocked.Exchange(ref _parkGate, 0);
+						}
+					}
+				});
+				return false;
 			}
 			DestroyTermControlUiCore(term, reason);
+			return true;
 		}
 		catch (Exception ex)
 		{
 			TermLog($"DestroyTermControlUi failed reason={reason}: {ex.Message}");
+			return true;
 		}
 	}
-
 	private void DestroyTermControlUiCore(EasyTerminalControl term, string reason)
 	{
 		try
