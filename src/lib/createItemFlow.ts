@@ -1,4 +1,4 @@
-import { joinPanePath, normalizePanePath } from './pathUtils';
+﻿import { joinPanePath, normalizePanePath } from './pathUtils';
 import { isBndzRamPath } from './bndzVirtualViews';
 
 export type CreatedItemKind = 'dir' | 'file';
@@ -28,6 +28,34 @@ function findCreatedEntity(
     || listing.find(e => String(e.path || '').replace(/\\/g, '/').toLowerCase().endsWith(`/${lower}`));
 }
 
+/** Keep a single row per name (optimistic stub + watcher Created used to double). */
+export function dedupeListingByName<T extends { id?: string; name?: string; __provisionalFs?: boolean; __optimisticDrop?: boolean }>(
+  listing: T[],
+): T[] {
+  const best = new Map<string, T>();
+  for (const e of listing) {
+    const key = String(e?.name || '').toLowerCase();
+    if (!key) continue;
+    const prev = best.get(key);
+    if (!prev) { best.set(key, e); continue; }
+    const prevProv = !!(prev as any).__provisionalFs || !!(prev as any).__optimisticDrop;
+    const nextProv = !!(e as any).__provisionalFs || !!(e as any).__optimisticDrop;
+    // Prefer real server rows over provisional stubs.
+    if (prevProv && !nextProv) best.set(key, e);
+  }
+  if (best.size === listing.filter(e => String(e?.name || '').trim()).length) return listing;
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const e of listing) {
+    const key = String(e?.name || '').toLowerCase();
+    if (!key) { out.push(e); continue; }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(best.get(key) || e);
+  }
+  return out;
+}
+
 function scrollCreatedIntoView(entityId: string) {
   try {
     const byId = document.getElementById(`fs-item-${entityId}`);
@@ -35,7 +63,7 @@ function scrollCreatedIntoView(entityId: string) {
       byId.scrollIntoView({ block: 'nearest' });
       return;
     }
-    // FileListRow uses data-id on .fs-item-wrapper (not id="fs-item-…").
+    // FileListRow uses data-id on .fs-item-wrapper (not id="fs-item-â€¦").
     const safe = (typeof CSS !== 'undefined' && CSS.escape)
       ? CSS.escape(entityId)
       : entityId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -55,7 +83,7 @@ export async function finishCreateAndRename(ctx: FinishCreateContext): Promise<v
   } else if (awaitRefetch) {
     await ctx.refetchPath(panePath);
   } else {
-    // Background refresh — keep create/rename snappy; don't leave UI waiting on listing IPC.
+    // Background refresh â€” keep create/rename snappy; don't leave UI waiting on listing IPC.
     void ctx.refetchPath(panePath);
   }
 
@@ -63,7 +91,7 @@ export async function finishCreateAndRename(ctx: FinishCreateContext): Promise<v
     || (ctx.finalWinPath ? ctx.finalWinPath.split(/[/\\]/).filter(Boolean).pop() : undefined);
   if (!name) return;
 
-  // Cache ref can lag one frame behind setState after refetch — brief retry.
+  // Cache ref can lag one frame behind setState after refetch â€” brief retry.
   let entity = findCreatedEntity(ctx.getListing(panePath), name);
   if (!entity) {
     for (let i = 0; i < 10 && !entity; i++) {
@@ -85,6 +113,11 @@ export async function finishCreateAndRename(ctx: FinishCreateContext): Promise<v
   ctx.setSelectedItems([target.id], ctx.paneId);
   ctx.setFocusedItemId(target.id);
   requestAnimationFrame(() => {
+    try {
+      const listEl = document.querySelector('.bndz-file-list-scroll') as HTMLElement | null
+        || document.querySelector('[data-list-body]') as HTMLElement | null;
+      if (listEl) listEl.scrollTop = 0;
+    } catch { /* ignore */ }
     scrollCreatedIntoView(target.id);
     requestAnimationFrame(() => scrollCreatedIntoView(target.id));
   });

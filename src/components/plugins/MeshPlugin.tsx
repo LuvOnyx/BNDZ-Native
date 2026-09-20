@@ -75,18 +75,22 @@ function NativeTerminalHole({
   const holeRef = useRef<HTMLDivElement>(null);
 
   const publishLayout = useCallback((visible: boolean) => {
-    const el = holeRef.current;
-    if (!el) {
+    // Intentional hide only (plugin leave / tab leave). Undersized hole while active
+    // must NOT publish visible:false — that parked a fresh mount (black terminal hole).
+    if (!visible) {
       IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
       return;
     }
+    const el = holeRef.current;
+    if (!el) return;
     const r = el.getBoundingClientRect();
+    if (r.width < 24 || r.height < 24) return;
     IPC.nativeTerminalLayout({
       x: r.left,
       y: r.top,
       width: r.width,
       height: r.height,
-      visible: visible && r.width >= 24 && r.height >= 24,
+      visible: true,
     });
   }, []);
 

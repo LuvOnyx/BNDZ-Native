@@ -41,6 +41,8 @@ public sealed partial class NativeTerminalHost : UserControl
 	private int _teardownActive;
 	/// <summary>True after a successful hide-park until the next intentional visible ApplyBounds.</summary>
 	private bool _parkedInactive;
+		/// <summary>Environment.TickCount64 deadline; ignore LAYOUT hide so Open mount isn't parked by hole blips.</summary>
+		private long _ignoreHideUntilTick;
 	public event EventHandler<bool>? TermMountFinished;
 
 	public event EventHandler<string>? SessionClosed;
@@ -59,6 +61,15 @@ public sealed partial class NativeTerminalHost : UserControl
 	{
 		if (!visible || width < 24 || height < 24)
 		{
+			// Undersized *show* during open grace: FE used to publish visible with 0×0 and park
+			// a fresh mount. Intentional hide (visible:false — plugin switch) always parks.
+			if (visible
+				&& Environment.TickCount64 < _ignoreHideUntilTick
+				&& !string.IsNullOrEmpty(_sessionId))
+			{
+				TermLog($"ApplyBounds undersized-show ignored (open grace) size={width:F0}x{height:F0}");
+				return;
+			}
 			// HWND airspace: WinUI Margin/Visibility/size on this host do NOT move TermControl's
 			// HwndHost. Detach TermControl from the tree (Destroy HWND) while keeping ConPTY warm.
 			ParkTermHwnd(reason: "ApplyBounds-hide");
@@ -192,6 +203,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		_awaitingSizedStart = true;
 		// Close parks inactive; arm remount for the new session.
 		_parkedInactive = false;
+		_ignoreHideUntilTick = Environment.TickCount64 + 2000;
 
 		TermLog($"Open sid={_sessionId} label={_label} cwd={_pendingCwd ?? ""} cmd={_pendingCmd ?? "(default shell)"}");
 	}
@@ -334,6 +346,7 @@ public sealed partial class NativeTerminalHost : UserControl
 
 		public void Close(bool notify = true)
 	{
+		_ignoreHideUntilTick = 0;
 		var sid = _sessionId;
 		// Soft-collapse + drop session BEFORE DisposeTerm. DestroyWindow pumps the UI queue;
 		// a stale NATIVE_TERMINAL_LAYOUT(visible:true) would remount mid-dispose and StackOverflow.
