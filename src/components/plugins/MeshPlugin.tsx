@@ -444,6 +444,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   const holeMeasureRef = useRef<HTMLDivElement | null>(null);
   /** Prevents auto-open from fighting an explicit Close. */
   const autoLocalOpenedRef = useRef(false);
+  const layoutPulseTimersRef = useRef<number[]>([]);
   const [liveShareOn, setLiveShareOn] = useState(false);
   const [livePeers, setLivePeers] = useState<any[]>([]);
 
@@ -563,6 +564,27 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     return { x: r.left, y: r.top, width: r.width, height: r.height };
   }, []);
 
+  
+  const clearLayoutPulses = useCallback(() => {
+    for (const t of layoutPulseTimersRef.current) window.clearTimeout(t);
+    layoutPulseTimersRef.current = [];
+  }, []);
+
+  const publishTerminalVisible = useCallback((visible: boolean) => {
+    if (!visible) {
+      IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
+      return;
+    }
+    // Never force-show while Remote tab is inactive or not on Terminal — stale open pulses
+    // were un-hiding HWND over Visual Filters (needed a second plugin click to stick).
+    if (isPluginTabActive === false) return;
+    // tab checked by callers that know terminal mode
+    const el = document.querySelector('.bndz-native-term-hole') as HTMLElement | null;
+    const r = el?.getBoundingClientRect();
+    if (!r || r.width < 24 || r.height < 24) return;
+    IPC.nativeTerminalLayout({ x: r.left, y: r.top, width: r.width, height: r.height, visible: true });
+  }, [isPluginTabActive]);
+
   const closeTerminalSession = useCallback(() => {
     autoLocalOpenedRef.current = true; // do not auto-reopen after explicit Close
     setNewMenuOpen(false);
@@ -663,13 +685,17 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
         setStatus('');
         // Push layout again after label/chrome settle so TermControl restarts at final size.
         // Keep feeding real hole geometry until TermControl can mount at size (G1).
+        clearLayoutPulses();
         for (const ms of [50, 200, 500, 1000]) {
-          window.setTimeout(() => {
+          const t = window.setTimeout(() => {
+            // Drop pulse if user left Remote / Terminal before it fired.
+            if (isPluginTabActive === false) return;
             const r = measureHole();
             if (r.width >= 48 && r.height >= 48) {
               IPC.nativeTerminalLayout({ ...r, visible: true });
             }
           }, ms);
+          layoutPulseTimersRef.current.push(t);
         }
         return;
       }
@@ -712,7 +738,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     } catch (e: any) {
       setStatus(e?.message || 'Terminal failed to open');
     } finally { setBusy(false); }
-  }, [currentPath, hosts, measureHole, nativeTerm, pluginLaunch?.cwd, pluginLaunch?.currentPath, sessionId, config]);
+  }, [currentPath, hosts, measureHole, nativeTerm, pluginLaunch?.cwd, pluginLaunch?.currentPath, sessionId, config, clearLayoutPulses, isPluginTabActive]);
 
   const pluginActive = isPluginTabActive !== false;
 
@@ -801,6 +827,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   useEffect(() => {
     if (!nativeTerm) return;
     if (!pluginActive || tab !== 'terminal') {
+      clearLayoutPulses();
       IPC.nativeTerminalLayout({ x: 0, y: 0, width: 0, height: 0, visible: false });
       return;
     }
@@ -808,7 +835,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
     const publish = () => {
       const r = measureHole();
       if (r.width >= 24 && r.height >= 24) {
-        IPC.nativeTerminalLayout({ ...r, visible: true });
+        IPC.nativeTerminalLayout({ ...r, visible: true, unpark: true });
       }
     };
     publish();
@@ -818,7 +845,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [pluginActive, tab, nativeTerm, sessionId, measureHole]);
+  }, [pluginActive, tab, nativeTerm, sessionId, measureHole, clearLayoutPulses]);
 
   const addRule = () => {
     const hostId = selectedHostId || hosts[0]?.id || '';

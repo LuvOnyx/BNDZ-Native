@@ -43,6 +43,10 @@ public sealed partial class NativeTerminalHost : UserControl
 	private bool _parkedInactive;
 		/// <summary>Environment.TickCount64 deadline; ignore LAYOUT hide so Open mount isn't parked by hole blips.</summary>
 		private long _ignoreHideUntilTick;
+		/// <summary>After keepAlive soft-hide, ignore visible:true briefly so stale FE layout pulses do not un-hide HWND over the next plugin.</summary>
+		private long _ignoreShowUntilTick;
+		/// <summary>KeepAlive soft-hide sticky: ignore visible:true until intentional unpark (Remote+Terminal).</summary>
+		private bool _softParked;
 	public event EventHandler<bool>? TermMountFinished;
 
 	public event EventHandler<string>? SessionClosed;
@@ -57,7 +61,7 @@ public sealed partial class NativeTerminalHost : UserControl
 	public bool HasSession => !string.IsNullOrEmpty(_sessionId);
 
 	/// <summary>Position over the React terminal hole (CSS/DIP coords from WebView).</summary>
-	public void ApplyBounds(double x, double y, double width, double height, bool visible)
+	public void ApplyBounds(double x, double y, double width, double height, bool visible, bool unpark = false)
 	{
 				if (!visible || width < 24 || height < 24)
 		{
@@ -90,7 +94,18 @@ public sealed partial class NativeTerminalHost : UserControl
 			return;
 		}
 
+		// Sticky soft-park: after plugin leave, ignore visible:true unless FE sends unpark
+		// (Remote+Terminal intentional). Stale hole/open pulses were un-hiding HWND over the next plugin.
+		if (_softParked && !unpark)
+		{
+			TermLog($"ApplyBounds show ignored (softParked sticky) size={width:F0}x{height:F0}");
+			return;
+		}
+		if (unpark)
+			_softParked = false;
+
 		_parkedInactive = false;
+		_ignoreShowUntilTick = 0;
 		Margin = new Thickness(Math.Max(0, x), Math.Max(0, y), 0, 0);
 		Width = width;
 		Height = height;
@@ -99,14 +114,13 @@ public sealed partial class NativeTerminalHost : UserControl
 		Visibility = Visibility.Visible;
 		IsHitTestVisible = true;
 
-		// Keep-alive park left TermControl alive (SW_HIDE). Just show it — do not recreate.
 		if (_term is not null)
 		{
 			TryShowTermHwnds(_term);
+			TermLog($"ApplyBounds unpark show size={width:F0}x{height:F0}");
 			return;
 		}
 
-		// Create / warm-remount only with a real hole size. Armed session + no term => ensure.
 		if (!string.IsNullOrEmpty(_sessionId) && Width >= 48 && Height >= 48)
 			EnsureTermAtSize();
 	}
@@ -150,7 +164,9 @@ public sealed partial class NativeTerminalHost : UserControl
 			if (keepAlive)
 			{
 				TryHideTermHwnds(_term, reparentToMessage: false);
-				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason}");
+				_softParked = true;
+				_ignoreShowUntilTick = Environment.TickCount64 + 750;
+				TermLog($"ParkTermHwnd soft-hide keepAlive reason={reason} ignoreShow=750ms");
 				return;
 			}
 
@@ -223,6 +239,7 @@ public sealed partial class NativeTerminalHost : UserControl
 		_awaitingSizedStart = true;
 		// Arm remount for the new session (no SoftCollapse from Open).
 		_parkedInactive = false;
+		_softParked = false;
 		_ignoreHideUntilTick = Environment.TickCount64 + 3000;
 
 		TermLog($"Open sid={_sessionId} label={_label} cwd={_pendingCwd ?? ""} cmd={_pendingCmd ?? "(default shell)"}");

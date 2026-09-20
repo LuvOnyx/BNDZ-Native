@@ -775,8 +775,9 @@ public sealed partial class MainWindow : Window
             var w = payload.TryGetProperty("width", out var wEl) && wEl.TryGetDouble(out var wd) ? wd : 0;
             var h = payload.TryGetProperty("height", out var hEl) && hEl.TryGetDouble(out var hd) ? hd : 0;
             var visible = !payload.TryGetProperty("visible", out var vEl) || vEl.ValueKind != JsonValueKind.False;
+            var unpark = payload.TryGetProperty("unpark", out var uEl) && uEl.ValueKind == JsonValueKind.True;
             if (NativeTerminal.HasSession || visible)
-                NativeTerminal.ApplyBounds(x, y, w, h, visible && NativeTerminal.HasSession);
+                NativeTerminal.ApplyBounds(x, y, w, h, visible && NativeTerminal.HasSession, unpark);
             else
                 NativeTerminal.ApplyBounds(0, 0, 0, 0, visible: false);
             return;
@@ -817,7 +818,7 @@ public sealed partial class MainWindow : Window
                 NativeTerminal.ApplyThemePrefs(fontFamily, fontSize, foreground, background, cursor);
                 NativeTerminal.Open(sessionId!, cmd, cwd, label ?? "Local");
                 if (w >= 24 && h >= 24)
-                    NativeTerminal.ApplyBounds(x, y, w, h, visible: true);
+                    NativeTerminal.ApplyBounds(x, y, w, h, visible: true, unpark: true);
 
                 // Mount on UI thread BEFORE success — otherwise React shows a live session over a navy void.
                 var reqId = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
