@@ -86,14 +86,6 @@ public sealed class BndzNamespaceService
             },
             new()
             {
-                Id = "ram",
-                Label = "RAM Staging",
-                PanePath = "/bndz/ram",
-                ProtocolUrl = "bndz://ram",
-                Description = "RAM staging zones",
-            },
-            new()
-            {
                 Id = "magnets",
                 Label = "Magnets",
                 PanePath = "/bndz/inbound",
