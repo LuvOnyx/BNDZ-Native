@@ -95,7 +95,7 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .bndz-storage-fill-healthy {
-  background: #0078d4;
+  background: linear-gradient(90deg, #16a34a 0%, #34d399 100%);
   box-shadow: none;
 }
 
@@ -4754,12 +4754,13 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 }
 .bndz-props-ring-fill {
   fill: none;
-  stroke: #38bdf8;
+  stroke: #34d399;
   stroke-width: 8;
   stroke-linecap: butt;
   transition: stroke-dasharray 0.28s ease, stroke 0.2s ease;
 }
-.bndz-props-ring.is-ok .bndz-props-ring-fill { stroke: #38bdf8; }
+.bndz-props-ring.is-ok .bndz-props-ring-fill,
+.bndz-props-ring.is-healthy .bndz-props-ring-fill { stroke: #34d399; }
 .bndz-props-ring.is-warn .bndz-props-ring-fill { stroke: #f59e0b; }
 .bndz-props-ring.is-critical .bndz-props-ring-fill { stroke: #ef4444; }
 .bndz-props-ring-label {

@@ -589,7 +589,7 @@ export default function PropertiesPlugin({
                                             const r = 36;
                                             const c = 2 * Math.PI * r;
                                             const dash = sizeUnavailable ? 0 : (ringPct / 100) * c;
-                                            const fillTone = ringPct >= 95 ? 'is-critical' : ringPct >= 85 ? 'is-warn' : 'is-ok';
+                                            const fillTone = ringPct >= 95 ? 'is-critical' : ringPct >= 85 ? 'is-warn' : 'is-healthy';
                                             return (
                                                 <div className="bndz-props-disk-row">
                                                     <div className={`bndz-props-ring ${fillTone}`} aria-label={`${pctLabel} used`}>
