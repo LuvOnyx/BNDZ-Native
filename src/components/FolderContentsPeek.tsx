@@ -26,7 +26,7 @@ export default function FolderContentsPeek({ peek, onClose, onOpen }: Props) {
     <ClampedFixedMenu
       x={peek.x}
       y={peek.y}
-      className="z-[99980] min-w-[220px] max-w-[320px] max-h-[280px] overflow-hidden rounded-xl border border-white/12 bg-[#161a22]/96 shadow-[0_18px_48px_rgba(0,0,0,0.55)] backdrop-blur-md"
+      className="z-[99980] min-w-[220px] max-w-[320px] max-h-[280px] overflow-hidden rounded-xl border border-white/12 bg-[#161a22]/96 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2">

@@ -167,7 +167,7 @@ export function BreadcrumbTrail({
           </button>
           {menuOpen && (!IPC.isNative || isNativeShellHostBoot()) && (
             <div
-              className="absolute top-full left-8 z-[80] mt-1 min-w-[180px] max-w-[320px] py-1 rounded-[10px] border border-[#454545] bg-[#1e1e22]/98 shadow-xl backdrop-blur-sm"
+              className="absolute top-full left-8 z-[80] mt-1 min-w-[180px] max-w-[320px] py-1 rounded-[10px] border border-[#454545] bg-[#1e1e22] shadow-xl"
               onMouseLeave={() => setMenuOpen(false)}
             >
               {mid.map(seg => (
