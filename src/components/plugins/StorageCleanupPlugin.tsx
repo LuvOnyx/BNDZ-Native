@@ -406,8 +406,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                   <PluginFieldLabel>Keep rule</PluginFieldLabel>
                   <select value={dupKeepRule} onChange={e => setDupKeepRule(e.target.value as DupKeepRule)} className={PLUGIN_SELECT_CLASS}>
                     <option value="first">First in list</option>
-                    <option value="newest">Newest path (Z->A)</option>
-                    <option value="oldest">Oldest path (A->Z)</option>
+                    <option value="newest">Newest path (Z to A)</option>
+                    <option value="oldest">Oldest path (A to Z)</option>
                     <option value="shortest">Shortest path</option>
                   </select>
                 </div>
