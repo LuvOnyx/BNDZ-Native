@@ -47,9 +47,10 @@ function launchTabIsRefs(launch: any) {
 type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize' | 'capacity' | 'health';
 
 export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap, pluginLaunch }: any) {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [activeTab, setActiveTab] = useState<TabId>('advanced');
+  const [dupError, setDupError] = useState<string | null>(null);
   const [wizardMode, setWizardMode] = useState<StorageWizardMode | null>(null);
-  const [advancedWizardOpen, setAdvancedWizardOpen] = useState(false);
+  const [advancedWizardOpen, setAdvancedWizardOpen] = useState(true);
   const [wizardFolderPath, setWizardFolderPath] = useState<string | undefined>(undefined);
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<Date | null>(null);
@@ -57,7 +58,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   const [dupGroups, setDupGroups] = useState<DupGroup[]>([]);
   const [dupRecursive, setDupRecursive] = useState(true);
   const [dupMinKb, setDupMinKb] = useState(4);
-  const [dupProgress, setDupProgress] = useState<{ percent: number; currentPath: string; filesScanned: number; totalFiles: number } | null>(null);
+  const [dupProgress, setDupProgress] = useState<{ percent: number; currentPath: string; filesScanned: number; totalFiles: number; phase?: string } | null>(null);
   const [expandedDup, setExpandedDup] = useState<string | null>(null);
   const [deletingDupes, setDeletingDupes] = useState<string | null>(null);
   const [dupKeepRule, setDupKeepRule] = useState<DupKeepRule>('first');
@@ -98,6 +99,14 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     if (launchTab === 'capacity' || launchTab === 'whatif' || launchTab === 'budget') {
       setActiveTab('capacity');
     }
+    if (launchTab === 'duplicates' || launchTab === 'dupes') {
+      setActiveTab('duplicates');
+    }
+    if (launchTab === 'advanced' || launchTab === 'deep' || launchTab === 'cleanup') {
+      setActiveTab('advanced');
+      setAdvancedWizardOpen(true);
+    }
+    // Default tab is already Deep Clean (useState); wizard opens by default too.
   }, [pluginLaunch?.wizardMode, pluginLaunch?.currentPath, pluginLaunch?.tab]);
 
   const items = pathContentsCache?.[currentPath] || [];
@@ -161,14 +170,34 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   const runDuplicateScan = async () => {
     if (!currentPath || currentPath === '/' || currentPath === '/this-pc') return;
+    const root = toWindowsPath(currentPath);
+    // Full volume roots (C:\) are honest-but-huge - warn and keep Cancel visible.
+        const looksDriveRoot = /^[A-Za-z]:\\?$/.test(root) || /^\/[A-Za-z]:?$/.test(currentPath || '');
+    setDupError(null);
     setDupScanning(true);
     setDupGroups([]);
-    setDupProgress({ percent: 0, currentPath: '', filesScanned: 0, totalFiles: 0 });
+    setDupProgress({ percent: 0, currentPath: root, filesScanned: 0, totalFiles: 0 });
     try {
       const { IPC } = await import('../../lib/ipcBridge');
-      const root = toWindowsPath(currentPath);
+      if (looksDriveRoot && dupRecursive) {
+        setDupError('Scanning an entire drive can take a long time. Progress stays live - use Cancel anytime, or pick a smaller folder.');
+      }
       const result = await IPC.scanDuplicates(root, dupRecursive, dupMinKb * 1024);
+      if (result.error) {
+        setDupError(result.error);
+        setDupGroups([]);
+        return;
+      }
+      if (result.cancelled) {
+        setDupError('Scan cancelled.');
+        setDupGroups([]);
+        return;
+      }
       setDupGroups(result.groups || []);
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      setDupError(msg);
+      setDupGroups([]);
     } finally {
       setDupScanning(false);
       setDupProgress(null);
@@ -177,6 +206,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   const cancelDuplicateScan = () => {
     import('../../lib/ipcBridge').then(({ IPC }) => IPC.cancelDuplicateScan());
+    setDupError('Cancelling scan...');
     setDupScanning(false);
     setDupProgress(null);
   };
@@ -197,11 +227,11 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   };
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: 'overview', label: 'Cleaner', icon: 'storage_cleanup' },
-    { id: 'capacity', label: 'Capacity', icon: 'hard_drive_ui' },
     { id: 'advanced', label: 'Deep Clean', icon: 'zap_ui' },
-    { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
     { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
+    { id: 'overview', label: 'Quick', icon: 'storage_cleanup' },
+    { id: 'capacity', label: 'Capacity', icon: 'hard_drive_ui' },
+    { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
     { id: 'organize', label: 'Organize', icon: 'folder_plus_ui' },
     { id: 'health', label: 'Health', icon: 'heart_monitor_ui' },
   ];
@@ -218,7 +248,14 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
-            <PluginTab key={t.id} active={activeTab === t.id} onClick={() => setActiveTab(t.id)}>
+            <PluginTab
+              key={t.id}
+              active={activeTab === t.id}
+              onClick={() => {
+                setActiveTab(t.id);
+                if (t.id === 'advanced') setAdvancedWizardOpen(true);
+              }}
+            >
               <span className="inline-flex items-center gap-1"><Icons8Icon id={t.icon} size={11} />{t.label}</span>
             </PluginTab>
           ))}
@@ -369,8 +406,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                   <PluginFieldLabel>Keep rule</PluginFieldLabel>
                   <select value={dupKeepRule} onChange={e => setDupKeepRule(e.target.value as DupKeepRule)} className={PLUGIN_SELECT_CLASS}>
                     <option value="first">First in list</option>
-                    <option value="newest">Newest path (Z→A)</option>
-                    <option value="oldest">Oldest path (A→Z)</option>
+                    <option value="newest">Newest path (Z->A)</option>
+                    <option value="oldest">Oldest path (A->Z)</option>
                     <option value="shortest">Shortest path</option>
                   </select>
                 </div>
@@ -390,14 +427,26 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                 </div>
               </PluginCard>
 
+              {dupError && (
+                <PluginCard className="border-amber-500/30 bg-amber-950/20">
+                  <div className="text-xs text-amber-200 leading-relaxed">{dupError}</div>
+                </PluginCard>
+              )}
+
               {dupProgress && (
                 <PluginCard>
                   <div className="flex justify-between text-xs mb-2">
-                    <span className="text-violet-300 font-medium">{dupProgress.percent}% -- hashing files</span>
-                    <span className="bndz-panel-muted bndz-mono">{dupProgress.filesScanned}/{dupProgress.totalFiles}</span>
+                    <span className="text-violet-300 font-medium">
+                      {(dupProgress as any).phase || (dupProgress.percent > 0 ? 'Hashing' : 'Enumerating')}
+                      {dupProgress.percent > 0 ? ` - ${dupProgress.percent}%` : ''}
+                    </span>
+                    <span className="bndz-panel-muted bndz-mono">{dupProgress.filesScanned}{dupProgress.totalFiles ? `/${dupProgress.totalFiles}` : ''}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-black/30 overflow-hidden mb-2">
-                    <div className="h-full bg-violet-500 rounded-full transition-all duration-200" style={{ width: `${dupProgress.percent}%` }} />
+                    <div
+                      className="h-full bg-violet-500 rounded-full transition-all duration-200"
+                      style={{ width: `${Math.max(dupProgress.percent, dupProgress.filesScanned > 0 ? 2 : 0)}%` }}
+                    />
                   </div>
                   <div className="text-xs bndz-panel-muted bndz-mono truncate">{dupProgress.currentPath}</div>
                 </PluginCard>

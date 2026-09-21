@@ -4741,6 +4741,42 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   align-items: center;
   gap: 16px;
 }
+.bndz-props-disk-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bndz-props-disk-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.22);
+}
+.bndz-props-disk-meter-head,
+.bndz-props-disk-meter-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 11px;
+  color: rgba(226,232,240,.78);
+}
+.bndz-props-disk-meter-free {
+  font-weight: 650;
+  color: #34d399;
+  font-variant-numeric: tabular-nums;
+}
+.bndz-props-disk-meter-used {
+  font-variant-numeric: tabular-nums;
+  color: rgba(186,230,253,.9);
+}
+.bndz-props-disk-meter-foot {
+  color: rgba(148,163,184,.85);
+  font-size: 10px;
+}
 .bndz-props-ring {
   position: relative;
   width: 80px;

@@ -1777,6 +1777,39 @@ namespace BNDZ.Services
         }
 
         /// <summary>
+        /// Backend-host named-pipe wait budget. Default 60s matches snappy RPC;
+        /// duplicate / cleanup / folder-size scans need many minutes on large trees.
+        /// </summary>
+        private static int ResolveBackendHostWaitTimeoutSec(string? type)
+        {
+            if (string.IsNullOrEmpty(type)) return 60;
+            if (type.Equals("GET_MEDIA_BLOB", StringComparison.OrdinalIgnoreCase)) return 120;
+            if (type.Equals("SCAN_DUPLICATES", StringComparison.OrdinalIgnoreCase)) return 1800; // 30 min
+            if (type.Equals("STORAGE_CLEANUP_SCAN", StringComparison.OrdinalIgnoreCase)) return 900;
+            if (type.Equals("STORAGE_CLEANUP_EXECUTE", StringComparison.OrdinalIgnoreCase)) return 900;
+            if (type.Equals("SCAN_FOLDER_SIZES", StringComparison.OrdinalIgnoreCase)) return 600;
+            if (type.Equals("CAPACITY_WHAT_IF", StringComparison.OrdinalIgnoreCase)) return 300;
+            if (type.Equals("CAPACITY_APPROVE", StringComparison.OrdinalIgnoreCase)) return 300;
+            if (type.Equals("GET_DIR_CONTENTS", StringComparison.OrdinalIgnoreCase)) return 90;
+            return 60;
+        }
+
+        private void CancelBackendHostTimedOutWork(string? type)
+        {
+            if (string.IsNullOrEmpty(type)) return;
+            try
+            {
+                if (type.Equals("SCAN_DUPLICATES", StringComparison.OrdinalIgnoreCase))
+                    _duplicateFinderService.CancelScan();
+                else if (type.Equals("STORAGE_CLEANUP_SCAN", StringComparison.OrdinalIgnoreCase))
+                    _storageCleanupScanService.CancelScan();
+                else if (type.Equals("SCAN_FOLDER_SIZES", StringComparison.OrdinalIgnoreCase))
+                    _folderSizeService.CancelScan();
+            }
+            catch { /* best-effort cancel */ }
+        }
+
+        /// <summary>
         /// Fire-and-forget FE posts â€” must ACK immediately so CraftPaneHost does not wait 60s.
         /// </summary>
         private static bool IsNotifyOnlyIpcType(string? type)
@@ -2004,15 +2037,21 @@ namespace BNDZ.Services
                 // (that was serializing cold-load GET_DIR_CONTENTS / settings / icons).
                 _ = ProcessIncomingIpcMessageAsync(messageStr);
 
-                // Media blobs / dir listings can exceed default; GET_MEDIA_BLOB uses up to 48MB base64.
-                var timeoutSec = string.Equals(type, "GET_MEDIA_BLOB", StringComparison.OrdinalIgnoreCase) ? 120 : 60;
+                // Long scans (duplicates / cleanup / folder sizes) routinely exceed the old
+                // hard 60s pipe wait - FE already allows 10-15 min; host must match or the
+                // orange "Host IPC timeout waiting for response to SCAN_DUPLICATES" fires
+                // while the worker is still hashing.
+                var timeoutSec = ResolveBackendHostWaitTimeoutSec(type);
                 var finished = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(timeoutSec))).ConfigureAwait(false);
                 _backendHostReplies.TryRemove(id!, out _);
                 if (finished == tcs.Task)
                     return await tcs.Task.ConfigureAwait(false);
 
-                // Map host timeout into the FE-expected RESULT type for dir listing so React
-                // resolves instead of hanging until its own 60s IPC timeout.
+                // Cancel long-running workers so a timed-out pipe does not leave a ghost scan.
+                CancelBackendHostTimedOutWork(type);
+
+                // Map host timeout into the FE-expected RESULT type so React resolves with a
+                // typed error instead of a generic ERROR toast when possible.
                 if (string.Equals(type, "GET_DIR_CONTENTS", StringComparison.OrdinalIgnoreCase))
                 {
                     return JsonSerializer.Serialize(new
@@ -2024,6 +2063,48 @@ namespace BNDZ.Services
                             error = $"Host IPC timeout waiting for DIR_CONTENTS_RESULT ({timeoutSec}s)",
                             path = (string?)null,
                             items = Array.Empty<object>(),
+                        },
+                    }, opts);
+                }
+                if (string.Equals(type, "SCAN_DUPLICATES", StringComparison.OrdinalIgnoreCase))
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        type = "DUPLICATE_SCAN_RESULT",
+                        id,
+                        payload = new
+                        {
+                            error = $"Duplicate scan timed out after {timeoutSec}s. Narrow the folder, raise the min size, or cancel sooner - full drive trees can take a long time.",
+                            groups = Array.Empty<object>(),
+                            cancelled = true,
+                        },
+                    }, opts);
+                }
+                if (string.Equals(type, "STORAGE_CLEANUP_SCAN", StringComparison.OrdinalIgnoreCase))
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        type = "STORAGE_CLEANUP_SCAN_RESULT",
+                        id,
+                        payload = new
+                        {
+                            error = $"Storage cleanup scan timed out after {timeoutSec}s.",
+                            categories = Array.Empty<object>(),
+                            cancelled = true,
+                        },
+                    }, opts);
+                }
+                if (string.Equals(type, "SCAN_FOLDER_SIZES", StringComparison.OrdinalIgnoreCase))
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        type = "FOLDER_SIZE_RESULT",
+                        id,
+                        payload = new
+                        {
+                            error = $"Folder size scan timed out after {timeoutSec}s.",
+                            sizes = new Dictionary<string, long>(),
+                            cancelled = true,
                         },
                     }, opts);
                 }
@@ -8867,6 +8948,7 @@ namespace BNDZ.Services
                                         totalFiles = p.TotalFiles,
                                         currentPath = p.CurrentPath,
                                         percent = p.Percent,
+                                        phase = p.Phase,
                                     },
                                 };
                                 var progressJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

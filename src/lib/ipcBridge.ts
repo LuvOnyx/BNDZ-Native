@@ -1469,7 +1469,7 @@ export const IPC = {
   ): Promise<{ groups: Array<{ hash: string; size: number; paths: string[] }>; cancelled?: boolean; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_dupes`;
-      return _nativeCall<any>('SCAN_DUPLICATES', 'DUPLICATE_SCAN_RESULT', id, { rootPath, recursive, minSizeBytes }, 600000).then(r => ({
+      return _nativeCall<any>('SCAN_DUPLICATES', 'DUPLICATE_SCAN_RESULT', id, { rootPath, recursive, minSizeBytes }, 1_800_000).then(r => ({
         groups: r?.groups ?? r?.Groups ?? [],
         cancelled: r?.cancelled ?? r?.Cancelled,
         error: r?.error,

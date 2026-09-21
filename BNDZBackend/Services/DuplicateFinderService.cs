@@ -16,6 +16,8 @@ public sealed class DuplicateScanProgress
     public int TotalFiles { get; set; }
     public string CurrentPath { get; set; } = "";
     public int Percent { get; set; }
+    /// <summary>Enumerating | Hashing | Matching</summary>
+    public string Phase { get; set; } = "";
 }
 
 public sealed class DuplicateGroup
@@ -58,43 +60,24 @@ public sealed class DuplicateFinderService
         if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
             return result;
 
-        var files = EnumerateFiles(root, recursive);
-        int total = files.Count;
+        // Stream enumeration with cancel + progress. The old Directory.GetFiles recurse
+        // built a full List before any progress - on C:\ that alone blew the 60s host wait.
         var bySize = new Dictionary<long, List<string>>();
-
-        int scanned = 0;
-        foreach (var file in files)
+        int enumerated = 0;
+        await Task.Run(() =>
         {
-            ct.ThrowIfCancellationRequested();
-            scanned++;
-            try
-            {
-                var fi = new FileInfo(file);
-                if (!fi.Exists || fi.Length < minSizeBytes) continue;
-                if (!bySize.TryGetValue(fi.Length, out var list))
-                {
-                    list = new List<string>();
-                    bySize[fi.Length] = list;
-                }
-                list.Add(file);
-            }
-            catch { /* skip inaccessible */ }
+            EnumerateCandidateFiles(root, recursive, minSizeBytes, bySize, ref enumerated, onProgress, ct);
+        }, ct).ConfigureAwait(false);
 
-            if (scanned % 25 == 0 || scanned == total)
-            {
-                onProgress?.Invoke(new DuplicateScanProgress
-                {
-                    FilesScanned = scanned,
-                    TotalFiles = total,
-                    CurrentPath = file,
-                    Percent = total > 0 ? (int)Math.Round(scanned * 100.0 / total) : 0,
-                });
-            }
-        }
+        ct.ThrowIfCancellationRequested();
 
-        // Size → XxHash64 (fast) → SHA-256 (authoritative) for true duplicates.
+        var candidates = bySize.Where(x => x.Value.Count > 1).ToList();
+        int hashTotal = candidates.Sum(c => c.Value.Count);
+        int hashed = 0;
+
+        // Size -> XxHash64 (fast) -> SHA-256 (authoritative) for true duplicates.
         var hashGroups = new Dictionary<string, DuplicateGroup>(StringComparer.OrdinalIgnoreCase);
-        foreach (var kv in bySize.Where(x => x.Value.Count > 1))
+        foreach (var kv in candidates)
         {
             ct.ThrowIfCancellationRequested();
             var byXx = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -112,6 +95,19 @@ public sealed class DuplicateFinderService
                     list.Add(path);
                 }
                 catch { /* skip */ }
+
+                hashed++;
+                if (hashed % 8 == 0 || hashed == hashTotal)
+                {
+                    onProgress?.Invoke(new DuplicateScanProgress
+                    {
+                        FilesScanned = hashed,
+                        TotalFiles = hashTotal,
+                        CurrentPath = path,
+                        Percent = hashTotal > 0 ? (int)Math.Round(hashed * 100.0 / hashTotal) : 0,
+                        Phase = "Hashing",
+                    });
+                }
             }
 
             foreach (var xxGroup in byXx.Values.Where(g => g.Count > 1))
@@ -142,26 +138,90 @@ public sealed class DuplicateFinderService
             .OrderByDescending(g => g.Size * g.Paths.Count)
             .ToList();
 
+        onProgress?.Invoke(new DuplicateScanProgress
+        {
+            FilesScanned = hashTotal,
+            TotalFiles = hashTotal,
+            CurrentPath = "",
+            Percent = 100,
+            Phase = "Matching",
+        });
+
         return result;
     }
 
-    private static List<string> EnumerateFiles(string root, bool recursive)
+    /// <summary>
+    /// Iterative stack walk - cancel-friendly, reports progress while walking large trees.
+    /// Only keeps paths that meet <paramref name="minSizeBytes"/> (size-bucket prefilter).
+    /// </summary>
+    private static void EnumerateCandidateFiles(
+        string root,
+        bool recursive,
+        long minSizeBytes,
+        Dictionary<long, List<string>> bySize,
+        ref int enumerated,
+        Action<DuplicateScanProgress>? onProgress,
+        CancellationToken ct)
     {
-        var files = new List<string>();
-        try
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
         {
-            files.AddRange(Directory.GetFiles(root));
-            if (recursive)
+            ct.ThrowIfCancellationRequested();
+            var dir = stack.Pop();
+            try
             {
-                foreach (var dir in Directory.GetDirectories(root))
+                foreach (var file in Directory.EnumerateFiles(dir))
                 {
-                    try { files.AddRange(EnumerateFiles(dir, true)); }
+                    ct.ThrowIfCancellationRequested();
+                    enumerated++;
+                    try
+                    {
+                        var fi = new FileInfo(file);
+                        if (!fi.Exists || fi.Length < minSizeBytes) continue;
+                        if (!bySize.TryGetValue(fi.Length, out var list))
+                        {
+                            list = new List<string>();
+                            bySize[fi.Length] = list;
+                        }
+                        list.Add(file);
+                    }
+                    catch { /* skip inaccessible */ }
+
+                    if (enumerated % 64 == 0)
+                    {
+                        // Percent stays low during enum (unknown total); FE shows path + count.
+                        onProgress?.Invoke(new DuplicateScanProgress
+                        {
+                            FilesScanned = enumerated,
+                            TotalFiles = Math.Max(enumerated, bySize.Values.Sum(v => v.Count)),
+                            CurrentPath = file,
+                            Percent = 0,
+                            Phase = "Enumerating",
+                        });
+                    }
+                }
+
+                if (!recursive) continue;
+                foreach (var sub in Directory.EnumerateDirectories(dir))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try { stack.Push(sub); }
                     catch { /* skip */ }
                 }
             }
+            catch (OperationCanceledException) { throw; }
+            catch { /* skip inaccessible dirs */ }
         }
-        catch { }
-        return files;
+
+        onProgress?.Invoke(new DuplicateScanProgress
+        {
+            FilesScanned = enumerated,
+            TotalFiles = enumerated,
+            CurrentPath = root,
+            Percent = 5,
+            Phase = "Enumerating",
+        });
     }
 
     private static async Task<string> ComputeXxHash64Async(string path, CancellationToken ct)

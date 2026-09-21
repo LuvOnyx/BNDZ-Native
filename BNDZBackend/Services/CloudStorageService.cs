@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -11,6 +12,34 @@ namespace BNDZ.Services;
 
 public class CloudStorageService
 {
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool GetDiskFreeSpaceEx(
+        string lpDirectoryName,
+        out ulong lpFreeBytesAvailable,
+        out ulong lpTotalNumberOfBytes,
+        out ulong lpTotalNumberOfFreeBytes);
+
+    /// <summary>
+    /// Prefer Win32 GetDiskFreeSpaceEx (user-available free) over DriveInfo.TotalFreeSpace,
+    /// which can disagree with Explorer and confuse capacity meters.
+    /// </summary>
+    private static bool TryGetDiskSpaceEx(string rootPath, out long total, out long freeAvailable)
+    {
+        total = 0;
+        freeAvailable = 0;
+        try
+        {
+            if (!GetDiskFreeSpaceEx(rootPath, out var avail, out var totalBytes, out _))
+                return false;
+            if (totalBytes == 0) return false;
+            total = unchecked((long)totalBytes);
+            freeAvailable = unchecked((long)avail);
+            return total > 0;
+        }
+        catch { return false; }
+    }
+
+
     private static readonly (string Id, string DisplayName, string Icon)[] KnownProviders =
     {
         ("onedrive", "OneDrive", "onedrive"),
@@ -27,7 +56,7 @@ public class CloudStorageService
 
     /// <summary>
     /// DriveInfo.IsReady / VolumeLabel can hang for tens of seconds on flaky network,
-    /// Google Drive File Stream, or optical volumes — never call them on the UI/IPC thread
+    /// Google Drive File Stream, or optical volumes - never call them on the UI/IPC thread
     /// without a timeout.
     /// </summary>
     private static bool TryDriveReady(DriveInfo d, int timeoutMs = 750)
@@ -52,15 +81,33 @@ public class CloudStorageService
         format = "";
         try
         {
+            var root = d.Name; // e.g. "C:\"
             var task = Task.Run<(bool Ok, string Label, long Total, long Free, string Format)>(() =>
             {
                 try
                 {
+                    // Prefer Win32 free-bytes-available (matches Explorer "free" for the user).
+                    long winTotal = 0, winFree = 0;
+                    var winOk = TryGetDiskSpaceEx(root, out winTotal, out winFree);
+                    long diTotal = 0, diFree = 0;
+                    try
+                    {
+                        diTotal = d.TotalSize;
+                        // AvailableFreeSpace = bytes the calling account can use (quota-aware).
+                        diFree = d.AvailableFreeSpace;
+                    }
+                    catch { /* DriveInfo can throw on flaky volumes */ }
+
+                    var totalBytes = winOk && winTotal > 0 ? winTotal : diTotal;
+                    var freeBytes = winOk && winFree >= 0 ? winFree : diFree;
+                    if (totalBytes <= 0 && freeBytes <= 0)
+                        return (Ok: false, Label: "", Total: 0L, Free: 0L, Format: "");
+
                     return (
                         Ok: true,
                         Label: d.VolumeLabel ?? "",
-                        Total: d.TotalSize,
-                        Free: d.TotalFreeSpace,
+                        Total: totalBytes,
+                        Free: freeBytes,
                         Format: d.DriveFormat ?? ""
                     );
                 }
@@ -176,8 +223,8 @@ public class CloudStorageService
         return providers;
     }
 
-    // TTL cache — serialises concurrent DriveInfo probes so multiple rapid callers
-    // (BNDZ_UI_READY → PushDrivesUpdate, GET_DRIVES, CONTINUUM_FINGERPRINT_REQUEST)
+    // TTL cache - serialises concurrent DriveInfo probes so multiple rapid callers
+    // (BNDZ_UI_READY -> PushDrivesUpdate, GET_DRIVES, CONTINUUM_FINGERPRINT_REQUEST)
     // share one in-flight enumeration instead of each running their own probes.
     private static readonly SemaphoreSlim _drivesWorkSemaphore = new(1, 1);
     private static volatile List<object>? _annotatedDrivesCache;
@@ -185,7 +232,7 @@ public class CloudStorageService
 
     /// <summary>
     /// Drive list with cloud ownership flags so the UI can keep local Drives vs Cloud Drives correct.
-    /// Never drops a ready volume solely because VolumeLabel/size timed out — that left This PC empty.
+    /// Never drops a ready volume solely because VolumeLabel/size timed out - that left This PC empty.
     /// Callers are always inside Task.Run; blocking on the semaphore is intentional and safe.
     /// </summary>
     public List<object> GetAnnotatedDrives(bool force = false)
@@ -245,7 +292,7 @@ public class CloudStorageService
             .Where(d => d.DriveType is not (DriveType.Unknown or DriveType.NoRootDirectory or DriveType.Network))
             .ToArray();
 
-        // Parallel per-drive probes — sequential 400ms timeouts made every letter look like 0 B free.
+        // Parallel per-drive probes - sequential 400ms timeouts made every letter look like 0 B free.
         var bag = new System.Collections.Concurrent.ConcurrentBag<(int Ordinal, object Row, bool Unavailable)>();
         Parallel.For(0, candidates.Length, i =>
         {

@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { StorageUsageBar } from '../StorageUsageBar';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -198,7 +199,7 @@ export default function PropertiesPlugin({
         return () => { active = false; };
     }, [targetPath, isMulti, isDriveEntity]);
 
-    // Settings → Show folder size on Properties tab
+    // Settings -> Show folder size on Properties tab
     useEffect(() => {
         if (!config?.showFolderSizeOnPropertiesTab || !isDir || !targetPath || isMulti || isDriveEntity) {
             setFolderByteSize(null);
@@ -575,30 +576,41 @@ export default function PropertiesPlugin({
                                             const total = Number(driveInfo.totalSpace) || 0;
                                             const free = Number(driveInfo.freeSpace) || 0;
                                             const used = Math.max(0, total - free);
-                                            const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
-                                            const r = 34;
-                                            const c = 2 * Math.PI * r;
-                                            const dash = (pct / 100) * c;
+                                            // Never round a drive with free bytes up to 100% - that made
+                                            // 4-6 GB free on large volumes look "full" in the old SVG ring.
+                                            const rawPct = total > 0 ? (used / total) * 100 : 0;
+                                            const pctDisplay = free > 0
+                                              ? Math.min(99.9, Math.floor(rawPct * 10) / 10)
+                                              : (total > 0 ? 100 : 0);
+                                            const barPct = free > 0 ? Math.min(99.5, rawPct) : (total > 0 ? 100 : 0);
+                                            const pctLabel = Number.isInteger(pctDisplay)
+                                              ? `${pctDisplay}%`
+                                              : `${pctDisplay.toFixed(1)}%`;
+                                            const sizeUnavailable = !!(driveInfo as any).sizeUnavailable
+                                              || (total <= 0 && free <= 0);
                                             return (
-                                                <div className="bndz-props-disk-row">
-                                                    <div className="bndz-props-ring" aria-label={`${pct}% used`}>
-                                                        <svg viewBox="0 0 80 80" width="80" height="80">
-                                                            <circle cx="40" cy="40" r={r} className="bndz-props-ring-track" />
-                                                            <circle
-                                                                cx="40" cy="40" r={r}
-                                                                className="bndz-props-ring-fill"
-                                                                strokeDasharray={`${dash} ${c}`}
-                                                                transform="rotate(-90 40 40)"
-                                                            />
-                                                        </svg>
-                                                        <span className="bndz-props-ring-label">{pct}%</span>
+                                                <div className="bndz-props-disk-stack">
+                                                    <div className="bndz-props-disk-meter" aria-label={`${pctLabel} used`}>
+                                                        <div className="bndz-props-disk-meter-head">
+                                                            <span className="bndz-props-disk-meter-free">
+                                                              {sizeUnavailable ? 'Calculating...' : `${formatSize(free)} free`}
+                                                            </span>
+                                                            <span className="bndz-props-disk-meter-used">{pctLabel} used</span>
+                                                        </div>
+                                                        {!sizeUnavailable && (
+                                                          <StorageUsageBar usedPct={barPct} height={8} className="w-full" />
+                                                        )}
+                                                        <div className="bndz-props-disk-meter-foot">
+                                                          <span>{formatSize(used)} used</span>
+                                                          <span>{formatSize(total)} capacity</span>
+                                                        </div>
                                                     </div>
                                                     <PluginFieldGrid className="flex-1">
                                                         <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
-                                                        <PluginFieldRow label="Capacity" mono>{formatSize(total)}</PluginFieldRow>
-                                                        <PluginFieldRow label="Used" mono><span className="text-sky-300">{formatSize(used)}</span></PluginFieldRow>
-                                                        <PluginFieldRow label="Free" mono><span className="text-emerald-400">{formatSize(free)}</span></PluginFieldRow>
-                                                        <PluginFieldRow label="Format">{driveInfo.format || 'NTFS'}</PluginFieldRow>
+                                                        <PluginFieldRow label="Capacity" mono>{sizeUnavailable ? '-' : formatSize(total)}</PluginFieldRow>
+                                                        <PluginFieldRow label="Used" mono><span className="text-sky-300">{sizeUnavailable ? '-' : formatSize(used)}</span></PluginFieldRow>
+                                                        <PluginFieldRow label="Free" mono><span className="text-emerald-400">{sizeUnavailable ? '-' : formatSize(free)}</span></PluginFieldRow>
+                                                        <PluginFieldRow label="Format">{(driveInfo as any).fileSystem || driveInfo.format || 'NTFS'}</PluginFieldRow>
                                                     </PluginFieldGrid>
                                                 </div>
                                             );
