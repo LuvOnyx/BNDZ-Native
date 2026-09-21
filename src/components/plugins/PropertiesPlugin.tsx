@@ -1,6 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { StorageUsageBar } from '../StorageUsageBar';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -576,34 +575,37 @@ export default function PropertiesPlugin({
                                             const total = Number(driveInfo.totalSpace) || 0;
                                             const free = Number(driveInfo.freeSpace) || 0;
                                             const used = Math.max(0, total - free);
-                                            // Never round a drive with free bytes up to 100% - that made
-                                            // 4-6 GB free on large volumes look "full" in the old SVG ring.
+                                            // Keep free space honest: never round a drive with free bytes up to 100%.
                                             const rawPct = total > 0 ? (used / total) * 100 : 0;
                                             const pctDisplay = free > 0
                                               ? Math.min(99.9, Math.floor(rawPct * 10) / 10)
                                               : (total > 0 ? 100 : 0);
-                                            const barPct = free > 0 ? Math.min(99.5, rawPct) : (total > 0 ? 100 : 0);
+                                            const ringPct = free > 0 ? Math.min(99.5, rawPct) : (total > 0 ? 100 : 0);
                                             const pctLabel = Number.isInteger(pctDisplay)
                                               ? `${pctDisplay}%`
                                               : `${pctDisplay.toFixed(1)}%`;
                                             const sizeUnavailable = !!(driveInfo as any).sizeUnavailable
                                               || (total <= 0 && free <= 0);
+                                            const r = 36;
+                                            const c = 2 * Math.PI * r;
+                                            const dash = sizeUnavailable ? 0 : (ringPct / 100) * c;
+                                            const fillTone = ringPct >= 95 ? 'is-critical' : ringPct >= 85 ? 'is-warn' : 'is-ok';
                                             return (
-                                                <div className="bndz-props-disk-stack">
-                                                    <div className="bndz-props-disk-meter" aria-label={`${pctLabel} used`}>
-                                                        <div className="bndz-props-disk-meter-head">
-                                                            <span className="bndz-props-disk-meter-free">
-                                                              {sizeUnavailable ? 'Calculating...' : `${formatSize(free)} free`}
-                                                            </span>
-                                                            <span className="bndz-props-disk-meter-used">{pctLabel} used</span>
-                                                        </div>
-                                                        {!sizeUnavailable && (
-                                                          <StorageUsageBar usedPct={barPct} height={8} className="w-full" />
-                                                        )}
-                                                        <div className="bndz-props-disk-meter-foot">
-                                                          <span>{formatSize(used)} used</span>
-                                                          <span>{formatSize(total)} capacity</span>
-                                                        </div>
+                                                <div className="bndz-props-disk-row">
+                                                    <div className={`bndz-props-ring ${fillTone}`} aria-label={`${pctLabel} used`}>
+                                                        <svg viewBox="0 0 88 88" width="88" height="88" aria-hidden="true">
+                                                            <circle cx="44" cy="44" r={r} className="bndz-props-ring-track" />
+                                                            <circle
+                                                                cx="44" cy="44" r={r}
+                                                                className="bndz-props-ring-fill"
+                                                                strokeDasharray={`${dash} ${c}`}
+                                                                transform="rotate(-90 44 44)"
+                                                            />
+                                                        </svg>
+                                                        <span className="bndz-props-ring-label">
+                                                          <span className="bndz-props-ring-pct">{sizeUnavailable ? '--' : pctLabel}</span>
+                                                          <span className="bndz-props-ring-sub">used</span>
+                                                        </span>
                                                     </div>
                                                     <PluginFieldGrid className="flex-1">
                                                         <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>

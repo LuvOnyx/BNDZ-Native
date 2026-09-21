@@ -4741,67 +4741,48 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   align-items: center;
   gap: 16px;
 }
-.bndz-props-disk-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.bndz-props-disk-meter {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(0,0,0,.22);
-}
-.bndz-props-disk-meter-head,
-.bndz-props-disk-meter-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  font-size: 11px;
-  color: rgba(226,232,240,.78);
-}
-.bndz-props-disk-meter-free {
-  font-weight: 650;
-  color: #34d399;
-  font-variant-numeric: tabular-nums;
-}
-.bndz-props-disk-meter-used {
-  font-variant-numeric: tabular-nums;
-  color: rgba(186,230,253,.9);
-}
-.bndz-props-disk-meter-foot {
-  color: rgba(148,163,184,.85);
-  font-size: 10px;
-}
 .bndz-props-ring {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 88px;
+  height: 88px;
   flex-shrink: 0;
 }
 .bndz-props-ring-track {
   fill: none;
-  stroke: rgba(255,255,255,.08);
-  stroke-width: 7;
+  stroke: rgba(255,255,255,.10);
+  stroke-width: 8;
 }
 .bndz-props-ring-fill {
   fill: none;
   stroke: #38bdf8;
-  stroke-width: 7;
-  stroke-linecap: round;
-  transition: stroke-dasharray 0.35s ease;
+  stroke-width: 8;
+  stroke-linecap: butt;
+  transition: stroke-dasharray 0.28s ease, stroke 0.2s ease;
 }
+.bndz-props-ring.is-ok .bndz-props-ring-fill { stroke: #38bdf8; }
+.bndz-props-ring.is-warn .bndz-props-ring-fill { stroke: #f59e0b; }
+.bndz-props-ring.is-critical .bndz-props-ring-fill { stroke: #ef4444; }
 .bndz-props-ring-label {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  font: 700 13px/1 'DM Sans', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   color: rgba(248,250,252,.95);
+  pointer-events: none;
+}
+.bndz-props-ring-pct {
+  font: 700 14px/1 ui-sans-serif, system-ui, Segoe UI, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.bndz-props-ring-sub {
+  font: 500 9px/1 ui-sans-serif, system-ui, Segoe UI, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(148,163,184,.9);
 }
 
 /* Capacity Solver ? what-if scrubbers + budget */
