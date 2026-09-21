@@ -114,14 +114,24 @@ if (-not $SkipBuild) {
   if ($Configuration -eq 'Release') { Write-ReleaseSecretEmbeds }
 
   Write-Host '==> Frontend (npm run build)' -ForegroundColor Cyan
-  cmd /c "npm run build"
-  if ($LASTEXITCODE -ne 0) { throw "npm run build failed ($LASTEXITCODE)" }
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  cmd /c "npm run build > tmp_npm_build_pkg.txt 2>&1"
+  $npmExit = $LASTEXITCODE
+  $ErrorActionPreference = $prevEap
+  if ($npmExit -ne 0) {
+    Get-Content tmp_npm_build_pkg.txt -Tail 40 -ErrorAction SilentlyContinue
+    throw "npm run build failed ($npmExit)"
+  }
 
   Write-Host "==> Backend + Shell ($Configuration x64)" -ForegroundColor Cyan
   dotnet build (Join-Path $root 'BNDZBackend\BNDZ.csproj') -c $Configuration -p:EnableWindowsTargeting=true
-  if ($LASTEXITCODE -ne 0) { throw 'backend build failed' }
+  $be = $LASTEXITCODE
+  if ($be -ne 0) { $ErrorActionPreference = $prevEap; throw 'backend build failed' }
   dotnet build (Join-Path $root 'BNDZShell\src\BNDZShell.App\BNDZShell.App.csproj') -c $Configuration -p:Platform=x64 -p:EnableWindowsTargeting=true
-  if ($LASTEXITCODE -ne 0) { throw 'shell build failed' }
+  $sh = $LASTEXITCODE
+  $ErrorActionPreference = $prevEap
+  if ($sh -ne 0) { throw 'shell build failed' }
 }
 
 $binRoot = Join-Path $root "BNDZShell\src\BNDZShell.App\bin\x64\$Configuration"
