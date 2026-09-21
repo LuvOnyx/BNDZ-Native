@@ -1,9 +1,25 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** **NOT launch-ready** — mid-execution. Tabs/Home/About/ops QC green; Wave F code done; E ops suite coded; **C4 drag-ghost craft code landed** (Windows click-through still ☐); `fm-launch-readiness.md` is **0 signed rows**. Next = Windows DnD matrix 46–58 after C4, then A2 / E4 / D2–D3.  
+**Status:** **NOT launch-ready** — code tracks advanced (DnD/E4/A2/Wave B); remaining = interactive UAC once-through + readiness sign-off, not missing feature work. Tabs/Home/About/ops QC green; Wave F code done; E ops suite coded; **C4 drag-ghost craft code landed** (Windows click-through still ☐); `fm-launch-readiness.md` is **0 signed rows**. Next = Windows DnD matrix 46–58 after C4, then A2 / E4 / D2–D3.  
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 **Ship binary:** **BNDZ-Native only** — `BNDZShell` via `scripts/run-bndz-native.cmd` / `BNDZShell.exe`. FilesMerge and classic WPF `MainWindow` are reference/archive — not the launch gate target.
+
+
+## Evidence note (2026-09-21) — BandzPC
+
+Not claiming full Launch Ready yet. Honest state:
+
+| Track | Code | Live evidence |
+|-------|------|---------------|
+| **DnD C4 / 46–58** | Landed earlier | `%LocalAppData%\BNDZ\ole-dnd.log` shows `outbound-ghost show` + `DeliverExternalDropJson` / `FE_DEBUG inbound-drop`. **Not treated as broken.** Checklist rows still unsigned until a recorded full click-through. |
+| **A2 absorb** | Remaps + Magnets/Encode/Diff/Vault/Groups/Intake/Policies/Capacity/Health tabs present | Code-smoke OK 2026-09-21 |
+| **E4 ops** | FileConflictModal + transferErrorKind + elevation + PartialTransfer wired | Code suite OK; interactive UAC Allow/Cancel still needs one Windows session |
+| **D2** | Weave / About / terminal gates in tree | Spot-check remaining |
+| **Wave B craft** | B1–B4 SaaS strip shipped (`70bfa726`…`edde875e`) | Ongoing native polish |
+
+Do **not** block code progress waiting on checklist flips. Installer still gated on honest D3 + one UAC once-through.
+
 
 ---
 
