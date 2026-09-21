@@ -95,7 +95,7 @@ export default function DropMagnetStrip({ externalDragActive, pendingPaths, onAp
               type="button"
               data-magnet-id={m.id}
               disabled={applying}
-              className={`bndz-magnet-pad relative min-w-[140px] max-w-[200px] px-4 py-3 rounded-2xl border text-left transition-all duration-200 backdrop-blur-md ${
+              className={`bndz-magnet-pad relative min-w-[140px] max-w-[200px] px-4 py-3 rounded-2xl border text-left transition-colors duration-150 ${
                 active ? 'scale-[1.04] shadow-lg' : 'scale-100 opacity-90 hover:opacity-100'
               }`}
               style={{

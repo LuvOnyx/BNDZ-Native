@@ -995,7 +995,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
                         New
                       </button>
                       {newMenuOpen && (
-                        <div className="absolute right-0 top-[calc(100%+4px)] z-40 min-w-[168px] rounded-md border border-white/[0.08] bg-[#12151c]/98 shadow-lg py-0.5 backdrop-blur-sm">
+                        <div className="absolute right-0 top-[calc(100%+4px)] z-40 min-w-[168px] rounded-md border border-white/[0.08] bg-[#12151c] shadow-lg py-0.5">
                           <button
                             type="button"
                             className="w-full text-left px-2.5 py-1 text-[11px] text-slate-300/90 hover:bg-white/[0.05] hover:text-slate-100"

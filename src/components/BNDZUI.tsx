@@ -12222,7 +12222,7 @@ ${classified.detail}`,
         )}
 
         {helloGateBlocked[normPanePath] ? (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#0a0e14]/92 backdrop-blur-sm">
+          <div className="absolute inset-0 z-30 flex items-center justify-center bndz-native-scrim">
             <HelloGateOverlay
               folderPath={normPanePath}
               gatePath={helloGateBlocked[normPanePath]}
@@ -17306,7 +17306,7 @@ ${classified.detail}`,
         <ClampedFixedMenu
           x={dropActionMenu.x}
           y={dropActionMenu.y}
-          className="z-[99985] min-w-[180px] rounded-xl border border-white/12 bg-[#161a22]/96 py-1 shadow-[0_18px_48px_rgba(0,0,0,0.55)] backdrop-blur-md"
+          className="z-[99985] min-w-[180px] rounded-xl border border-white/12 bg-[#161a22]/96 py-1 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button

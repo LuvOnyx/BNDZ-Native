@@ -53,7 +53,7 @@ export default function BranchViewStrip({ panePath, contents, config, branchType
   if (!folders.length && !topFolders.length) return null;
 
   return (
-    <div className="shrink-0 border-b border-white/[0.06] backdrop-blur-sm bndz-gpu-layer" style={{ background: 'var(--bndz-surface-chrome)' }}>
+    <div className="shrink-0 border-b border-white/[0.06] bndz-gpu-layer" style={{ background: 'var(--bndz-surface-chrome)' }}>
       <div className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-gray-500">Branch</div>
       <div className="flex gap-1 px-2 pb-2 overflow-x-auto bndz-scrollbar">
         {topFolders.map(folder => (

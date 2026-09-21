@@ -125,7 +125,7 @@ function PreviewBody({
   if (kind === 'color' && path) {
     return (
       <div className="launcher-preview-media flex flex-col items-center justify-center py-10 gap-3">
-        <div className="w-16 h-16 rounded-xl border border-[var(--footer-border)] bg-gradient-to-br from-pink-500/30 to-violet-500/30" />
+        <div className="bndz-plugin-glyph-well w-16 h-16" />
         <div className="text-[11px] text-[var(--text-muted)]">Folder color | {path.split(/[/\\]/).pop()}</div>
       </div>
     );

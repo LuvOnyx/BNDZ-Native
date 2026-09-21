@@ -38,8 +38,8 @@ export default function HelloGateOverlay({ folderPath, gatePath, onUnlocked, onC
   }, [target, onUnlocked]);
 
   return (
-    <div className="bndz-hello-gate-overlay absolute inset-0 z-30 flex items-center justify-center bg-[#0a0c12]/88 backdrop-blur-sm">
-      <div className="bndz-hello-gate-card w-[min(380px,92%)] rounded-[var(--bndz-radius-lg)] border border-sky-400/20 bg-gradient-to-b from-[#1a2230] to-[#12161e] p-5 shadow-2xl">
+    <div className="bndz-hello-gate-overlay bndz-native-scrim absolute inset-0 z-30 flex items-center justify-center">
+      <div className="bndz-hello-gate-card bndz-native-dialog w-[min(380px,92%)] p-5">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-11 h-11 rounded-xl bg-sky-500/15 border border-sky-400/25 flex items-center justify-center">
             <Icons8Icon id="lock_ui" size={20} />
