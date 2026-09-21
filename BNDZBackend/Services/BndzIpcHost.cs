@@ -64,6 +64,7 @@ namespace BNDZ.Services
         private readonly FolderSizeService _folderSizeService = new();
         private readonly DuplicateFinderService _duplicateFinderService = new();
         private readonly StorageCleanupScanService _storageCleanupScanService = new();
+        private readonly StorageCategoryBreakdownService _storageBreakdownService = new();
         private readonly NetworkLocationsService _networkLocationsService = new();
         private readonly BndzUpdateService _updateService = new();
         private readonly BndzCatalogStore _catalogStore = new();
@@ -1788,6 +1789,7 @@ namespace BNDZ.Services
             if (type.Equals("STORAGE_CLEANUP_SCAN", StringComparison.OrdinalIgnoreCase)) return 900;
             if (type.Equals("STORAGE_CLEANUP_EXECUTE", StringComparison.OrdinalIgnoreCase)) return 900;
             if (type.Equals("SCAN_FOLDER_SIZES", StringComparison.OrdinalIgnoreCase)) return 600;
+            if (type.Equals("SCAN_STORAGE_BREAKDOWN", StringComparison.OrdinalIgnoreCase)) return 120;
             if (type.Equals("CAPACITY_WHAT_IF", StringComparison.OrdinalIgnoreCase)) return 300;
             if (type.Equals("CAPACITY_APPROVE", StringComparison.OrdinalIgnoreCase)) return 300;
             if (type.Equals("GET_DIR_CONTENTS", StringComparison.OrdinalIgnoreCase)) return 90;
@@ -1805,6 +1807,8 @@ namespace BNDZ.Services
                     _storageCleanupScanService.CancelScan();
                 else if (type.Equals("SCAN_FOLDER_SIZES", StringComparison.OrdinalIgnoreCase))
                     _folderSizeService.CancelScan();
+                else if (type.Equals("SCAN_STORAGE_BREAKDOWN", StringComparison.OrdinalIgnoreCase))
+                    _storageBreakdownService.CancelScan();
             }
             catch { /* best-effort cancel */ }
         }
@@ -1834,6 +1838,7 @@ namespace BNDZ.Services
             "CANCEL_FOLDER_SIZE_SCAN",
             "CANCEL_DUPLICATE_SCAN",
             "CANCEL_STORAGE_CLEANUP_SCAN",
+            "CANCEL_STORAGE_BREAKDOWN",
             "BNDZ_UI_READY",
             "UI_READY",
             "NOTIFY_UI_READY",
@@ -9031,6 +9036,65 @@ namespace BNDZ.Services
                 {
                     _storageCleanupScanService.CancelScan();
                 }
+
+                else if (type == "SCAN_STORAGE_BREAKDOWN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    string rootPath = payload.TryGetProperty("rootPath", out var rootEl) ? NormalizeFsPath(rootEl.GetString() ?? "") : "";
+                    int? timeBudgetMs = payload.TryGetProperty("timeBudgetMs", out var tbEl) && tbEl.TryGetInt32(out var tb) ? tb : null;
+                    int? maxFiles = payload.TryGetProperty("maxFiles", out var mfEl) && mfEl.TryGetInt32(out var mf) ? mf : null;
+                    bool forceRescan = payload.TryGetProperty("forceRescan", out var frEl) && frEl.ValueKind == JsonValueKind.True;
+
+                    _ = Task.Run(async () =>
+                    {
+                        object resultPayload;
+                        try
+                        {
+                            var scanResult = await _storageBreakdownService.ScanAsync(
+                                rootPath,
+                                timeBudgetMs,
+                                maxFiles,
+                                forceRescan,
+                                p =>
+                                {
+                                    var progressEvt = new
+                                    {
+                                        type = "STORAGE_BREAKDOWN_PROGRESS",
+                                        payload = new
+                                        {
+                                            percent = p.Percent,
+                                            phase = p.Phase,
+                                            currentPath = p.CurrentPath,
+                                            filesSeen = p.FilesSeen,
+                                            bytesSeen = p.BytesSeen,
+                                            partial = p.Partial,
+                                        },
+                                    };
+                                    var progressJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                                    PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(progressEvt, progressJson)));
+                                });
+                            resultPayload = scanResult;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            resultPayload = new StorageBreakdownResult { Cancelled = true, RootPath = rootPath };
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { error = ex.Message, cancelled = false, rootPath, segments = Array.Empty<object>() };
+                        }
+
+                        var response = new { type = "STORAGE_BREAKDOWN_RESULT", id = idProp, payload = resultPayload };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "CANCEL_STORAGE_BREAKDOWN")
+                {
+                    _storageBreakdownService.CancelScan();
+                }
+
                 else if (type == "STORAGE_CLEANUP_EXECUTE")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;

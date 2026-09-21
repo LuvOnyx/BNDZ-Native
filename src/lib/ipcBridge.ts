@@ -163,6 +163,7 @@ export const IPC = {
   _folderSizeListeners: [] as Array<(progress: any) => void>,
   _duplicateProgressListeners: [] as Array<(progress: any) => void>,
   _storageCleanupProgressListeners: [] as Array<(progress: { percent: number; phase: string; currentPath: string }) => void>,
+  _storageBreakdownListeners: [] as Array<(progress: any) => void>,
   _folderSyncProgressListeners: [] as Array<(progress: any) => void>,
   _meshSyncProgressListeners: [] as Array<(progress: any) => void>,
   _meshTerminalOutputListeners: [] as Array<(payload: { sessionId: string; data: string }) => void>,
@@ -216,6 +217,8 @@ export const IPC = {
           this._duplicateProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'STORAGE_CLEANUP_SCAN_PROGRESS') {
           this._storageCleanupProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'STORAGE_BREAKDOWN_PROGRESS') {
+          this._storageBreakdownListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'FOLDER_SYNC_PROGRESS') {
           this._folderSyncProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'MESH_SYNC_PROGRESS') {
@@ -367,6 +370,21 @@ export const IPC = {
     this._storageCleanupProgressListeners.push(callback);
     return () => {
       this._storageCleanupProgressListeners = this._storageCleanupProgressListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onStorageBreakdownProgress(callback: (progress: {
+    percent: number;
+    phase: string;
+    currentPath: string;
+    filesSeen: number;
+    bytesSeen?: number;
+    partial?: boolean;
+  }) => void) {
+    this.init();
+    this._storageBreakdownListeners.push(callback);
+    return () => {
+      this._storageBreakdownListeners = this._storageBreakdownListeners.filter(cb => cb !== callback);
     };
   },
 
@@ -1529,6 +1547,81 @@ export const IPC = {
   cancelStorageCleanupScan(): void {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({ type: 'CANCEL_STORAGE_CLEANUP_SCAN' });
+    }
+  },
+
+  scanStorageBreakdown(options: {
+    rootPath: string;
+    timeBudgetMs?: number;
+    maxFiles?: number;
+    forceRescan?: boolean;
+  }): Promise<{
+    rootPath: string;
+    segments: Array<{
+      id: string;
+      name: string;
+      color: string;
+      totalBytes: number;
+      fileCount: number;
+      percent: number;
+      topItems: Array<{ path: string; name: string; size: number; isDirectory?: boolean }>;
+    }>;
+    totalBytes: number;
+    filesSeen: number;
+    partial?: boolean;
+    cancelled?: boolean;
+    fromCache?: boolean;
+    driveRootLimited?: boolean;
+    warning?: string;
+    elapsedMs?: number;
+    error?: string;
+  }> {
+    if (!this.isNative) {
+      return Promise.resolve({
+        rootPath: options.rootPath,
+        segments: [],
+        totalBytes: 0,
+        filesSeen: 0,
+        error: 'Native host required',
+      });
+    }
+    const id = `${Date.now()}_storageBreakdown`;
+    return _nativeCall<any>('SCAN_STORAGE_BREAKDOWN', 'STORAGE_BREAKDOWN_RESULT', id, {
+      rootPath: options.rootPath,
+      timeBudgetMs: options.timeBudgetMs,
+      maxFiles: options.maxFiles,
+      forceRescan: !!options.forceRescan,
+    }, 180000).then(r => ({
+      rootPath: r?.rootPath ?? r?.RootPath ?? options.rootPath,
+      segments: (r?.segments ?? r?.Segments ?? []).map((s: any) => ({
+        id: s.id ?? s.Id,
+        name: s.name ?? s.Name,
+        color: s.color ?? s.Color,
+        totalBytes: s.totalBytes ?? s.TotalBytes ?? 0,
+        fileCount: s.fileCount ?? s.FileCount ?? 0,
+        percent: s.percent ?? s.Percent ?? 0,
+        topItems: (s.topItems ?? s.TopItems ?? []).map((t: any) => ({
+          path: t.path ?? t.Path,
+          name: t.name ?? t.Name,
+          size: t.size ?? t.Size ?? 0,
+          isDirectory: t.isDirectory ?? t.IsDirectory,
+        })),
+      })),
+      totalBytes: r?.totalBytes ?? r?.TotalBytes ?? 0,
+      filesSeen: r?.filesSeen ?? r?.FilesSeen ?? 0,
+      partial: r?.partial ?? r?.Partial,
+      cancelled: r?.cancelled ?? r?.Cancelled,
+      fromCache: r?.fromCache ?? r?.FromCache,
+      driveRootLimited: r?.driveRootLimited ?? r?.DriveRootLimited,
+      warning: r?.warning ?? r?.Warning,
+      elapsedMs: r?.elapsedMs ?? r?.ElapsedMs,
+      error: r?.error,
+    }));
+  },
+
+  cancelStorageBreakdown(): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'CANCEL_STORAGE_BREAKDOWN' });
     }
   },
 

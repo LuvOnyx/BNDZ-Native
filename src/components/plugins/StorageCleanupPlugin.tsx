@@ -20,6 +20,7 @@ import StorageAdvancedScanWizard from './StorageAdvancedScanWizard';
 import InstalledAppsPanel from './InstalledAppsPanel';
 import CapacitySolverPlugin from './CapacitySolverPlugin';
 import LibraryHealthPlugin from './LibraryHealthPlugin';
+import StorageCategoryWheel, { type BreakdownResult } from '../storage/StorageCategoryWheel';
 import {
   ORGANIZE_BUCKETS,
   bucketForFile,
@@ -47,10 +48,10 @@ function launchTabIsRefs(launch: any) {
 type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize' | 'capacity' | 'health';
 
 export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap, pluginLaunch }: any) {
-  const [activeTab, setActiveTab] = useState<TabId>('advanced');
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [dupError, setDupError] = useState<string | null>(null);
   const [wizardMode, setWizardMode] = useState<StorageWizardMode | null>(null);
-  const [advancedWizardOpen, setAdvancedWizardOpen] = useState(true);
+  const [advancedWizardOpen, setAdvancedWizardOpen] = useState(false);
   const [wizardFolderPath, setWizardFolderPath] = useState<string | undefined>(undefined);
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<Date | null>(null);
@@ -62,6 +63,10 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   const [expandedDup, setExpandedDup] = useState<string | null>(null);
   const [deletingDupes, setDeletingDupes] = useState<string | null>(null);
   const [dupKeepRule, setDupKeepRule] = useState<DupKeepRule>('first');
+  const [breakdown, setBreakdown] = useState<BreakdownResult | null>(null);
+  const [breakdownScanning, setBreakdownScanning] = useState(false);
+  const [breakdownProgress, setBreakdownProgress] = useState<{ percent: number; phase: string; currentPath: string; filesSeen: number } | null>(null);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
 
   const navigateToPath = (winPath: string) => {
     if (!winPath) return;
@@ -106,7 +111,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       setActiveTab('advanced');
       setAdvancedWizardOpen(true);
     }
-    // Default tab is already Deep Clean (useState); wizard opens by default too.
+    // Default landing is Overview; Scan & Clean wizard opens only when that tab is chosen.
   }, [pluginLaunch?.wizardMode, pluginLaunch?.currentPath, pluginLaunch?.tab]);
 
   const items = pathContentsCache?.[currentPath] || [];
@@ -153,6 +158,89 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     });
     return () => unsub?.();
   }, []);
+
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    import('../../lib/ipcBridge').then(({ IPC }) => {
+      if (IPC.isNative) {
+        unsub = IPC.onStorageBreakdownProgress(p => setBreakdownProgress({
+          percent: p.percent,
+          phase: p.phase,
+          currentPath: p.currentPath,
+          filesSeen: p.filesSeen ?? (p as any).filesScanned ?? 0,
+        }));
+      }
+    });
+    return () => unsub?.();
+  }, []);
+
+  const runBreakdownScan = async (forceRescan = false) => {
+    if (!currentPath || currentPath === '/' || currentPath === '/this-pc') return;
+    const root = toWindowsPath(currentPath);
+    const driveRoot = /^[A-Za-z]:\\?$/.test(root);
+    setBreakdownError(driveRoot
+      ? 'Drive root scan is depth-limited and skips system folders so Cleanup stays responsive.'
+      : null);
+    setBreakdownScanning(true);
+    setBreakdownProgress({ percent: 0, phase: 'Scanning', currentPath: root, filesSeen: 0 });
+    try {
+      const { IPC } = await import('../../lib/ipcBridge');
+      const result = await IPC.scanStorageBreakdown({
+        rootPath: root,
+        timeBudgetMs: driveRoot ? 10000 : 12000,
+        maxFiles: driveRoot ? 40000 : 80000,
+        forceRescan,
+      });
+      if (result.error) {
+        setBreakdownError(result.error);
+        return;
+      }
+      if (result.cancelled) {
+        setBreakdownError('Scan cancelled.');
+        return;
+      }
+      setBreakdown({
+        rootPath: result.rootPath,
+        segments: (result.segments || []).map(s => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          totalBytes: s.totalBytes,
+          fileCount: s.fileCount,
+          percent: s.percent,
+          topItems: s.topItems || [],
+        })),
+        totalBytes: result.totalBytes,
+        filesSeen: result.filesSeen,
+        partial: result.partial,
+        cancelled: result.cancelled,
+        fromCache: result.fromCache,
+        driveRootLimited: result.driveRootLimited,
+        warning: result.warning,
+        elapsedMs: result.elapsedMs,
+      });
+      if (result.warning) setBreakdownError(result.warning);
+    } catch (err: any) {
+      setBreakdownError(err?.message || String(err));
+    } finally {
+      setBreakdownScanning(false);
+      setBreakdownProgress(null);
+    }
+  };
+
+  const cancelBreakdownScan = () => {
+    import('../../lib/ipcBridge').then(({ IPC }) => IPC.cancelStorageBreakdown());
+    setBreakdownScanning(false);
+    setBreakdownProgress(null);
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'overview') return;
+    if (!currentPath || currentPath === '/' || currentPath === '/this-pc') return;
+    void runBreakdownScan(false);
+    return () => { cancelBreakdownScan(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath, activeTab]);
 
   const runFolderScan = async () => {
     setScanning(true);
@@ -227,9 +315,9 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   };
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: 'advanced', label: 'Deep Clean', icon: 'zap_ui' },
+    { id: 'overview', label: 'Overview', icon: 'storage_cleanup' },
+    { id: 'advanced', label: 'Scan & Clean', icon: 'zap_ui' },
     { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
-    { id: 'overview', label: 'Quick', icon: 'storage_cleanup' },
     { id: 'capacity', label: 'Capacity', icon: 'hard_drive_ui' },
     { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
     { id: 'organize', label: 'Organize', icon: 'folder_plus_ui' },
@@ -290,7 +378,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
         }
         actions={
           <>
-            <PluginHeroActionButton icon="zap_ui" variant="primary" onClick={() => { setActiveTab('advanced'); setAdvancedWizardOpen(true); }}>Deep Clean</PluginHeroActionButton>
+            <PluginHeroActionButton icon="zap_ui" variant="primary" onClick={() => { setActiveTab('advanced'); setAdvancedWizardOpen(true); }}>Scan & Clean</PluginHeroActionButton>
             <PluginToolbarButton icon={scanning ? 'loading' : 'file_search_ui'} onClick={() => void runFolderScan()} disabled={scanning}>
               Scan folder
             </PluginToolbarButton>
@@ -314,6 +402,58 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       <div className="flex-1 overflow-y-auto bndz-scrollbar p-4">
           {activeTab === 'overview' && (
             <div className="space-y-4">
+              <PluginCard className="!p-3">
+                <div className="bndz-cleanup-home">
+                  <StorageCategoryWheel
+                    result={breakdown}
+                    scanning={breakdownScanning}
+                    progressPercent={breakdownProgress?.percent || 0}
+                    size={104}
+                    onNavigate={navigateToPath}
+                  />
+                  <div className="bndz-cleanup-home-main">
+                    <PluginSectionTitle icon="layers_ui">Content breakdown</PluginSectionTitle>
+                    <p className="text-[11px] bndz-panel-muted mt-1 mb-2 leading-relaxed">
+                      Live category mix for this folder. Hover a slice for the largest files. Drive roots stay sampled so Cleanup never hangs.
+                    </p>
+                    {breakdown?.segments?.length ? (
+                      <div className="bndz-cleanup-home-legend">
+                        {breakdown.segments.map(s => (
+                          <span key={s.id} className="bndz-cleanup-home-legend-item">
+                            <span className="bndz-cleanup-home-legend-swatch" style={{ background: s.color }} />
+                            {s.name}
+                            <span className="bndz-mono text-[10px] opacity-70">{formatStorageSize(s.totalBytes)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] bndz-panel-muted">
+                        {breakdownScanning ? 'Scanning…' : 'Open a folder, then scan to populate the wheel.'}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {breakdownScanning ? (
+                        <PluginToolbarButton onClick={cancelBreakdownScan}>Cancel</PluginToolbarButton>
+                      ) : (
+                        <PluginToolbarButton icon="file_search_ui" onClick={() => void runBreakdownScan(true)}>Rescan</PluginToolbarButton>
+                      )}
+                      <PluginToolbarButton icon="zap_ui" onClick={() => { setActiveTab('advanced'); setAdvancedWizardOpen(true); }}>
+                        Scan &amp; Clean
+                      </PluginToolbarButton>
+                      <PluginToolbarButton icon="copy" onClick={() => setActiveTab('duplicates')}>Duplicates</PluginToolbarButton>
+                      <PluginToolbarButton icon="hard_drive_ui" onClick={() => setActiveTab('capacity')}>Capacity</PluginToolbarButton>
+                    </div>
+                    {(breakdownError || breakdownProgress) && (
+                      <div className="bndz-cleanup-scan-status">
+                        {breakdownProgress
+                          ? `${breakdownProgress.phase} — ${breakdownProgress.percent}% · ${breakdownProgress.filesSeen.toLocaleString()} files`
+                          : breakdownError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </PluginCard>
+
               <div className="bndz-cleanup-meter">
                 <div className="bndz-cleanup-meter-row">
                   <span>Tracked in view</span>
@@ -516,12 +656,12 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
           {activeTab === 'advanced' && (
             <div className="space-y-3">
               <PluginCard>
-                <PluginSectionTitle icon="zap_ui">Deep Clean</PluginSectionTitle>
+                <PluginSectionTitle icon="zap_ui">Scan & Clean</PluginSectionTitle>
                 <p className="text-xs bndz-panel-muted mt-1 mb-3">
-                  Select scan areas (temp, caches, recycle, thumbnails, large files), review every finding, then clean only what you approve. Professional + safe by default.
+                  Pick scan areas (temp, caches, recycle, thumbnails, large files), review every finding, then clean only what you approve. Safe by default — nothing deletes until you confirm.
                 </p>
                 <PluginToolbarButton icon="zap_ui" onClick={() => setAdvancedWizardOpen(true)}>
-                  Launch Deep Clean
+                  Launch Scan & Clean
                 </PluginToolbarButton>
               </PluginCard>
             </div>
