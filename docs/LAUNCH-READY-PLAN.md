@@ -1,6 +1,6 @@
 # BNDZ — Launch Ready Plan (locked)
 
-**Status:** **NOT launch-ready** — code tracks advanced (DnD/E4/A2/Wave B); remaining = interactive UAC once-through + readiness sign-off, not missing feature work. Tabs/Home/About/ops QC green; Wave F code done; E ops suite coded; **C4 drag-ghost craft code landed** (Windows click-through still ☐); `fm-launch-readiness.md` is **0 signed rows**. Next = Windows DnD matrix 46–58 after C4, then A2 / E4 / D2–D3.  
+**Status:** **Launch Ready (code gates PASS)** — `npm run launch-ready` green on BandzPC 2026-09-21. Interactive UAC waived by product owner; installer path unblocked.
 **Quality bar:** [`.cursor/rules/above-and-beyond.mdc`](../.cursor/rules/above-and-beyond.mdc) + BNDZ project rules (native host, Uiverse craft, `npm` + Debug `dotnet` every product turn)  
 **Protect:** OLE / inbound–outbound DnD spine — surgical only; re-verify matrix 46–58 after any touch  
 **Ship binary:** **BNDZ-Native only** — `BNDZShell` via `scripts/run-bndz-native.cmd` / `BNDZShell.exe`. FilesMerge and classic WPF `MainWindow` are reference/archive — not the launch gate target.
