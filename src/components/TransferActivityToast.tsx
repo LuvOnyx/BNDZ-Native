@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { EmblemIcon } from './EmblemIcon';
 import { IPC, type FileTransferJobDto, type FileTransferQueueState } from '../lib/ipcBridge';
+import { useAppConfig } from '../data/configContext';
 import {
   formatTransferAction,
   formatTransferProgressLine,
@@ -14,14 +15,25 @@ function jobIsActive(j: FileTransferJobDto): boolean {
 
 const EMPTY_QUEUE: FileTransferQueueState = { queuedCount: 0, activeCount: 0, jobs: [] };
 
+function osTransferToastsEnabled(config: Record<string, unknown>): boolean {
+  const raw = String(config.toastDelivery || '').toLowerCase();
+  if (raw === 'inapp' || raw === 'in-app') return false;
+  if (config.nativeActionCenterToasts === false || config.useNativeWindowsNotifications === false) return false;
+  const cats = (config.windowsNotificationCategories || {}) as { transfers?: boolean };
+  if (cats.transfers === false) return false;
+  return true;
+}
+
 /**
  * Floating transfer loader -- push-first; light fallback poll only while idle.
  * Small ops should appear instantly via `bndz-transfer-started` and leave quickly.
  */
 export default function TransferActivityToast() {
+  const { config } = useAppConfig();
   const [queue, setQueue] = useState<FileTransferQueueState>(EMPTY_QUEUE);
   const [collapsed, setCollapsed] = useState(false);
   const [optimistic, setOptimistic] = useState<{ label: string; until: number } | null>(null);
+  const osGate = useRef({ posted: false, lastAt: 0, lastKey: '' });
 
   useEffect(() => {
     IPC.init();
@@ -95,15 +107,65 @@ export default function TransferActivityToast() {
   const showOptimistic = !!optimistic && active.length === 0 && recentDone.length === 0;
   const show = isTransferActive(queue) || active.length > 0 || recentDone.length > 0 || showOptimistic;
 
+  useEffect(() => {
+    if (!IPC.isNative) return;
+    const enabled = osTransferToastsEnabled(config as Record<string, unknown>);
+    const live = active;
+    const doneJob = live.length ? undefined : recentDone[0];
+    const clear = () => {
+      if (!osGate.current.posted) return;
+      osGate.current.posted = false;
+      osGate.current.lastKey = '';
+      IPC.showAppNotification('BNDZ', '', 'bndz-xfer', { transferPhase: 'clear' });
+    };
+    if (!enabled || (!live.length && !doneJob)) {
+      clear();
+      return;
+    }
+    const job = (live[0] || doneJob)!;
+    const phase = live.length
+      ? 'update'
+      : job.status === 'failed' ? 'failed' : 'complete';
+    const rawPct = Math.max(0, Math.min(100, Math.round(job.progress ?? 0)));
+    const title = live.length > 1
+      ? `${live.length} transfers`
+      : (formatTransferAction(job.action || '') || 'Transfer');
+    const detail = formatTransferProgressLine(job) || job.currentFile || job.label || title;
+    const key = `${phase}|${job.operationId}|${rawPct}|${job.status}|${detail}`;
+    const now = Date.now();
+    if (key === osGate.current.lastKey) return;
+    if (phase === 'update' && osGate.current.posted && now - osGate.current.lastAt < 400) return;
+    osGate.current.lastKey = key;
+    osGate.current.lastAt = now;
+    osGate.current.posted = true;
+    IPC.showAppNotification(title, detail, 'bndz-xfer', {
+      transferPhase: phase,
+      progress: phase === 'complete' ? 100 : rawPct,
+      progressTitle: job.currentFile || job.label || title,
+      progressStatus: phase === 'failed' ? 'Failed' : phase === 'complete' ? 'Done' : title,
+      progressValue: detail,
+    });
+  }, [config, active, recentDone]);
+
   if (!show) return null;
 
   const primary = active[0] || recentDone[0];
   const rawPct = Math.max(0, Math.min(100, Math.round(primary?.progress ?? (showOptimistic ? 12 : 0))));
   const isDelete = (primary?.action || '').toLowerCase() === 'delete' || (primary?.action || '').toLowerCase() === 'purge';
   const running = active.length > 0 || showOptimistic;
-  // No fake 6% floor -- small ops should not look mid-flight.
   const pct = running && rawPct <= 0 ? (showOptimistic ? 12 : 0) : rawPct;
   const showBar = running && !isDelete;
+  const indeterminate = showBar && pct <= 0;
+  const stats = primary ? formatTransferProgressLine(primary) : '';
+  const nameLine = primary
+    ? (primary.currentFile || primary.label || formatTransferProgressLine(primary, false) || 'Working')
+    : (optimistic?.label || 'Working');
+  const state = running ? 'running' : primary?.status === 'failed' ? 'failed' : 'done';
+  const title = running
+    ? (active.length > 1
+      ? `${active.length} transfers`
+      : (formatTransferAction(primary?.action || '') || optimistic?.label || 'Transfer'))
+    : (primary?.status === 'failed' ? 'Transfer failed' : 'Transfer done');
 
   return (
     <div
@@ -111,6 +173,7 @@ export default function TransferActivityToast() {
       role="status"
       aria-live="polite"
       data-collapsed={collapsed ? '1' : '0'}
+      data-state={state}
     >
       <button
         type="button"
@@ -119,38 +182,39 @@ export default function TransferActivityToast() {
       >
         <span className="bndz-xfer-toast-orb" aria-hidden>
           {running ? (
-            <EmblemIcon id="state-sync" size={13} className="bndz-xfer-toast-spin" />
+            <EmblemIcon id="state-sync" size={14} className="bndz-xfer-toast-spin" />
           ) : primary?.status === 'failed' ? (
-            <EmblemIcon id="state-error" size={13} />
+            <EmblemIcon id="state-error" size={14} />
           ) : (
-            <EmblemIcon id="state-ok" size={13} />
+            <EmblemIcon id="state-ok" size={14} />
           )}
         </span>
         <span className="bndz-xfer-toast-title min-w-0 flex-1 truncate">
-          {running
-            ? (active.length > 1
-              ? `${active.length} transfers`
-              : (formatTransferAction(primary?.action || '') || optimistic?.label || 'Transfer'))
-            : (primary?.status === 'failed' ? 'Transfer failed' : 'Transfer done')}
+          {title}
         </span>
-        {running && showBar && (
+        {running && showBar && !indeterminate && (
           <span className="bndz-xfer-toast-pct tabular-nums">{pct}%</span>
         )}
-        <span className="text-[10px] opacity-60">{collapsed ? '▸' : '▾'}</span>
+        <span className="bndz-xfer-toast-chevron" aria-hidden>{collapsed ? '\u25B8' : '\u25BE'}</span>
       </button>
+
+      {showBar && (
+        <div className={`bndz-xfer-toast-track${indeterminate ? ' is-indeterminate' : ''}`} aria-hidden>
+          <div
+            className="bndz-xfer-toast-fill"
+            style={indeterminate ? undefined : { width: `${Math.max(pct, 2)}%` }}
+          />
+        </div>
+      )}
 
       {!collapsed && (
         <div className="bndz-xfer-toast-body">
-          {showBar && (
-            <div className="bndz-xfer-toast-track" aria-hidden>
-              <div className="bndz-xfer-toast-fill" style={{ width: `${Math.max(pct, 2)}%` }} />
-            </div>
-          )}
-          <div className="bndz-xfer-toast-line truncate">
-            {primary
-              ? (formatTransferProgressLine(primary) || primary.label || primary.currentFile || 'Working...')
-              : (optimistic?.label || 'Working...')}
+          <div className="bndz-xfer-toast-line truncate" title={nameLine}>
+            {nameLine}
           </div>
+          {stats && stats !== nameLine && (
+            <div className="bndz-xfer-toast-stats truncate">{stats}</div>
+          )}
           {active.length > 1 && (
             <div className="bndz-xfer-toast-more">
               +{active.length - 1} more in queue

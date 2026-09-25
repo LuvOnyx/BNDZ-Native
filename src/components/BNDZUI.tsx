@@ -2568,7 +2568,7 @@ export default function BNDZUI() {
       }
       // Stale-while-revalidate for remote mesh: keep rows, soft-refresh (no sticky Loading more).
       if (isMeshPath(path) && !dirFetchInFlightRef.current.has(path)) {
-        queue Promise.resolve().then(() => beginDirFetchRef.current?.(path, { force: true, soft: true }));
+        queueMicrotask(() => beginDirFetchRef.current?.(path, { force: true, soft: true }));
       }
       return undefined;
     }
@@ -5122,25 +5122,30 @@ export default function BNDZUI() {
         if (live.length) {
           const destNorms = new Set<string>();
           for (const job of live) {
-            const destPane = watcherDirToPanePath(String(job.destinationPath || ''));
-            if (destPane) destNorms.add(normalizePanePath(destPane));
-            // Mesh destinations arrive as pane paths already.
-            if (job.destinationPath && isMeshPath(job.destinationPath)) {
-              destNorms.add(normalizePanePath(job.destinationPath));
-            }
+            const raw = String(job.destinationPath || '');
+            if (!raw) continue;
+            const destPane = isMeshPath(raw) ? raw : watcherDirToPanePath(raw);
+            const dest = normalizePanePath(destPane);
+            if (dest) destNorms.add(dest);
           }
+          const openTabs: { id: string; norm: string }[] = [];
           for (const pane of panesRef.current) {
             for (const tab of pane.tabs) {
               const norm = normalizePanePath(tab.path || '');
-              if (norm && destNorms.has(norm)) busy.add(tab.id);
+              if (norm) openTabs.push({ id: tab.id, norm });
             }
           }
-          // Fallback: active pane tab when destination cannot be mapped.
-          if (!busy.size) {
-            const activeId = activePaneIdRef.current;
-            const activePane = panesRef.current.find(p => p.id === activeId) || panesRef.current[0];
-            const tab = activePane?.tabs[activePane.activeTabIndex];
-            if (tab?.id) busy.add(tab.id);
+          for (const dest of destNorms) {
+            const exact = openTabs.filter(t => t.norm === dest);
+            if (exact.length) {
+              for (const t of exact) busy.add(t.id);
+              continue;
+            }
+            // File (or nested) destination: badge the open folder that contains it, not the active tab.
+            const parent = dest.replace(/\/[^/]+$/, '');
+            for (const t of openTabs) {
+              if (t.norm === parent) busy.add(t.id);
+            }
           }
         }
         setTransferBusyTabIds(prev => {
@@ -13434,16 +13439,8 @@ ${classified.detail}`,
               window.addEventListener('bndz-ole-drag-escalated', onHostOleEscalate);
            }}
         >
-          {streamingPaths.has(normPanePath) && !isPaneLoading && (listRows?.length ?? 0) > 0 && (
-            <div className="bndz-dir-stream-bar shrink-0" role="progressbar" aria-label="Loading more items">
-              <span className="bndz-dir-stream-bar-glow" />
-            </div>
-          )}
-          {loadingPaths.has(normPanePath) && !isPaneLoading && (listRows?.length ?? 0) > 0 && !isMeshPath(normPanePath) && (
-            <div className="sticky top-0 z-10 mx-2 mt-1 mb-1 flex items-center gap-2 rounded border border-sky-500/20 bg-sky-950/40 px-2.5 py-1 text-[10px] text-sky-200/90 pointer-events-none">
-              <Icons8Icon id="loading" size={12} spin />
-              <span>Loading more items...</span>
-            </div>
+          {(streamingPaths.has(normPanePath) || (loadingPaths.has(normPanePath) && !isMeshPath(normPanePath))) && !isPaneLoading && (listRows?.length ?? 0) > 0 && (
+            <div className="bndz-list-busy-rail" role="progressbar" aria-label="Updating folder" />
           )}
           {pathLoadErrors[normPanePath] && !isPaneLoading && (listRows?.length ?? 0) === 0 && (
             <div className="mx-3 mt-2 mb-1 flex items-center gap-2 rounded border border-rose-500/30 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">

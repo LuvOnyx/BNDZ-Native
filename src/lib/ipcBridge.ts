@@ -3575,12 +3575,12 @@ export const IPC = {
   },
 
   /** Drop a toast into Windows Notification Center (AppNotificationBuilder). */
-  showAppNotification(title: string, message: string, tag?: string): void {
+  showAppNotification(title: string, message: string, tag?: string, extra?: Record<string, unknown>): void {
     if (!this.isNative) return;
     try {
       (window as any).chrome.webview.postMessage({
         type: 'SHOW_APP_NOTIFICATION',
-        payload: { title, message, tag },
+        payload: { title, message, tag, ...(extra || {}) },
       });
     } catch { /* ignore */ }
   },
