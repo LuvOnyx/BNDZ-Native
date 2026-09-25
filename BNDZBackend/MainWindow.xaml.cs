@@ -1919,6 +1919,14 @@ namespace BNDZ
 
         private void MonitorDirectory(string path)
         {
+            // Remote mesh pane paths are not local folders. UI may send /mesh/... which
+            // WATCH_DIR historically mangled into mesh\... -- never watch either form.
+            if (BndzMeshOrchestrator.LooksLikeMeshFsPath(path)
+                || path.StartsWith("mesh\\", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("mesh/", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("mesh", StringComparison.OrdinalIgnoreCase))
+                return;
+
             // Normalize path for Windows FileSystemWatcher
             path = path.Replace("/", "\\");
             if (!Directory.Exists(path)) return;
@@ -6440,6 +6448,8 @@ namespace BNDZ
                 {
                     var payload = root.GetProperty("payload");
                     string path = payload.GetProperty("path").GetString() ?? "";
+                    if (BndzMeshOrchestrator.LooksLikeMeshFsPath(path))
+                        return;
                     if (path.StartsWith("/")) path = path.Substring(1);
                     path = path.Replace("/", "\\");
                     if (path.EndsWith(":") && path.Length == 2) path += "\\";
@@ -10077,42 +10087,49 @@ namespace BNDZ
         {
             var meshSources = sources.Where(BndzMeshOrchestrator.LooksLikeMeshFsPath).Select(BndzMeshOrchestrator.ToMeshPanePath).ToList();
             var targetIsMesh = BndzMeshOrchestrator.LooksLikeMeshFsPath(target);
-            if (meshSources.Count > 0 || (targetIsMesh && action is "create-dir" or "create-file"))
-            {
-                var meshTarget = targetIsMesh ? BndzMeshOrchestrator.ToMeshPanePath(target) : target;
-                var meshLabel = BuildFileOpLabel(action, meshSources.Count > 0 ? meshSources : new List<string> { meshTarget }, labelOverride);
-                _fileTransferQueue.RegisterJob(operationId, action, meshLabel, "mesh", Math.Max(meshSources.Count, 1), "mesh", priority, meshTarget);
-                try
-                {
-                    var opSources = meshSources.Count > 0 ? meshSources : new List<string> { meshTarget };
-                    await _meshOrchestrator.ExecuteFsOperationAsync(action, opSources, string.IsNullOrWhiteSpace(meshTarget) ? null : meshTarget)
-                        .ConfigureAwait(false);
-                    _fileTransferQueue.MarkCompleted(operationId);
-                    if (!string.IsNullOrEmpty(idProp))
-                    {
-                        var createdPanePath = action is "create-dir" or "create-file" ? meshTarget : null;
-                        var createdName = string.IsNullOrEmpty(createdPanePath)
-                            ? null
-                            : System.IO.Path.GetFileName(createdPanePath.TrimEnd('/', '\\'));
-                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new
+                        if (meshSources.Count > 0 || (targetIsMesh && action is "create-dir" or "create-file"))
                         {
-                            ok = true,
-                            background = false,
-                            engine = "mesh",
-                            created = createdPanePath != null,
-                            finalPath = createdPanePath,
-                            finalName = createdName,
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    if (!string.IsNullOrEmpty(idProp))
-                        PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new { ok = false, error = ex.Message, engine = "mesh" });
-                }
-                return;
-            }
+                            // Mesh SFTP/S3 providers do blocking I/O inside completed-task wrappers.
+                            // Always ack + run on the thread pool so the UI/message thread never freezes.
+                            var meshTarget = targetIsMesh ? BndzMeshOrchestrator.ToMeshPanePath(target) : target;
+                            var meshLabel = BuildFileOpLabel(action, meshSources.Count > 0 ? meshSources : new List<string> { meshTarget }, labelOverride);
+                            _fileTransferQueue.RegisterJob(operationId, action, meshLabel, "mesh", Math.Max(meshSources.Count, 1), "mesh", priority, meshTarget);
+                            var opSources = meshSources.Count > 0 ? meshSources : new List<string> { meshTarget };
+                            var createdPanePath = action is "create-dir" or "create-file" ? meshTarget : null;
+                            var createdName = string.IsNullOrEmpty(createdPanePath)
+                                ? null
+                                : System.IO.Path.GetFileName(createdPanePath.TrimEnd('/', '\\'));
+                            if (!string.IsNullOrEmpty(idProp))
+                            {
+                                PostMeshIpcResult(idProp, "FS_OPERATION_RESULT", new
+                                {
+                                    ok = true,
+                                    background = true,
+                                    queued = true,
+                                    engine = "mesh",
+                                    created = createdPanePath != null,
+                                    finalPath = createdPanePath,
+                                    finalName = createdName,
+                                });
+                            }
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    await _meshOrchestrator.ExecuteFsOperationAsync(
+                                            action,
+                                            opSources,
+                                            string.IsNullOrWhiteSpace(meshTarget) ? null : meshTarget)
+                                        .ConfigureAwait(false);
+                                    _fileTransferQueue.MarkCompleted(operationId);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                                }
+                            });
+                            return;
+                        }
 
             var isInstantCreateOp = action is "create-dir" or "create-file";
             var prefs = FileOperationPreferences.Current;

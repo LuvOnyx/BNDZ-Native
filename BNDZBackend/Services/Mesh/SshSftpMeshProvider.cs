@@ -347,24 +347,30 @@ public sealed class SshSftpMeshProvider : IMeshProvider
         return Task.CompletedTask;
     }
 
-    public Task DeleteAsync(string remotePath, CancellationToken ct = default)
+        public Task DeleteAsync(string remotePath, CancellationToken ct = default)
     {
-        EnsureConnected();
-        var p = NormalizeRemote(remotePath);
-        if (!_sftp!.Exists(p)) return Task.CompletedTask;
-        var attr = _sftp.GetAttributes(p);
-        if (attr.IsDirectory) _sftp.DeleteDirectory(p);
-        else _sftp.DeleteFile(p);
-        return Task.CompletedTask;
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            EnsureConnected();
+            var p = NormalizeRemote(remotePath);
+            if (!_sftp!.Exists(p)) return;
+            var attr = _sftp.GetAttributes(p);
+            if (attr.IsDirectory) _sftp.DeleteDirectory(p);
+            else _sftp.DeleteFile(p);
+        }, ct);
     }
 
-    public Task RecursiveDeleteAsync(string remotePath, CancellationToken ct = default)
+        public Task RecursiveDeleteAsync(string remotePath, CancellationToken ct = default)
     {
-        EnsureConnected();
-        var p = NormalizeRemote(remotePath);
-        if (!_sftp!.Exists(p)) return Task.CompletedTask;
-        RecursiveDeleteInternal(p, ct);
-        return Task.CompletedTask;
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            EnsureConnected();
+            var p = NormalizeRemote(remotePath);
+            if (!_sftp!.Exists(p)) return;
+            RecursiveDeleteInternal(p, ct);
+        }, ct);
     }
 
     private void RecursiveDeleteInternal(string path, CancellationToken ct)
@@ -386,32 +392,42 @@ public sealed class SshSftpMeshProvider : IMeshProvider
         }
     }
 
-    public Task MkdirAsync(string remotePath, CancellationToken ct = default)
+        public Task MkdirAsync(string remotePath, CancellationToken ct = default)
     {
-        EnsureConnected();
-        EnsureRemoteDir(NormalizeRemote(remotePath));
-        return Task.CompletedTask;
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            EnsureConnected();
+            EnsureRemoteDir(NormalizeRemote(remotePath));
+        }, ct);
     }
 
     public Task RenameAsync(string fromPath, string toPath, CancellationToken ct = default)
     {
-        EnsureConnected();
-        var from = NormalizeRemote(fromPath);
-        var to = NormalizeRemote(toPath);
-        var parent = ParentRemote(to);
-        if (!string.IsNullOrEmpty(parent)) EnsureRemoteDir(parent);
-        _sftp!.RenameFile(from, to);
-        return Task.CompletedTask;
+        // Renci SSH.NET SFTP calls are synchronous -- never run them on the UI/message thread.
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            EnsureConnected();
+            var from = NormalizeRemote(fromPath);
+            var to = NormalizeRemote(toPath);
+            var parent = ParentRemote(to);
+            if (!string.IsNullOrEmpty(parent)) EnsureRemoteDir(parent);
+            _sftp!.RenameFile(from, to);
+        }, ct);
     }
 
-    public Task CreateFileAsync(string remotePath, CancellationToken ct = default)
+        public Task CreateFileAsync(string remotePath, CancellationToken ct = default)
     {
-        EnsureConnected();
-        var remote = NormalizeRemote(remotePath);
-        var parent = ParentRemote(remote);
-        if (!string.IsNullOrEmpty(parent)) EnsureRemoteDir(parent);
-        using var stream = _sftp!.Create(remote);
-        return Task.CompletedTask;
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            EnsureConnected();
+            var remote = NormalizeRemote(remotePath);
+            var parent = ParentRemote(remote);
+            if (!string.IsNullOrEmpty(parent)) EnsureRemoteDir(parent);
+            using var stream = _sftp!.Create(remote);
+        }, ct);
     }
 
     public Task WriteAsync(string remotePath, Stream content, IProgress<long>? progress = null, CancellationToken ct = default)

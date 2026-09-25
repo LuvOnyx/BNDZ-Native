@@ -2386,6 +2386,19 @@ export default function BNDZUI() {
     });
   }, [config.alwaysOnTop]);
 
+
+  const busyTabIdsForStrip = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const pane of panes) {
+      for (const tab of pane.tabs) {
+        const norm = normalizePanePath(tab.path || '');
+        if (!norm) continue;
+        if (loadingPaths.has(norm) || streamingPaths.has(norm)) ids.add(tab.id);
+      }
+    }
+    return ids;
+  }, [panes, loadingPaths, streamingPaths]);
+
   // Keep open-tab paths pinned in the listing LRU so hover-prefetch of children
   // (common in large folders like Program Files) cannot evict the live view.
   {
@@ -2522,6 +2535,10 @@ export default function BNDZUI() {
       const cached = pathContentsCacheRef.current[path];
       if (Array.isArray(cached) && cached.length > 0) {
         prefetchListingVisuals(cached, path, listingPrefetchFromConfig(configRef.current));
+      }
+      // Stale-while-revalidate for remote mesh: keep rows, soft-refresh (soft bar, not skeleton).
+      if (isMeshPath(path) && !dirFetchInFlightRef.current.has(path)) {
+        queue Promise.resolve().then(() => beginDirFetchRef.current?.(path, { force: true }));
       }
       return undefined;
     }
@@ -5451,6 +5468,24 @@ ${classified.detail}`,
   const activeTab: TabState = activePane?.tabs[activePane.activeTabIndex] ?? {
     id: 'fallback', path: '/', history: ['/'], historyIndex: 0, selectedItems: [],
   };
+
+  const openTabTargetsForMenu = React.useMemo(() => {
+    const activePath = normalizePanePath(activeTab?.path || '');
+    const out: Array<{ id: string; label: string; path: string }> = [];
+    const seen = new Set<string>();
+    for (const pane of panes) {
+      for (const tab of pane.tabs) {
+        const path = normalizePanePath(tab.path || '');
+        if (!path || path === activePath) continue;
+        if (seen.has(path)) continue;
+        seen.add(path);
+        const leaf = path.split('/').filter(Boolean).pop() || path;
+        out.push({ id: tab.id, label: leaf, path });
+      }
+    }
+    return out;
+  }, [panes, activeTab?.path]);
+
   const currentPath = activeTab.path;
 
   /** Open Local PowerShell in the bottom Remote Mesh terminal (not external wt/conhost). */
@@ -6228,6 +6263,8 @@ ${classified.detail}`,
             continue;
           }
           if (isBndzVirtualPath(path)) continue;
+          // Mesh/VPS pane paths are not local folders -- host would mangle /mesh/... into mesh\...
+          if (isMeshPath(path)) continue;
           IPC.watchDirectory(path);
         }
       }
@@ -11811,6 +11848,7 @@ ${classified.detail}`,
         )}
         {/* Tab Strip -- dnd-kit horizontal reorder (same pattern as column headers) */}
         <PaneTabStrip
+          busyTabIds={busyTabIdsForStrip}
           paneId={pane.id}
           tabs={pane.tabs}
           activeTabIndex={displayTabIndex}
@@ -17474,6 +17512,9 @@ ${classified.detail}`,
           }}
           onCopyTo={sources => void copyOrMoveToTarget('copy', undefined, sources)}
           onMoveTo={sources => void copyOrMoveToTarget('move', undefined, sources)}
+          openTabTargets={openTabTargetsForMenu}
+          onCopyToOpenTab={(sources, dest) => void copyOrMoveToTarget('copy', dest, sources, { skipConfirm: true })}
+          onMoveToOpenTab={(sources, dest) => void copyOrMoveToTarget('move', dest, sources, { skipConfirm: true })}
           availableTags={availableTags}
           onToggleTag={applyTagToSelection}
           selectionTagKeys={(() => {

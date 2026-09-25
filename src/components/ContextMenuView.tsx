@@ -90,6 +90,10 @@ interface ContextMenuViewProps {
   onRefreshTree?: () => void;
   onCopyTo?: (sources: string[]) => void | Promise<void>;
   onMoveTo?: (sources: string[]) => void | Promise<void>;
+  /** Other open tabs for quick Copy/Move (multi-select). DnD spine untouched. */
+  openTabTargets?: Array<{ id: string; label: string; path: string }>;
+  onCopyToOpenTab?: (sources: string[], destPath: string) => void | Promise<void>;
+  onMoveToOpenTab?: (sources: string[], destPath: string) => void | Promise<void>;
   availableTags?: Array<{ id?: string; name?: string; label?: string; color?: string }>;
   onToggleTag?: (tag: { id?: string; name?: string; label?: string; color?: string }) => void | Promise<void>;
   /** Tag keys present on the current context-menu selection. */
@@ -126,7 +130,7 @@ function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
   onOpenBatchRename, onOpenMeshDrop, setIsSmartToolsOpen, setToastMessage, setInlineRename,
   setClipboardState, executePaste, onDeletePaths, onOpenTerminal, onEmptyRecycleBin, onRefreshList, onRefreshTree,
-  onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
+  onCopyTo, onMoveTo, openTabTargets, onCopyToOpenTab, onMoveToOpenTab, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
   onRestoreRecycleItems, onPurgeRecycleItems, onSelectAll, onInvertSelection,
   onOpenFind, onNavigateUp, onGoBack, onGoForward,
@@ -1102,6 +1106,39 @@ function ContextMenuView({
           }}
         />
       )}
+      {!isBackground && !isInRecycleBin && (openTabTargets?.length ?? 0) > 0 && onCopyToOpenTab && (
+        <ContextSubmenu label="Copy to open tab" iconVerb="copy">
+          {openTabTargets!.map(tab => (
+            <ContextMenuItem
+              key={`copy-open-tab-${tab.id}`}
+              label={tab.label}
+              iconVerb="copy"
+              onClick={() => {
+                const sources = resolveContextTargetPanePaths(menu);
+                onClose();
+                void onCopyToOpenTab(sources, tab.path);
+              }}
+            />
+          ))}
+        </ContextSubmenu>
+      )}
+      {!isBackground && !isInRecycleBin && (openTabTargets?.length ?? 0) > 0 && onMoveToOpenTab && (
+        <ContextSubmenu label="Move to open tab" iconVerb="moveto">
+          {openTabTargets!.map(tab => (
+            <ContextMenuItem
+              key={`move-open-tab-${tab.id}`}
+              label={tab.label}
+              iconVerb="moveto"
+              onClick={() => {
+                const sources = resolveContextTargetPanePaths(menu);
+                onClose();
+                void onMoveToOpenTab(sources, tab.path);
+              }}
+            />
+          ))}
+        </ContextSubmenu>
+      )}
+
       {isInRecycleBin ? (
         <ContextMenuItem label="Delete permanently" iconVerb="delete" onClick={() => handleVerb('delete')} />
       ) : (

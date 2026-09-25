@@ -94,6 +94,8 @@ export type PaneTabStripProps = {
   suspendTabReorder?: boolean;
   /** Pointer file-drag hover over a tab (immediate tab switch). */
   onPointerFileDragOverTab?: (index: number) => void;
+  /** Tab ids with pending load/transfer work -- light busy pulse. */
+  busyTabIds?: ReadonlySet<string> | string[];
 };
 
 function SortablePaneTab({
@@ -112,6 +114,7 @@ function SortablePaneTab({
   showXClose,
   tabFontSize,
   isFileDropHover,
+  isBusy,
   suspendTabReorder,
   onActivate,
   onClose,
@@ -134,6 +137,7 @@ function SortablePaneTab({
   showXClose: boolean;
   tabFontSize?: number;
   isFileDropHover: boolean;
+  isBusy?: boolean;
   suspendTabReorder?: boolean;
   onActivate: () => void;
   onClose: (e: React.MouseEvent) => void;
@@ -319,6 +323,11 @@ function SortablePaneTab({
 
 /** Pane list tabs -- horizontal slide reorder via @dnd-kit (same pattern as column headers). */
 export default function PaneTabStrip(props: PaneTabStripProps) {
+  const busySet = React.useMemo(() => {
+    const raw = props.busyTabIds;
+    if (!raw) return new Set<string>();
+    return raw instanceof Set ? raw : new Set(raw);
+  }, [props.busyTabIds]);
   const {
     paneId,
     tabs,
@@ -473,7 +482,8 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
                 showIconsTabs={showIconsTabs}
                 showXClose={showXClose}
                 tabFontSize={tabFontSize}
-                isFileDropHover={tabFileDropTargetIndex === idx}
+                isBusy={busySet.has(tab.id)}
+            isFileDropHover={tabFileDropTargetIndex === idx}
                 suspendTabReorder={suspendTabReorder}
                 onActivate={() => onActivate(idx)}
                 onClose={e => onClose(idx, e)}
