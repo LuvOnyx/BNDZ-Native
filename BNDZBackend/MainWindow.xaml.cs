@@ -86,6 +86,7 @@ namespace BNDZ
         // private ConcurrentDictionary kept removed — use BndzHostCaches.Icons / Thumbnails.
 
         private CoreWebView2Environment? _webViewEnvironment;
+        private Task<CoreWebView2Environment>? _earlyWebEnv;
         /// <summary>Cached CDP SystemInfo.getInfo GPU report for Perf HUD (honest hardware vs software).</summary>
         private object? _gpuStatusCache;
         private readonly object _gpuStatusGate = new();
@@ -118,6 +119,11 @@ namespace BNDZ
             else
             {
                 MainWebView.AllowExternalDrop = true;
+            }
+            if (!App.IsBackendHost && !App.IsEmbeddedInWinUiShell)
+            {
+                BndzBootLog.Mark("window-ctor");
+                StartWebViewEnvironmentEarly();
             }
             _fileService = fileService;
             _aiService = aiService;
@@ -211,9 +217,16 @@ namespace BNDZ
             _ = Task.Run(() => _automationScheduler.RestorePersistedSchedules());
             _ = Task.Run(() =>
             {
+                try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
+            });
+            // USN + default library index fight the first LIST_DIR for disk. Start them after the window is up.
+            _ = Task.Run(async () =>
+            {
+                try { await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false); } catch { return; }
+                BndzBootLog.Mark("deferred-index-usn");
                 try { UsnHealthWatcherService.Instance.Start(); } catch { }
                 try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
-                try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
+                try { BndzFileIndexService.Instance.StartDeferredDefaultIndex(); } catch { }
             });
             _meshDropService.SetSessionChangedHandler(evt =>
             {
@@ -242,18 +255,23 @@ namespace BNDZ
             _settingsManager = new SettingsManager();
             _globalHotkeys = new GlobalHotkeyService();
             _globalHotkeys.HotkeyPressed += OnGlobalHotkeyPressed;
-            try
+            // Disk reads for prefs / action log / transfer history are not required to paint the first folder.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
             {
-                var bootSettings = _settingsManager.LoadSettings();
-                bootSettings = SanitizeThumbnailSettingsJson(bootSettings);
-                FileOperationPreferences.ApplyFromJson(bootSettings);
-                ApplyFileOperationPreferences();
-                ApplyGlobalHotkeysFromSettingsJson(bootSettings);
-                BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
-                _actionLogService.LoadPersistedIfEnabled();
-                _fileTransferQueue.LoadPersistedHistory();
-            }
-            catch { /* use defaults */ }
+                try
+                {
+                    var bootSettings = _settingsManager.LoadSettings();
+                    bootSettings = SanitizeThumbnailSettingsJson(bootSettings);
+                    FileOperationPreferences.ApplyFromJson(bootSettings);
+                    ApplyFileOperationPreferences();
+                    ApplyGlobalHotkeysFromSettingsJson(bootSettings);
+                    BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
+                    _actionLogService.LoadPersistedIfEnabled();
+                    _fileTransferQueue.LoadPersistedHistory();
+                    BndzBootLog.Mark("boot-settings-applied");
+                }
+                catch { /* use defaults */ }
+            }));
             _fileTransferQueue.QueueChanged += () =>
             {
                 PostFileTransferQueueChanged();
@@ -323,7 +341,7 @@ namespace BNDZ
                     });
                 }
             };
-            BndzFileIndexService.Instance.StartDeferredDefaultIndex();
+            // Default index starts with the deferred USN pass above — not on the first-paint path.
             AppIconService.ApplyToWindow(this);
             if (!App.IsPluginWindow && !App.IsBackendHost)
             {
@@ -2219,18 +2237,16 @@ namespace BNDZ
             };
         }
 
-        private async void InitializeWebViewAsync()
-        {
-            if (App.IsBackendHost)
-                return;
 
-            try
-            {
-            // WebView2 uses D3D11 compositing by default; prefer explicit GPU rasterization for smooth panel resize/scroll.
-            // --disable-frame-rate-limit unlocks Chromium's internal 60fps cap so the compositor follows monitor Hz.
-            // --disable-smooth-scrolling keeps wheel input 1:1 (Explorer-like), not eased browser smooth-scroll.
-            // CanvasOopRasterization / gpu-compositing keep paint off the UI thread when the adapter allows it.
-            // Custom scheme for local file streaming — WebResourceRequested does NOT fire on SetVirtualHostNameToFolderMapping hosts.
+        private void StartWebViewEnvironmentEarly()
+        {
+            if (_earlyWebEnv != null || App.IsBackendHost) return;
+            _earlyWebEnv = CreateWebViewEnvironmentAsync();
+        }
+
+        private async Task<CoreWebView2Environment> CreateWebViewEnvironmentAsync()
+        {
+            BndzBootLog.Mark("webview-env-start");
             var streamScheme = new CoreWebView2CustomSchemeRegistration(LocalStreamService.CustomScheme)
             {
                 TreatAsSecure = true,
@@ -2240,9 +2256,6 @@ namespace BNDZ
             streamScheme.AllowedOrigins.Add("https://bndz.local");
 
             var mediaScheme = BndzMediaScheme.CreateRegistration();
-
-            // CustomSchemeRegistrations is ctor-only (read-only property). Passing null leaves
-            // the getter returning null, so .Add would NullReferenceException at startup.
             var webEnvOptions = new CoreWebView2EnvironmentOptions(
                 additionalBrowserArguments:
                     "--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
@@ -2259,8 +2272,21 @@ namespace BNDZ
                 ? Path.Combine(localAppData, "BNDZ", "WebView2", $"Stage-{Process.GetCurrentProcess().Id}")
                 : Path.Combine(localAppData, "BNDZ", "WebView2", "Main");
             Directory.CreateDirectory(profileDir);
-
             var webEnv = await CoreWebView2Environment.CreateAsync(null, profileDir, webEnvOptions);
+            BndzBootLog.Mark("webview-env-ready");
+            return webEnv;
+        }
+
+        private async void InitializeWebViewAsync()
+        {
+            if (App.IsBackendHost)
+                return;
+
+            try
+            {
+            var webEnv = _earlyWebEnv != null
+                ? await _earlyWebEnv
+                : await CreateWebViewEnvironmentAsync();
             _webViewEnvironment = webEnv;
             // Keep AllowExternalDrop=true so WebView2 does not install a *blocking* OLE target
             // before RegisterWebView2OleDropTarget can replace it with BNDZ's own IDropTarget.
@@ -2362,7 +2388,17 @@ namespace BNDZ
 #endif
 
             // Navigate to the React frontend served from the virtual host, bypassing cache
-            var navUrl = $"http://bndz.local/index.html?t={DateTime.Now.Ticks}";
+            var indexHtml = System.IO.Path.Combine(uiPath, "index.html");
+            long uiStamp = 0;
+            try
+            {
+                if (System.IO.File.Exists(indexHtml))
+                    uiStamp = System.IO.File.GetLastWriteTimeUtc(indexHtml).Ticks;
+            }
+            catch { /* ignore */ }
+            if (uiStamp == 0) uiStamp = DateTime.UtcNow.Ticks;
+            // Stable per built index.html so repeat launches can reuse the WebView2 document cache.
+            var navUrl = $"http://bndz.local/index.html?v={uiStamp}";
             if (App.IsNativeShell)
                 navUrl += "&nativeShell=1";
             if (App.IsPluginWindow && !string.IsNullOrWhiteSpace(_pendingPluginId ?? App.PluginWindowId))
@@ -2376,7 +2412,11 @@ namespace BNDZ
                     navUrl += $"&title={Uri.EscapeDataString(_pendingPluginTitle)}";
             }
             MainWebView.CoreWebView2.Navigate(navUrl);
-            MainWebView.CoreWebView2.NavigationCompleted += (_, _) => FlushPendingStartupAction();
+            MainWebView.CoreWebView2.NavigationCompleted += (_, _) =>
+            {
+                BndzBootLog.Mark("ui-navigated");
+                FlushPendingStartupAction();
+            };
             }
             catch (Exception ex)
             {
@@ -7047,6 +7087,27 @@ namespace BNDZ
                     string message = payload.TryGetProperty("message", out var msgEl) ? msgEl.GetString() ?? "" : "";
                     string? tag = payload.TryGetProperty("tag", out var tagEl) ? tagEl.GetString() : null;
                     _ = Task.Run(() => WindowsToastService.Show(title, message, tag));
+                }
+                else if (type == "SHOW_APP_NOTIFICATION")
+                {
+                    var payload = root.GetProperty("payload");
+                    if (payload.TryGetProperty("transferPhase", out var phaseEl) && phaseEl.ValueKind == JsonValueKind.String)
+                    {
+                        double? pct = payload.TryGetProperty("progress", out var progEl) && progEl.TryGetDouble(out var pv) ? pv : null;
+                        var progressTitle = payload.TryGetProperty("progressTitle", out var pt) ? pt.GetString() : null;
+                        var progressStatus = payload.TryGetProperty("progressStatus", out var ps) ? ps.GetString() : null;
+                        var progressValue = payload.TryGetProperty("progressValue", out var pvs) ? pvs.GetString() : null;
+                        var message = payload.TryGetProperty("message", out var msgEl) ? msgEl.GetString() : null;
+                        var title = payload.TryGetProperty("title", out var titleEl) ? titleEl.GetString() : progressTitle;
+                        ToastOsProgress.Apply(phaseEl.GetString(), title ?? progressTitle, message, pct, progressValue, progressStatus);
+                    }
+                    else
+                    {
+                        string title = payload.TryGetProperty("title", out var titleEl) ? titleEl.GetString() ?? "BNDZ" : "BNDZ";
+                        string message = payload.TryGetProperty("message", out var msgEl) ? msgEl.GetString() ?? "" : "";
+                        string? tag = payload.TryGetProperty("tag", out var tagEl) ? tagEl.GetString() : null;
+                        _ = Task.Run(() => WindowsToastService.Show(title, message, tag));
+                    }
                 }
                 else if (type == "SCAN_DUPLICATES")
                 {

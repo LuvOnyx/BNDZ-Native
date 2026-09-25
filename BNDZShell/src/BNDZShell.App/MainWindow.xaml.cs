@@ -1066,6 +1066,15 @@ public sealed partial class MainWindow : Window
             var title = payload.TryGetProperty("title", out var t) ? t.GetString() : "BNDZ";
             var message = payload.TryGetProperty("message", out var m) ? m.GetString() : null;
             var tag = payload.TryGetProperty("tag", out var g) ? g.GetString() : null;
+            if (payload.TryGetProperty("transferPhase", out var phaseEl) && phaseEl.ValueKind == JsonValueKind.String)
+            {
+                double? pct = payload.TryGetProperty("progress", out var progEl) && progEl.TryGetDouble(out var pv) ? pv : null;
+                var progressTitle = payload.TryGetProperty("progressTitle", out var pt) ? pt.GetString() : title;
+                var progressStatus = payload.TryGetProperty("progressStatus", out var ps) ? ps.GetString() : null;
+                var progressValue = payload.TryGetProperty("progressValue", out var pvs) ? pvs.GetString() : null;
+                BndzAppNotifications.UpdateTransfer(phaseEl.GetString(), progressTitle, message, pct, progressValue, progressStatus);
+                return;
+            }
             BndzAppNotifications.TryShow(title ?? "BNDZ", message ?? "", tag);
         }
         catch (Exception ex)

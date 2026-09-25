@@ -1238,10 +1238,17 @@ namespace BNDZ.Services
             _ = Task.Run(() => _automationScheduler.RestorePersistedSchedules());
             _ = Task.Run(() =>
             {
-                try { UsnHealthWatcherService.Instance.Start(); } catch { }
-                try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
                 try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
                 try { _ghostLinkService.StartIdleScanner(); } catch { }
+            });
+            // Keep USN + library index off the first LIST_DIR. Same delay as the WPF host.
+            _ = Task.Run(async () =>
+            {
+                try { await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false); } catch { return; }
+                BndzBootLog.Mark("deferred-index-usn");
+                try { UsnHealthWatcherService.Instance.Start(); } catch { }
+                try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
+                try { BndzFileIndexService.Instance.StartDeferredDefaultIndex(); } catch { }
             });
             _meshDropService.SetSessionChangedHandler(evt =>
             {
@@ -1375,7 +1382,7 @@ namespace BNDZ.Services
                     });
                 }
             };
-            BndzFileIndexService.Instance.StartDeferredDefaultIndex();
+            // Default index is started by the deferred USN pass above.
             // headless: no window icon
             /* headless: no tray */
             // headless
@@ -1386,6 +1393,7 @@ namespace BNDZ.Services
             // headless: never create WebView2
             // Pre-warm the license cache so the first IPC message doesn't block on a cold license check.
             _ = Task.Run(() => { try { LicenseService.GetStatusCached(); } catch { } });
+            BndzBootLog.Mark("headless-host-ready");
         }
 
 #if DEBUG

@@ -42,6 +42,7 @@ namespace BNDZ
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
+            BndzBootLog.Mark("process-start");
             if (e.Args.Length >= 1 && e.Args[0] == "--version")
             {
                 Console.WriteLine(BndzUpdateService.GetCurrentVersion());
@@ -206,6 +207,7 @@ namespace BNDZ
                 mainWindow.SetPendingStartupAction(startupAction);
             if (IsPluginWindow && !string.IsNullOrWhiteSpace(PluginWindowId))
                 mainWindow.SetPendingPluginWindow(PluginWindowId!, PluginStickyId, pluginTitle);
+            BndzBootLog.Mark("window-show");
             mainWindow.Show();
 
             BndzFileManagerIpcService.Instance.RegisterMain(mainWindow);

@@ -44,6 +44,8 @@ public partial class App : Application
 
 	protected override void OnLaunched(LaunchActivatedEventArgs args)
 	{
+		BndzBootLog.Mark("shell-launch");
+		CraftPaneHost.PrewarmEnvironment();
 		TryApplyShellIntegrationFromElevatedRelaunch();
 		PluginWindowBoot.Parse(Environment.GetCommandLineArgs());
 		_mainWindow = new MainWindow();

@@ -109,6 +109,16 @@ public sealed partial class CraftPaneHost : UserControl
 			host.ApplyPaneRoute(forceNavigate: false);
 	}
 
+	/// <summary>Start the shared WebView2 environment before the window finishes coming up.</summary>
+	public static void PrewarmEnvironment()
+	{
+		BndzBootLog.Mark("webview-env-start");
+		_ = GetSharedPaneEnvironmentAsync().ContinueWith(task =>
+		{
+			BndzBootLog.Mark(task.IsCompletedSuccessfully ? "webview-env-ready" : "webview-env-failed");
+		}, TaskScheduler.Default);
+	}
+
 	/// <summary>Eager-init WebView2 while the host may still be Collapsed (no visible spinner flash).</summary>
 	public void Prewarm()
 	{
@@ -206,6 +216,13 @@ public sealed partial class CraftPaneHost : UserControl
 		{
 			// Silent animated loader until BNDZ_UI_READY — no "Starting WebView2" text chatter.
 			ShowBootLoader();
+			BndzBootLog.Mark("pane-init");
+			// Backend ctor overlaps whatever is left of WebView2 environment create.
+			if (!BndzEmbeddedBackendHost.IsReady)
+			{
+				BndzEmbeddedBackendHost.EnsureStarted();
+				BndzBootLog.Mark("backend-ready");
+			}
 
 			_uiRoot = ResolveUiAssetsRoot();
 			if (_uiRoot is null)
@@ -238,9 +255,7 @@ public sealed partial class CraftPaneHost : UserControl
 			var core = PaneWebView.CoreWebView2
 				?? throw new InvalidOperationException("WebView2 CoreWebView2 is null after init.");
 
-			// Headless BndzIpcHost (no WPF App.Run / no backend WebView2) — start on this STA thread.
-			if (!BndzEmbeddedBackendHost.IsReady)
-				BndzEmbeddedBackendHost.EnsureStarted();
+			// Backend was started at the top of init so it overlaps environment create.
 			_pushHandler = json =>
 			{
 				void Post()
@@ -1487,6 +1502,7 @@ public sealed partial class CraftPaneHost : UserControl
 							Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 							"BNDZ", "ole-dnd.log"),
 						$"{DateTime.Now:HH:mm:ss.fff} UI_READY bundle={bundle}{Environment.NewLine}");
+					BndzBootLog.Mark("ui-ready");
 				}
 				catch { /* never break host on logging */ }
 				HidePaneChromeHints();
