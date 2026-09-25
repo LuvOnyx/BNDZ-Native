@@ -470,6 +470,11 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
           <span className="text-[11px] font-semibold text-gray-200 tracking-wide">
             Background processing
           </span>
+          {(state.activeCount > 0 || state.queuedCount > 0) && (
+            <span className="bndz-transfer-busy-count" title="Active transfers">
+              {Math.max(state.activeCount, 0) + Math.max(state.queuedCount, 0)}
+            </span>
+          )}
           <span className="text-[10px] text-gray-500 truncate">
             {summaryParts.join(' | ')}
           </span>

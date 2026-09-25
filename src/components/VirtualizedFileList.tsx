@@ -109,7 +109,9 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
     getScrollElement: () => scrollEl,
     estimateSize,
     /** Extra rows hide recycle flash during fast wheel/trackpad flings. */
-    overscan: mode === 'grid' ? 8 : 24,
+    overscan: mode === 'grid' ? 6 : 16,
+    /** Drop isScrolling sooner so row recycle snaps like Explorer, not a soft web linger. */
+    isScrollingResetDelay: 90,
     enabled: useVirtual && !!scrollEl,
   });
 

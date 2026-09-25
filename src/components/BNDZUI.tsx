@@ -1803,7 +1803,7 @@ export default function BNDZUI() {
     selectionChromeTimerRef.current = setTimeout(() => {
       setSelectionChromeReady(new Set(ids));
       selectionChromeTimerRef.current = null;
-    }, 200);
+    }, 70);
   };
   const beginInlineRename = React.useCallback((path: string, entityId: string, entity: any) => {
     const initial = getRenameInitialValue(entity, config);
@@ -2288,9 +2288,36 @@ export default function BNDZUI() {
   // loadingPaths tracks which paths are currently being fetched so we show a spinner
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [streamingPaths, setStreamingPaths] = useState<Set<string>>(new Set());
+  // Mesh soft-refresh can leave loading/streaming flags briefly if a race swallows finally.
+  useEffect(() => {
+    const timers = new Map<string, number>();
+    const watch = new Set<string>([...loadingPaths, ...streamingPaths]);
+    for (const meshPath of watch) {
+      if (!isMeshPath(meshPath)) continue;
+      if (timers.has(meshPath)) continue;
+      timers.set(meshPath, window.setTimeout(() => {
+        timers.delete(meshPath);
+        setLoadingPaths(prev => {
+          if (!prev.has(meshPath)) return prev;
+          const next = new Set(prev);
+          next.delete(meshPath);
+          return next;
+        });
+        setStreamingPaths(prev => {
+          if (!prev.has(meshPath)) return prev;
+          const next = new Set(prev);
+          next.delete(meshPath);
+          return next;
+        });
+      }, 2200));
+    }
+    return () => {
+      timers.forEach(t => window.clearTimeout(t));
+    };
+  }, [loadingPaths, streamingPaths]);
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
   const refetchAgainRef = useRef(new Set<string>());
-  const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => Promise<void> | undefined>(() => undefined);
+  const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean; soft?: boolean }) => Promise<void> | undefined>(() => undefined);
   /** Always-current navigate -- sidebar modules must not close over a stale setCurrentPath. */
   const setCurrentPathRef = useRef<(path: string, paneId?: string, updateHistory?: boolean) => void>(() => {});
   /** Paths seeded by Files ShellViewModel (`BNDZ_DIR_LISTING`) -- prefer over GET_DIR_CONTENTS. */
@@ -2387,6 +2414,8 @@ export default function BNDZUI() {
   }, [config.alwaysOnTop]);
 
 
+  const [transferBusyTabIds, setTransferBusyTabIds] = useState<Set<string>>(() => new Set());
+
   const busyTabIdsForStrip = React.useMemo(() => {
     const ids = new Set<string>();
     for (const pane of panes) {
@@ -2396,8 +2425,9 @@ export default function BNDZUI() {
         if (loadingPaths.has(norm) || streamingPaths.has(norm)) ids.add(tab.id);
       }
     }
+    for (const id of transferBusyTabIds) ids.add(id);
     return ids;
-  }, [panes, loadingPaths, streamingPaths]);
+  }, [panes, loadingPaths, streamingPaths, transferBusyTabIds]);
 
   // Keep open-tab paths pinned in the listing LRU so hover-prefetch of children
   // (common in large folders like Program Files) cannot evict the live view.
@@ -2526,7 +2556,7 @@ export default function BNDZUI() {
     return () => window.removeEventListener('bndz-open-tag-assignment', onOpenTagAssignment);
   }, []);
 
-  const beginDirFetch = React.useCallback((rawPath: string, opts?: { force?: boolean }): Promise<void> | undefined => {
+  const beginDirFetch = React.useCallback((rawPath: string, opts?: { force?: boolean; soft?: boolean }): Promise<void> | undefined => {
     const path = normalizePanePath(rawPath);
     if (!path) return undefined;
     // Cache hit: still re-warm shell glyphs / thumbs (Explorer feel -- icons stay ready).
@@ -2536,9 +2566,9 @@ export default function BNDZUI() {
       if (Array.isArray(cached) && cached.length > 0) {
         prefetchListingVisuals(cached, path, listingPrefetchFromConfig(configRef.current));
       }
-      // Stale-while-revalidate for remote mesh: keep rows, soft-refresh (soft bar, not skeleton).
+      // Stale-while-revalidate for remote mesh: keep rows, soft-refresh (no sticky Loading more).
       if (isMeshPath(path) && !dirFetchInFlightRef.current.has(path)) {
-        queue Promise.resolve().then(() => beginDirFetchRef.current?.(path, { force: true }));
+        queue Promise.resolve().then(() => beginDirFetchRef.current?.(path, { force: true, soft: true }));
       }
       return undefined;
     }
@@ -2812,8 +2842,14 @@ export default function BNDZUI() {
     }
 
     dirFetchInFlightRef.current.add(path);
-    setLoadingPaths(prev => new Set(prev).add(path));
-    setStreamingPaths(prev => new Set(prev).add(path));
+    const softRefresh = !!opts?.soft
+      && Array.isArray(pathContentsCacheRef.current[path])
+      && (pathContentsCacheRef.current[path]?.length ?? 0) > 0;
+    // Soft mesh revalidate must not raise sticky "Loading more..." / stream bar.
+    if (!softRefresh) {
+      setLoadingPaths(prev => new Set(prev).add(path));
+      setStreamingPaths(prev => new Set(prev).add(path));
+    }
     const loadStarted = performance.now();
 
     // Backend already enforces Hello Gate inside GET_DIR_CONTENTS. Do not serialize a separate
@@ -3375,6 +3411,28 @@ export default function BNDZUI() {
     if (breadcrumbDropTargetRef.current === v) return;
     breadcrumbDropTargetRef.current = v;
     setBreadcrumbDropTargetState(v);
+  };
+  /** File drag is over the address breadcrumb rail -- unfold collapsed crumbs for usable drops. */
+  const [breadcrumbDragMagnify, setBreadcrumbDragMagnify] = useState(false);
+  const breadcrumbDragMagnifyRef = useRef(false);
+  const [breadcrumbDragClientX, setBreadcrumbDragClientX] = useState<number | null>(null);
+  const breadcrumbDragClientXRef = useRef<number | null>(null);
+  const setBreadcrumbDragMagnifyLive = (active: boolean, clientX?: number | null) => {
+    if (breadcrumbDragMagnifyRef.current !== active) {
+      breadcrumbDragMagnifyRef.current = active;
+      setBreadcrumbDragMagnify(active);
+    }
+    if (!active) {
+      if (breadcrumbDragClientXRef.current != null) {
+        breadcrumbDragClientXRef.current = null;
+        setBreadcrumbDragClientX(null);
+      }
+      return;
+    }
+    if (typeof clientX === "number" && breadcrumbDragClientXRef.current !== clientX) {
+      breadcrumbDragClientXRef.current = clientX;
+      setBreadcrumbDragClientX(clientX);
+    }
   };
   const [navTreeFileDropTarget, setNavTreeFileDropTargetState] = useState<string | null>(null);
   const navTreeFileDropTargetRef = useRef<string | null>(null);
@@ -5056,6 +5114,40 @@ export default function BNDZUI() {
         j.status === 'queued' || j.status === 'running' || j.status === 'paused',
       ).length;
       transferActiveCountRef.current = Math.max(Number(state.activeCount) || 0, queuedOrRunning);
+      {
+        const live = state.jobs.filter(j =>
+          j.status === 'queued' || j.status === 'running' || j.status === 'paused',
+        );
+        const busy = new Set<string>();
+        if (live.length) {
+          const destNorms = new Set<string>();
+          for (const job of live) {
+            const destPane = watcherDirToPanePath(String(job.destinationPath || ''));
+            if (destPane) destNorms.add(normalizePanePath(destPane));
+            // Mesh destinations arrive as pane paths already.
+            if (job.destinationPath && isMeshPath(job.destinationPath)) {
+              destNorms.add(normalizePanePath(job.destinationPath));
+            }
+          }
+          for (const pane of panesRef.current) {
+            for (const tab of pane.tabs) {
+              const norm = normalizePanePath(tab.path || '');
+              if (norm && destNorms.has(norm)) busy.add(tab.id);
+            }
+          }
+          // Fallback: active pane tab when destination cannot be mapped.
+          if (!busy.size) {
+            const activeId = activePaneIdRef.current;
+            const activePane = panesRef.current.find(p => p.id === activeId) || panesRef.current[0];
+            const tab = activePane?.tabs[activePane.activeTabIndex];
+            if (tab?.id) busy.add(tab.id);
+          }
+        }
+        setTransferBusyTabIds(prev => {
+          if (prev.size === busy.size && [...busy].every(id => prev.has(id))) return prev;
+          return busy;
+        });
+      }
       let shouldRefresh = false;
       // Track whether every newly-completed job in this batch was a delete so we can
       // use a shorter (or zero) refresh delay -- tombstones already removed the rows
@@ -8939,6 +9031,7 @@ ${classified.detail}`,
     setFileDragListPreview(null);
     setNewTabDropPaneId(null);
     setBreadcrumbDropTarget(null);
+    setBreadcrumbDragMagnifyLive(false);
     setNavTreeFileDropTarget(null);
     setFileDragFavoriteTarget(null);
     setPointerFileDragActive(false);
@@ -9025,6 +9118,9 @@ ${classified.detail}`,
     lastDragHoverStateRef.current = { x: clientX, y: clientY, state: hover };
     setNavTreeFileDropTarget(hover.navTreePath);
     setBreadcrumbDropTarget(hover.breadcrumbPath);
+    const overBreadcrumbRail = !!hitTestClosestAtPoint(clientX, clientY, '.bndz-breadcrumb-slot, [data-breadcrumb-path]')
+      || !!hover.breadcrumbPath;
+    setBreadcrumbDragMagnifyLive(overBreadcrumbRail, overBreadcrumbRail ? clientX : null);
     setFileDragFavoriteTarget(hover.favoritePath);
     const overList = !!hitTestListBodyAtPoint(clientX, clientY);
     setPointerDragHover(clientX, clientY, overList, {
@@ -9562,6 +9658,7 @@ ${classified.detail}`,
       setExternalDragActive(false);
       setExternalDragPaths([]);
       clearExternalDragHover();
+      setBreadcrumbDragMagnifyLive(false);
       // Only disarm if this was an inbound ghost (no outbound session).
       if (!getFileDragSession() && !isOleDragHandoffActive() && !pointerFileDragActiveRef.current) {
         disarmFluidDrag();
@@ -11923,7 +12020,8 @@ ${classified.detail}`,
             <ToolbarButton launcherIcon={launcherIconUrl('nav_forward')} className={`bndz-files-nav-btn ${currentTab.historyIndex < currentTab.history.length - 1 ? '' : 'opacity-30'}`} onClick={() => goForward(pane.id)} />
             <ToolbarButton launcherIcon={launcherIconUrl('nav_up')} className="bndz-files-nav-btn" onClick={() => goUp(pane.id)} />
             <div 
-              className="bndz-breadcrumb-slot bndz-files-address-well flex flex-1 min-w-0 basis-0 items-center text-[13px] px-2 overflow-x-auto overflow-y-hidden whitespace-nowrap cursor-text relative"
+              className={`bndz-breadcrumb-slot bndz-files-address-well flex flex-1 min-w-0 basis-0 items-center text-[13px] px-2 overflow-x-auto overflow-y-hidden whitespace-nowrap cursor-text relative ${breadcrumbDragMagnify ? 'bndz-breadcrumb-slot--magnify' : ''}`}
+              data-breadcrumb-magnify={breadcrumbDragMagnify ? '1' : undefined}
               title="Click to edit path | double-click empty for Command Hub"
               onClick={() => {
                  if (!isGlobal) {
@@ -12067,6 +12165,8 @@ ${classified.detail}`,
                 <BreadcrumbTrail
                   segments={getBreadcrumbSegments(currentTab.path, catalogNameMap)}
                   dropTarget={breadcrumbDropTarget}
+                  dragMagnify={breadcrumbDragMagnify}
+                  dragClientX={breadcrumbDragClientX}
                   onNavigate={(path, opts) => {
                     if (opts?.newTab) { addTab(pane.id, path); return; }
                     if (isDualPane && pane.id !== activePaneId) setActivePaneId(pane.id);
@@ -13339,7 +13439,7 @@ ${classified.detail}`,
               <span className="bndz-dir-stream-bar-glow" />
             </div>
           )}
-          {loadingPaths.has(normPanePath) && !isPaneLoading && (listRows?.length ?? 0) > 0 && (
+          {loadingPaths.has(normPanePath) && !isPaneLoading && (listRows?.length ?? 0) > 0 && !isMeshPath(normPanePath) && (
             <div className="sticky top-0 z-10 mx-2 mt-1 mb-1 flex items-center gap-2 rounded border border-sky-500/20 bg-sky-950/40 px-2.5 py-1 text-[10px] text-sky-200/90 pointer-events-none">
               <Icons8Icon id="loading" size={12} spin />
               <span>Loading more items...</span>

@@ -21196,6 +21196,71 @@ html.theme-light .bndz-omni-suggest {
 }
 
 
+
+
+/* Slice2: breadcrumb magnify + snappier list */
+.bndz-breadcrumb-slot.bndz-files-address-well {
+  scroll-behavior: auto;
+}
+.bndz-breadcrumb-rail--magnify {
+  gap: 1px;
+}
+.bndz-breadcrumb-rail--magnify [data-breadcrumb-path] {
+  font-size: 13.5px;
+  letter-spacing: 0.01em;
+  padding: 1px 4px;
+  margin: 0 1px;
+  background: color-mix(in srgb, var(--accent, #0078d4) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 28%, transparent);
+}
+.bndz-tab-busy-badge {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #0078d4) 88%, #fff);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 8px color-mix(in srgb, var(--accent, #0078d4) 55%, transparent);
+  animation: bndz-tab-busy-dot 1s ease-in-out infinite;
+}
+@keyframes bndz-tab-busy-dot {
+  0%, 100% { opacity: 0.45; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.bndz-transfer-panel[data-bndz-transfer-panel="1"] .bndz-transfer-busy-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e8f4ff;
+  background: color-mix(in srgb, var(--accent, #0078d4) 72%, #0b3a5c);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+/* Explorer-snap list feel: shorter hover/selection wash, no soft scroll easing */
+.bndz-file-list-scroll,
+.bndz-chrome-workspace [data-list-body] {
+  scroll-behavior: auto !important;
+  overscroll-behavior: contain;
+}
+.fs-list-item,
+.bndz-view-list,
+.bndz-view-details.fs-list-item,
+.fs-item-wrapper.fs-list-item {
+  transition: background-color 55ms linear, box-shadow 55ms linear, color 55ms linear !important;
+}
+.bndz-view-grid,
+.fs-grid-item {
+  transition: background-color 55ms linear, box-shadow 55ms linear !important;
+}
+.bndz-vlist-row {
+  will-change: transform;
+  contain: layout style paint;
+}
+
 /* Slice1: clearer active tab + busy pulse */
 .bndz-tab-item.bndz-tab-active {
   filter: brightness(1.08);

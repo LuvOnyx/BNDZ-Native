@@ -12,6 +12,10 @@ type Props = {
   onNavigate: (path: string, opts?: { newTab?: boolean }) => void;
   /** Double-click empty rail chrome (not a crumb) -- Command Hub / CEA. */
   onWhiteDoubleClick?: () => void;
+  /** File drag is over this rail -- unfold collapsed crumbs so each is a drop target. */
+  dragMagnify?: boolean;
+  /** Pointer X during that drag, so left/right motion scrolls clipped crumbs into reach. */
+  dragClientX?: number | null;
 };
 
 /** Rough px width for a segment label + separator -- conservative so we keep paths visible. */
@@ -62,6 +66,8 @@ export function BreadcrumbTrail({
   dropTarget,
   onNavigate,
   onWhiteDoubleClick,
+  dragMagnify = false,
+  dragClientX = null,
 }: Props) {
   const railRef = useRef<HTMLDivElement>(null);
   const [maxVisible, setMaxVisible] = useState(segments.length);
@@ -92,18 +98,54 @@ export function BreadcrumbTrail({
     };
   }, [segments]);
 
+  const fitLimit = dragMagnify ? segments.length : maxVisible;
+
   const { head, mid, tail } = useMemo(() => {
-    if (segments.length <= maxVisible || segments.length <= 2) {
+    if (segments.length <= fitLimit || segments.length <= 2) {
       return { head: segments, mid: [] as BreadcrumbSeg[], tail: [] as BreadcrumbSeg[] };
     }
     const keepTail = 1;
-    const keepHead = Math.max(1, maxVisible - keepTail - 1);
+    const keepHead = Math.max(1, fitLimit - keepTail - 1);
     return {
       head: segments.slice(0, keepHead),
       mid: segments.slice(keepHead, segments.length - keepTail),
       tail: segments.slice(segments.length - keepTail),
     };
-  }, [segments, maxVisible]);
+  }, [segments, fitLimit]);
+
+  // While dragging, keep the crumb under the pointer fully inside the address well
+  // so left/right motion over a collapsed trail can actually hit a drop target.
+  useLayoutEffect(() => {
+    if (!dragMagnify || dragClientX == null) return;
+    const rail = railRef.current;
+    const slot = rail?.closest(".bndz-breadcrumb-slot") as HTMLElement | null;
+    if (!rail || !slot) return;
+    const crumbs = rail.querySelectorAll<HTMLElement>("[data-breadcrumb-path]");
+    if (!crumbs.length) return;
+    let target: HTMLElement | null = null;
+    let best = Infinity;
+    crumbs.forEach((crumb) => {
+      const rect = crumb.getBoundingClientRect();
+      if (dragClientX >= rect.left && dragClientX <= rect.right) {
+        target = crumb;
+        best = 0;
+        return;
+      }
+      const dist = Math.abs(dragClientX - (rect.left + rect.right) / 2);
+      if (dist < best) {
+        best = dist;
+        target = crumb;
+      }
+    });
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const slotRect = slot.getBoundingClientRect();
+    if (rect.left < slotRect.left + 6) {
+      slot.scrollLeft -= slotRect.left + 8 - rect.left;
+    } else if (rect.right > slotRect.right - 6) {
+      slot.scrollLeft += rect.right - (slotRect.right - 8);
+    }
+  }, [dragMagnify, dragClientX, segments, fitLimit]);
 
   const renderSeg = (seg: BreadcrumbSeg, showSep: boolean) => (
     <React.Fragment key={seg.path}>
@@ -131,7 +173,7 @@ export function BreadcrumbTrail({
   return (
     <div
       ref={railRef}
-      className="relative flex items-center min-w-0 w-full flex-nowrap overflow-visible"
+      className={`relative flex items-center min-w-0 flex-nowrap overflow-visible ${dragMagnify ? "w-max min-w-full bndz-breadcrumb-rail--magnify" : "w-full"}`}
       title="Click path to navigate | click empty to edit | double-click empty for Command Hub"
       onDoubleClick={(e) => {
         if (!onWhiteDoubleClick) return;

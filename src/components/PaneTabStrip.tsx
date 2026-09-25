@@ -242,7 +242,7 @@ function SortablePaneTab({
         isBndzCanvasPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--spatial' : ''
       } ${
         isBndzAutomationPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--automation' : ''
-      }`}
+      } ${isBusy ? 'bndz-tab-busy' : ''}`}
       data-tab-accent={tab.color ? '1' : undefined}
       title={label}
       data-workspace-tab={isBndzCanvasPath(tab.path) ? 'spatial' : isBndzAutomationPath(tab.path) ? 'automation' : undefined}
@@ -295,6 +295,13 @@ function SortablePaneTab({
       )}
       {tab.locked && <Icons8Icon id="lock_ui" size={11} className="mr-1 shrink-0 pointer-events-none" title="Locked" />}
       <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, var(--bndz-tab-font-size, 12px))' }}>{label}</span>
+      {isBusy && (
+        <span
+          className="bndz-tab-busy-badge ml-1.5 shrink-0 pointer-events-none"
+          title="Busy"
+          aria-hidden
+        />
+      )}
       {showXClose && (
         <span
           data-tab-close
