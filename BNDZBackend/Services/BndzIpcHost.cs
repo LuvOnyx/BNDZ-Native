@@ -12652,10 +12652,57 @@ namespace BNDZ.Services
                         if (missing == plannedTargets.Count)
                         {
                             var miss = action == "move" ? "Move did not land on disk." : "Copy did not land on disk.";
+                            if (recordedEarly)
+                            {
+                                try
+                                {
+                                    var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
+                                    _actionLogService.TryDiscardLast(kind, sources);
+                                    await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                                }
+                                catch { /* ignore */ }
+                            }
                             _fileTransferQueue.MarkFailed(operationId, miss);
                             if (ShouldPostFsOperationResult())
                                 await PostFsOperationResultAsync(idProp, false, miss).ConfigureAwait(false);
                             return;
+                        }
+                        // Patch early-record destinations to what actually exists (conflict keep-both, etc.).
+                        if (recordedEarly && missing > 0 && missing < plannedTargets.Count)
+                        {
+                            try
+                            {
+                                var actual = plannedTargets
+                                    .Where(pt => !string.IsNullOrWhiteSpace(pt.Dest)
+                                        && (File.Exists(pt.Dest) || Directory.Exists(pt.Dest)))
+                                    .Select(pt => pt.Dest)
+                                    .ToList();
+                                var matchedSources = plannedTargets
+                                    .Where(pt => !string.IsNullOrWhiteSpace(pt.Dest)
+                                        && (File.Exists(pt.Dest) || Directory.Exists(pt.Dest)))
+                                    .Select(pt => pt.Src)
+                                    .ToList();
+                                if (actual.Count > 0)
+                                {
+                                    var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
+                                    _actionLogService.TryDiscardLast(kind, sources);
+                                    if (action == "copy")
+                                        _actionLogService.Record(BndzActionLogService.ForCopy(matchedSources, actual));
+                                    else
+                                        _actionLogService.Record(BndzActionLogService.ForMove(matchedSources, actual));
+                                }
+                            }
+                            catch { /* best-effort path repair */ }
+                        }
+                        else if (recordedEarly && missing == 0 && plannedTargets.Count > 0)
+                        {
+                            try
+                            {
+                                var actual = plannedTargets.Select(pt => pt.Dest).Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
+                                var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
+                                _actionLogService.TryPatchLastTargets(kind, sources, actual);
+                            }
+                            catch { /* ignore */ }
                         }
                     }
 

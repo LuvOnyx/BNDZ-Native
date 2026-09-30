@@ -10953,8 +10953,28 @@ namespace BNDZ
                             ?? FileOperationPathPlanner.Plan("copy", sources, target).Select(p => p.Dest).ToList();
                         if (created.Count == 0 && !string.IsNullOrWhiteSpace(target))
                             created = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
+                        // Prefer destinations that actually landed (conflict keep-both / planner drift).
                         if (created.Count > 0)
-                            _actionLogService.Record(BndzActionLogService.ForCopy(sources, created));
+                        {
+                            var existing = created.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+                            if (existing.Count > 0 && existing.Count != created.Count)
+                            {
+                                var pairedSources = new List<string>();
+                                var pairedDests = new List<string>();
+                                for (int i = 0; i < sources.Count && i < created.Count; i++)
+                                {
+                                    if (File.Exists(created[i]) || Directory.Exists(created[i]))
+                                    {
+                                        pairedSources.Add(sources[i]);
+                                        pairedDests.Add(created[i]);
+                                    }
+                                }
+                                if (pairedDests.Count > 0)
+                                    _actionLogService.Record(BndzActionLogService.ForCopy(pairedSources, pairedDests));
+                            }
+                            else if (existing.Count > 0 || created.Count > 0)
+                                _actionLogService.Record(BndzActionLogService.ForCopy(sources, existing.Count > 0 ? existing : created));
+                        }
                         break;
                     }
                     case "move":
@@ -10965,7 +10985,28 @@ namespace BNDZ
                         if (moved.Count == 0 && !string.IsNullOrWhiteSpace(target))
                             moved = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
                         if (moved.Count > 0)
-                            _actionLogService.Record(BndzActionLogService.ForMove(sources, moved));
+                        {
+                            var existing = moved.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+                            // After a successful move, sources are gone — keep planned paths when nothing exists yet
+                            // (timing), but prefer existing destinations when the planner drifted (keep-both).
+                            if (existing.Count > 0 && existing.Count != moved.Count)
+                            {
+                                var pairedSources = new List<string>();
+                                var pairedDests = new List<string>();
+                                for (int i = 0; i < sources.Count && i < moved.Count; i++)
+                                {
+                                    if (File.Exists(moved[i]) || Directory.Exists(moved[i]))
+                                    {
+                                        pairedSources.Add(sources[i]);
+                                        pairedDests.Add(moved[i]);
+                                    }
+                                }
+                                if (pairedDests.Count > 0)
+                                    _actionLogService.Record(BndzActionLogService.ForMove(pairedSources, pairedDests));
+                            }
+                            else
+                                _actionLogService.Record(BndzActionLogService.ForMove(sources, existing.Count > 0 ? existing : moved));
+                        }
                         break;
                     }
                     case "delete":

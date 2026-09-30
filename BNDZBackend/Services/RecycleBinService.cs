@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Vanara.PInvoke;
@@ -238,11 +239,15 @@ public static class RecycleBinService
     }
 
     /// <summary>
-    /// Restores recycled items by matching on their original pre-deletion path (PKEY_Recycle_DeletedFrom).
+    /// Restores recycled items by matching on their original pre-deletion path.
+    /// Tries PKEY_Recycle_DeletedFrom (+ display name), DeletedFrom-as-full-path, and $I info-file fallback.
     /// </summary>
     public static (int restored, int failed) RestoreByOriginalPath(IEnumerable<string> originalPaths)
     {
-        var targets = new HashSet<string>(originalPaths.Select(NormalizeWinPath), StringComparer.OrdinalIgnoreCase);
+        var targets = new HashSet<string>(
+            originalPaths.Where(p => !string.IsNullOrWhiteSpace(p)).Select(NormalizeWinPath),
+            StringComparer.OrdinalIgnoreCase);
+        if (targets.Count == 0) return (0, 0);
         (int restored, int failed) result = (0, 0);
         BndzShellStaThread.Run(() => result = RestoreByOriginalPathOnSta(targets));
         return result;
@@ -251,31 +256,104 @@ public static class RecycleBinService
     private static (int restored, int failed) RestoreByOriginalPathOnSta(HashSet<string> targets)
     {
         int restored = 0;
+        var remaining = new HashSet<string>(targets, StringComparer.OrdinalIgnoreCase);
         try
         {
             foreach (var item in RecycleBin.GetItems())
             {
+                if (remaining.Count == 0) break;
                 using (item)
                 {
-                    string? deletedFrom = null;
+                    var matched = FindMatchingOriginalPath(item, remaining);
+                    if (matched is null) continue;
+
                     try
                     {
-                        if (item.Properties.TryGetValue(PKEY_Recycle_DeletedFrom, out var val) && val is string s)
-                            deletedFrom = s;
+                        item.InvokeVerb("undelete");
+                        restored++;
+                        remaining.Remove(matched);
                     }
-                    catch { /* property unavailable for this item */ }
-
-                    if (deletedFrom == null) continue;
-                    var originalFullPath = NormalizeWinPath(Path.Combine(deletedFrom, item.Name ?? ""));
-                    if (!targets.Contains(originalFullPath)) continue;
-
-                    try { item.InvokeVerb("undelete"); restored++; }
                     catch { /* leave in recycle bin */ }
                 }
             }
         }
         catch { /* best effort */ }
-        return (restored, targets.Count - restored);
+        return (restored, remaining.Count);
+    }
+
+    private static string? FindMatchingOriginalPath(ShellItem item, HashSet<string> remaining)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        string? name = item.Name;
+        if (!string.IsNullOrWhiteSpace(name) && (name.Contains('\\') || name.Contains('/')))
+            name = Path.GetFileName(name.TrimEnd('\\', '/'));
+
+        string? deletedFrom = null;
+        try
+        {
+            if (item.Properties.TryGetValue(PKEY_Recycle_DeletedFrom, out var val) && val is string s)
+                deletedFrom = s;
+        }
+        catch { /* optional */ }
+
+        if (!string.IsNullOrWhiteSpace(deletedFrom))
+        {
+            var fromNorm = NormalizeWinPath(deletedFrom);
+            // Some shells report the full original path in DeletedFrom.
+            candidates.Add(fromNorm);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                candidates.Add(NormalizeWinPath(Path.Combine(fromNorm, name)));
+                // If DeletedFrom already ends with the leaf name, Path.Combine doubles it — also try parent+name once.
+                var leaf = Path.GetFileName(fromNorm.TrimEnd('\\', '/'));
+                if (!string.IsNullOrEmpty(leaf) && leaf.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    candidates.Add(fromNorm);
+            }
+        }
+
+        var parsingName = item.ParsingName ?? "";
+        var fromInfo = TryResolveOriginalFullPathFromInfoFile(parsingName);
+        if (!string.IsNullOrWhiteSpace(fromInfo))
+            candidates.Add(NormalizeWinPath(fromInfo));
+
+        foreach (var c in candidates)
+        {
+            if (remaining.Contains(c)) return c;
+        }
+        return null;
+    }
+
+    /// <summary>Parse $I* companion in $Recycle.Bin for the original full path (Win Vista+ INFO2-like).</summary>
+    private static string? TryResolveOriginalFullPathFromInfoFile(string parsingName)
+    {
+        try
+        {
+            var winPath = (parsingName ?? "").Replace('/', '\\');
+            if (!winPath.Contains("$Recycle.Bin", StringComparison.OrdinalIgnoreCase)) return null;
+            var dir = Path.GetDirectoryName(winPath);
+            if (string.IsNullOrEmpty(dir)) return null;
+            var baseName = Path.GetFileName(winPath);
+            if (string.IsNullOrEmpty(baseName) || !baseName.StartsWith("$R", StringComparison.OrdinalIgnoreCase))
+                return null;
+            var infoFile = Path.Combine(dir, "$I" + baseName[2..]);
+            if (!File.Exists(infoFile)) return null;
+            using var fs = File.OpenRead(infoFile);
+            using var br = new BinaryReader(fs);
+            if (fs.Length < 28) return null;
+            var version = br.ReadUInt32();
+            if (version != 1 && version != 2) return null;
+            _ = br.ReadUInt64(); // size
+            _ = br.ReadInt64();  // filetime
+            var pathLen = version == 1 ? br.ReadUInt32() : br.ReadUInt32() * 2;
+            if (pathLen <= 0 || pathLen > 32768) return null;
+            var bytes = br.ReadBytes((int)Math.Min(pathLen, fs.Length - fs.Position));
+            var originalPath = version == 1
+                ? Encoding.Default.GetString(bytes).TrimEnd('\0')
+                : Encoding.Unicode.GetString(bytes).TrimEnd('\0');
+            return string.IsNullOrWhiteSpace(originalPath) ? null : originalPath;
+        }
+        catch { return null; }
     }
 
     /// <summary>Permanently delete items still in the Recycle Bin (shell parsing names from GetContents).</summary>

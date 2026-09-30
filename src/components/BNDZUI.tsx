@@ -3840,7 +3840,13 @@ export default function BNDZUI() {
         const tab = pane?.tabs[pane.activeTabIndex ?? 0];
         if (tab?.path) await refetchPath(tab.path);
       }
-      pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? (redo ? 'Redo' : 'Undo') : 'Failed', message: r.message });
+      const msg = r.message || '';
+      const cant = /can'?t undo|nothing to undo|permanent delete|not undoable/i.test(msg);
+      pushToast({
+        kind: r.ok ? 'success' : (cant ? 'info' : 'warning'),
+        title: r.ok ? (redo ? 'Redo' : 'Undo') : (cant ? (redo ? 'Redo' : 'Undo') : 'Failed'),
+        message: msg,
+      });
     } catch (err: any) {
       dismissToast(toastId);
       refreshUndoRedoState();
@@ -4146,16 +4152,29 @@ export default function BNDZUI() {
     return () => { if (tabsetAutosaveRef.current) clearTimeout(tabsetAutosaveRef.current); };
   }, [panes, isDualPane, config.autoSaveTabsetsOnSwitch]);
 
-  // Focus trap for F2 rename shortcut
+  // Global edit shortcuts (undo/redo use capture so list focus + omni filter still reach file undo).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      const target = e.target as HTMLElement | null;
+      const ae = document.activeElement as HTMLElement | null;
+      const isOmniFilter = !!(
+        (omniFilterRef.current && (ae === omniFilterRef.current || target === omniFilterRef.current))
+        || target?.closest?.('.bndz-omni-filter, [data-omni-filter]')
+        || ae?.closest?.('.bndz-omni-filter, [data-omni-filter]')
+      );
+      const isInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+        || ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement;
+      const isContentEdit = !!(target?.isContentEditable || ae?.isContentEditable);
+      // Real editors (rename, dialogs, contenteditable) keep native text undo.
+      // Omni filter + file list yield to Action Log undo (FM safety net).
+      const blockFileUndoRedo = (isContentEdit || (isInput && !isOmniFilter));
+      const isInputNonOmni = isInput && !isOmniFilter;
 
-      if (!isInput && matchesShortcut(e, keyboardMap.commandPalette)) {
+      if (!isInputNonOmni && !isContentEdit && matchesShortcut(e, keyboardMap.commandPalette)) {
          e.preventDefault();
          setIsCommandPaletteOpen(prev => !prev);
       }
-      if (!isInput && keyboardMap.search && matchesShortcut(e, keyboardMap.search)) {
+      if (!isInputNonOmni && !isContentEdit && keyboardMap.search && matchesShortcut(e, keyboardMap.search)) {
          e.preventDefault();
          omniFilterRef.current?.focus();
       }
@@ -4190,13 +4209,17 @@ export default function BNDZUI() {
          }
          // Status-bar style feedback only -- avoid toast/notification spam on every F5.
       }
-      if (!isInput && matchesShortcut(e, keyboardMap.undo)) {
+      if (!blockFileUndoRedo && matchesShortcut(e, keyboardMap.undo)) {
          e.preventDefault();
+         e.stopPropagation();
          void runUndoRedo(false);
+         return;
       }
-      if (!isInput && (matchesShortcut(e, keyboardMap.redo) || matchesShortcut(e, 'Ctrl+Shift+Z'))) {
+      if (!blockFileUndoRedo && (matchesShortcut(e, keyboardMap.redo) || matchesShortcut(e, 'Ctrl+Shift+Z'))) {
          e.preventDefault();
+         e.stopPropagation();
          void runUndoRedo(true);
+         return;
       }
 
       // Cut / Copy intercept (rebindable)
@@ -4347,9 +4370,9 @@ export default function BNDZUI() {
          }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedItemId, panes, activePaneId, fileSystem, isToolbarConfigOpen, isSmartToolsOpen, setClipboardState, executePaste, keyboardMap, config, config.pinnedFavorites, refetchPath, beginInlineRename]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [focusedItemId, panes, activePaneId, fileSystem, isToolbarConfigOpen, isSmartToolsOpen, setClipboardState, executePaste, keyboardMap, config, config.pinnedFavorites, refetchPath, beginInlineRename, runUndoRedo]);
 
   // Context Menu State
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -12536,6 +12559,13 @@ ${classified.detail}`,
                : {}),
            }}
            onScroll={e => handlePaneScroll(pane.id, e)}
+           onPointerDown={(e) => {
+             // Claim keyboard focus so Ctrl+Z/Y hit Action Log undo (not the omni filter).
+             if (e.button !== 0) return;
+             const el = e.currentTarget as HTMLElement;
+             try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+             listTypeAheadArmedRef.current = true;
+           }}
            onWheel={(e) => {
              const listIx = getListIxBehavior(config);
              const lines = Math.max(1, Number(listIx.wheelScrollLines) || Number(config.wheelScrollLines) || 3);

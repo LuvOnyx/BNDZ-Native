@@ -128,12 +128,25 @@ public sealed class BndzActionLogService
 
     public bool CanUndo
     {
-        get { lock (_lock) return _undo.Count > 0; }
+        get
+        {
+            lock (_lock)
+                return _undo.Count > 0 && IsEntryUndoable(_undo[^1]);
+        }
     }
 
     public bool CanRedo
     {
         get { lock (_lock) return _redo.Count > 0; }
+    }
+
+    /// <summary>Permanent deletes and truncated batches are logged for History but not Ctrl+Z.</summary>
+    public static bool IsEntryUndoable(ActionLogEntry e)
+    {
+        if (e is null) return false;
+        if (!e.InverseAvailable) return false;
+        if (e.Kind == ActionKind.Delete && !e.UsedRecycleBin) return false;
+        return true;
     }
 
     public DateTime? GetLastUndoEntryUtc()
@@ -146,13 +159,25 @@ public sealed class BndzActionLogService
         var maxItems = FileOperationPreferences.Current.MaxItemsPerLoggedAction;
         if (maxItems > 0)
         {
-            if (entry.SourcePaths.Count > maxItems)
-                entry.SourcePaths = entry.SourcePaths.Take(maxItems).ToList();
-            if (entry.TargetPaths.Count > maxItems)
-                entry.TargetPaths = entry.TargetPaths.Take(maxItems).ToList();
+            var srcCount = entry.SourcePaths.Count;
+            var tgtCount = entry.TargetPaths.Count;
+            // Never silently shrink an undoable batch — mark History-only when over the limit.
+            if (srcCount > maxItems || tgtCount > maxItems)
+            {
+                entry.InverseAvailable = false;
+                var n = Math.Max(srcCount, tgtCount);
+                entry.Label = $"{entry.Label} (not undoable — {n} items exceeds log limit of {maxItems})";
+                if (srcCount > maxItems)
+                    entry.SourcePaths = entry.SourcePaths.Take(maxItems).ToList();
+                if (tgtCount > maxItems)
+                    entry.TargetPaths = entry.TargetPaths.Take(maxItems).ToList();
+            }
             if (entry.SourcePaths.Count == 0 && entry.TargetPaths.Count == 0)
                 return;
         }
+
+        if (entry.Kind == ActionKind.Delete && !entry.UsedRecycleBin)
+            entry.InverseAvailable = false;
 
         lock (_lock)
         {
@@ -162,6 +187,30 @@ public sealed class BndzActionLogService
                 _undo.RemoveAt(0);
         }
         if (_persistBetweenSessions) PersistNow();
+    }
+
+    /// <summary>Patch destinations on the newest matching undo entry after conflict rename / actual land.</summary>
+    public bool TryPatchLastTargets(ActionKind kind, IReadOnlyList<string> sourcePaths, IReadOnlyList<string> actualTargets)
+    {
+        if (actualTargets is null || actualTargets.Count == 0) return false;
+        lock (_lock)
+        {
+            if (_undo.Count == 0) return false;
+            var last = _undo[^1];
+            if (last.Kind != kind) return false;
+            if (sourcePaths is { Count: > 0 })
+            {
+                if (last.SourcePaths.Count != sourcePaths.Count) return false;
+                for (var i = 0; i < sourcePaths.Count; i++)
+                {
+                    if (!string.Equals(last.SourcePaths[i], sourcePaths[i], StringComparison.OrdinalIgnoreCase))
+                        return false;
+                }
+            }
+            last.TargetPaths = actualTargets.ToList();
+        }
+        if (_persistBetweenSessions) PersistNow();
+        return true;
     }
 
     /// <summary>Drop the newest undo entry when a queued op fails after optimistic Record.</summary>
@@ -197,12 +246,24 @@ public sealed class BndzActionLogService
             _undo.RemoveAt(_undo.Count - 1);
         }
 
+        if (!IsEntryUndoable(entry))
+        {
+            // Keep permanent / truncated rows out of the redo chain; leave them off the undo stack.
+            if (_persistBetweenSessions) PersistNow();
+            var why = entry.Kind == ActionKind.Delete && !entry.UsedRecycleBin
+                ? "Can't undo — permanent delete (Recycle Bin was bypassed)."
+                : (string.IsNullOrWhiteSpace(entry.Label)
+                    ? "Can't undo — this action was logged for history only."
+                    : $"Can't undo — {entry.Label}");
+            return ActionLogResult.Failure(why);
+        }
+
         try
         {
-            await ApplyInverseAsync(fileOps, entry).ConfigureAwait(false);
+            var detail = await ApplyInverseAsync(fileOps, entry).ConfigureAwait(false);
             lock (_lock) _redo.Add(entry);
             if (_persistBetweenSessions) PersistNow();
-            return ActionLogResult.Success($"Undid: {entry.Label}");
+            return ActionLogResult.Success(detail);
         }
         catch (Exception ex)
         {
@@ -285,7 +346,7 @@ public sealed class BndzActionLogService
             : ActionLogResult.Success($"Redid {count} action(s).");
     }
 
-    private static async Task ApplyInverseAsync(FileOperationService fileOps, ActionLogEntry entry)
+    private static async Task<string> ApplyInverseAsync(FileOperationService fileOps, ActionLogEntry entry)
     {
         switch (entry.Kind)
         {
@@ -301,7 +362,7 @@ public sealed class BndzActionLogService
                     await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "move",
                         new List<string> { from }, to, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
                 }
-                break;
+                return DescribeMoveUndo(entry);
 
             case ActionKind.Copy:
                 foreach (var created in entry.TargetPaths)
@@ -319,7 +380,9 @@ public sealed class BndzActionLogService
                             recordActionLog: false).ConfigureAwait(false);
                     }
                 }
-                break;
+                return entry.TargetPaths.Count == 1
+                    ? $"Removed copy of {Path.GetFileName(entry.TargetPaths[0].TrimEnd('\\', '/'))}"
+                    : $"Removed {entry.TargetPaths.Count} copied item(s)";
 
             case ActionKind.CreateDirectory:
                 foreach (var dir in entry.TargetPaths)
@@ -327,7 +390,9 @@ public sealed class BndzActionLogService
                     if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any())
                         Directory.Delete(dir, false);
                 }
-                break;
+                return entry.TargetPaths.Count == 1
+                    ? $"Removed folder {Path.GetFileName(entry.TargetPaths[0].TrimEnd('\\', '/'))}"
+                    : $"Removed {entry.TargetPaths.Count} created folder(s)";
 
             case ActionKind.CreateFile:
             case ActionKind.CreateLink:
@@ -336,7 +401,7 @@ public sealed class BndzActionLogService
                     if (File.Exists(linkPath)) File.Delete(linkPath);
                     else if (Directory.Exists(linkPath)) Directory.Delete(linkPath, false);
                 }
-                break;
+                return $"Undid: {entry.Label}";
 
             case ActionKind.GhostLinkOffload:
                 for (int i = 0; i < entry.SourcePaths.Count; i++)
@@ -351,7 +416,7 @@ public sealed class BndzActionLogService
                     }
                     File.Move(offload, original);
                 }
-                break;
+                return $"Undid: {entry.Label}";
 
             case ActionKind.GhostLinkRestore:
                 // Undo restore = re-offload: move file back to cold path and recreate symlink.
@@ -372,7 +437,7 @@ public sealed class BndzActionLogService
                         // If symlink fails, leave bytes in cold storage — operator can re-run Ghost-Link.
                     }
                 }
-                break;
+                return $"Undid: {entry.Label}";
 
             case ActionKind.SyncFolder:
             case ActionKind.ExtractArchive:
@@ -381,26 +446,52 @@ public sealed class BndzActionLogService
                     if (File.Exists(created)) File.Delete(created);
                     else if (Directory.Exists(created)) Directory.Delete(created, true);
                 }
-                break;
+                return $"Undid: {entry.Label}";
 
             case ActionKind.CreateArchive:
                 foreach (var archive in entry.TargetPaths)
                 {
                     if (File.Exists(archive)) File.Delete(archive);
                 }
-                break;
+                return $"Undid: {entry.Label}";
 
             case ActionKind.Delete:
                 if (!entry.UsedRecycleBin)
-                    throw new InvalidOperationException("Permanent deletes (Recycle Bin bypassed) cannot be undone.");
+                    throw new InvalidOperationException("Can't undo — permanent delete (Recycle Bin was bypassed).");
                 var (restored, failed) = RecycleBinService.RestoreByOriginalPath(entry.SourcePaths);
+                if (restored == 0)
+                    throw new InvalidOperationException(
+                        entry.SourcePaths.Count == 1
+                            ? "Can't undo — file missing from Recycle Bin (already purged, emptied, or restored elsewhere)."
+                            : $"Can't undo — none of the {entry.SourcePaths.Count} item(s) were found in the Recycle Bin (already purged, emptied, or restored elsewhere).");
                 if (failed > 0)
-                    throw new InvalidOperationException($"Restored {restored} of {entry.SourcePaths.Count} item(s) — the rest could not be located in the Recycle Bin (already purged, emptied, or restored elsewhere).");
-                break;
+                    return $"Restored {restored} of {entry.SourcePaths.Count} item(s) from Recycle Bin — {failed} could not be found.";
+                return entry.SourcePaths.Count == 1
+                    ? $"Restored {Path.GetFileName(entry.SourcePaths[0].TrimEnd('\\', '/'))} from Recycle Bin"
+                    : $"Restored {restored} items from Recycle Bin";
 
             default:
                 throw new NotSupportedException($"Undo not supported for {entry.Kind}.");
         }
+    }
+
+    private static string DescribeMoveUndo(ActionLogEntry entry)
+    {
+        if (entry.Kind == ActionKind.Rename || entry.Kind == ActionKind.BatchRename)
+        {
+            return entry.SourcePaths.Count == 1
+                ? $"Renamed back to {Path.GetFileName(entry.SourcePaths[0].TrimEnd('\\', '/'))}"
+                : $"Renamed {entry.SourcePaths.Count} items back";
+        }
+        if (entry.SourcePaths.Count == 1)
+        {
+            var name = Path.GetFileName(entry.SourcePaths[0].TrimEnd('\\', '/'));
+            var dest = Path.GetDirectoryName(entry.SourcePaths[0].TrimEnd('\\', '/')) ?? "";
+            return string.IsNullOrEmpty(dest)
+                ? $"Moved {name} back"
+                : $"Moved {name} back to {dest}";
+        }
+        return $"Moved {entry.SourcePaths.Count} items back";
     }
 
     private static async Task ApplyForwardAsync(FileOperationService fileOps, ActionLogEntry entry)
@@ -702,6 +793,7 @@ public sealed class BndzActionLogService
         public List<string> SourcePaths { get; set; } = new();
         public List<string> TargetPaths { get; set; } = new();
         public bool UsedRecycleBin { get; set; }
+        public bool InverseAvailable { get; set; } = true;
         public string? LinkType { get; set; }
 
         public static PersistedActionLogEntry From(ActionLogEntry e) => new()
@@ -713,6 +805,7 @@ public sealed class BndzActionLogService
             SourcePaths = e.SourcePaths,
             TargetPaths = e.TargetPaths,
             UsedRecycleBin = e.UsedRecycleBin,
+            InverseAvailable = e.InverseAvailable,
             LinkType = e.LinkType,
         };
 
@@ -728,6 +821,7 @@ public sealed class BndzActionLogService
                 SourcePaths = SourcePaths ?? new List<string>(),
                 TargetPaths = TargetPaths ?? new List<string>(),
                 UsedRecycleBin = UsedRecycleBin,
+                InverseAvailable = InverseAvailable,
                 LinkType = LinkType,
             };
         }
@@ -760,6 +854,8 @@ public sealed class ActionLogEntry
     public List<string> SourcePaths { get; set; } = new();
     public List<string> TargetPaths { get; set; } = new();
     public bool UsedRecycleBin { get; set; }
+    /// <summary>False for permanent deletes and over-limit batches (History only).</summary>
+    public bool InverseAvailable { get; set; } = true;
     public string? LinkType { get; set; }
 }
 
@@ -785,7 +881,7 @@ public sealed class ActionLogEntryDto
             Kind = e.Kind.ToString(),
             Label = e.Label,
             Utc = e.Utc.ToString("O"),
-            CanUndo = e.Kind is not ActionKind.Delete || e.UsedRecycleBin,
+            CanUndo = BndzActionLogService.IsEntryUndoable(e),
             SourcePaths = e.SourcePaths?.ToList() ?? new List<string>(),
             TargetPaths = e.TargetPaths?.ToList() ?? new List<string>(),
             Destination = dest,
