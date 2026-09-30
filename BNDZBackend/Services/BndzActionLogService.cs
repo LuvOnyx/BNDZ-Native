@@ -197,7 +197,7 @@ public sealed class BndzActionLogService
         {
             if (_undo.Count == 0) return false;
             var last = _undo[^1];
-            if (last.Kind != kind) return false;
+            if (!KindsMatchForLandPatch(last.Kind, kind)) return false;
             if (sourcePaths is { Count: > 0 })
             {
                 if (last.SourcePaths.Count != sourcePaths.Count) return false;
@@ -220,7 +220,7 @@ public sealed class BndzActionLogService
         {
             if (_undo.Count == 0) return false;
             var last = _undo[^1];
-            if (last.Kind != kind) return false;
+            if (!KindsMatchForLandPatch(last.Kind, kind)) return false;
             if (sourcePaths is { Count: > 0 })
             {
                 if (last.SourcePaths.Count != sourcePaths.Count) return false;
@@ -234,6 +234,16 @@ public sealed class BndzActionLogService
         }
         if (_persistBetweenSessions) PersistNow();
         return true;
+    }
+
+
+    /// <summary>Move vs Rename are the same land-site family for early-record patch/discard.</summary>
+    private static bool KindsMatchForLandPatch(ActionKind actual, ActionKind expected)
+    {
+        if (actual == expected) return true;
+        static bool IsMoveFamily(ActionKind k) =>
+            k is ActionKind.Move or ActionKind.Rename or ActionKind.BatchRename;
+        return IsMoveFamily(actual) && IsMoveFamily(expected);
     }
 
     /// <summary>
@@ -424,6 +434,7 @@ public sealed class BndzActionLogService
                     var to = entry.SourcePaths[i];
                     if (string.IsNullOrEmpty(from) || !File.Exists(from) && !Directory.Exists(from))
                         throw new FileNotFoundException($"Cannot undo â€” missing: {from}");
+                    // Exact original path (incl. cross-volume): engine creates parent + copy/delete fallthrough.
                     await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "move",
                         new List<string> { from }, to, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
                 }
@@ -570,6 +581,11 @@ public sealed class BndzActionLogService
                 {
                     var from = entry.SourcePaths[i];
                     var to = entry.TargetPaths.ElementAtOrDefault(i) ?? entry.TargetPaths.LastOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to))
+                        throw new FileNotFoundException("Cannot redo — missing path for move/rename.");
+                    if (!File.Exists(from) && !Directory.Exists(from))
+                        throw new FileNotFoundException($"Cannot redo — missing: {from}");
+                    // Exact recorded target preserves keep-both names across redo.
                     await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "move",
                         new List<string> { from }, to, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
                 }
@@ -580,9 +596,14 @@ public sealed class BndzActionLogService
                 {
                     var src = entry.SourcePaths[i];
                     var dest = entry.TargetPaths.ElementAtOrDefault(i) ?? "";
-                    var destDir = Path.GetDirectoryName(dest) ?? "";
+                    if (string.IsNullOrWhiteSpace(dest)) continue;
+                    // Exact recorded land path preserves keep-both names on redo (name (N).ext).
+                    // FileOperationService treats a non-existing target as copy-as.
+                    var copyTarget = File.Exists(dest)
+                        ? (Path.GetDirectoryName(dest) ?? dest)
+                        : dest;
                     await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "copy",
-                        new List<string> { src }, destDir, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
+                        new List<string> { src }, copyTarget, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
                 }
                 break;
 

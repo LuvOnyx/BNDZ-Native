@@ -12441,6 +12441,18 @@ namespace BNDZ.Services
                         catch { /* undo affordance is best-effort mid-op */ }
                     }
 
+                    // Snapshot keep-both siblings BEFORE execute so post-success Resolve
+                    // can distinguish newly landed name (N).ext from pre-existing siblings
+                    // (same MainWindow conflict→log parity).
+                    HashSet<string>? landedBefore = null;
+                    try
+                    {
+                        if (plannedTargets is { Count: > 0 } && action is "copy" or "move" or "rename")
+                            landedBefore = ActionLogLandedPathResolver.SnapshotExistingCandidates(
+                                plannedTargets.Select(pt => pt.Dest));
+                    }
+                    catch { landedBefore = null; }
+
                     try
                     {
                     if (engine == "teracopy" && action is "copy" or "move")
@@ -12674,7 +12686,7 @@ namespace BNDZ.Services
                             {
                                 var planned = plannedTargets.Select(pt => pt.Dest).ToList();
                                 var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(
-                                    sources, planned, isMove: action == "move");
+                                    sources, planned, isMove: action == "move", existingBefore: landedBefore);
                                 if (pairedDest.Count == 0)
                                 {
                                     pairedSrc = new List<string>();
@@ -12691,11 +12703,21 @@ namespace BNDZ.Services
                                 if (pairedDest.Count > 0)
                                 {
                                     var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
-                                    _actionLogService.TryDiscardLast(kind, sources);
-                                    if (action == "copy")
-                                        _actionLogService.Record(BndzActionLogService.ForCopy(pairedSrc, pairedDest));
+                                    // Patch destinations in-place when early-record sources still match;
+                                    // otherwise replace the entry with resolver pairs (subset / remapped).
+                                    if (pairedSrc.Count == sources.Count
+                                        && _actionLogService.TryPatchLastTargets(kind, sources, pairedDest))
+                                    {
+                                        // OK — keep-both / actual land sites now on the undo entry.
+                                    }
                                     else
-                                        _actionLogService.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
+                                    {
+                                        _actionLogService.TryDiscardLast(kind, sources);
+                                        if (action == "copy")
+                                            _actionLogService.Record(BndzActionLogService.ForCopy(pairedSrc, pairedDest));
+                                        else
+                                            _actionLogService.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
+                                    }
                                 }
                             }
                             catch { /* best-effort path repair */ }

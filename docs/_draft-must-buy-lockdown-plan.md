@@ -1,5 +1,5 @@
 ﻿# BNDZ Must-Buy Lockdown Plan
-**Scope:** BNDZ-Native only · Week 1 Undo truth shipped · Week 1-2 Recycle + multi + conflict->log in progress  
+**Scope:** BNDZ-Native only — Week 1 Undo truth shipped — Week 1-2 Recycle + multi + conflict->log shipped — Week 2 Move/DnD Action Log parity in progress
 **Date:** Wed Sep 30, 2026 (CT)  
 **Evidence:** `docs/BNDZ-PREMIUM-GAP.md`, V2 playbook, launch readiness, Action Log / undo code (`BndzActionLogService`, `undoRedo.ts`, History dialog), recent commits (remote unfreeze, toasts, DnD, Home, Command Hub)
 
@@ -339,10 +339,50 @@ Remote / mesh: **no promise** — prefer honesty toast if nothing local to undo.
 5. Large multi-select (> former 50) with default unlimited log -> full undo or clear not-undoable if user set a limit.
 6. Paste move + Other Pane move -> targets match list ops in Action Log.
 
-### Remaining before Week 2 Move/DnD polish / Week 3
+### Remaining after Week 1-2 (superseded by Week 2 section below)
 
-- Live-sign launch gates 12-15 (Recycle list/empty/restore/purge) and undo rows on BandzPC.
-- OLE inbound/outbound DnD Action Log parity still Week 2 (spine left alone this pass).
-- Cross-volume move inverse edge cases; redo chain after conflict rename.
-- Do **not** start Week 3 Browse cosmetics until the verify matrix above is solid.
+- See **Week 2 progress** for Move/DnD parity shipped this pass.
 
+---
+
+## 11. Week 2 progress (Move / copy / DnD Action Log parity)
+
+**Tip base:** Week 1-2 `8fa2deeb217bc49955e8eba759f1b6f79e813387` on `cursor/slice1-remote-feel-trust`.
+
+### Root causes addressed this pass
+
+1. **IpcHost keep-both land patch without before-snapshot** — post-success `ActionLogLandedPathResolver.Resolve` ran with `existingBefore: null`, so a pre-existing `name (2).ext` sibling could be preferred over the real land site. MainWindow already snapshotted; IpcHost now matches.
+2. **Early-record Move vs Rename discard miss** — `ForMove` may classify same-folder as `Rename`; `TryDiscardLast`/`TryPatchLastTargets` required exact kind and could leave stale planned targets. Now Move/Rename/BatchRename match as one family; prefer in-place `TryPatchLastTargets`.
+3. **Redo after conflict keep-both** — `ApplyForward` Copy passed only the parent directory, so Ctrl+Y recreated `name.ext` instead of recorded `name (N).ext`. Now passes exact land path; `FileOperationService` exact-path branch supports **copy-as** (not only move-as).
+4. **Cross-volume File.Move** — single-file `File.Move` had no IOException fallthrough (folders already did). Exact-path and general single-file move now copy+delete on IOException so undo/redo across volumes still land.
+
+### Fixes shipped (this commit)
+
+| Area | Change |
+|------|--------|
+| **IpcHost** | Snapshot `landedBefore` before execute; Resolve with it; TryPatchLastTargets then Discard+Record |
+| **Action Log** | Copy/Move redo exact targets; Move/Rename kind match for patch/discard |
+| **FileOperationService** | Exact-path copy-as; File.Move cross-volume fallthrough |
+| **FE paths** | List / paste / Other Pane / internal DnD unchanged — already `executeFsOperation` spine |
+| **OLE** | Spine untouched; BNDZ-owned drops still record via same host path |
+
+### Files touched
+
+- `BNDZBackend/Services/BndzIpcHost.cs`
+- `BNDZBackend/Services/BndzActionLogService.cs`
+- `BNDZBackend/Services/FileOperationService.cs`
+- `docs/_draft-must-buy-lockdown-plan.md`
+
+### Live verify (BandzPC)
+
+1. Internal DnD move (same volume) → History shows dest → Ctrl+Z un-moves → Ctrl+Y redoes.
+2. Paste move + Other Pane move → same Action Log targets as list Move To.
+3. Conflict keep-both on move/copy → History target is `name (N)`; Ctrl+Z / Ctrl+Y use that name.
+4. Cross-volume move (if second drive available) → Ctrl+Z returns file to source volume.
+5. OLE inbound drop into BNDZ list (Explorer→BNDZ) → recorded like paste; outbound Explorer drop still Explorer-owned (no fake BNDZ undo).
+
+### Remaining / gaps
+
+- Live-sign launch DnD + undo rows on BandzPC (not automated here).
+- Native/TeraCopy keep-both still best-effort via landed resolver (no OLE rewrite).
+- Do **not** start Week 3 Browse cosmetics until verify matrix above is solid.

@@ -320,12 +320,13 @@ public class FileOperationService
         if (string.IsNullOrEmpty(targetDir))
             targetDir = Path.GetDirectoryName(sources.FirstOrDefault() ?? "") ?? "";
 
-        if (move && sources.Count == 1 && !string.IsNullOrEmpty(targetDir))
+        // Exact destination path (rename / move-as / redo keep-both): when target is not an
+        // existing directory or file, treat it as the final name — never CreateDirectory(target)
+        // then nest the old filename inside it. Supports copy too so Ctrl+Y after keep-both lands
+        // on the recorded name (name (N).ext), not a fresh conflict on name.ext.
+        if (sources.Count == 1 && !string.IsNullOrEmpty(targetDir))
         {
             var singleSrc = sources[0];
-            // Existing directory destination → fall through to general copy/move plan.
-            // Non-existing path is the destination *name* (rename / move-as) — never
-            // CreateDirectory(target) then nest the old filename inside it.
             if (!Directory.Exists(targetDir) && !File.Exists(targetDir))
             {
                 if (File.Exists(singleSrc))
@@ -340,7 +341,28 @@ public class FileOperationService
                     var destParent = Path.GetDirectoryName(destFile);
                     if (!string.IsNullOrEmpty(destParent) && !Directory.Exists(destParent))
                         Directory.CreateDirectory(destParent);
-                    File.Move(singleSrc, destFile, overwrite: true);
+                    if (move)
+                    {
+                        try
+                        {
+                            File.Move(singleSrc, destFile, overwrite: true);
+                        }
+                        catch (IOException)
+                        {
+                            // Cross-volume / sharing: copy then delete source.
+                            await CopyFileBufferedAsync(singleSrc, destFile, cancellationToken).ConfigureAwait(false);
+                            if (!await VerifyCopyAsync(singleSrc, destFile).ConfigureAwait(false))
+                                throw new IOException($"Move verification failed for {Path.GetFileName(singleSrc)}");
+                            try { File.Delete(singleSrc); } catch { /* best effort */ }
+                        }
+                    }
+                    else
+                    {
+                        await CopyFileBufferedAsync(singleSrc, destFile, cancellationToken).ConfigureAwait(false);
+                        if (!await VerifyCopyAsync(singleSrc, destFile).ConfigureAwait(false))
+                            throw new IOException($"Copy verification failed for {Path.GetFileName(singleSrc)}");
+                        if (preservePermissions) TryPreservePermissions(singleSrc, destFile);
+                    }
                     createdPaths.Add(destFile);
                     onProgress?.Invoke(operationId, 100, singleSrc, 0, 0, 0, 1, 1);
                     return createdPaths;
@@ -352,17 +374,22 @@ public class FileOperationService
                     var destParent = Path.GetDirectoryName(destFolder.TrimEnd('\\', '/'));
                     if (!string.IsNullOrEmpty(destParent) && !Directory.Exists(destParent))
                         Directory.CreateDirectory(destParent);
-                    try
+                    if (move)
                     {
-                        Directory.Move(singleSrc, destFolder);
+                        try
+                        {
+                            Directory.Move(singleSrc, destFolder);
+                        }
+                        catch (IOException)
+                        {
+                            // Cross-volume: copy tree then delete source.
+                            CopyDirectoryRecursive(singleSrc, destFolder, cancellationToken);
+                            try { Directory.Delete(singleSrc, true); } catch { /* best effort */ }
+                        }
                     }
-                    catch (IOException)
+                    else
                     {
-                        // Cross-volume: fall through to copy+delete plan with dest as new root.
-                        // Re-enter as copy into parent then delete — handled below after we
-                        // treat destFolder as the final name via a one-shot recursive copy.
                         CopyDirectoryRecursive(singleSrc, destFolder, cancellationToken);
-                        try { Directory.Delete(singleSrc, true); } catch { /* best effort */ }
                     }
                     createdPaths.Add(destFolder);
                     onProgress?.Invoke(operationId, 100, singleSrc, 0, 0, 0, 1, 1);
@@ -508,9 +535,29 @@ public class FileOperationService
 
                 if (move && i == 0 && work.Count == 1 && File.Exists(src) && !File.Exists(dest))
                 {
-                    File.Move(src, dest, overwrite: true);
-                    if (preservePermissions) TryPreservePermissions(src, dest);
-                    createdPaths.Add(dest);
+                    try
+                    {
+                        File.Move(src, dest, overwrite: true);
+                        createdPaths.Add(dest);
+                    }
+                    catch (IOException)
+                    {
+                        // Cross-volume / sharing: copy then delete (same as multi-file move path).
+                        await CopyFileBufferedAsync(src, dest, cancellationToken, (fileDone, fileTotal) =>
+                        {
+                            var soFar = transferred + fileDone;
+                            double speedNow = sw.Elapsed.TotalSeconds > 0 ? soFar / sw.Elapsed.TotalSeconds : 0;
+                            int pctNow = totalBytes > 0
+                                ? (int)Math.Clamp(soFar * 100 / totalBytes, 0, 99)
+                                : (int)((i + 1) * 100.0 / work.Count);
+                            onProgress?.Invoke(operationId, pctNow, src, soFar, totalBytes, speedNow, i, work.Count);
+                        }).ConfigureAwait(false);
+                        if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
+                            throw new IOException($"Move verification failed for {Path.GetFileName(src)}");
+                        if (preservePermissions) TryPreservePermissions(src, dest);
+                        createdPaths.Add(dest);
+                        try { File.Delete(src); } catch { /* best effort */ }
+                    }
                 }
                 else if (move && Directory.Exists(src) && work.Count > 1)
                 {
