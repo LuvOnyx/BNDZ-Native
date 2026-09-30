@@ -320,7 +320,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
     { id: 'capacity', label: 'Capacity', icon: 'hard_drive_ui' },
     { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
-    { id: 'organize', label: 'Organize', icon: 'folder_plus_ui' },
+    { id: 'organize', label: 'Organize (Preview)', icon: 'folder_plus_ui' },
     { id: 'health', label: 'Health', icon: 'heart_monitor_ui' },
   ];
 

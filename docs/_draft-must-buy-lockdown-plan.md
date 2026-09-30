@@ -1,5 +1,5 @@
-﻿# BNDZ Must-Buy Lockdown Plan
-**Scope:** BNDZ-Native only — Week 1 Undo truth shipped — Week 1-2 Recycle + multi + conflict->log shipped — Week 2 Move/DnD Action Log parity in progress
+# BNDZ Must-Buy Lockdown Plan
+**Scope:** BNDZ-Native only — Week 1 Undo truth shipped — Week 1-2 Recycle + multi + conflict->log shipped — Week 2 Move/DnD Action Log parity shipped — Week 3 Browse/Remote honesty + Week 4 keyboard + live-sign checklist shipped (code)
 **Date:** Wed Sep 30, 2026 (CT)  
 **Evidence:** `docs/BNDZ-PREMIUM-GAP.md`, V2 playbook, launch readiness, Action Log / undo code (`BndzActionLogService`, `undoRedo.ts`, History dialog), recent commits (remote unfreeze, toasts, DnD, Home, Command Hub)
 
@@ -385,4 +385,117 @@ Remote / mesh: **no promise** — prefer honesty toast if nothing local to undo.
 
 - Live-sign launch DnD + undo rows on BandzPC (not automated here).
 - Native/TeraCopy keep-both still best-effort via landed resolver (no OLE rewrite).
-- Do **not** start Week 3 Browse cosmetics until verify matrix above is solid.
+- Week 2 live-sign still Mikey-must-click (see combined checklist §13).
+
+---
+
+## 12. Week 3 progress (Browse / session feel + Remote honesty)
+
+**Tip base:** Week 2 `9ade3d644432a18df5d684f78e31770bfba79d9a` on `cursor/slice1-remote-feel-trust`.
+
+### Browse / session (confirm + cheap wins)
+
+| Area | Result |
+|------|--------|
+| **Cold start** | Confirmed still in place: `BndzBootLog` → `%LocalAppData%\BNDZ\boot.log`; deferred USN/index (`deferred-index-usn`); FE `deferHeavyBoot` font/automation idle; IpcHost first LIST_DIR not blocked by settings/action-log disk I/O. No additional cold-start blocker found before first `GET_DIR_CONTENTS`. |
+| **Tabs restore / Home** | Prior tabset autosave + Home dashboard commits kept; no Pillar Board / Home regression code this pass. |
+| **Command Hub** | No clear daily-usefulness gap found beyond `c62221c1` — left alone (no redesign). |
+| **Big-folder scroll** | No obvious cheap win beyond existing virtualization / adaptive density — left alone. |
+
+### Remote honesty
+
+| Area | Change |
+|------|--------|
+| **Unfreeze** | Mesh rename/delete/mkdir path unchanged — still early-returns through `_meshOrchestrator.ExecuteFsOperationAsync` (no local Action Log). |
+| **Ctrl+Z honesty** | New `remoteMutationHint.ts`; `IPC.executeFsOperation` notes mesh path mutations; `runUndoRedo` toasts **"Remote changes aren't on Undo"** (or Redo) when host `canUndo`/`canRedo` is false and a recent remote mutation exists — instead of silent / generic "Nothing to undo." |
+| **Thin demo tabs** | Mesh rail: **Live Share** + **Temp cloud** commented out of buy-ready tab list (panel code kept). Deep-link launch to those tabs lands on **Hosts**. Cleanup **Organize** tab labeled **Organize (Preview)** — not deleted. |
+
+### Files touched (Week 3)
+
+- `src/lib/remoteMutationHint.ts` (new)
+- `src/lib/ipcBridge.ts`
+- `src/components/BNDZUI.tsx` (honesty toast; shared with Week 4 keyboard)
+- `src/components/plugins/MeshPlugin.tsx`
+- `src/components/plugins/StorageCleanupPlugin.tsx`
+- `docs/_draft-must-buy-lockdown-plan.md`
+
+---
+
+## 13. Week 4 progress (keyboard density + combined live-sign checklist)
+
+**Tip base:** continues from Week 3 in the same commit on `cursor/slice1-remote-feel-trust`.
+
+### Keyboard density (Explorer-grade daily chords)
+
+| Chord | Fix |
+|-------|-----|
+| **F2 rename** | Fall back to `selectedItems[0]` when `focusedItemId` lags after click/select-all. |
+| **Delete** | Capture-phase handler (via `handleDeleteRequestRef`) so list-focus Delete is not lost to bubble races; key-up delete path still bubble-owned. |
+| **Ctrl+\ dual pane** | Capture-phase via `toggleDualPaneRef` (was bubble-only). |
+| **Ctrl+Z / Ctrl+Y** | Already capture (Week 1); remote honesty toast when nothing local to undo. |
+| **Ctrl+F filter / Ctrl+I preview / Space Quick Look** | Already in capture handler — confirmed, no TC F-key remapping. |
+
+### Combined live-sign checklist (Mikey must click)
+
+Legend: **code-fixed** = shipped in tree this grind; **Mikey-must-click** = not faked signed; live on BandzPC. Do not mark gates PASS without a real click.
+
+#### A. Undo → Recycle → Move (Pillars 1–3)
+
+| # | Scenario | Status |
+|---|----------|--------|
+| A1 | Delete 1 → Recycle → Ctrl+Z restores + honest toast | code-fixed — **Mikey-must-click** |
+| A2 | Delete many → Ctrl+Z (full or honest limit) | code-fixed — **Mikey-must-click** |
+| A3 | Shift+Delete → canUndo false; Ctrl+Z does not claim success | code-fixed — **Mikey-must-click** |
+| A4 | Recycle list / Restore one+many / Empty / Purge; Ctrl+Z after Empty/Purge honest | code-fixed — **Mikey-must-click** |
+| A5 | Move 1 + many (list) → Ctrl+Z un-moves | code-fixed — **Mikey-must-click** |
+| A6 | Cut+paste move → Ctrl+Z | code-fixed — **Mikey-must-click** |
+| A7 | Internal DnD move → Ctrl+Z / Ctrl+Y | code-fixed — **Mikey-must-click** |
+| A8 | Conflict keep-both → History `name (N)`; Ctrl+Z/Y use it | code-fixed — **Mikey-must-click** |
+| A9 | Cross-volume move → Ctrl+Z home | code-fixed — **Mikey-must-click** |
+| A10 | Rename F2 → Ctrl+Z | code-fixed — **Mikey-must-click** |
+| A11 | Redo Ctrl+Y / Ctrl+Shift+Z after undo | code-fixed — **Mikey-must-click** |
+| A12 | OLE Explorer→BNDZ drop logged; outbound Explorer-owned (no fake undo) | code-fixed (spine) — **Mikey-must-click** |
+
+#### B. Browse / session (Pillar 4)
+
+| # | Scenario | Status |
+|---|----------|--------|
+| B1 | Cold start → first folder list without "frozen?" pause; boot.log marks present | code-confirmed deferred init — **Mikey-must-click** live feel |
+| B2 | Tabs / tabset restore after restart | prior ship — **Mikey-must-click** |
+| B3 | Home dashboard lands useful (no Pillar Board regression) | prior ship — **Mikey-must-click** |
+| B4 | Command Hub finds places + real FM commands | prior ship — **Mikey-must-click** |
+| B5 | Big folder scroll usable | prior virt — **Mikey-must-click** |
+
+#### C. Remote honesty (Pillar 5)
+
+| # | Scenario | Status |
+|---|----------|--------|
+| C1 | Remote rename/delete/mkdir still unfrozen | prior unfreeze kept — **Mikey-must-click** |
+| C2 | After remote mutation, Ctrl+Z → toast "Remote changes aren't on Undo" (not silent) | code-fixed — **Mikey-must-click** |
+| C3 | Live Share / Temp cloud not shown as finished product tabs | code-fixed (hidden) — **Mikey-must-click** glance |
+| C4 | Organize marked Preview (not buy-ready chrome) | code-fixed — **Mikey-must-click** glance |
+
+#### D. Keyboard density (Pillar 6)
+
+| # | Scenario | Status |
+|---|----------|--------|
+| D1 | Focus in file list → F2 renames selection | code-fixed — **Mikey-must-click** |
+| D2 | Focus in file list → Delete / Shift+Delete | code-fixed — **Mikey-must-click** |
+| D3 | Focus in file list → Ctrl+Z / Ctrl+Y | code-fixed — **Mikey-must-click** |
+| D4 | Focus in file list → Ctrl+\ dual pane | code-fixed — **Mikey-must-click** |
+| D5 | Focus in file list → Ctrl+F filter, Ctrl+I preview, Space Quick Look | prior capture — **Mikey-must-click** |
+| D6 | No TC F5/F6 remapping (F5 stays refresh) | intentional — confirm feel **Mikey-must-click** |
+
+#### E. Buy gate note (Pillar 7)
+
+| # | Scenario | Status |
+|---|----------|--------|
+| E1 | After A–D clicks: would Mikey pay / hand a friend a key without apology? | **Mikey-must-click** gut only — never code-signed |
+
+### Remaining gaps (not claimed done)
+
+- All rows above still need live BandzPC ticks — none auto-signed.
+- Native/TeraCopy keep-both still best-effort; OLE outbound still Explorer-owned.
+- Full remote/mesh Action Log undo **not** promised.
+- Organize / Live Share / Temp cloud product finish = out of must-buy scope.
+- Cosmetics, Cleanup redesign, marketplace = after this spine.

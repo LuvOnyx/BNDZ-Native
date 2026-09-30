@@ -10,6 +10,7 @@ import { entityHasTag } from './tagUtils';
 import { formatPathsForClipboard } from './clipboardPathFormat';
 import { hydrateShellGlyphMap } from './nativeIconService';
 import { dispatchDirAppend } from './dirListingStream';
+import { noteRemoteMutationIfPaths } from './remoteMutationHint';
 
 function clipboardPathConfigFromDom(): { copyPathsToTheClipboardWithATrailingSlash: boolean } {
   if (typeof document === 'undefined') return { copyPathsToTheClipboardWithATrailingSlash: false };
@@ -745,7 +746,7 @@ export const IPC = {
     width: number;
     height: number;
     visible: boolean;
-    /** Clears sticky soft-park — only when Remote+Terminal is intentional. */
+    /** Clears sticky soft-park ï¿½ only when Remote+Terminal is intentional. */
     unpark?: boolean;
   }): void {
     if (!this.isNative) return;
@@ -1715,6 +1716,11 @@ export const IPC = {
     priority?: 'low' | 'normal' | 'high',
     recreateSourceStructure?: boolean,
   ): Promise<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }> {
+    // Mesh/remote ops never enter the local Action Log -- remember for honest Ctrl+Z.
+    if (action !== 'undo' && action !== 'redo') {
+      const srcList = Array.isArray(source) ? source : [source];
+      noteRemoteMutationIfPaths([...srcList, target], { action, label });
+    }
     if (this.isNative) {
       const timeoutMs = action === 'copy' || action === 'move' ? 600_000 : 120_000;
       return _nativeCall<{ ok: boolean; error?: string; background?: boolean; finalPath?: string; finalName?: string; created?: boolean }>(

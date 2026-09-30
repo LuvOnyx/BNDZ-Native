@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
 import { flushSync } from 'react-dom';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { BndzPlaque } from './BndzPlaque';
@@ -289,6 +289,7 @@ import { millerRootForMount, resolveMillerRootOnNavigate } from '../lib/millerCo
 import { appendDropStackPaths } from '../lib/dropStackStore';
 import { isMeshPath, buildMeshPath, MESH_ROOT, parseMeshPath } from '../lib/meshPaths';
 import { preserveMeshOrFsPath, meshShellHere, meshDownloadSelection } from '../lib/meshFsOps';
+import { remoteUndoHonestyMessage } from '../lib/remoteMutationHint';
 import { canonicalDropPath, resolveDropRoute, resolveEntityDragPath, MESH_DROP_INBOX_DEST } from '../lib/fsPathRouting';
 import { isValidOutboundDragPath } from '../lib/pathUtils';
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
@@ -1672,6 +1673,8 @@ export default function BNDZUI() {
   const lastGlobalQueryRef = useRef('');
   /** True after the user clicks/focuses a file list -- type-ahead stays armed even if WebView2 leaves chrome focused. */
   const listTypeAheadArmedRef = useRef(false);
+  const toggleDualPaneRef = useRef<() => void>(() => {});
+  const handleDeleteRequestRef = useRef<(items: any[], path: string, isFromTree?: boolean, options?: { permanent?: boolean }) => void>(() => {});
   /** Latest type-ahead context -- handler is stable so letter keys never hit a stale closure. */
   const typeAheadCtxRef = useRef<Record<string, any>>({});
 
@@ -3802,12 +3805,12 @@ export default function BNDZUI() {
       hostCan = redo ? !!snap.canRedo : !!snap.canUndo;
     } catch { /* use local flags */ }
     if (!hostCan) {
+      const remoteHonesty = remoteUndoHonestyMessage(redo);
       pushToast({
         kind: 'info',
         title: redo ? 'Redo' : 'Undo',
-        message: redo
-          ? 'Nothing to redo.'
-          : 'Nothing to undo.',
+        message: remoteHonesty
+          || (redo ? 'Nothing to redo.' : 'Nothing to undo.'),
       });
       return;
     }
@@ -4326,16 +4329,18 @@ export default function BNDZUI() {
              return;
            }
          }
-         if (focusedItemId && activePane) {
+         // Week 4: selection is enough -- focusedItemId can lag after click/select-all.
+         const renameId = focusedItemId || tab?.selectedItems?.[0] || null;
+         if (renameId && activePane) {
            e.preventDefault();
-           const tab = resolvePaneTab(activePane);
-           if (!tab) return;
-           const normTab = normalizePanePath(tab.path);
-           const entity = (pathContentsCache[tab.path] || pathContentsCache[normTab] || [])
-             .find((x: any) => x.id === focusedItemId)
-             || findEntityInCache(pathContentsCache, focusedItemId);
+           const tab2 = resolvePaneTab(activePane);
+           if (!tab2) return;
+           const normTab = normalizePanePath(tab2.path);
+           const entity = (pathContentsCache[tab2.path] || pathContentsCache[normTab] || [])
+             .find((x: any) => x.id === renameId)
+             || findEntityInCache(pathContentsCache, renameId);
            if (entity) {
-             beginInlineRename(tab.path, focusedItemId, entity);
+             beginInlineRename(tab2.path, renameId, entity);
            }
          }
       }
@@ -4357,6 +4362,37 @@ export default function BNDZUI() {
                IPC.executeContextMenuVerb(paths.length === 1 ? paths[0] : paths, 'properties'),
              );
            }
+         }
+      }
+
+      // Dual pane toggle (capture) -- was bubble-only and missed list focus races.
+      if (!isInput && matchesShortcut(e, keyboardMap.dualPane)) {
+         e.preventDefault();
+         e.stopPropagation();
+         toggleDualPaneRef.current();
+         return;
+      }
+
+      // Delete (capture) -- same spine as bubble handler; guarantee list-focus chords fire.
+      if (!isInput && matchesShortcut(e, keyboardMap.delete)) {
+         if (getListIxBehavior(config).deleteOnKeyUp) {
+           // Key-up path still owned by the bubble listener.
+         } else {
+           e.preventDefault();
+           e.stopPropagation();
+           const activePane = panes.find(p => p.id === activePaneId);
+           if (activePane) {
+             const tab = activePane.tabs[activePane.activeTabIndex];
+             if (tab.selectedItems.length > 0) {
+               const norm = normalizePanePath(tab.path);
+               const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || [];
+               const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+               if (selectedEntities.length > 0) {
+                 handleDeleteRequestRef.current(selectedEntities, tab.path, focusedItemId === 'TREE', { permanent: e.shiftKey });
+               }
+             }
+           }
+           return;
          }
       }
 
@@ -4762,6 +4798,7 @@ export default function BNDZUI() {
       ]
     });
   };
+  handleDeleteRequestRef.current = handleDeleteRequest;
 
   const createNewItemInActivePane = async (name: string, kind: 'dir' | 'file') => {
     const pane = panes.find(p => p.id === activePaneId);
@@ -7250,6 +7287,7 @@ ${classified.detail}`,
        updateConfig({ dualPaneOpen: true });
     }
   };
+  toggleDualPaneRef.current = toggleDualPane;
 
   // Open DualPaneDiffStrip from external dispatch (e.g. Compare plugin)
   useEffect(() => {
@@ -11142,7 +11180,7 @@ ${classified.detail}`,
                  const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || getSortedContentsForActivePane() || [];
                  const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
                  if (selectedEntities.length > 0) {
-                     handleDeleteRequest(selectedEntities, tab.path, focusedItemId === 'TREE', { permanent: e.shiftKey });
+                     handleDeleteRequestRef.current(selectedEntities, tab.path, focusedItemId === 'TREE', { permanent: e.shiftKey });
                  }
              }
          }

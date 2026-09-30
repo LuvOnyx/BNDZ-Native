@@ -509,11 +509,14 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   useEffect(() => {
     if (!pluginLaunch) return;
     if (pluginLaunch.tab === 'terminal') setTab('terminal');
-    if (pluginLaunch.tab === 'ephemeral') setTab('ephemeral');
+    // ephemeral/liveshare thin demos: redirected below
     if (pluginLaunch.tab === 'hosts') setTab('hosts');
     if (pluginLaunch.tab === 'drop' || pluginLaunch.tab === 'mesh-drop') setTab('drop');
     if (pluginLaunch.tab === 'mirror') setTab('mirror');
-    if (pluginLaunch.tab === 'liveshare') setTab('liveshare');
+    if (pluginLaunch.tab === 'liveshare' || pluginLaunch.tab === 'ephemeral') {
+      // Thin demo tabs are hidden from the rail -- land on Hosts instead of looking finished.
+      setTab('hosts');
+    }
     if (pluginLaunch.tab === 'buckets') setTab('buckets');
     if (pluginLaunch.sessionId) setSessionId(pluginLaunch.sessionId);
     if (pluginLaunch.hostId) setSelectedHostId(pluginLaunch.hostId);
@@ -796,7 +799,7 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
   }, [popout, nativeTerm]);
 
   // Pop-out window: adopt handed-off session and show terminal; otherwise main Remote UI.
-  // Retry briefly — main may still be depositing while this WebView boots (overlap speedup).
+  // Retry briefly â€” main may still be depositing while this WebView boots (overlap speedup).
   useEffect(() => {
     if (!popout || !nativeTerm) return;
     let cancelled = false;
@@ -943,11 +946,11 @@ export default function MeshPlugin({ onNavigate, currentPath, pluginLaunch, sele
             {([
               ['hosts', 'Hosts'],
               ['drop', 'Send files'],
-              ['ephemeral', 'Temp cloud'],
+              // ['ephemeral', 'Temp cloud'], // Week 3: hide unfinished demo tab
               ['buckets', 'Shares'],
               ['mirror', 'Sync'],
               ['terminal', 'Terminal'],
-              ['liveshare', 'Live Share'],
+              // ['liveshare', 'Live Share'], // Week 3: hide unfinished demo tab
             ] as const).map(([id, label]) => (
               <button
                 key={id}
