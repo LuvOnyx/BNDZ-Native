@@ -600,7 +600,12 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
                     if (IPC.isNative) {
                         try {
                             const libs = await IPC.getIconLibraries();
-                            if (Array.isArray(libs) && libs.length) {
+                            const userCleared =
+                                !!cfg.iconLibrariesInitialized
+                                && Array.isArray(cfg.iconLibraries)
+                                && cfg.iconLibraries.length === 0;
+                            // Never overwrite an intentional empty library list with stale native JSON.
+                            if (Array.isArray(libs) && libs.length && !userCleared) {
                                 const next = { ...cfg, iconLibraries: formatLibrariesForConfig(libs) };
                                 setConfig(next);
                             }

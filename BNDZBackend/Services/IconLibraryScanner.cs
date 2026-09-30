@@ -15,7 +15,18 @@ public class IconLibraryScanner
         var results = new List<object>();
         if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath)) return results;
 
-        foreach (var file in Directory.EnumerateFiles(folderPath).OrderBy(f => f))
+        // Recurse -- icon packs almost always nest files under category folders.
+        IEnumerable<string> files;
+        try
+        {
+            files = Directory.EnumerateFiles(folderPath, "*.*", SearchOption.AllDirectories);
+        }
+        catch
+        {
+            return results;
+        }
+
+        foreach (var file in files.OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
         {
             var ext = Path.GetExtension(file).ToLowerInvariant();
             if (!SupportedExtensions.Contains(ext)) continue;
