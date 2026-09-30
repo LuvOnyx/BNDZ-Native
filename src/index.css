@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 /* Hide classic number steppers app-wide â€” type values or use custom controls */
 input[type="number"] {
@@ -21027,6 +21027,42 @@ html.theme-light .bndz-find-mode-chip.is-active .bndz-find-mode-chip-hint {
   text-transform: uppercase;
   color: rgba(148, 163, 184, 0.4);
 }
+
+.bndz-omnibar-hub-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 12px 8px;
+}
+.bndz-omnibar-hub-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(232, 238, 246, 0.78);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+.bndz-omnibar-hub-quick-btn:hover {
+  color: #fff;
+  background: color-mix(in srgb, var(--accent, #0078d4) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, transparent);
+}
+.bndz-omnibar-hub-section {
+  list-style: none;
+  padding: 8px 10px 3px;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.42);
+  user-select: none;
+}
 .bndz-omnibar-hub-row {
   width: 100%;
   display: flex;
@@ -21139,6 +21175,15 @@ html.theme-light .bndz-omnibar-hub {
 html.theme-light .bndz-omnibar-hub-head .text-\[13px\],
 html.theme-light .bndz-omnibar-hub-row .text-\[12px\] {
   color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-omnibar-hub-section {
+  color: rgba(15, 23, 42, 0.42);
+}
+html.theme-light .bndz-omnibar-hub-quick-btn {
+  color: rgba(15, 23, 42, 0.72);
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.1);
 }
 html.theme-light .bndz-omni-suggest {
   background: #fff;

@@ -1,9 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { TreeShellIcon } from './TreeShellIcon';
 import type { RapidAccessItem } from '../lib/rapidAccessDefaults';
 import type { NavVisit } from '../lib/navigationHistory';
 import { formatUiPath } from '../lib/displayPath';
-import { OMNIBAR_COMMANDS } from '../lib/omnibarCommands';
+import {
+  OMNIBAR_COMMANDS,
+  OMNIBAR_GROUP_LABELS,
+  OMNIBAR_GROUP_ORDER,
+  type OmnibarCommandGroup,
+} from '../lib/omnibarCommands';
 
 type Props = {
   open: boolean;
@@ -16,9 +22,38 @@ type Props = {
 };
 
 type Row =
-  | { key: string; kind: 'place'; path: string; name: string; sub: string }
+  | { key: string; kind: 'place'; path: string; name: string; sub: string; iconPath?: string }
   | { key: string; kind: 'recent'; path: string; name: string; sub: string }
-  | { key: string; kind: 'command'; insert: string; name: string; sub: string; icon?: string };
+  | {
+      key: string;
+      kind: 'command';
+      insert: string;
+      name: string;
+      sub: string;
+      icon?: string;
+      group: OmnibarCommandGroup;
+      token: string;
+    };
+
+type ListEntry =
+  | { type: 'header'; key: string; title: string }
+  | { type: 'row'; key: string; row: Row; index: number };
+
+const PLACE_NAME_ICON: Record<string, string> = {
+  desktop: 'folder_open_ui',
+  documents: 'emblem_documents',
+  downloads: 'download',
+  pictures: 'picture_ui',
+  music: 'music_ui',
+  videos: 'film_ui',
+  home: 'home',
+  gallery: 'images_ui',
+  profile: 'home',
+};
+
+function placeFallbackIcon(name: string): string {
+  return PLACE_NAME_ICON[name.trim().toLowerCase()] || 'folder';
+}
 
 /**
  * Omnibar Command Hub -- double-click the fuzzy bar for places + commands.
@@ -52,18 +87,19 @@ export default function OmnibarCommandHub({
 
     const placeRows: Row[] = places
       .filter(p => hit(p.name, p.path))
-      .slice(0, 10)
+      .slice(0, 12)
       .map(p => ({
         key: `p:${p.path}`,
         kind: 'place' as const,
         path: p.path,
         name: p.name,
         sub: formatUiPath(p.path),
+        iconPath: p.iconPath,
       }));
 
     const recentRows: Row[] = recent
       .filter(v => hit(v.label, v.path))
-      .slice(0, 6)
+      .slice(0, 8)
       .map(v => ({
         key: `r:${v.path}`,
         kind: 'recent' as const,
@@ -73,24 +109,54 @@ export default function OmnibarCommandHub({
       }));
 
     const cmdRows: Row[] = OMNIBAR_COMMANDS
-      .filter(c => hit(c.label, c.name) || hit(c.hint, c.name))
+      .filter(c => {
+        if (!q) return true;
+        const blob = [c.label, c.name, c.hint, ...(c.aliases || [])].join(' ');
+        return hit(blob, c.name) || hit(c.hint, c.label);
+      })
+      .slice()
+      .sort((a, b) => {
+        const ga = OMNIBAR_GROUP_ORDER.indexOf(a.group || 'system');
+        const gb = OMNIBAR_GROUP_ORDER.indexOf(b.group || 'system');
+        return ga - gb;
+      })
       .map(c => ({
         key: `c:${c.id}`,
         kind: 'command' as const,
         insert: `>${c.name}`,
         name: c.label,
-        sub: `>${c.name} -- ${c.hint}`,
+        sub: `>${c.name}${c.aliases?.length ? ` · ${c.aliases.map(a => `>${a}`).join(' ')}` : ''} — ${c.hint}`,
         icon: c.icon,
+        group: (c.group || 'system') as OmnibarCommandGroup,
+        token: c.name,
       }));
 
-    if (q.startsWith('>') || q.startsWith('::')) {
-      return [...cmdRows, ...placeRows, ...recentRows];
-    }
-    if (q.includes(':') || q.includes('\\') || q.includes('/') || q.startsWith('%')) {
-      return [...placeRows, ...recentRows, ...cmdRows];
-    }
+    const cmdFirst = q.startsWith('>') || q.startsWith('::');
+    if (cmdFirst) return [...cmdRows, ...placeRows, ...recentRows];
     return [...placeRows, ...recentRows, ...cmdRows];
   }, [places, recent, query]);
+
+  const listEntries = useMemo((): ListEntry[] => {
+    const out: ListEntry[] = [];
+    let lastSection = '';
+    rows.forEach((row) => {
+      let section = '';
+      if (row.kind === 'place') section = 'Places';
+      else if (row.kind === 'recent') section = 'Recent';
+      else section = OMNIBAR_GROUP_LABELS[row.group] || 'Commands';
+      if (section !== lastSection) {
+        out.push({ type: 'header', key: `h:${section}`, title: section });
+        lastSection = section;
+      }
+      out.push({ type: 'row', key: row.key, row, index: out.filter(e => e.type === 'row').length });
+    });
+    // Fix indices: recompute properly
+    let idx = 0;
+    return out.map(e => {
+      if (e.type === 'header') return e;
+      return { ...e, index: idx++ };
+    });
+  }, [rows]);
 
   useEffect(() => {
     setActive(0);
@@ -147,29 +213,39 @@ export default function OmnibarCommandHub({
     onClose();
   };
 
+  useEffect(() => {
+    if (!open) return;
+    const el = panelRef.current?.querySelector<HTMLElement>(`[data-hub-idx="${active}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [active, open, listEntries]);
+
   if (!open) return null;
 
   const placesCount = rows.filter(r => r.kind === 'place').length;
   const recentCount = rows.filter(r => r.kind === 'recent').length;
   const cmdCount = rows.filter(r => r.kind === 'command').length;
 
+  const quickCmds = OMNIBAR_COMMANDS.filter(c =>
+    ['refresh', 'dual', 'preview', 'find', 'newtab', 'settings', 'home', 'terminal'].includes(c.id),
+  );
+
   return (
-    <div className="fixed inset-0 z-[12000] flex items-start justify-center pt-[10vh] bg-black/40">
+    <div className="fixed inset-0 z-[12000] flex items-start justify-center pt-[8vh] bg-black/40">
       <div
         ref={panelRef}
-        className="bndz-omnibar-hub w-[min(520px,94vw)] max-h-[min(580px,78vh)] flex flex-col overflow-hidden"
+        className="bndz-omnibar-hub w-[min(580px,94vw)] max-h-[min(640px,82vh)] flex flex-col overflow-hidden"
         role="dialog"
         aria-label="Omnibar command hub"
       >
         <div className="bndz-omnibar-hub-head shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="bndz-omnibar-hub-mark" aria-hidden>
-              <Icons8Icon id="search" size={14} />
+              <Icons8Icon id="command_ui" size={14} />
             </span>
             <div className="min-w-0">
               <div className="text-[13px] font-semibold text-[#e8eef6] tracking-wide">Command Hub</div>
               <div className="text-[10px] text-white/35 truncate">
-                Places | paths | &gt;commands -- double-click the fuzzy bar anytime
+                Places · recent · &gt;commands — double-click the fuzzy bar
               </div>
             </div>
           </div>
@@ -204,6 +280,26 @@ export default function OmnibarCommandHub({
           )}
         </div>
 
+        {!query.trim() && (
+          <div className="bndz-omnibar-hub-quick shrink-0">
+            {quickCmds.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                className="bndz-omnibar-hub-quick-btn"
+                title={c.hint}
+                onClick={() => {
+                  onRunCommand(`>${c.name}`);
+                  onClose();
+                }}
+              >
+                <Icons8Icon id={c.icon || 'command_ui'} size={12} />
+                <span>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="bndz-omnibar-hub-meta shrink-0">
           <span>{placesCount} places</span>
           <span>{recentCount} recent</span>
@@ -217,29 +313,46 @@ export default function OmnibarCommandHub({
             </p>
           ) : (
             <ul className="space-y-[2px]">
-              {rows.map((row, i) => {
-                const isActive = i === active;
-                const icon =
-                  row.kind === 'place' ? 'folder'
-                    : row.kind === 'recent' ? 'clock_ui'
-                      : (row.icon || 'command');
+              {listEntries.map(entry => {
+                if (entry.type === 'header') {
+                  return (
+                    <li key={entry.key} className="bndz-omnibar-hub-section" aria-hidden>
+                      {entry.title}
+                    </li>
+                  );
+                }
+                const { row, index } = entry;
+                const isActive = index === active;
+                const cmdIcon = row.kind === 'command' ? (row.icon || 'command_ui') : null;
                 return (
                   <li key={row.key}>
                     <button
                       type="button"
+                      data-hub-idx={index}
                       className={`bndz-omnibar-hub-row ${isActive ? 'is-active' : ''}`}
-                      onMouseEnter={() => setActive(i)}
+                      onMouseEnter={() => setActive(index)}
                       onClick={() => activate(row)}
                     >
                       <span className={`bndz-omnibar-hub-row-ico bndz-omnibar-hub-row-ico--${row.kind}`}>
-                        <Icons8Icon id={icon} size={13} />
+                        {row.kind === 'place' ? (
+                          <TreeShellIcon
+                            path={row.path}
+                            iconPath={row.iconPath}
+                            size={14}
+                            fallbackIcon={placeFallbackIcon(row.name)}
+                          />
+                        ) : row.kind === 'recent' ? (
+                          <Icons8Icon id="history_ui" size={13} />
+                        ) : (
+                          <Icons8Icon id={cmdIcon!} size={13} />
+                        )}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[12px] font-medium truncate text-[#e8eef6]">{row.name}</span>
                         <span className="block text-[10px] text-white/35 truncate font-mono">{row.sub}</span>
                       </span>
                       <span className="bndz-omnibar-hub-kind">
-                        {row.kind === 'place' ? 'Place' : row.kind === 'recent' ? 'Recent' : 'Cmd'}
+                        {row.kind === 'place' ? 'Place' : row.kind === 'recent' ? 'Recent' : `>${row.token}`}
                       </span>
                     </button>
                   </li>
@@ -253,7 +366,7 @@ export default function OmnibarCommandHub({
           <span><kbd>↑↓</kbd> move</span>
           <span><kbd>Enter</kbd> go</span>
           <span><kbd>Esc</kbd> close</span>
-          <span className="ml-auto opacity-50">Also: %AppData% | C:\ | shell: | &gt;find</span>
+          <span className="ml-auto opacity-50">%AppData% · C:\ · shell: · &gt;find</span>
         </div>
       </div>
     </div>

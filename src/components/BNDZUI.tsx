@@ -7474,7 +7474,77 @@ ${classified.detail}`,
         setCurrentPath(newPath, activePaneId);
       };
 
+      const setActiveViewMode = (mode: 'details' | 'grid' | 'list' | 'columns') => {
+        setViewMode(mode, activePaneId);
+      };
+
+      const navigateKnown = async (rawPath: string) => {
+        const { IPC } = await import('../lib/ipcBridge');
+        const expand = (p: string) => IPC.expandEnvironmentPath(p);
+        const parsedPath = (await resolveUserPathToPane(rawPath, expand)) || parseUserPathToPane(rawPath);
+        if (!parsedPath) {
+          setToastMessage(`Could not resolve: ${rawPath}`);
+          return;
+        }
+        const newPath = resolveShellKnownFolderToFs(parsedPath, shortcuts);
+        setCurrentPath(newPath, activePaneId);
+      };
+
+      const copyActivePath = () => {
+        const ap = panes.find(p => p.id === activePaneId);
+        if (!ap) return;
+        const tab = ap.tabs[ap.activeTabIndex];
+        const contents = getCachedPaneContents(tab.path);
+        const selected = contents.filter((x: any) => tab.selectedItems.includes(x.id));
+        const target = selected.length > 0
+          ? selected.map((s: any) => toWindowsPath(joinPanePath(tab.path, s))).join('\n')
+          : toWindowsPath(tab.path);
+        void import('../lib/ipcBridge').then(({ IPC }) => {
+          IPC.shellExecute('copyPath', target);
+        });
+        setToastMessage(selected.length > 1 ? `Copied ${selected.length} paths.` : 'Path copied to clipboard.');
+      };
+
+      const openSelectionProperties = () => {
+        const ap = panes.find(p => p.id === activePaneId);
+        const tab = resolvePaneTab(ap);
+        if (!tab) return;
+        const contents = getCachedPaneContents(tab.path);
+        let paneTarget = tab.path;
+        if (tab.selectedItems.length > 0) {
+          const sel = contents.find((c: any) => c.id === tab.selectedItems[0]);
+          if (sel) paneTarget = joinPanePath(tab.path, sel);
+        }
+        const shellPath = resolveShellPropertiesPath(paneTarget);
+        void import('../lib/ipcBridge').then(({ IPC }) => {
+          IPC.executeContextMenuVerb(shellPath, 'properties');
+        });
+      };
+
       const commandTable: Record<string, () => void> = {
+        // Navigate
+        home:      () => setCurrentPath(BNDZ_HOME),
+        bndz:      () => setCurrentPath(BNDZ_HOME),
+        up:        () => goUp(activePaneId),
+        '..':      () => goUp(activePaneId),
+        parent:    () => goUp(activePaneId),
+        go:        () => { void navigateArg(); },
+        cd:        () => { void navigateArg(); },
+        desktop:   () => { void navigateKnown('shell:Desktop'); },
+        downloads: () => { void navigateKnown('shell:Downloads'); },
+        dl:        () => { void navigateKnown('shell:Downloads'); },
+        documents: () => { void navigateKnown('shell:Personal'); },
+        docs:      () => { void navigateKnown('shell:Personal'); },
+        thispc:    () => setCurrentPath('/'),
+        computer:  () => setCurrentPath('/'),
+        pc:        () => setCurrentPath('/'),
+        recycle:   () => guardedSetCurrentPath(RECYCLE_BIN_PATH),
+        trash:     () => guardedSetCurrentPath(RECYCLE_BIN_PATH),
+        bin:       () => guardedSetCurrentPath(RECYCLE_BIN_PATH),
+        network:   () => guardedSetCurrentPath('//'),
+        net:       () => guardedSetCurrentPath('//'),
+
+        // Workspace
         refresh:   () => { void refetchPath(currentPath); setToastMessage('Folder refreshed.'); },
         reload:    () => { void refetchPath(currentPath); setToastMessage('Folder refreshed.'); },
         r:         () => { void refetchPath(currentPath); setToastMessage('Folder refreshed.'); },
@@ -7484,8 +7554,42 @@ ${classified.detail}`,
         preview:   togglePreviewPanel,
         inspector: togglePreviewPanel,
         i:         togglePreviewPanel,
-        settings:  () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
-        config:    () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
+        bottom:    toggleBottomPanel,
+        panel:     toggleBottomPanel,
+        newtab:    () => {
+          const ap = panes.find(p => p.id === activePaneId);
+          if (ap) addTab(ap.id, ap.tabs[ap.activeTabIndex]?.path || '/');
+        },
+        tab:       () => {
+          const ap = panes.find(p => p.id === activePaneId);
+          if (ap) addTab(ap.id, ap.tabs[ap.activeTabIndex]?.path || '/');
+        },
+        tabset:    () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
+
+        // View
+        details:     () => setActiveViewMode('details'),
+        viewdetails: () => setActiveViewMode('details'),
+        grid:        () => setActiveViewMode('grid'),
+        viewgrid:    () => setActiveViewMode('grid'),
+        list:        () => setActiveViewMode('list'),
+        viewlist:    () => setActiveViewMode('list'),
+        columns:     () => setActiveViewMode('columns'),
+        miller:      () => setActiveViewMode('columns'),
+
+        // Ops
+        newfolder: () => { void createNewItemInActivePane('New folder', 'dir'); },
+        mkdir:     () => { void createNewItemInActivePane('New folder', 'dir'); },
+        md:        () => { void createNewItemInActivePane('New folder', 'dir'); },
+        newfile:   () => { void createNewItemInActivePane('New Text Document.txt', 'file'); },
+        touch:     () => { void createNewItemInActivePane('New Text Document.txt', 'file'); },
+        copypath:  copyActivePath,
+        path:      copyActivePath,
+        properties: openSelectionProperties,
+        props:     openSelectionProperties,
+        selectall: () => selectAllInActivePane(),
+        sa:        () => selectAllInActivePane(),
+
+        // Plugins
         rename:    () => openBottomPlugin('batch-rename'),
         find:      () => { if (arg) addFindingTab(activePaneId, arg); else openBottomPlugin('find'); },
         search:    () => { if (arg) addFindingTab(activePaneId, arg); else openBottomPlugin('find'); },
@@ -7493,14 +7597,28 @@ ${classified.detail}`,
         terminal:  () => openBottomPlugin('remote-mesh', { tab: 'terminal' }),
         shell:     () => openBottomPlugin('remote-mesh', { tab: 'terminal' }),
         filters:   () => openBottomPlugin('filters'),
-        hub:       () => setIsPluginStoreOpen(true),
-        tabset:    () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
+        icons:     () => openBottomPlugin('icon-studio'),
+        iconstudio:() => openBottomPlugin('icon-studio'),
+        tags:      () => setIsTagManagerOpen(true),
+        tag:       () => setIsTagManagerOpen(true),
+        dropstack: () => openBottomPlugin('dropstack'),
+        drop:      () => openBottomPlugin('dropstack'),
+        cleanup:   () => openBottomPlugin('storage-cleanup'),
+        storage:   () => openBottomPlugin('storage-cleanup'),
+        compare:   () => { void startFolderCompare(); },
+        sync:      () => { void startFolderCompare(); },
+        smart:     () => setIsSmartToolsOpen(true),
+        smarttools:() => setIsSmartToolsOpen(true),
+        ai:        () => setIsSmartToolsOpen(true),
+
+        // System
+        settings:  () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
+        config:    () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
         palette:   () => setIsCommandPaletteOpen(true),
         commands:  () => setIsCommandPaletteOpen(true),
+        hub:       () => setIsPluginStoreOpen(true),
         plugins:   () => setIsPluginStoreOpen(true),
         store:     () => setIsPluginStoreOpen(true),
-        go:        () => { void navigateArg(); },
-        cd:        () => { void navigateArg(); },
       };
 
       const handler = commandTable[lc];
@@ -7508,7 +7626,7 @@ ${classified.detail}`,
         handler();
         return true;
       }
-      setToastMessage(`Unknown command: '${cmd}'. Try: refresh, dual, preview, settings, find, go, terminal, filters, palette, hub`);
+      setToastMessage(`Unknown command: '${cmd}'. Type > in Command Hub to browse all commands.`);
       return true; // consumed -- error toast shown
     }
 
