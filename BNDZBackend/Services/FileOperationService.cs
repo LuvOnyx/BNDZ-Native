@@ -109,7 +109,13 @@ public class FileOperationService
                         FileOperationPathPlanner.EnsureDestinationSpace(target, estimate);
                     var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove, recreateSourceStructure).ConfigureAwait(false);
                     if (created.Count > 0 && recordActionLog)
-                        _actionLog?.Record(BndzActionLogService.ForCopy(sources, created));
+                    {
+                        var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.PairTopLevel(sources, target, created);
+                        if (pairedDest.Count > 0)
+                            _actionLog?.Record(BndzActionLogService.ForCopy(pairedSrc, pairedDest));
+                        else
+                            _actionLog?.Record(BndzActionLogService.ForCopy(sources, created));
+                    }
                     break;
                 }
 
@@ -130,7 +136,13 @@ public class FileOperationService
                     if (archiveFolderRename && Directory.Exists(target))
                         TrySetArchiveAttribute(target);
                     if (movedTo.Count > 0 && recordActionLog)
-                        _actionLog?.Record(BndzActionLogService.ForMove(sources, movedTo));
+                    {
+                        var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.PairTopLevel(sources, target, movedTo);
+                        if (pairedDest.Count > 0)
+                            _actionLog?.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
+                        else
+                            _actionLog?.Record(BndzActionLogService.ForMove(sources, movedTo));
+                    }
                     break;
                 }
 

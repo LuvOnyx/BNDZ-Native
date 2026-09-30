@@ -119,7 +119,17 @@ public static class RecycleBinService
                             originalLocation = from;
                             var leaf = Path.GetFileName((item.Name ?? name).TrimEnd('\\', '/'));
                             if (string.IsNullOrWhiteSpace(leaf)) leaf = name;
-                            originalPath = Path.Combine(from, leaf);
+                            var fromNorm = from.Replace('/', '\\').TrimEnd('\\');
+                            var fromLeaf = Path.GetFileName(fromNorm);
+                            // DeletedFrom is sometimes already the full original path.
+                            if (!string.IsNullOrEmpty(fromLeaf) && fromLeaf.Equals(leaf, StringComparison.OrdinalIgnoreCase)
+                                && (fromNorm.Contains('\\') || fromNorm.Contains('/')))
+                                originalPath = fromNorm;
+                            else
+                                originalPath = Path.Combine(from, leaf);
+                            var fromInfo = TryResolveOriginalFullPathFromInfoFile(parsingName);
+                            if (!string.IsNullOrWhiteSpace(fromInfo))
+                                originalPath = fromInfo;
                         }
                     }
                     catch { /* optional recycle PKEY */ }
@@ -199,30 +209,50 @@ public static class RecycleBinService
 
     /// <summary>
     /// Restores recycled items to their original location using the shell's own "undelete" verb.
+    /// Matches parsing names (any slash style), display names, and original-path hints.
     /// </summary>
     public static (int restored, int failed) Restore(IEnumerable<string> parsingNames)
     {
-        var targets = new HashSet<string>(parsingNames.Select(p => p.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
-        (int restored, int failed) result = (0, 0);
+        var (restored, failed, _) = RestoreDetailed(parsingNames);
+        return (restored, failed);
+    }
+
+    /// <summary>Same as <see cref="Restore"/> but also returns original full paths that were undeleted.</summary>
+    public static (int restored, int failed, List<string> originalPaths) RestoreDetailed(IEnumerable<string> parsingNames)
+    {
+        var targets = new HashSet<string>(
+            (parsingNames ?? Array.Empty<string>())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(NormalizeRecycleKey),
+            StringComparer.OrdinalIgnoreCase);
+        (int restored, int failed, List<string> originals) result = (0, 0, new List<string>());
+        if (targets.Count == 0) return result;
         BndzShellStaThread.Run(() => result = RestoreOnSta(targets));
         return result;
     }
 
-    private static (int restored, int failed) RestoreOnSta(HashSet<string> targets)
+    private static (int restored, int failed, List<string> originals) RestoreOnSta(HashSet<string> targets)
     {
         int restored = 0, failed = 0;
+        var originals = new List<string>();
+        var remaining = new HashSet<string>(targets, StringComparer.OrdinalIgnoreCase);
         try
         {
             foreach (var item in RecycleBin.GetItems())
             {
+                if (remaining.Count == 0) break;
                 using (item)
                 {
-                    var parsingName = (item.ParsingName ?? "").Replace('\\', '/');
-                    if (!targets.Contains(parsingName)) continue;
+                    var key = MatchRecycleTarget(item, remaining);
+                    if (key is null) continue;
+                    remaining.Remove(key);
+                    var original = TryGetOriginalPath(item);
                     try
                     {
                         item.InvokeVerb("undelete");
                         restored++;
+                        if (!string.IsNullOrWhiteSpace(original))
+                            originals.Add(original);
                     }
                     catch
                     {
@@ -233,10 +263,13 @@ public static class RecycleBinService
         }
         catch
         {
-            failed += targets.Count - restored;
+            failed += remaining.Count;
         }
-        return (restored, failed);
+        // Unmatched targets count as failed.
+        failed += remaining.Count;
+        return (restored, failed, originals);
     }
+
 
     /// <summary>
     /// Restores recycled items by matching on their original pre-deletion path.
@@ -357,29 +390,47 @@ public static class RecycleBinService
     }
 
     /// <summary>Permanently delete items still in the Recycle Bin (shell parsing names from GetContents).</summary>
-    public static (int purged, int failed) Purge(IEnumerable<string> parsingNames)
+    public static (int purged, int failed, List<string> originalPaths) PurgeDetailed(IEnumerable<string> parsingNames)
     {
-        var targets = new HashSet<string>(parsingNames.Select(p => p.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
-        (int purged, int failed) result = (0, 0);
+        var targets = new HashSet<string>(
+            (parsingNames ?? Array.Empty<string>())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(NormalizeRecycleKey),
+            StringComparer.OrdinalIgnoreCase);
+        (int purged, int failed, List<string> originals) result = (0, 0, new List<string>());
+        if (targets.Count == 0) return result;
         BndzShellStaThread.Run(() => result = PurgeOnSta(targets));
         return result;
     }
 
-    private static (int purged, int failed) PurgeOnSta(HashSet<string> targets)
+    public static (int purged, int failed) Purge(IEnumerable<string> parsingNames)
+    {
+        var (purged, failed, _) = PurgeDetailed(parsingNames);
+        return (purged, failed);
+    }
+
+    private static (int purged, int failed, List<string> originals) PurgeOnSta(HashSet<string> targets)
     {
         int purged = 0, failed = 0;
+        var originals = new List<string>();
+        var remaining = new HashSet<string>(targets, StringComparer.OrdinalIgnoreCase);
         try
         {
             foreach (var item in RecycleBin.GetItems())
             {
+                if (remaining.Count == 0) break;
                 using (item)
                 {
-                    var parsingName = (item.ParsingName ?? "").Replace('\\', '/');
-                    if (!targets.Contains(parsingName)) continue;
+                    var key = MatchRecycleTarget(item, remaining);
+                    if (key is null) continue;
+                    remaining.Remove(key);
+                    var original = TryGetOriginalPath(item);
                     try
                     {
                         item.InvokeVerb("delete");
                         purged++;
+                        if (!string.IsNullOrWhiteSpace(original))
+                            originals.Add(original);
                     }
                     catch
                     {
@@ -390,9 +441,83 @@ public static class RecycleBinService
         }
         catch
         {
-            failed += targets.Count - purged;
+            failed += remaining.Count;
         }
-        return (purged, failed);
+        failed += remaining.Count;
+        return (purged, failed, originals);
+    }
+
+
+    private static string NormalizeRecycleKey(string p)
+    {
+        var s = (p ?? "").Replace('\\', '/').Trim();
+        if (s.Length >= 3 && s[0] == '/' && char.IsLetter(s[1]) && s[2] == ':')
+            s = s[1..];
+        return s.TrimEnd('/');
+    }
+
+    private static string? MatchRecycleTarget(ShellItem item, HashSet<string> remaining)
+    {
+        var candidates = new List<string>();
+        var parsing = item.ParsingName ?? "";
+        if (!string.IsNullOrWhiteSpace(parsing))
+        {
+            candidates.Add(NormalizeRecycleKey(parsing));
+            candidates.Add(NormalizeRecycleKey(parsing.Replace('/', '\\')));
+        }
+        var name = item.Name ?? "";
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var leaf = name;
+            if (leaf.Contains('\\') || leaf.Contains('/'))
+                leaf = Path.GetFileName(leaf.TrimEnd('\\', '/'));
+            candidates.Add(NormalizeRecycleKey(leaf));
+            candidates.Add(NormalizeRecycleKey(name));
+        }
+        var original = TryGetOriginalPath(item);
+        if (!string.IsNullOrWhiteSpace(original))
+            candidates.Add(NormalizeRecycleKey(original));
+        foreach (var c in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(c)) continue;
+            if (remaining.Contains(c)) return c;
+            foreach (var t in remaining)
+            {
+                if (t.EndsWith(c, StringComparison.OrdinalIgnoreCase) || c.EndsWith(t, StringComparison.OrdinalIgnoreCase))
+                    return t;
+            }
+        }
+        return null;
+    }
+
+    private static string? TryGetOriginalPath(ShellItem item)
+    {
+        try
+        {
+            string? name = item.Name;
+            if (!string.IsNullOrWhiteSpace(name) && (name.Contains('\\') || name.Contains('/')))
+                name = Path.GetFileName(name.TrimEnd('\\', '/'));
+            string? deletedFrom = null;
+            if (item.Properties.TryGetValue(PKEY_Recycle_DeletedFrom, out var val) && val is string s)
+                deletedFrom = s;
+            if (!string.IsNullOrWhiteSpace(deletedFrom))
+            {
+                var fromNorm = NormalizeWinPath(deletedFrom);
+                var leaf = Path.GetFileName(fromNorm.TrimEnd('\\', '/'));
+                if (!string.IsNullOrEmpty(leaf) && !string.IsNullOrWhiteSpace(name)
+                    && leaf.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    return fromNorm;
+                if (!string.IsNullOrWhiteSpace(name))
+                    return NormalizeWinPath(Path.Combine(fromNorm, name));
+                return fromNorm;
+            }
+            var parsingName = item.ParsingName ?? "";
+            var fromInfo = TryResolveOriginalFullPathFromInfoFile(parsingName);
+            if (!string.IsNullOrWhiteSpace(fromInfo))
+                return NormalizeWinPath(fromInfo);
+        }
+        catch { /* best effort */ }
+        return null;
     }
 
     private static string NormalizeWinPath(string p) => p.Replace('/', '\\').TrimEnd('\\');

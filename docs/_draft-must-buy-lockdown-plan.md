@@ -1,5 +1,5 @@
 ﻿# BNDZ Must-Buy Lockdown Plan
-**Scope:** BNDZ-Native only · Week 1 Undo truth in progress  
+**Scope:** BNDZ-Native only · Week 1 Undo truth shipped · Week 1-2 Recycle + multi + conflict->log in progress  
 **Date:** Wed Sep 30, 2026 (CT)  
 **Evidence:** `docs/BNDZ-PREMIUM-GAP.md`, V2 playbook, launch readiness, Action Log / undo code (`BndzActionLogService`, `undoRedo.ts`, History dialog), recent commits (remote unfreeze, toasts, DnD, Home, Command Hub)
 
@@ -296,3 +296,53 @@ Remote / mesh: **no promise** — prefer honesty toast if nothing local to undo.
 3. **Honesty:** stack `CanUndo` respects permanent/truncated; History uses same `IsEntryUndoable`; success toasts say restored / moved back; over-limit batches marked not undoable (default log limit set to **0 = unlimited**); early-record verify-fail discards + destination patch on IpcHost; MainWindow records existing destinations after native/TeraCopy.
 
 *Plan expanded for Week 1 implementation. Pre-check findings above.*
+
+
+---
+
+## 10. Week 1-2 progress (Recycle + multi + conflict->log parity)
+
+**Tip base:** Week 1 `75d39573613d70835ba23e040ca495c4c4d8be28` on `cursor/slice1-remote-feel-trust`.
+
+### Root causes addressed this pass
+
+1. **Recycle UI vs Action Log drift** — Empty / Restore / Purge from the Recycle Bin virtual folder did not invalidate Delete->Recycle undo rows, so Ctrl+Z could still claim undelete after the shell already restored or purged the items.
+2. **Restore matching fragility** — `Restore(parsingNames)` only exact-matched slash-normalized parsing names; FE paths / display names / original-path hints could miss. Listing `OriginalPath` also doubled the leaf when `DeletedFrom` was already a full path.
+3. **Conflict keep-both -> wrong undo targets** — Native/TeraCopy `RecordExternalActionLog` preferred *planned* destinations that still existed (the pre-conflict file). After "keep both", the landed file is `name (N).ext`; un-move looked for the wrong path. IpcHost early-record patch had the same hole when `missing == 0`.
+4. **Multi-file folder batches** — BNDZ engine logged top-level sources against a flat list that also included files inside moved folders -> index-mismatched TargetPaths (silent half-wrong undo). Over-limit honesty + default `allowedNumberOfItemsPerLoggedAction: 0` (unlimited) already from Week 1.
+
+### Fixes shipped (this commit)
+
+| Area | Change |
+|------|--------|
+| **Recycle** | `RestoreDetailed` / `PurgeDetailed` with broader matching + original paths; Empty/Restore/Purge invalidate Action Log recycle undeletes; permanent purge still never records undo |
+| **Conflict->log** | New `ActionLogLandedPathResolver` (before-snapshot + keep-both sibling resolve); MainWindow native/TeraCopy record actual land sites; IpcHost early-record re-records via resolver |
+| **Multi** | `FileOperationService` pairs top-level sources<->dests via `PairTopLevel`; limit=0 unlimited verified; over-limit still History-only |
+| **Paste / Other Pane** | Same `executeFsOperation` spine — no separate recorder; inherits conflict + pair fixes |
+
+### Files touched
+
+- `BNDZBackend/Services/ActionLogLandedPathResolver.cs` (new)
+- `BNDZBackend/Services/BndzActionLogService.cs`
+- `BNDZBackend/Services/RecycleBinService.cs`
+- `BNDZBackend/Services/FileOperationService.cs`
+- `BNDZBackend/MainWindow.xaml.cs`
+- `BNDZBackend/Services/BndzIpcHost.cs`
+- `docs/_draft-must-buy-lockdown-plan.md`
+
+### Live verify (BandzPC)
+
+1. Open Recycle Bin virtual folder -> list items; Restore one + many; Empty Bin; Purge one (permanent) — confirm toasts; Ctrl+Z after purge/empty does **not** claim success.
+2. Delete->Recycle -> Ctrl+Z still restores (Week 1); then Empty Bin -> prior delete rows show not undoable / Ctrl+Z honest.
+3. Conflict keep-both on BNDZ engine move/copy -> History shows `name (N)` target; Ctrl+Z un-moves/removes the renamed land site.
+4. Native or TeraCopy engine (if enabled): same keep-both -> log parity best-effort.
+5. Large multi-select (> former 50) with default unlimited log -> full undo or clear not-undoable if user set a limit.
+6. Paste move + Other Pane move -> targets match list ops in Action Log.
+
+### Remaining before Week 2 Move/DnD polish / Week 3
+
+- Live-sign launch gates 12-15 (Recycle list/empty/restore/purge) and undo rows on BandzPC.
+- OLE inbound/outbound DnD Action Log parity still Week 2 (spine left alone this pass).
+- Cross-volume move inverse edge cases; redo chain after conflict rename.
+- Do **not** start Week 3 Browse cosmetics until the verify matrix above is solid.
+

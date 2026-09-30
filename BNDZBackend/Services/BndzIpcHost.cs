@@ -12667,42 +12667,38 @@ namespace BNDZ.Services
                                 await PostFsOperationResultAsync(idProp, false, miss).ConfigureAwait(false);
                             return;
                         }
-                        // Patch early-record destinations to what actually exists (conflict keep-both, etc.).
-                        if (recordedEarly && missing > 0 && missing < plannedTargets.Count)
+                        // Patch early-record destinations to actual land sites (conflict keep-both / rename).
+                        if (recordedEarly && missing < plannedTargets.Count)
                         {
                             try
                             {
-                                var actual = plannedTargets
-                                    .Where(pt => !string.IsNullOrWhiteSpace(pt.Dest)
-                                        && (File.Exists(pt.Dest) || Directory.Exists(pt.Dest)))
-                                    .Select(pt => pt.Dest)
-                                    .ToList();
-                                var matchedSources = plannedTargets
-                                    .Where(pt => !string.IsNullOrWhiteSpace(pt.Dest)
-                                        && (File.Exists(pt.Dest) || Directory.Exists(pt.Dest)))
-                                    .Select(pt => pt.Src)
-                                    .ToList();
-                                if (actual.Count > 0)
+                                var planned = plannedTargets.Select(pt => pt.Dest).ToList();
+                                var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(
+                                    sources, planned, isMove: action == "move");
+                                if (pairedDest.Count == 0)
+                                {
+                                    pairedSrc = new List<string>();
+                                    pairedDest = new List<string>();
+                                    for (int i = 0; i < sources.Count && i < planned.Count; i++)
+                                    {
+                                        if (File.Exists(planned[i]) || Directory.Exists(planned[i]))
+                                        {
+                                            pairedSrc.Add(sources[i]);
+                                            pairedDest.Add(planned[i]);
+                                        }
+                                    }
+                                }
+                                if (pairedDest.Count > 0)
                                 {
                                     var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
                                     _actionLogService.TryDiscardLast(kind, sources);
                                     if (action == "copy")
-                                        _actionLogService.Record(BndzActionLogService.ForCopy(matchedSources, actual));
+                                        _actionLogService.Record(BndzActionLogService.ForCopy(pairedSrc, pairedDest));
                                     else
-                                        _actionLogService.Record(BndzActionLogService.ForMove(matchedSources, actual));
+                                        _actionLogService.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
                                 }
                             }
                             catch { /* best-effort path repair */ }
-                        }
-                        else if (recordedEarly && missing == 0 && plannedTargets.Count > 0)
-                        {
-                            try
-                            {
-                                var actual = plannedTargets.Select(pt => pt.Dest).Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
-                                var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
-                                _actionLogService.TryPatchLastTargets(kind, sources, actual);
-                            }
-                            catch { /* ignore */ }
                         }
                     }
 
@@ -13122,7 +13118,16 @@ namespace BNDZ.Services
                 ct.ThrowIfCancellationRequested();
                 var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
                 var ok = RecycleBinService.Empty(hwnd);
-                if (ok) _fileTransferQueue.MarkCompleted(operationId);
+                if (ok)
+                {
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    try
+                    {
+                        _actionLogService.InvalidateAllRecycleUndeletes();
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+                    catch { /* best-effort */ }
+                }
                 else _fileTransferQueue.MarkFailed(operationId, "Could not empty Recycle Bin");
                 // Always post â€” forceWait path. BackgroundProcessing makes ShouldPostDeferredIpcResult()
                 // false, which previously swallowed the RESULT and left FE timed out / "doesn't work".
@@ -13149,9 +13154,19 @@ namespace BNDZ.Services
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 ct.ThrowIfCancellationRequested();
-                var (restored, failed) = RecycleBinService.Restore(restorePaths);
+                var (restored, failed, originals) = RecycleBinService.RestoreDetailed(restorePaths);
                 if (failed > 0 && restored == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not restore {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
+                if (restored > 0 && originals.Count > 0)
+                {
+                    try
+                    {
+                        _actionLogService.InvalidateRecycleUndeletesForOriginals(
+                            originals, "not undoable — already restored from Recycle Bin");
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+                    catch { /* best-effort */ }
+                }
                 await PostIpcResultAsync("RESTORE_RECYCLE_ITEMS_RESULT", idProp, new { restored, failed }).ConfigureAwait(false);
             }
 
@@ -13174,9 +13189,20 @@ namespace BNDZ.Services
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 ct.ThrowIfCancellationRequested();
-                var (purged, failed) = RecycleBinService.Purge(purgePaths);
+                var (purged, failed, originals) = RecycleBinService.PurgeDetailed(purgePaths);
                 if (failed > 0 && purged == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not delete {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
+                if (purged > 0)
+                {
+                    try
+                    {
+                        if (originals.Count > 0)
+                            _actionLogService.InvalidateRecycleUndeletesForOriginals(
+                                originals, "not undoable — permanently deleted from Recycle Bin");
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+                    catch { /* best-effort */ }
+                }
                 await PostIpcResultAsync("PURGE_RECYCLE_ITEMS_RESULT", idProp, new { purged, failed }).ConfigureAwait(false);
             }
 
@@ -13262,34 +13288,66 @@ namespace BNDZ.Services
             List<string> sources,
             string target,
             bool bypassRecycleBin,
-            IReadOnlyList<(string Src, string Dest)>? plannedTargets = null)
+            IReadOnlyList<(string Src, string Dest)>? plannedTargets = null,
+            IReadOnlySet<string>? existingBefore = null)
         {
             try
             {
-                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel,
-                // not the undo stack (matches Settings copy: Ctrl+Z always undoes).
+                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel.
                 action = (action ?? "").ToLowerInvariant();
                 switch (action)
                 {
                     case "copy":
                     {
-                        var created = plannedTargets?.Select(p => p.Dest).ToList()
+                        var planned = plannedTargets?.Select(p => p.Dest).ToList()
                             ?? FileOperationPathPlanner.Plan("copy", sources, target).Select(p => p.Dest).ToList();
-                        if (created.Count == 0 && !string.IsNullOrWhiteSpace(target))
-                            created = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
-                        if (created.Count > 0)
-                            _actionLogService.Record(BndzActionLogService.ForCopy(sources, created));
+                        if (planned.Count == 0 && !string.IsNullOrWhiteSpace(target))
+                            planned = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
+                        var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(sources, planned, isMove: false, existingBefore);
+                        if (pairedDest.Count == 0 && planned.Count > 0)
+                        {
+                            // Fallback: keep planned paths that exist (no conflict rename).
+                            for (int i = 0; i < sources.Count && i < planned.Count; i++)
+                            {
+                                if (File.Exists(planned[i]) || Directory.Exists(planned[i]))
+                                {
+                                    pairedSrc.Add(sources[i]);
+                                    pairedDest.Add(planned[i]);
+                                }
+                            }
+                        }
+                        if (pairedDest.Count > 0)
+                            _actionLogService.Record(BndzActionLogService.ForCopy(pairedSrc, pairedDest));
                         break;
                     }
                     case "move":
                     case "rename":
                     {
-                        var moved = plannedTargets?.Select(p => p.Dest).ToList()
+                        var planned = plannedTargets?.Select(p => p.Dest).ToList()
                             ?? FileOperationPathPlanner.Plan(action, sources, target).Select(p => p.Dest).ToList();
-                        if (moved.Count == 0 && !string.IsNullOrWhiteSpace(target))
-                            moved = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
-                        if (moved.Count > 0)
-                            _actionLogService.Record(BndzActionLogService.ForMove(sources, moved));
+                        if (planned.Count == 0 && !string.IsNullOrWhiteSpace(target))
+                            planned = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
+                        var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(sources, planned, isMove: true, existingBefore);
+                        if (pairedDest.Count == 0 && planned.Count > 0)
+                        {
+                            // Timing fallback: planned dests that exist (replace / no-conflict).
+                            for (int i = 0; i < sources.Count && i < planned.Count; i++)
+                            {
+                                if (File.Exists(planned[i]) || Directory.Exists(planned[i]))
+                                {
+                                    pairedSrc.Add(sources[i]);
+                                    pairedDest.Add(planned[i]);
+                                }
+                            }
+                            if (pairedDest.Count == 0)
+                            {
+                                // Sources gone but dests not visible yet — still record planned for undo attempt.
+                                _actionLogService.Record(BndzActionLogService.ForMove(sources, planned));
+                                break;
+                            }
+                        }
+                        if (pairedDest.Count > 0)
+                            _actionLogService.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
                         break;
                     }
                     case "delete":
