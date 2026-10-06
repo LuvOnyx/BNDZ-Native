@@ -149,6 +149,7 @@ import { matchOmnibarCommands, looksLikeOmnibarPath } from '../lib/omnibarComman
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
 import MeshDropDialog from './meshdrop/MeshDropDialog';
+import LanShareDialog from './lanshare/LanShareDialog';
 import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
 import { requestNativePrompt } from '../lib/nativeDialog';
@@ -1577,6 +1578,8 @@ export default function BNDZUI() {
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [meshDropPaths, setMeshDropPaths] = useState<string[]>([]);
   const [showMeshDropDialog, setShowMeshDropDialog] = useState(false);
+  const [lanSharePaths, setLanSharePaths] = useState<string[]>([]);
+  const [showLanShareDialog, setShowLanShareDialog] = useState(false);
   const [meshDropInitialMode, setMeshDropInitialMode] = useState<'host' | 'receive'>('host');
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
@@ -16440,6 +16443,10 @@ ${classified.detail}`,
             },
             onProperties: () => openBottomPlugin('properties'),
             onBatchRename: () => openBottomPlugin('batch-rename'),
+            onLanShare: () => {
+              setLanSharePaths(bottomSelectionTargets.paths);
+              setShowLanShareDialog(true);
+            },
             onMeshDrop: () => {
               setMeshDropPaths(bottomSelectionTargets.paths);
               setShowMeshDropDialog(true);
@@ -17513,6 +17520,12 @@ ${classified.detail}`,
             <HelpTopicsDialog onClose={() => setShowHelpTopics(false)} />
           </Suspense>
         )}
+                {showLanShareDialog && (
+          <LanShareDialog
+            paths={lanSharePaths}
+            onClose={() => { setShowLanShareDialog(false); setLanSharePaths([]); }}
+          />
+        )}
         {showMeshDropDialog && (
           <MeshDropDialog
             paths={meshDropPaths}
@@ -17733,6 +17746,7 @@ ${classified.detail}`,
           addTab={addTab}
           onOpenBatchRename={() => openBottomPlugin('batch-rename')}
           onOpenMeshDrop={(paths) => { setMeshDropPaths(paths); setShowMeshDropDialog(true); }}
+            onOpenLanShare={(paths) => { setLanSharePaths(paths); setShowLanShareDialog(true); }}
 
           setIsSmartToolsOpen={setIsSmartToolsOpen}
           setToastMessage={setToastMessage}

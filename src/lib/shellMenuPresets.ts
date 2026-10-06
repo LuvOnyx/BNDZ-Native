@@ -63,6 +63,7 @@ export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
   { id: 'spatial-pin', label: 'Pin to Spatial Canvas', desc: 'Drop selection onto Spatial', iconVerb: 'map', surfaces: ['file', 'folder'] as const },
   { id: 'automation', label: 'Send to Automation', desc: 'Open Automations with selected paths', iconVerb: 'emblem-shared', surfaces: ['file', 'folder'] as const },
   { id: 'mesh-drop', label: 'Mesh Drop...', desc: 'Ship selection over Mesh Drop', iconVerb: 'share', surfaces: ['file', 'folder'] as const },
+  { id: 'lan-share', label: 'Share on LAN...', desc: 'Read-only LAN folder share with URL/QR for phones', iconVerb: 'emblem-shared', surfaces: ['file', 'folder'] as const },
   { id: 'change-icon', label: 'Change Icon', desc: 'Icon Studio submenu on Properties', iconVerb: 'picture_ui', surfaces: ['file', 'folder'] as const },
   { id: 'photo-studio', label: 'Edit in Photo Studio', desc: 'Full layered image editor', iconVerb: 'picture_ui', surfaces: ['file'] as const },
 ] as const;
@@ -70,7 +71,7 @@ export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
 export type OptionalStockContextId = (typeof OPTIONAL_STOCK_CONTEXT_ITEMS)[number]['id'];
 
 /** Default: empty -- shorter core menu. */
-export const DEFAULT_ENABLED_STOCK_CONTEXT_IDS: OptionalStockContextId[] = ['photo-studio'];
+export const DEFAULT_ENABLED_STOCK_CONTEXT_IDS: OptionalStockContextId[] = ['photo-studio', 'lan-share'];
 
 export function isOptionalStockContextEnabled(
   config: { enabledStockContextMenuIds?: string[] | null } | null | undefined,

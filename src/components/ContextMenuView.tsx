@@ -77,6 +77,7 @@ interface ContextMenuViewProps {
   addTab: (paneId: string, path: string) => void;
   onOpenBatchRename?: () => void;
   onOpenMeshDrop?: (paths: string[]) => void;
+  onOpenLanShare?: (paths: string[]) => void;
   setIsSmartToolsOpen: (v: boolean) => void;
   setToastMessage: (msg: string) => void;
   setInlineRename: (v: { path: string; entityId: string; currentName: string } | null) => void;
@@ -128,7 +129,7 @@ interface ContextMenuViewProps {
 
 function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
-  onOpenBatchRename, onOpenMeshDrop, setIsSmartToolsOpen, setToastMessage, setInlineRename,
+  onOpenBatchRename, onOpenMeshDrop, onOpenLanShare, setIsSmartToolsOpen, setToastMessage, setInlineRename,
   setClipboardState, executePaste, onDeletePaths, onOpenTerminal, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo, openTabTargets, onCopyToOpenTab, onMoveToOpenTab, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
@@ -1448,10 +1449,15 @@ function ContextMenuView({
               }}
             />
           )}
+          <ContextMenuItem
+            label="Share on LAN..."
+            iconVerb="emblem-shared"
+            onClick={() => { onOpenLanShare?.(targetPaths); onClose(); }}
+          />
           {stockOn('mesh-drop') && (
           <ContextMenuItem
-            label="Mesh Drop..."
-            iconVerb="emblem-shared"
+            label="Mesh Drop (desktop P2P)..."
+            iconVerb="share"
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
           )}

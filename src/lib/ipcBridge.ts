@@ -1039,6 +1039,45 @@ export const IPC = {
     }));
   },
 
+
+  lanShareStart(folderPath: string, password?: string): Promise<{ ok: boolean; session?: unknown; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_lanShareStart`;
+    return _nativeCall<any>('LAN_SHARE_START', 'LAN_SHARE_START_RESULT', id, { folderPath, password }, 30000).then(r => ({
+      ok: r?.ok === true,
+      session: r?.session,
+      error: r?.error,
+    }));
+  },
+
+  lanShareStop(shareId?: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_lanShareStop`;
+    return _nativeCall<any>('LAN_SHARE_STOP', 'LAN_SHARE_STOP_RESULT', id, { shareId }, 15000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  lanShareStopAll(): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_lanShareStopAll`;
+    return _nativeCall<any>('LAN_SHARE_STOP_ALL', 'LAN_SHARE_STOP_ALL_RESULT', id, {}, 15000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  lanShareStatus(): Promise<{ sessions: unknown[]; lanAddress?: string | null; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ sessions: [] });
+    const id = `${Date.now()}_lanShareStatus`;
+    return _nativeCall<any>('LAN_SHARE_STATUS', 'LAN_SHARE_STATUS_RESULT', id, {}, 15000).then(r => ({
+      sessions: Array.isArray(r?.sessions) ? r.sessions : [],
+      lanAddress: r?.lanAddress ?? null,
+      error: r?.error,
+    }));
+  },
+
   meshIncusListEndpoints(): Promise<any[]> {
     if (!this.isNative) return Promise.resolve([]);
     const id = `${Date.now()}_incusEndpoints`;

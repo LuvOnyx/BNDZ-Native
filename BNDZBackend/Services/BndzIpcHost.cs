@@ -22,6 +22,7 @@ using BNDZ.Services;
 using BNDZ.Services.Mesh;
 using BNDZ.Services.Mesh.Incus;
 using BNDZ.Services.MeshDrop;
+using BNDZ.Services.LanShare;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
 using BNDZ.Services.OsQuickLook;
@@ -2264,6 +2265,7 @@ namespace BNDZ.Services
             _automationWatcher.Dispose();
             _automationScheduler.Dispose();
             try { _ramStagingService?.Dispose(); } catch { /* best effort flush */ }
+            try { BNDZ.Services.LanShare.LanShareService.Instance.StopAll(); } catch { /* lan share */ }
             try { _osQuickLook?.Dispose(); } catch { /* ignore */ }
             try { _globalHotkeys.Dispose(); } catch { /* ignore */ }
             _trayService?.Dispose();
@@ -5752,7 +5754,72 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                else if (type == "MESH_INCUS_LIST_ENDPOINTS")
+                
+                else if (type == "LAN_SHARE_START")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folderPath = payload.TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() ?? "" : "";
+                    var password = payload.TryGetProperty("password", out var pwEl) ? pwEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var session = BNDZ.Services.LanShare.LanShareService.Instance.Start(folderPath, password);
+                            PostMeshIpcResult(idProp, "LAN_SHARE_START_RESULT", new { ok = true, session = session.ToDto() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "LAN_SHARE_START_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "LAN_SHARE_STOP")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var shareId = root.GetProperty("payload").TryGetProperty("shareId", out var sidEl) ? sidEl.GetString() : null;
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(shareId))
+                            BNDZ.Services.LanShare.LanShareService.Instance.Stop(shareId!);
+                        else
+                            BNDZ.Services.LanShare.LanShareService.Instance.StopAll();
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_RESULT", new { ok = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "LAN_SHARE_STOP_ALL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        BNDZ.Services.LanShare.LanShareService.Instance.StopAll();
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_ALL_RESULT", new { ok = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_ALL_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "LAN_SHARE_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var sessions = BNDZ.Services.LanShare.LanShareService.Instance.ListSessions().Select(s => s.ToDto()).ToList();
+                        var lan = BNDZ.Services.LanShare.LanShareService.GetPrimaryLanAddress();
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STATUS_RESULT", new { sessions, lanAddress = lan });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STATUS_RESULT", new { sessions = Array.Empty<object>(), error = ex.Message });
+                    }
+                }
+
+else if (type == "MESH_INCUS_LIST_ENDPOINTS")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
                     try
