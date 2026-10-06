@@ -4011,7 +4011,45 @@ namespace BNDZ
                     {
                         try
                         {
-                            var session = BNDZ.Services.LanShare.LanShareService.Instance.Start(folderPath, password);
+                            var username = payload.TryGetProperty("username", out var unEl) ? unEl.GetString() : null;
+                            var slug = payload.TryGetProperty("slug", out var slugEl) ? slugEl.GetString() : null;
+                            var label = payload.TryGetProperty("label", out var labEl) ? labEl.GetString() : null;
+                            int? expiryMinutes = payload.TryGetProperty("expiryMinutes", out var expEl) && expEl.ValueKind == System.Text.Json.JsonValueKind.Number ? expEl.GetInt32() : null;
+                            var allowWrite = payload.TryGetProperty("allowWrite", out var awEl) && awEl.ValueKind == System.Text.Json.JsonValueKind.True;
+                            var proto = new BNDZ.Services.LanShare.LanShareProtocolOptions();
+                            if (payload.TryGetProperty("protocols", out var protoEl) && protoEl.ValueKind == System.Text.Json.JsonValueKind.Object)
+                            {
+                                bool Flag(string name, bool defVal = false) => protoEl.TryGetProperty(name, out var e) ? e.ValueKind == System.Text.Json.JsonValueKind.True : defVal;
+                                int Port(string name, int defVal) => protoEl.TryGetProperty(name, out var e) && e.ValueKind == System.Text.Json.JsonValueKind.Number ? e.GetInt32() : defVal;
+                                proto = new BNDZ.Services.LanShare.LanShareProtocolOptions
+                                {
+                                    Http = Flag("http", true),
+                                    WebDav = Flag("webdav", true),
+                                    Ftp = Flag("ftp"),
+                                    Ftps = Flag("ftps"),
+                                    Sftp = Flag("sftp"),
+                                    SshShell = Flag("sshShell"),
+                                    Tftp = Flag("tftp"),
+                                    Smb = Flag("smb"),
+                                    HttpPort = Port("httpPort", 3923),
+                                    FtpPort = Port("ftpPort", 3921),
+                                    FtpsPort = Port("ftpsPort", 3990),
+                                    SshPort = Port("sshPort", 3922),
+                                    TftpPort = Port("tftpPort", 3969),
+                                    SmbPort = Port("smbPort", 3945),
+                                };
+                            }
+                            var startOpts = new BNDZ.Services.LanShare.LanShareStartOptions
+                            {
+                                Password = password,
+                                Username = username,
+                                Slug = slug,
+                                Label = label,
+                                ExpiryMinutes = expiryMinutes,
+                                AllowWrite = allowWrite,
+                                Protocols = proto,
+                            };
+                            var session = BNDZ.Services.LanShare.LanShareService.Instance.Start(folderPath, startOpts);
                             PostMeshIpcResult(idProp, "LAN_SHARE_START_RESULT", new { ok = true, session = session.ToDto() });
                         }
                         catch (Exception ex)

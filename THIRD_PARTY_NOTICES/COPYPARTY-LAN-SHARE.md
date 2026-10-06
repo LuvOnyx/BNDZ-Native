@@ -34,3 +34,26 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+
+## Additional protocol libraries (BNDZ multi-protocol LAN Share)
+
+### FxSsh (MIT)
+- https://github.com/sshnet/FxSsh
+- SSH server used for opt-in SFTP + interactive shell
+
+### VoDA.FtpServer (MIT)
+- https://github.com/VoDACode/FtpServer
+- Opt-in FTP / FTPS
+
+### SMBLibrary / SMBLibrary.Adapters (LGPL-3.0)
+- https://github.com/TalAloni/SMBLibrary
+- Opt-in SMB file share — LGPL; dynamic linking via NuGet; admin must enable; prefer LAN-bound; document risks
+- DiskAccessLibrary may be pulled transitively
+
+### Own TFTP (BNDZ)
+- Read-only RRQ TFTP host implemented in BNDZ code (no third-party TFTP server lib)
+
+### BNDZ SFTP subsystem
+- Implemented in-tree (LanShareSftpSubsystem) against FxSsh 1.4 channel API — NuGet FxSsh 1.4 does not ship SftpService/ConPTY (those are on FxSsh dev).
+- SSH interactive shell uses Process-bridged cmd.exe rooted at the share folder.

@@ -86,6 +86,7 @@ installer/output/
 !installer/*.iss
 
 external/CodeWalker/
+external/FxSsh/
 
 # Local build dumps (do not commit)
 artifacts/

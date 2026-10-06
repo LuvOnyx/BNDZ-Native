@@ -1040,16 +1040,30 @@ export const IPC = {
   },
 
 
-  lanShareStart(folderPath: string, password?: string): Promise<{ ok: boolean; session?: unknown; error?: string }> {
+  lanShareStart(folderPath: string, opts?: string | {
+    password?: string;
+    username?: string;
+    slug?: string;
+    label?: string;
+    expiryMinutes?: number;
+    allowWrite?: boolean;
+    protocols?: {
+      http?: boolean; webdav?: boolean; ftp?: boolean; ftps?: boolean;
+      sftp?: boolean; sshShell?: boolean; tftp?: boolean; smb?: boolean;
+      httpPort?: number; ftpPort?: number; ftpsPort?: number; sshPort?: number; tftpPort?: number; smbPort?: number;
+    };
+  }): Promise<{ ok: boolean; session?: unknown; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_lanShareStart`;
-    return _nativeCall<any>('LAN_SHARE_START', 'LAN_SHARE_START_RESULT', id, { folderPath, password }, 30000).then(r => ({
+    const payload = typeof opts === 'string' || opts === undefined
+      ? { folderPath, password: typeof opts === 'string' ? opts : undefined }
+      : { folderPath, ...opts };
+    return _nativeCall<any>('LAN_SHARE_START', 'LAN_SHARE_START_RESULT', id, payload, 60000).then(r => ({
       ok: r?.ok === true,
       session: r?.session,
       error: r?.error,
     }));
   },
-
   lanShareStop(shareId?: string): Promise<{ ok: boolean; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_lanShareStop`;
