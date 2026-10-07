@@ -5,8 +5,9 @@ namespace BNDZ.Services.CloudDrive;
 
 /// <summary>
 /// Guest web panel files embedded in BNDZ and injected onto a Fly machine.
-/// The panel is what https://&lt;app&gt;.fly.dev/ serves. Local Hyper-V does not
-/// boot this until a rootfs is pinned.
+/// The link people send is the hostname saved on the drive. The Fly machine
+/// address is only the operator fallback. Local Hyper-V does not boot this
+/// until a rootfs is pinned.
 /// </summary>
 public static class CloudDrivePanelAssets
 {

@@ -400,16 +400,22 @@ SSH, SFTP, FTPS, and WebDAV origins are computed on the drive record and shown i
 
 - **Fly:** when `BNDZ_CLOUD_DRIVE_IMAGE` is set, the Machine spec publishes SSH (`22` → a high port), FTPS (`990`), and WebDAV (`8080` behind Fly HTTP/TLS on 80/443). Unless `BNDZ_CLOUD_DRIVE_BOOTSTRAP=0`, the guest command is a Debian/Ubuntu bootstrap that installs those services and sleeps. No Machine is created when the image env is unset.
 - **This PC:** origins are `127.0.0.1` plus per-drive high ports. The local rootfs is still not pinned, so the panel says nothing is listening in the guest yet.
-- **Away access:** local drives only. Paste a Cloudflare Tunnel install token (DPAPI, never logged, never passed as a process argument). BNDZ starts `cloudflared tunnel --no-autoupdate run` with `TUNNEL_TOKEN` in the environment. Public hostnames are configured in Cloudflare against `ssh://127.0.0.1:<sshPort>` and `http://127.0.0.1:<webDavPort>/`. Saving the hostname enables Copy panel URL. This is not Cloudflare Containers and not Docker Desktop.
+- **Away access:** local drives only for the tunnel process. Paste a Cloudflare Tunnel install token (DPAPI, never logged, never passed as a process argument). BNDZ starts `cloudflared tunnel --no-autoupdate run` with `TUNNEL_TOKEN` in the environment. Public hostnames are configured in Cloudflare against `ssh://127.0.0.1:<sshPort>` and `http://127.0.0.1:<webDavPort>/`. The hostname you save is the link you send. Fly drives use the same hostname field for a custom domain; they do not start cloudflared. This is not Cloudflare Containers and not Docker Desktop.
 - **FTPS password:** per drive, DPAPI, copied on demand, not rendered in the panel. Passive ports 30000–30009 stay inside the guest.
 
 ## Appendix — B1d UI and B2 panel
 
 The Cloud Drive panel is a three-step create flow (placement, name and disk, create) with one next-action line. Drive cards keep status, placement, protocols, and away access. Errors stay on the card; the long host note sits under “If Start fails.”
 
-The web panel ships in `BNDZBackend/Services/CloudDrive/guest/panel/` (Python stdlib plus Nayuki’s MIT `qrcodegen.py`). When `BNDZ_CLOUD_DRIVE_IMAGE` is set and bootstrap is on, those files are injected to `/opt/bndz/panel/` and `server.py` listens on guest port 8080. Fly publishes that as `https://<app>.fly.dev/`. WebDAV moves to guest port 8090 (raw TCP on the drive’s WebDAV port). Sign in as `bndz` with the per-drive password. From the panel: list, upload, download, mkdir, rename, delete under `/data`, and share links with expiry, optional password, revoke, and a QR code. Share records live in `/data/.bndz/shares.json`.
+The web panel ships in `BNDZBackend/Services/CloudDrive/guest/panel/` (Python stdlib plus Nayuki’s MIT `qrcodegen.py`). When `BNDZ_CLOUD_DRIVE_IMAGE` is set and bootstrap is on, those files are injected to `/opt/bndz/panel/` and `server.py` listens on guest port 8080. WebDAV moves to guest port 8090 (raw TCP on the drive’s WebDAV port). The first sign-in is the drive account `bndz` and the per-drive password. Files is a dense list: name, size, date modified, breadcrumb, multi-select, and a context menu (Cut, Copy, Paste, Rename, Delete, Share, Download, New folder, Properties). Share uses the same timed-link API. **Settings** stores a display name, the name printed on the drive, the web sign-in name, a new password, share-link defaults, session length, and SSH / FTPS / WebDAV switches. Those settings live in `/data/.bndz/admin.json` (password is a hash). SSH keeps the drive account and the BNDZ key. Listener switches change systemd only when the panel is running as the guest; otherwise the card says the preference was saved and the service was not touched.
 
-On This PC the same files are in the repo, but the guest image is not booted, so the card says nothing is listening. The panel URL is the origin a Cloudflare Tunnel HTTP hostname should target.
+The link you send is a hostname you control, saved on the drive. It is not `*.fly.dev`.
+
+**Cloud custom domain.** In Cloudflare DNS, CNAME `files.example.com` to `<app>.fly.dev`. On the Fly app add the certificate: `fly certs add files.example.com -a <app>`. Save `files.example.com` in the drive’s Send this row. The panel URL and share links opened from that host use it. The next machine start also passes `BNDZ_PUBLIC_HOST` so QR codes prefer that name. SSH, SFTP, and FTPS stay on `<app>.fly.dev` and the published ports. BNDZ does not mint a branded subdomain and will not store a `*.fly.dev` name as the public hostname.
+
+**This PC.** In Cloudflare Tunnel, point an HTTP public hostname at `http://127.0.0.1:<panel port>/` and, if you want SSH from away, a second hostname at `ssh://127.0.0.1:<ssh port>`. Save that HTTP hostname in Send this. Loopback stays on the Machine row.
+
+On This PC the same panel files are in the repo, but the guest image is not booted, so the card says nothing is listening. The Machine row is the origin a Cloudflare Tunnel HTTP hostname should target.
 
 ## Appendix — B3 snapshots and move
 

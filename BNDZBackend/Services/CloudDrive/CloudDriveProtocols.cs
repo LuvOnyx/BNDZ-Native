@@ -64,21 +64,24 @@ public static class CloudDriveProtocols
         var imagePinned = !string.IsNullOrWhiteSpace(FlyMachinesCloudDriveProvider.PinnedImage());
         var ready = running && haveHost && !local && imagePinned;
         var listen = ListenNote(local, imagePinned);
+        var share = ShareUrl(drive);
+        var machine = MachineHost(drive);
 
         var ssh = haveHost ? $"ssh -p {drive.SshPort} {user}@{host}" : "";
         var sftp = haveHost ? $"sftp -P {drive.SshPort} {user}@{host}" : "";
         var ftps = haveHost ? $"ftps://{user}@{host}:{drive.FtpsPort}/" : "";
         var web = WebDavUrl(drive, host);
-        var panel = PanelUrl(drive);
+        var send = share.Length > 0 ? share : (local ? LoopbackPanel(drive) : "");
+        var sendLabel = share.Length > 0 ? "Send this" : "On this PC";
 
         var hostNote = haveHost
-            ? listen
-            : "The public host appears after the Fly app exists. Nothing is copied until then.";
+            ? "Uses the machine address. Not the link you send. " + listen
+            : "The machine address appears after the Fly app exists. SSH is not copied until then.";
 
-        return new List<CloudDriveEndpoint>
+        var rows = new List<CloudDriveEndpoint>
         {
-            Row("ssh", "SSH", ssh, ready, haveHost, haveHost ? listen : hostNote),
-            Row("sftp", "SFTP", sftp, ready, haveHost, haveHost ? "Same port as SSH. The client flag is a capital P." : hostNote),
+            Row("ssh", "SSH", ssh, ready, haveHost, haveHost ? hostNote : "SSH uses the machine address. " + hostNote),
+            Row("sftp", "SFTP", sftp, ready, haveHost, haveHost ? "Same port as SSH. The client flag is a capital P. " + hostNote : hostNote),
             new CloudDriveEndpoint
             {
                 Id = "ftp",
@@ -89,39 +92,98 @@ public static class CloudDriveProtocols
                 Note = "Plain FTP is off, including anonymous login. Use FTPS.",
             },
             Row("ftps", "FTPS", ftps, ready, haveHost, haveHost
-                ? "Sign-in password stays hidden. Use Copy FTPS password. Passive data ports are not published."
+                ? "On the machine address. Sign-in password stays hidden. Use Copy FTPS password. Passive data ports are not published."
                 : hostNote),
             Row("webdav", "WebDAV", web, ready && !string.IsNullOrWhiteSpace(web), !string.IsNullOrWhiteSpace(web),
                 string.IsNullOrWhiteSpace(web)
-                    ? "WebDAV appears after the drive has a host."
-                    : "Separate from the web panel. User bndz, same hidden password. " + listen),
+                    ? "WebDAV appears with the machine address."
+                    : "On the machine address, separate from the link you send. User bndz, same hidden password. " + listen),
             new CloudDriveEndpoint
             {
                 Id = "panel",
-                Label = "Panel URL",
-                CopyText = panel,
-                State = string.IsNullOrWhiteSpace(panel) ? "unavailable" : (ready ? "ready" : "pending"),
-                CanCopy = !string.IsNullOrWhiteSpace(panel),
-                Note = string.IsNullOrWhiteSpace(panel)
-                    ? "The panel URL appears when the Fly app exists, or after you save a Cloudflare hostname."
-                    : "Browser login for files and share links. User bndz, same password as FTPS. " + listen,
+                Label = sendLabel,
+                CopyText = send,
+                State = string.IsNullOrWhiteSpace(send) ? "unavailable" : (share.Length > 0 && ready ? "ready" : "pending"),
+                CanCopy = !string.IsNullOrWhiteSpace(send),
+                Note = string.IsNullOrWhiteSpace(send)
+                    ? "Save a hostname you control. The Fly machine address is not the link you send."
+                    : (share.Length > 0
+                        ? "This is the link you send. Sign in, then open Settings for your name and password. " + listen
+                        : "On this PC only. Save a hostname you control before you send a link. " + listen),
             },
         };
+        if (machine.Length > 0 && (share.Length > 0 || !local))
+        {
+            var machineCopy = local ? LoopbackPanel(drive) : "https://" + machine + "/";
+            rows.Add(new CloudDriveEndpoint
+            {
+                Id = "machine",
+                Label = "Machine",
+                CopyText = machineCopy,
+                State = "pending",
+                CanCopy = true,
+                Note = local
+                    ? "Loopback on this PC. Away access uses the hostname above."
+                    : "Fly machine address for SSH and FTPS. Do not send this.",
+            });
+        }
+        return rows;
     }
 
-    public static string PublicHost(CloudDriveRecord drive)
+    /// <summary>Hostname the owner chose. Never a *.fly.dev machine address.</summary>
+    public static string PublicHostname(CloudDriveRecord drive)
+    {
+        var host = (drive.TunnelHostname ?? "").Trim().TrimEnd('.').ToLowerInvariant();
+        if (host.Length == 0 || host.EndsWith(".fly.dev", StringComparison.Ordinal)) return "";
+        return host;
+    }
+
+    /// <summary>https URL people send. Empty until a hostname you control is saved.</summary>
+    public static string ShareUrl(CloudDriveRecord drive)
+    {
+        var host = PublicHostname(drive);
+        return host.Length == 0 ? "" : "https://" + host + "/";
+    }
+
+    /// <summary>Fly app host, or 127.0.0.1 for This PC. Not the link you send.</summary>
+    public static string MachineHost(CloudDriveRecord drive)
     {
         if (IsLocal(drive))
             return string.IsNullOrWhiteSpace(drive.Host) ? "127.0.0.1" : drive.Host.Trim();
         if (!string.IsNullOrWhiteSpace(drive.FlyApp))
             return drive.FlyApp.Trim() + ".fly.dev";
-        var host = (drive.Host ?? "").Trim();
-        if (host.Length == 0) return "";
-        if (host.StartsWith("fdaa:", StringComparison.OrdinalIgnoreCase)) return "";
-        if (host.StartsWith("10.", StringComparison.Ordinal) || host.StartsWith("192.168.", StringComparison.Ordinal))
-            return "";
-        return host;
+        return "";
     }
+
+    public static string AddressGuide(CloudDriveRecord drive)
+    {
+        CloudDrivePorts.Ensure(drive);
+        if (IsLocal(drive))
+        {
+            return "The link you send is a hostname you own. In Cloudflare Tunnel, point an HTTP public hostname at http://127.0.0.1:"
+                + drive.WebDavPort + "/ for the panel, and a second hostname at ssh://127.0.0.1:"
+                + drive.SshPort + " if you want SSH from away. BNDZ does not mint a public name.";
+        }
+        var app = string.IsNullOrWhiteSpace(drive.FlyApp) ? "your-app" : drive.FlyApp.Trim();
+        return "Save a hostname you control, such as files.example.com. In Cloudflare DNS add a CNAME to "
+            + app + ".fly.dev, then add the certificate on the Fly app: fly certs add files.example.com -a " + app
+            + ". The panel and share links use that name. SSH, SFTP, and FTPS stay on " + app
+            + ".fly.dev. BNDZ does not mint a branded subdomain, and it does not offer the machine address as the link you send.";
+    }
+
+    public static string OperatorNote(CloudDriveRecord drive)
+    {
+        var share = ShareUrl(drive);
+        if (share.Length > 0)
+            return "Private key stays in Windows secure storage. Send " + share + " SSH uses the machine address.";
+        if (!IsLocal(drive) && !string.IsNullOrWhiteSpace(drive.FlyApp))
+            return "Private key stays in Windows secure storage. Save a hostname you control before you send the panel. SSH uses " + drive.FlyApp.Trim() + ".fly.dev.";
+        if (IsLocal(drive))
+            return "Private key stays in Windows secure storage. Nothing answers on this PC until the guest rootfs is pinned. Away links use the hostname you save.";
+        return "Private key stays in Windows secure storage. Save a hostname you control before you send the panel.";
+    }
+
+    public static string PublicHost(CloudDriveRecord drive) => MachineHost(drive) is { Length: > 0 } host && !IsPrivate(host) ? host : "";
 
     public static string? NormalizeHostname(string? raw, out string? error)
     {
@@ -141,6 +203,11 @@ public static class CloudDriveProtocols
             error = "Away access needs a public hostname, not localhost.";
             return null;
         }
+        if (s.EndsWith(".fly.dev", StringComparison.Ordinal))
+        {
+            error = "That is the Fly machine address. Save a hostname you control, such as files.example.com.";
+            return null;
+        }
         if (s.Length > 253 || !Hostname.IsMatch(s) || !s.Contains('.'))
         {
             error = "Enter a public hostname such as drive.example.com, without a path.";
@@ -148,6 +215,12 @@ public static class CloudDriveProtocols
         }
         error = null;
         return s;
+    }
+
+    private static string LoopbackPanel(CloudDriveRecord drive)
+    {
+        var host = string.IsNullOrWhiteSpace(drive.Host) ? "127.0.0.1" : drive.Host.Trim();
+        return $"http://{host}:{drive.WebDavPort}/";
     }
 
     private static string WebDavUrl(CloudDriveRecord drive, string host)
@@ -159,16 +232,12 @@ public static class CloudDriveProtocols
         return "";
     }
 
-    private static string PanelUrl(CloudDriveRecord drive)
+    private static bool IsPrivate(string host)
     {
-        var tun = (drive.TunnelHostname ?? "").Trim();
-        if (tun.Length > 0) return "https://" + tun + "/";
-        if (!IsLocal(drive) && !string.IsNullOrWhiteSpace(drive.FlyApp))
-            return "https://" + drive.FlyApp.Trim() + ".fly.dev/";
-        var host = PublicHost(drive);
-        if (IsLocal(drive) && host.Length > 0)
-            return $"http://{host}:{drive.WebDavPort}/";
-        return "";
+        if (host.StartsWith("fdaa:", StringComparison.OrdinalIgnoreCase)) return true;
+        if (host.StartsWith("10.", StringComparison.Ordinal) || host.StartsWith("192.168.", StringComparison.Ordinal))
+            return true;
+        return false;
     }
 
     private static string ListenNote(bool local, bool imagePinned)

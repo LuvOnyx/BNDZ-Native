@@ -454,7 +454,9 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         if (string.IsNullOrWhiteSpace(drive.Message) || drive.State is "running" or "creating" or "stopped")
         {
             drive.Message = CloudDriveGuestBootstrap.Enabled()
-                ? "Fly machine is up. The web panel is https://" + drive.FlyApp + ".fly.dev/ — sign in as bndz. SSH, FTPS, and WebDAV are on the protocol row. Plain FTP is off."
+                ? (string.IsNullOrWhiteSpace(CloudDriveProtocols.ShareUrl(drive))
+                    ? "Fly machine is up. Save a hostname you control before you send the panel. SSH, FTPS, and WebDAV stay on the machine address. Plain FTP is off."
+                    : "Fly machine is up. Send " + CloudDriveProtocols.ShareUrl(drive) + " SSH stays on the machine address. Plain FTP is off.")
                 : "Fly machine is up. Bootstrap is off, so the image itself must serve SSH, FTPS, WebDAV, and the panel.";
         }
     }
@@ -468,6 +470,9 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         var ftp = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedFtpPassword);
         if (!string.IsNullOrWhiteSpace(ftp))
             env["BNDZ_FTP_PASSWORD"] = ftp;
+        var publicHost = CloudDriveProtocols.PublicHostname(drive);
+        if (!string.IsNullOrWhiteSpace(publicHost))
+            env["BNDZ_PUBLIC_HOST"] = publicHost;
 
         var config = new Dictionary<string, object?>
         {
@@ -534,9 +539,7 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
     private static string SshNote(CloudDriveRecord drive)
     {
         CloudDrivePorts.Ensure(drive);
-        if (!string.IsNullOrWhiteSpace(drive.FlyMachineId))
-            return "Private key stays in Windows secure storage. The panel is https://" + (drive.FlyApp ?? "the-app") + ".fly.dev/.";
-        return "Private key stays in Windows secure storage. The panel URL appears after the Fly app exists.";
+        return CloudDriveProtocols.OperatorNote(drive);
     }
 
     private async Task<string?> TryOrgSlugAsync(string token, CancellationToken ct)

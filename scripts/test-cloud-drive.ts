@@ -21,6 +21,10 @@ assert.deepEqual(normalizeTunnelHostname(''), { ok: true, hostname: '' });
 assert.deepEqual(normalizeTunnelHostname('https://Drive.Example.com/files'), { ok: true, hostname: 'drive.example.com' });
 assert.equal(normalizeTunnelHostname('localhost').ok, false);
 assert.equal(normalizeTunnelHostname('not a host').ok, false);
+assert.equal(normalizeTunnelHostname('bndz-preview.fly.dev').ok, false);
+const flyHost = normalizeTunnelHostname('https://app.fly.dev/');
+assert.equal(flyHost.ok, false);
+if (!flyHost.ok) assert.match(flyHost.error, /machine address/);
 
 const [localPreview, cloudPreview] = layoutPreviewDrives();
 assert.equal(localPreview.placement, 'local');
@@ -31,17 +35,24 @@ assert.match(localPreview.awayGuide || '', /Cloudflare Tunnel/);
 assert.doesNotMatch(localPreview.awayGuide || '', /Docker Desktop/i);
 assert.equal(cloudPreview.placement, 'cloud');
 assert.equal(cloudPreview.endpoints?.find(e => e.id === 'panel')?.canCopy, true);
-assert.match(localPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /^http:\/\/127\.0\.0\.1:\d+\/$/);
+assert.match(localPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /^https:\/\/desk\.example\.com\/$/);
+assert.match(localPreview.endpoints?.find(e => e.id === 'machine')?.copyText || '', /^http:\/\/127\.0\.0\.1:\d+\/$/);
+assert.match(cloudPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /^https:\/\/reel\.example\.com\/$/);
+assert.doesNotMatch(cloudPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /fly\.dev/);
+assert.match(cloudPreview.endpoints?.find(e => e.id === 'machine')?.copyText || '', /fly\.dev/);
+assert.match(cloudPreview.addressGuide || '', /fly certs add/);
 assert.notEqual(
   localPreview.endpoints?.find(e => e.id === 'panel')?.copyText,
   localPreview.endpoints?.find(e => e.id === 'webdav')?.copyText,
 );
-assert.match(cloudPreview.tunnelMessage || '', /This PC/);
+assert.match(cloudPreview.tunnelMessage || '', /hostname you save/);
 assert.match(nextAction({}, 'cloud'), /Fly token/);
-assert.match(nextAction({ tokenConfigured: true }, 'cloud'), /drive image/);
+assert.match(nextAction({ tokenConfigured: true }, 'cloud'), /hostname/);
 assert.match(nextAction({}, 'local', 'C:\\Users\\mikey'), /system volume/);
 assert.match(driveHint({ id: 'x', name: 'n', placement: 'local', state: 'stopped' }), /guest image/);
-assert.match(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo' }), /bndz/);
+assert.match(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo' }), /hostname/);
+assert.match(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo', tunnelHostname: 'files.example.com' }), /files\.example\.com/);
+assert.doesNotMatch(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo', tunnelHostname: 'files.example.com' }), /fly\.dev/);
 
 const source = 'D:\\BNDZ\\CloudDrives\\cdabc123';
 assert.equal(exportFolderError(source, 'E:\\Backups', 'cdabc123'), null);

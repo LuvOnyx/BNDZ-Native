@@ -256,11 +256,11 @@ public static class CloudDriveSlot
     public static string LocalMoveNote(bool hasPrivateKey, bool fingerprintMismatch, string? fingerprint)
     {
         if (!hasPrivateKey)
-            return "This PC does not have the private key that was created with this drive. The disk files are intact. SSH from here needs that key, which stays on the PC that created the drive.";
+            return "This PC does not have the private key that was created with this drive. The data disk was not wiped. SSH from here needs that key, which stays on the PC that created the drive.";
         if (fingerprintMismatch)
             return "The sealed folder records a different client fingerprint than the key stored on this PC. SSH may be refused until the guest authorized_keys matches this PC.";
         var key = string.IsNullOrWhiteSpace(fingerprint) ? "stored on this PC" : fingerprint.Trim();
-        return "Same sealed disk. The client key on this PC is unchanged (" + key + "). The guest SSH host key travels with the VHDX.";
+        return "Data disk kept. The client key on this PC is unchanged (" + key + "). The guest SSH host key travels with the sealed VHDX. A Linux rootfs is not pinned on this PC yet.";
     }
 
     private static void CopyRecursive(DirectoryInfo source, string dest, CancellationToken ct)
@@ -269,6 +269,7 @@ public static class CloudDriveSlot
         foreach (var file in source.GetFiles())
         {
             ct.ThrowIfCancellationRequested();
+            if (SkipExportFile(file.Name)) continue;
             var target = Path.Combine(dest, file.Name);
             using var input = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
             using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
@@ -277,9 +278,15 @@ public static class CloudDriveSlot
         foreach (var dir in source.GetDirectories())
         {
             ct.ThrowIfCancellationRequested();
+            if (string.Equals(dir.Name, "vm", StringComparison.OrdinalIgnoreCase)) continue;
             CopyRecursive(dir, Path.Combine(dest, dir.Name), ct);
         }
     }
+
+    /// <summary>OS differencing disk and the cloud-init seed stay on this PC. The seed holds the guest password.</summary>
+    private static bool SkipExportFile(string name) =>
+        name.Equals("seed.iso", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("os.vhdx", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsAbsolute(string key)
     {

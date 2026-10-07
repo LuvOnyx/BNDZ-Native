@@ -35,6 +35,9 @@ export type CloudDriveRecord = {
   tunnelMessage?: string;
   tunnelTokenConfigured?: boolean;
   tunnelHostname?: string;
+  shareUrl?: string;
+  machineHost?: string;
+  addressGuide?: string;
   cloudflaredPresent?: boolean;
   awayGuide?: string;
   hostKeyChanged?: boolean;
@@ -112,6 +115,9 @@ export function normalizeTunnelHostname(raw: string): { ok: true; hostname: stri
   if (s === 'localhost' || s === '127.0.0.1' || s === '::1') {
     return { ok: false, error: 'Away access needs a public hostname, not localhost.' };
   }
+  if (s.endsWith('.fly.dev')) {
+    return { ok: false, error: 'That is the Fly machine address. Save a hostname you control, such as files.example.com.' };
+  }
   if (s.length > 253 || !s.includes('.') || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(s)) {
     return { ok: false, error: 'Enter a public hostname such as drive.example.com, without a path.' };
   }
@@ -138,16 +144,21 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       sshCommand: 'ssh -p 22210 bndz@127.0.0.1',
       publicKey: 'ssh-ed25519 AAAA preview',
       tunnelState: 'token-needed',
+      tunnelHostname: 'desk.example.com',
+      shareUrl: 'https://desk.example.com/',
+      machineHost: '127.0.0.1',
+      addressGuide: 'The link you send is a hostname you own. In Cloudflare Tunnel, point an HTTP public hostname at http://127.0.0.1:18110/ for the panel. BNDZ does not mint a public name.',
       tunnelMessage: 'Paste a Cloudflare Tunnel token. BNDZ stores it with Windows DPAPI and does not show it again.',
       tunnelTokenConfigured: false,
-      awayGuide: 'Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. Point hostnames at ssh://127.0.0.1:22210 and http://127.0.0.1:18110/ for the web panel.',
+      awayGuide: 'Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. The hostname you save above is the link you send.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Nothing is listening yet — this PC has no guest image installed.' },
+        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Uses the machine address. Nothing is listening yet — this PC has no guest image installed.' },
         { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Same port as SSH. The client flag is a capital P.' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
-        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@127.0.0.1:21210/', state: 'pending', canCopy: true, note: 'Sign-in password stays hidden. Use Copy FTPS password.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'http://127.0.0.1:18111/', state: 'pending', canCopy: true, note: 'Separate from the web panel.' },
-        { id: 'panel', label: 'Panel URL', copyText: 'http://127.0.0.1:18110/', state: 'pending', canCopy: true, note: 'Browser login for files and share links. User bndz.' },
+        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@127.0.0.1:21210/', state: 'pending', canCopy: true, note: 'On the machine address. Sign-in password stays hidden.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'http://127.0.0.1:18111/', state: 'pending', canCopy: true, note: 'On the machine address, separate from the link you send.' },
+        { id: 'panel', label: 'Send this', copyText: 'https://desk.example.com/', state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
+        { id: 'machine', label: 'Machine', copyText: 'http://127.0.0.1:18110/', state: 'pending', canCopy: true, note: 'Loopback on this PC. Away access uses the hostname above.' },
       ],
     },
     {
@@ -166,15 +177,20 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
         { id: 'vs_preview', status: 'created', createdAt: '2026-10-07T12:00:00Z', sizeBytes: 20 * 1024 * 1024 },
       ],
       sshCommand: 'ssh -p 22211 bndz@bndz-preview.fly.dev',
+      tunnelHostname: 'reel.example.com',
+      shareUrl: 'https://reel.example.com/',
+      machineHost: 'bndz-preview.fly.dev',
+      addressGuide: 'Save a hostname you control, such as files.example.com. In Cloudflare DNS add a CNAME to bndz-preview.fly.dev, then add the certificate: fly certs add files.example.com -a bndz-preview. SSH stays on the machine address.',
       tunnelState: 'cloud',
-      tunnelMessage: 'Fly publishes this machine. Cloudflare Tunnel is the away path for This PC drives.',
+      tunnelMessage: 'Fly publishes this machine. The link you send is the hostname you save, not the machine address.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22211 bndz@bndz-preview.fly.dev', state: 'pending', canCopy: true, note: 'Not listening until a pinned image boots.' },
+        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22211 bndz@bndz-preview.fly.dev', state: 'pending', canCopy: true, note: 'Uses the machine address. Not the link you send.' },
         { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22211 bndz@bndz-preview.fly.dev', state: 'pending', canCopy: true, note: 'SFTP uses the same port as SSH (capital -P).' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
-        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@bndz-preview.fly.dev:21211/', state: 'pending', canCopy: true, note: 'Passive data ports are not published through Fly in this slice.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'http://bndz-preview.fly.dev:18111/', state: 'pending', canCopy: true, note: 'Separate from the web panel.' },
-        { id: 'panel', label: 'Panel URL', copyText: 'https://bndz-preview.fly.dev/', state: 'pending', canCopy: true, note: 'Browser login for files and share links. User bndz.' },
+        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@bndz-preview.fly.dev:21211/', state: 'pending', canCopy: true, note: 'On the machine address. Passive data ports are not published.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'http://bndz-preview.fly.dev:18111/', state: 'pending', canCopy: true, note: 'On the machine address, separate from the link you send.' },
+        { id: 'panel', label: 'Send this', copyText: 'https://reel.example.com/', state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
+        { id: 'machine', label: 'Machine', copyText: 'https://bndz-preview.fly.dev/', state: 'pending', canCopy: true, note: 'Fly machine address for SSH and FTPS. Do not send this.' },
       ],
     },
   ];
@@ -199,7 +215,7 @@ export function nextAction(probe: CloudDriveProbe, placement: string, diskPath =
   if (!probe.tokenConfigured) {
     return 'Paste a Fly token from your own org, then save it. BNDZ does not share one cloud account.';
   }
-  return 'Create the drive. A Fly machine is created only after a drive image is set, then you Start it.';
+  return 'Create the drive. After Start, save a hostname you control. That name is the link you send, not the Fly machine address.';
 }
 
 export function driveHint(drive: CloudDriveRecord): string {
@@ -212,13 +228,18 @@ export function driveHint(drive: CloudDriveRecord): string {
       ? 'Hyper-V says the VM is running. This PC has no guest image yet, so the web panel and SSH are not answering.'
       : 'Start when Hyper-V is ready. The web panel is on the guest image, which is not installed yet.';
   }
+  const pretty = (drive.tunnelHostname || '').trim();
   if (!drive.flyApp) {
-    return 'Saved here only. Set the drive image, then Start, to create the Fly machine and open the web panel.';
+    return 'Saved here only. Set the drive image, then Start. After it is up, save a hostname you control. That name is the link you send.';
   }
   if (drive.state === 'running') {
-    return 'Open the panel URL and sign in as bndz. Use Copy FTPS password. Share links are created in that panel.';
+    return pretty
+      ? `Send https://${pretty}/ . Sign in there, then open Settings for your own name and password. SSH stays on the machine address.`
+      : 'Save a hostname you control, such as files.example.com, before you send this drive. SSH stays on the Fly machine address.';
   }
-  return 'Start the machine, then open the panel URL. Sign in as bndz with the drive password.';
+  return pretty
+    ? `Start the machine, then send https://${pretty}/ .`
+    : 'Start the machine, then save a hostname you control. The Fly machine address is for SSH, not the link you text.';
 }
 
 /** Client check before the host copies a sealed folder. The host repeats it. */

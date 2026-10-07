@@ -26,6 +26,7 @@ def main() -> None:
             "BNDZ_FTP_PASSWORD": SECRET,
             "BNDZ_PANEL_HOST": "127.0.0.1",
             "BNDZ_PANEL_PORT": str(PORT),
+            "BNDZ_PUBLIC_HOST": "files.example.com",
         })
         proc = subprocess.Popen(
             [sys.executable, str(SERVER)],
@@ -45,7 +46,7 @@ def main() -> None:
                 proc.kill()
                 _, err = proc.communicate(timeout=3)
             blob = err or ""
-            if SECRET in blob:
+            if SECRET in blob or "newer-secret" in blob:
                 raise SystemExit("panel password leaked to stderr")
     print("test-cloud-panel: ok")
 
@@ -117,7 +118,7 @@ def run(tmp: str) -> None:
     assert share["locked"] is True
     token = share["id"]
     status, page = call("GET", "/s/" + token)
-    assert status == 200 and "Password" in page and "hello-from-test" not in page
+    assert status == 200 and "Password" in page and "hello-from-test" not in page and "files.example.com" in page
     status, page = call("POST", "/s/" + token, form={"password": "wrong"})
     assert "did not match" in page and "wrong" not in page
     status, page, headers = call("POST", "/s/" + token, form={"password": "share-pass"}, headers=True)
@@ -144,6 +145,83 @@ def run(tmp: str) -> None:
     assert status == 410 and "revoked" in text
     status, body = call("GET", "/api/list", cookie=cookie)
     assert all(row["name"] != ".bndz" for row in json.loads(body)["entries"])
+    status, body = call("GET", "/api/admin")
+    assert status == 401, body
+    status, body = call("GET", "/api/admin", cookie=cookie)
+    admin = json.loads(body)
+    assert admin["username"] == "bndz" and "passHash" not in body and SECRET not in body
+    assert admin["publicHost"] == "files.example.com"
+    status, body = call("POST", "/api/admin", {
+        "displayName": "Mikey",
+        "brandName": "Field reel",
+        "sessionHours": 4,
+        "shareHours": 6,
+        "shareWrite": True,
+        "protocols": {"ssh": True, "ftps": False, "webdav": True},
+    }, cookie=cookie)
+    saved = json.loads(body)
+    assert status == 200 and saved["displayName"] == "Mikey" and saved["brandName"] == "Field reel"
+    assert saved["sessionHours"] == 4 and saved["shareHours"] == 6 and saved["shareWrite"] is True
+    assert saved["protocols"]["ftps"] is False
+    assert "did not stop or start" in saved["protocolNote"]
+    assert SECRET not in body
+    status, body = call("POST", "/api/admin", {
+        "username": "mikey",
+        "currentPassword": "wrong-password",
+        "newPassword": "newer-secret",
+        "confirmPassword": "newer-secret",
+    }, cookie=cookie)
+    assert status == 401 and "did not match" in body and "newer-secret" not in body
+    status, body = call("POST", "/api/admin", {
+        "username": "mikey",
+        "currentPassword": SECRET,
+        "newPassword": "short",
+        "confirmPassword": "short",
+    }, cookie=cookie)
+    assert status == 400 and "8 characters" in body
+    status, body = call("POST", "/api/admin", {
+        "username": "1bad",
+        "currentPassword": SECRET,
+    }, cookie=cookie)
+    assert status == 400 and "letter" in body
+    status, body = call("POST", "/api/admin", {
+        "username": "mikey",
+        "currentPassword": SECRET,
+        "newPassword": "newer-secret",
+        "confirmPassword": "newer-secret",
+    }, cookie=cookie)
+    assert status == 200, body
+    changed = json.loads(body)
+    assert changed["username"] == "mikey"
+    assert "did not change the drive account" in changed["passwordNote"]
+    assert "newer-secret" not in body
+    store = Path(tmp, ".bndz", "admin.json")
+    raw_admin = store.read_text()
+    assert "newer-secret" not in raw_admin and SECRET not in raw_admin
+    assert "passHash" in raw_admin
+    status, body = call("POST", "/api/login", {"user": "bndz", "password": SECRET})
+    assert status == 401
+    status, body = call("POST", "/api/login", {"user": "mikey", "password": "newer-secret"})
+    assert status == 200 and "newer-secret" not in body
+    status, page = call("GET", "/app.js")
+    assert status == 200 and "Settings" in page and "nav-admin" in page
+    assert "Properties" in page and "Date modified" in page and "Ctrl+V" in page
+    status, body = call("GET", "/api/props?path=notes/read-me.txt", cookie=cookie)
+    props = json.loads(body)
+    assert status == 200 and props["mode"].startswith("-") and props["size"] > 0 and props["mtime"] > 0
+    status, body = call("POST", "/api/copy", {"paths": ["notes"], "dest": "notes"}, cookie=cookie)
+    assert status == 400 and "itself" in body
+    status, body = call("POST", "/api/copy", {"paths": ["notes/read-me.txt"], "dest": "notes"}, cookie=cookie)
+    assert status == 200 and "Copy" in body, body
+    assert Path(tmp, "notes", "read-me - Copy.txt").read_text() == "hello-from-test"
+    status, body = call("POST", "/api/mkdir", {"path": "", "name": "copies"}, cookie=cookie)
+    assert status == 200, body
+    status, body = call("POST", "/api/move", {"paths": ["notes/read-me - Copy.txt"], "dest": "copies"}, cookie=cookie)
+    assert status == 200, body
+    assert Path(tmp, "copies", "read-me - Copy.txt").is_file()
+    assert not Path(tmp, "notes", "read-me - Copy.txt").exists()
+    status, body = call("POST", "/api/delete", {"paths": ["copies/read-me - Copy.txt"]}, cookie=cookie)
+    assert status == 200, body
 
 
 def call(method, path, payload=None, cookie="", form=None, headers=False):

@@ -290,7 +290,7 @@ function CloudDriveBody() {
           selected={placement === 'cloud'}
           title="Cloud elsewhere"
           seal="Fly"
-          body="MicroVM and volume on your Fly org. You pay Fly. BNDZ stores the token encrypted and never logs it."
+          body="MicroVM and volume on your Fly org. You pay Fly. After it is up, attach a hostname you own. That name is what you send."
           onSelect={() => setPlacement('cloud')}
         />
         <Bay
@@ -428,6 +428,13 @@ function CloudDriveBody() {
             {drive.diskPath && <p className="bndz-cloud-path" title={drive.diskPath}>{drive.diskPath}</p>}
             <p className="bndz-cloud-next">{driveHint(drive)}</p>
             {drive.state !== 'error' && drive.sshNote && <p className="bndz-cloud-message is-note">{drive.sshNote}</p>}
+            <AddressPlate
+              drive={drive}
+              busy={busy}
+              preview={previewLayout}
+              onChanged={async () => { if (!previewLayout) await refresh(); }}
+              onCopy={copyText}
+            />
             <ProtocolList
               drive={drive}
               busy={busy}
@@ -440,7 +447,6 @@ function CloudDriveBody() {
                   drive={drive}
                   busy={busy}
                   onChanged={async () => { if (!previewLayout) await refresh(); }}
-                  onCopy={copyText}
                 />
                 <LocalMove
                   drive={drive}
@@ -463,7 +469,6 @@ function CloudDriveBody() {
                 }}
               />
             )}
-            <ShareNote drive={drive} onCopy={copyText} />
             <div className="flex flex-wrap gap-2 mt-2">
               <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'start')}>Start</PluginToolbarButton>
               <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'stop')}>Stop</PluginToolbarButton>
@@ -658,24 +663,80 @@ function LocalMove({
   );
 }
 
-function ShareNote({
+function AddressPlate({
   drive,
+  busy,
+  preview,
+  onChanged,
   onCopy,
 }: {
   drive: CloudDriveRecord;
+  busy: boolean;
+  preview: boolean;
+  onChanged: () => Promise<void> | void;
   onCopy: (value: string, title: string) => void;
 }) {
+  const [hostname, setHostname] = useState(drive.tunnelHostname || '');
+  const [pending, setPending] = useState(false);
+  useEffect(() => { setHostname(drive.tunnelHostname || ''); }, [drive.tunnelHostname, drive.id]);
   const panel = drive.endpoints?.find(endpoint => endpoint.id === 'panel');
-  const url = panel?.copyText || '';
+  const machine = drive.endpoints?.find(endpoint => endpoint.id === 'machine');
+  const send = drive.shareUrl || (panel?.copyText?.startsWith('https://') && !panel.copyText.includes('.fly.dev') ? panel.copyText : '');
+  const local = drive.placement === 'local';
+
+  const saveHost = async () => {
+    const normalized = normalizeTunnelHostname(hostname);
+    if (!normalized.ok) {
+      pushToast({ kind: 'warning', title: 'Hostname', message: normalized.error });
+      return;
+    }
+    if (preview || !IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Hostname', message: HOST_NOTE });
+      return;
+    }
+    setPending(true);
+    try {
+      const r = await IPC.cloudDriveSetTunnelHostname(drive.id, normalized.hostname);
+      if (!r.ok) throw new Error(r.error || 'Could not save the hostname.');
+      await onChanged();
+      pushToast({
+        kind: 'success',
+        title: normalized.hostname ? 'Hostname saved' : 'Hostname cleared',
+        message: normalized.hostname ? `Send https://${normalized.hostname}/` : 'The send link is cleared.',
+      });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Hostname', message: e instanceof Error ? e.message : 'Could not save the hostname.' });
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
-    <section className="bndz-cloud-shares" aria-label={`${drive.name} share links`}>
-      <h4 className="bndz-cloud-section-label">Share links</h4>
-      <p className="bndz-cloud-message">
-        Create them in the drive’s web panel. Each link can expire, take a password, and be revoked. The drive serves the files, not this PC.
-      </p>
+    <section className="bndz-cloud-address" aria-label={`${drive.name} address`}>
+      <h4 className="bndz-cloud-section-label">Send this</h4>
+      {send ? (
+        <p className="bndz-cloud-address-url">{send}</p>
+      ) : (
+        <p className="bndz-cloud-next">Add a hostname you control. The Fly machine address stays off this row.</p>
+      )}
+      <p className="bndz-cloud-message">{drive.addressGuide || (local
+        ? 'Point a Cloudflare Tunnel hostname at this PC, then save that name here.'
+        : 'Point your DNS at the machine, add the certificate, then save the hostname here.')}</p>
+      {machine?.copyText && <p className="bndz-cloud-address-machine">Machine · {machine.copyText}</p>}
+      <label className="grid gap-1">
+        <span className="bndz-plugin-field-label">Public hostname</span>
+        <input
+          className={PLUGIN_INPUT_CLASS}
+          value={hostname}
+          spellCheck={false}
+          placeholder="files.example.com"
+          onChange={e => setHostname(e.target.value)}
+        />
+      </label>
       <div className="flex flex-wrap gap-2">
-        <PluginToolbarButton disabled={!panel?.canCopy || !url} onClick={() => onCopy(url, 'Panel URL')}>Copy panel URL</PluginToolbarButton>
-        <PluginToolbarButton disabled={!panel?.canCopy || !url} onClick={() => { if (url) window.open(url, '_blank'); }}>Open panel</PluginToolbarButton>
+        <PluginToolbarButton disabled={busy || pending} onClick={() => void saveHost()}>Save hostname</PluginToolbarButton>
+        <PluginToolbarButton disabled={!send} onClick={() => onCopy(send, 'Send this')}>Copy link</PluginToolbarButton>
+        <PluginToolbarButton disabled={!send} onClick={() => { if (send) window.open(send, '_blank'); }}>Open panel</PluginToolbarButton>
       </div>
     </section>
   );
@@ -700,7 +761,7 @@ function ProtocolList({
     <section className="bndz-cloud-protocols" aria-label={`${drive.name} protocols`}>
       <h4 className="bndz-cloud-section-label">Protocols</h4>
       {endpoints.map(endpoint => (
-        <div key={endpoint.id} className="bndz-cloud-protocol">
+        <div key={endpoint.id} className={`bndz-cloud-protocol${endpoint.id === 'machine' ? ' is-machine' : ''}${endpoint.id === 'panel' ? ' is-send' : ''}`}>
           <span className={`bndz-cloud-lamp is-${endpoint.state || 'pending'}`} aria-hidden />
           <span className="bndz-cloud-protocol-label">{endpoint.label}</span>
           <span className="bndz-cloud-protocol-copy">{endpoint.copyText || '—'}</span>
@@ -726,17 +787,13 @@ function AwayAccess({
   drive,
   busy,
   onChanged,
-  onCopy,
 }: {
   drive: CloudDriveRecord;
   busy: boolean;
   onChanged: () => Promise<void> | void;
-  onCopy: (value: string, title: string) => void;
 }) {
   const [token, setToken] = useState('');
-  const [hostname, setHostname] = useState(drive.tunnelHostname || '');
   const [pending, setPending] = useState(false);
-  useEffect(() => { setHostname(drive.tunnelHostname || ''); }, [drive.tunnelHostname]);
   const locked = busy || pending;
 
   const apply = async (r: { ok: boolean; drives?: CloudDriveRecord[]; error?: string }, title: string) => {
@@ -765,23 +822,6 @@ function AwayAccess({
     }
   };
 
-  const saveHost = async () => {
-    const normalized = normalizeTunnelHostname(hostname);
-    if (!normalized.ok) {
-      pushToast({ kind: 'warning', title: 'Hostname', message: normalized.error });
-      return;
-    }
-    setPending(true);
-    try {
-      const r = await IPC.cloudDriveSetTunnelHostname(drive.id, normalized.hostname);
-      await apply(r, normalized.hostname ? 'Hostname saved' : 'Hostname cleared');
-    } catch (e) {
-      pushToast({ kind: 'error', title: 'Hostname', message: e instanceof Error ? e.message : 'Could not save the hostname.' });
-    } finally {
-      setPending(false);
-    }
-  };
-
   const runTunnel = async (op: 'start' | 'stop' | 'clear') => {
     setPending(true);
     try {
@@ -798,8 +838,6 @@ function AwayAccess({
       setPending(false);
     }
   };
-
-  const panel = drive.endpoints?.find(endpoint => endpoint.id === 'panel');
 
   return (
     <section className="bndz-cloud-away" aria-label={`${drive.name} away access`}>
@@ -828,25 +866,6 @@ function AwayAccess({
         <PluginToolbarButton disabled={locked || !drive.tunnelTokenConfigured} onClick={() => void runTunnel('clear')}>Clear token</PluginToolbarButton>
         <PluginToolbarButton disabled={locked} onClick={() => void runTunnel('start')}>Start tunnel</PluginToolbarButton>
         <PluginToolbarButton disabled={locked} onClick={() => void runTunnel('stop')}>Stop tunnel</PluginToolbarButton>
-      </div>
-      <label className="grid gap-1">
-        <span className="bndz-plugin-field-label">Public hostname</span>
-        <input
-          className={PLUGIN_INPUT_CLASS}
-          value={hostname}
-          spellCheck={false}
-          placeholder="drive.example.com"
-          onChange={e => setHostname(e.target.value)}
-        />
-      </label>
-      <div className="flex flex-wrap gap-2">
-        <PluginToolbarButton disabled={locked} onClick={() => void saveHost()}>Save hostname</PluginToolbarButton>
-        <PluginToolbarButton
-          disabled={locked || !panel?.canCopy || !panel.copyText}
-          onClick={() => onCopy(panel?.copyText || '', 'Panel URL')}
-        >
-          Copy panel URL
-        </PluginToolbarButton>
       </div>
     </section>
   );

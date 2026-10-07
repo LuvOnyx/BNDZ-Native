@@ -103,8 +103,8 @@ public static class CloudDriveTunnel
     {
         CloudDrivePorts.Ensure(drive);
         return "Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. "
-            + $"Point hostnames at ssh://127.0.0.1:{drive.SshPort} and http://127.0.0.1:{drive.WebDavPort}/ for the web panel. "
-            + "Paste the install token. BNDZ passes it to cloudflared in the environment, not on the command line.";
+            + "Paste the install token. BNDZ passes it to cloudflared in the environment, not on the command line. "
+            + "The hostname you save above is the link you send.";
     }
 
     public static (bool ok, string message) Start(CloudDriveRecord drive, string token)

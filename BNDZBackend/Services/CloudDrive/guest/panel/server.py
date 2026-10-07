@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """BNDZ Cloud Drive web panel.
 
-Stdlib HTTP server for the guest. Login is the per-drive user `bndz` and the
-same password as FTPS. Files live under /data. Share links are served by this
-process. Not Nextcloud, not Docker, not Cloudflare Containers.
+Stdlib HTTP server for the guest. Files live under /data. Settings live in
+/data/.bndz/admin.json: display name, web sign-in, password, share defaults,
+session length, and protocol switches. Share links are served by this process.
 
 The QR encoder beside this file is Project Nayuki's MIT library (qrcodegen.py).
 """
@@ -17,6 +17,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import sys
 import tarfile
 import threading
@@ -59,6 +60,198 @@ def load_shares() -> list[dict]:
     except (OSError, json.JSONDecodeError):
         return []
     return data if isinstance(data, list) else []
+
+
+def admin_path() -> Path:
+    return store_path().with_name("admin.json")
+
+
+def load_admin() -> dict:
+    path = admin_path()
+    base = {
+        "displayName": "",
+        "brandName": "BNDZ Drive",
+        "username": "",
+        "passSalt": "",
+        "passHash": "",
+        "sessionHours": 12,
+        "shareHours": 24,
+        "shareWrite": False,
+        "protocols": {"ssh": True, "ftps": True, "webdav": True},
+    }
+    if not path.exists():
+        return base
+    try:
+        data = json.loads(path.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return base
+    if not isinstance(data, dict):
+        return base
+    base.update({k: data[k] for k in base if k in data and k != "protocols"})
+    protocols = data.get("protocols")
+    if isinstance(protocols, dict):
+        for key in ("ssh", "ftps", "webdav"):
+            if key in protocols:
+                base["protocols"][key] = bool(protocols[key])
+    return base
+
+
+def save_admin(cfg: dict) -> None:
+    path = admin_path()
+    stored = {
+        "displayName": _clip(str(cfg.get("displayName") or ""), 64),
+        "brandName": _clip(str(cfg.get("brandName") or "BNDZ Drive"), 64) or "BNDZ Drive",
+        "username": str(cfg.get("username") or ""),
+        "passSalt": str(cfg.get("passSalt") or ""),
+        "passHash": str(cfg.get("passHash") or ""),
+        "sessionHours": _hours(cfg.get("sessionHours"), 12, 168),
+        "shareHours": _hours(cfg.get("shareHours"), 24, 720),
+        "shareWrite": bool(cfg.get("shareWrite")),
+        "protocols": {
+            "ssh": bool((cfg.get("protocols") or {}).get("ssh", True)),
+            "ftps": bool((cfg.get("protocols") or {}).get("ftps", True)),
+            "webdav": bool((cfg.get("protocols") or {}).get("webdav", True)),
+        },
+    }
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(stored, indent=2), "utf-8")
+    try:
+        os.chmod(tmp, 0o600)
+    except OSError:
+        pass
+    os.replace(tmp, path)
+
+
+def public_admin(cfg: dict | None = None) -> dict:
+    cfg = cfg or load_admin()
+    used = total = 0
+    try:
+        usage = shutil.disk_usage(DATA)
+        used, total = usage.used, usage.total
+    except OSError:
+        pass
+    return {
+        "ok": True,
+        "username": panel_user(cfg),
+        "osUser": USER,
+        "displayName": cfg.get("displayName") or "",
+        "brandName": cfg.get("brandName") or "BNDZ Drive",
+        "sessionHours": _hours(cfg.get("sessionHours"), 12, 168),
+        "shareHours": _hours(cfg.get("shareHours"), 24, 720),
+        "shareWrite": bool(cfg.get("shareWrite")),
+        "protocols": cfg.get("protocols") or {"ssh": True, "ftps": True, "webdav": True},
+        "publicHost": public_host(),
+        "used": used,
+        "total": total,
+        "mounted": DATA.is_dir(),
+        "accountNote": (
+            "The web sign-in name is yours. SSH still uses the drive account "
+            + USER
+            + " and the key BNDZ stored. The password you set here is the web password."
+        ),
+    }
+
+
+def panel_user(cfg: dict | None = None) -> str:
+    cfg = cfg or load_admin()
+    name = str(cfg.get("username") or "").strip()
+    return name or USER
+
+
+def session_ttl() -> float:
+    return _hours(load_admin().get("sessionHours"), 12, 168) * 3600
+
+
+def check_password(password: str, cfg: dict | None = None) -> bool:
+    cfg = cfg or load_admin()
+    salt = str(cfg.get("passSalt") or "")
+    digest = str(cfg.get("passHash") or "")
+    if salt and digest:
+        return password_ok(password, salt, digest)
+    if not PASSWORD:
+        return False
+    return _same(password, PASSWORD)
+
+
+def public_host() -> str:
+    host = os.environ.get("BNDZ_PUBLIC_HOST", "").strip().lower().rstrip(".")
+    if not host or host.endswith(".fly.dev") or host in ("localhost", "127.0.0.1"):
+        return ""
+    return host
+
+
+def guest_can_manage() -> bool:
+    if os.environ.get("BNDZ_PANEL_APPLY_UNITS") == "1":
+        return True
+    geteuid = getattr(os, "geteuid", None)
+    return bool(geteuid and geteuid() == 0 and Path("/opt/bndz/panel/server.py").is_file())
+
+
+def apply_protocols(protocols: dict) -> str:
+    if not guest_can_manage():
+        return "Saved on this disk. This process did not stop or start a service. On the guest, SSH, FTPS, and WebDAV follow these switches."
+    units = {"ssh": ("ssh", "sshd"), "ftps": ("vsftpd",), "webdav": ("apache2",)}
+    notes = []
+    for key, names in units.items():
+        enabled = bool(protocols.get(key, True))
+        verb = "start" if enabled else "stop"
+        acted = False
+        for unit in names:
+            if shutil.which("systemctl") is None:
+                break
+            proc = subprocess_quiet(["systemctl", verb, unit])
+            if proc == 0:
+                acted = True
+                break
+        notes.append(key.upper() + (" is on." if enabled else " is off.") + ("" if acted else " The unit was not changed."))
+    return " ".join(notes)
+
+
+def sync_os_password(password: str) -> str:
+    if not guest_can_manage():
+        return "Panel password saved. This process did not change the drive account password."
+    if shutil.which("chpasswd") is None:
+        return "Panel password saved. chpasswd is not on this guest, so FTPS was not updated."
+    proc = subprocess_quiet(["chpasswd"], input_text=USER + ":" + password + "\n")
+    if proc != 0:
+        return "Panel password saved. The drive account password was not updated."
+    if shutil.which("htpasswd"):
+        subprocess_quiet(["htpasswd", "-bc", "/etc/bndz/webdav.passwd", USER, password])
+    return "Panel password saved, and the drive account password used by FTPS and WebDAV was updated."
+
+
+def subprocess_quiet(args: list[str], input_text: str | None = None) -> int:
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            args,
+            input=input_text,
+            text=True,
+            capture_output=True,
+            timeout=8,
+            check=False,
+        )
+        return result.returncode
+    except (OSError, subprocess.TimeoutExpired):
+        return 1
+
+
+def _clip(text: str, limit: int) -> str:
+    text = " ".join(text.replace("\r", " ").replace("\n", " ").split())
+    return text[:limit]
+
+
+def _hours(value, default: int, cap: int) -> int:
+    try:
+        hours = int(value)
+    except (TypeError, ValueError):
+        hours = default
+    return min(cap, max(1, hours))
+
+
+def _valid_user(name: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9._-]{0,31}", name))
 
 
 def save_shares(rows: list[dict]) -> None:
@@ -150,7 +343,7 @@ def clear_fails(ip: str) -> None:
 def new_session() -> str:
     token = secrets.token_hex(24)
     with LOCK:
-        SESSIONS[token] = time.time() + SESSION_TTL
+        SESSIONS[token] = time.time() + session_ttl()
     return token
 
 
@@ -163,7 +356,7 @@ def session_ok(token: str | None) -> bool:
         if not exp or exp < now:
             SESSIONS.pop(token, None)
             return False
-        SESSIONS[token] = now + SESSION_TTL
+        SESSIONS[token] = now + session_ttl()
         return True
 
 
@@ -262,7 +455,8 @@ class Panel(BaseHTTPRequestHandler):
             path = unquote(parsed.path)
             query = parse_qs(parsed.query)
             if path == "/api/health":
-                self._json({"ok": True, "data": str(DATA), "mounted": DATA.is_dir()})
+                brand = load_admin().get("brandName") or "BNDZ Drive"
+                self._json({"ok": True, "data": str(DATA), "mounted": DATA.is_dir(), "brandName": brand, "publicHost": public_host()})
                 return
             if path.startswith("/s/"):
                 self._share(method, path)
@@ -287,6 +481,12 @@ class Panel(BaseHTTPRequestHandler):
                 return
             if path == "/api/me":
                 self._me()
+                return
+            if path == "/api/admin" and method == "GET":
+                self._json(public_admin())
+                return
+            if path == "/api/admin" and method == "POST":
+                self._save_admin()
                 return
             if path == "/api/list":
                 self._list(query.get("path", [""])[0])
@@ -322,9 +522,20 @@ class Panel(BaseHTTPRequestHandler):
             if path == "/api/upload" and method == "POST":
                 self._upload()
                 return
+            if path == "/api/props" and method == "GET":
+                self._props(query.get("path", [""])[0])
+                return
+            if path == "/api/copy" and method == "POST":
+                self._transfer(move=False)
+                return
+            if path == "/api/move" and method == "POST":
+                self._transfer(move=True)
+                return
             self._json({"ok": False, "error": "Not found."}, 404)
         except PermissionError as ex:
             self._json({"ok": False, "error": str(ex)}, 400)
+        except FileExistsError:
+            self._json({"ok": False, "error": "An item with that name is already there."}, 400)
         except FileNotFoundError:
             self._json({"ok": False, "error": "That file is not on the drive."}, 404)
         except Exception as ex:  # noqa: BLE001 — return a redacted message, keep the process up
@@ -343,19 +554,20 @@ class Panel(BaseHTTPRequestHandler):
         body = self._json_body()
         user = str(body.get("user") or "")
         password = str(body.get("password") or "")
-        if not PASSWORD:
+        cfg = load_admin()
+        if not (cfg.get("passHash") or PASSWORD):
             self._json({"ok": False, "error": "This drive has no panel password yet."}, 403)
             return
-        if not _same(user, USER) or not _same(password, PASSWORD):
+        if not _same(user, panel_user(cfg)) or not check_password(password, cfg):
             note_fail(ip)
             self._json({"ok": False, "error": "User or password did not match."}, 401)
             return
         clear_fails(ip)
         token = new_session()
-        secure = self.headers.get("X-Forwarded-Proto", "") == "https"
+        secure = self.headers.get("X-Forwarded-Proto", "") == "https" or bool(public_host())
         flag = "; Secure" if secure else ""
         self._json(
-            {"ok": True, "user": USER},
+            {"ok": True, "user": panel_user(cfg)},
             headers={"Set-Cookie": f"bndz_session={token}; HttpOnly; Path=/; SameSite=Lax{flag}"},
         )
 
@@ -368,13 +580,80 @@ class Panel(BaseHTTPRequestHandler):
         self._json({"ok": True}, headers={"Set-Cookie": "bndz_session=; HttpOnly; Path=/; Max-Age=0"})
 
     def _me(self) -> None:
-        used = total = 0
-        try:
-            usage = shutil.disk_usage(DATA)
-            used, total = usage.used, usage.total
-        except OSError:
-            pass
-        self._json({"ok": True, "user": USER, "used": used, "total": total, "mounted": DATA.is_dir()})
+        info = public_admin()
+        self._json({
+            "ok": True,
+            "user": info["username"],
+            "displayName": info["displayName"],
+            "brandName": info["brandName"],
+            "used": info["used"],
+            "total": info["total"],
+            "mounted": info["mounted"],
+            "publicHost": info["publicHost"],
+            "shareHours": info["shareHours"],
+            "shareWrite": info["shareWrite"],
+        })
+
+    def _save_admin(self) -> None:
+        body = self._json_body()
+        cfg = load_admin()
+        current = str(body.get("currentPassword") or "")
+        new_password = str(body.get("newPassword") or "")
+        confirm = str(body.get("confirmPassword") or "")
+        username = body.get("username")
+        wants_account = new_password != "" or (isinstance(username, str) and username.strip() and username.strip() != panel_user(cfg))
+        if wants_account:
+            if not check_password(current, cfg):
+                note_fail(client_ip(self))
+                self._json({"ok": False, "error": "Current password did not match."}, 401)
+                return
+            clear_fails(client_ip(self))
+        if isinstance(username, str) and username.strip():
+            cleaned = username.strip()
+            if not _valid_user(cleaned):
+                self._json({"ok": False, "error": "Use a sign-in name that starts with a letter. Letters, numbers, dot, dash, and underscore only."}, 400)
+                return
+            cfg["username"] = cleaned
+        if "displayName" in body:
+            cfg["displayName"] = _clip(str(body.get("displayName") or ""), 64)
+        if "brandName" in body:
+            brand = _clip(str(body.get("brandName") or ""), 64)
+            cfg["brandName"] = brand or "BNDZ Drive"
+        if "sessionHours" in body:
+            cfg["sessionHours"] = _hours(body.get("sessionHours"), 12, 168)
+        if "shareHours" in body:
+            cfg["shareHours"] = _hours(body.get("shareHours"), 24, 720)
+        if "shareWrite" in body:
+            cfg["shareWrite"] = bool(body.get("shareWrite"))
+        protocols = body.get("protocols")
+        protocol_note = ""
+        if isinstance(protocols, dict):
+            current_protocols = dict(cfg.get("protocols") or {})
+            for key in ("ssh", "ftps", "webdav"):
+                if key in protocols:
+                    current_protocols[key] = bool(protocols[key])
+            cfg["protocols"] = current_protocols
+            protocol_note = apply_protocols(current_protocols)
+        password_note = ""
+        if new_password:
+            if new_password != confirm:
+                self._json({"ok": False, "error": "The new passwords did not match."}, 400)
+                return
+            if len(new_password) < 8:
+                self._json({"ok": False, "error": "Use at least 8 characters."}, 400)
+                return
+            if new_password == current:
+                self._json({"ok": False, "error": "Choose a different password."}, 400)
+                return
+            salt, digest = hash_password(new_password)
+            cfg["passSalt"] = salt
+            cfg["passHash"] = digest
+            password_note = sync_os_password(new_password)
+        save_admin(cfg)
+        payload = public_admin(cfg)
+        payload["protocolNote"] = protocol_note
+        payload["passwordNote"] = password_note
+        self._json(payload)
 
     def _list(self, rel: str) -> None:
         folder = safe(rel)
@@ -445,14 +724,69 @@ class Panel(BaseHTTPRequestHandler):
 
     def _delete(self) -> None:
         body = self._json_body()
-        target = safe(str(body.get("path") or ""))
-        if target == DATA.resolve():
-            raise PermissionError("The drive root cannot be deleted.")
-        if target.is_dir():
-            shutil.rmtree(target)
+        raw_paths = body.get("paths")
+        if isinstance(raw_paths, list) and raw_paths:
+            targets = [safe(str(item)) for item in raw_paths]
         else:
-            target.unlink()
+            targets = [safe(str(body.get("path") or ""))]
+        for target in targets:
+            _remove_path(target)
         self._json({"ok": True})
+
+    def _props(self, rel: str) -> None:
+        path = safe(rel)
+        if not path.exists():
+            raise FileNotFoundError(rel)
+        if path.is_symlink():
+            raise PermissionError("Links are not followed.")
+        st = path.stat()
+        children = 0
+        if path.is_dir():
+            children = sum(1 for child in path.iterdir() if child.name != ".bndz" and not child.is_symlink())
+        self._json({
+            "ok": True,
+            "name": path.name or "Drive",
+            "path": rel_of(path),
+            "dir": path.is_dir(),
+            "size": 0 if path.is_dir() else st.st_size,
+            "mtime": int(st.st_mtime),
+            "mode": stat.filemode(st.st_mode),
+            "children": children,
+        })
+
+    def _transfer(self, move: bool) -> None:
+        body = self._json_body()
+        dest_dir = safe(str(body.get("dest") or ""))
+        if not dest_dir.is_dir():
+            raise FileNotFoundError(str(body.get("dest") or ""))
+        raw_paths = body.get("paths")
+        if isinstance(raw_paths, str):
+            raw_paths = [raw_paths]
+        if not isinstance(raw_paths, list) or not raw_paths:
+            raise PermissionError("Nothing to paste.")
+        made = []
+        for raw in raw_paths:
+            src = safe(str(raw))
+            if src == DATA.resolve() or src.is_symlink():
+                raise PermissionError("That item cannot be pasted.")
+            if src.is_dir() and (dest_dir == src or src in dest_dir.parents or _contains(src, dest_dir)):
+                raise PermissionError("A folder cannot be pasted into itself.")
+            if move and src.parent.resolve() == dest_dir.resolve():
+                raise PermissionError(src.name + " is already in this folder.")
+            if move:
+                target = safe((rel_of(dest_dir) + "/" + src.name).strip("/"))
+                if target.exists():
+                    raise PermissionError(src.name + " is already in that folder.")
+                try:
+                    src.rename(target)
+                except OSError:
+                    _copy_path(src, target)
+                    _remove_path(src)
+            else:
+                target = _unique_dest(dest_dir, src.name)
+                _copy_path(src, target)
+            made.append(rel_of(target))
+        self._json({"ok": True, "paths": made})
 
     def _upload(self) -> None:
         ctype = self.headers.get("Content-Type", "")
@@ -644,7 +978,7 @@ class Panel(BaseHTTPRequestHandler):
             "<!doctype html><html><head><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{_esc(title)}</title><link rel='stylesheet' href='/app.css'></head><body>"
-            "<main class='share'><p class='seal'>BNDZ drive</p>"
+            "<main class='share'><p class='seal'>" + _esc(str(load_admin().get("brandName") or "BNDZ Drive")) + "</p>"
             f"<h1>{_esc(title)}</h1>"
             + (f"<img class='qr' alt='QR code for this share' src='/s/{token}/qr.svg'>" if authed else "")
             + f"<p class='url'>{_esc(url)}</p>{body}</main></body></html>"
@@ -723,9 +1057,64 @@ def _public_share(row: dict) -> dict:
 
 
 def _absolute(handler: BaseHTTPRequestHandler, path: str) -> str:
+    chosen = public_host()
+    if chosen:
+        return "https://" + chosen + path
     proto = handler.headers.get("X-Forwarded-Proto") or "http"
     host = handler.headers.get("X-Forwarded-Host") or handler.headers.get("Host") or "localhost"
+    host = host.split(",")[0].strip()
     return f"{proto}://{host}{path}"
+
+
+def _contains(parent: Path, child: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return child.resolve() != parent.resolve()
+
+
+def _remove_path(target: Path) -> None:
+    if target == DATA.resolve():
+        raise PermissionError("The drive root cannot be deleted.")
+    if target.is_symlink():
+        raise PermissionError("Links are not removed.")
+    if target.is_dir():
+        shutil.rmtree(target)
+    else:
+        target.unlink()
+
+
+def _copy_path(src: Path, dest: Path) -> None:
+    if src.is_symlink():
+        raise PermissionError("Links are not copied.")
+    if src.is_dir():
+        dest.mkdir(parents=False, exist_ok=False)
+        for child in src.iterdir():
+            if child.name == ".bndz" or child.is_symlink():
+                continue
+            _copy_path(child, dest / child.name)
+        return
+    if not src.is_file():
+        raise PermissionError("That item cannot be copied.")
+    shutil.copy2(src, dest)
+
+
+def _unique_dest(dest_dir: Path, name: str) -> Path:
+    clean = _clean_name(name)
+    stem = Path(clean).stem
+    suffix = Path(clean).suffix
+    for n in range(0, 100):
+        if n == 0:
+            candidate = clean
+        elif n == 1:
+            candidate = f"{stem} - Copy{suffix}"
+        else:
+            candidate = f"{stem} - Copy ({n}){suffix}"
+        dest = safe((rel_of(dest_dir) + "/" + candidate).strip("/"))
+        if not dest.exists():
+            return dest
+    raise PermissionError("Could not find a free name.")
 
 
 def _clean_name(name: str) -> str:

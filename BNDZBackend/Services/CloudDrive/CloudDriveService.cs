@@ -350,11 +350,10 @@ public sealed class CloudDriveService
     {
         var drive = Find(id);
         if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
-        if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
-            return new { ok = false, error = "The Cloudflare hostname is stored for This PC drives. Fly already has an app address.", drive = drive.ToDto(), drives = Dtos() };
         var normalized = CloudDriveProtocols.NormalizeHostname(hostname, out var error);
         if (error != null) return new { ok = false, error, drive = drive.ToDto(), drives = Dtos() };
         drive.TunnelHostname = string.IsNullOrEmpty(normalized) ? null : normalized;
+        drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
         Touch(drive);
         Save();
         return new { ok = true, drive = drive.ToDto(), drives = Dtos() };

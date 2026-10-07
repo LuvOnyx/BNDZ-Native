@@ -49,6 +49,8 @@ public sealed class CloudDriveRecord
     /// <summary>Volume left behind after a restore. Not a secret. It still bills until dropped.</summary>
     public string? PreviousFlyVolumeId { get; set; }
     public string? HostKeyNote { get; set; }
+    /// <summary>Stable guest address on the local Hyper-V switch. Not a secret. Unused until a rootfs boots.</summary>
+    public string? LocalGuestIp { get; set; }
     public List<CloudDriveSnapshot> Snapshots { get; set; } = new();
     public string CreatedUtc { get; set; } = "";
     public string UpdatedUtc { get; set; } = "";
@@ -100,6 +102,10 @@ public sealed class CloudDriveRecord
             PreviousHost = PreviousHost,
             PreviousFlyVolumeId = PreviousFlyVolumeId,
             HostKeyNote = HostKeyNote,
+            LocalGuestIp = LocalGuestIp,
+            ShareUrl = CloudDriveProtocols.ShareUrl(this),
+            MachineHost = CloudDriveProtocols.MachineHost(this),
+            AddressGuide = CloudDriveProtocols.AddressGuide(this),
             Snapshots = Snapshots ?? new List<CloudDriveSnapshot>(),
             CreatedUtc = CreatedUtc,
             UpdatedUtc = UpdatedUtc,
@@ -147,6 +153,13 @@ public sealed class CloudDriveDto
     public string? PreviousHost { get; set; }
     public string? PreviousFlyVolumeId { get; set; }
     public string? HostKeyNote { get; set; }
+    /// <summary>Stable guest address on the local Hyper-V switch. Not a secret.</summary>
+    public string? LocalGuestIp { get; set; }
+    /// <summary>https://hostname/ people send. Empty until a hostname you control is saved.</summary>
+    public string? ShareUrl { get; set; }
+    /// <summary>Fly machine address or this-PC loopback. Not the link you send.</summary>
+    public string? MachineHost { get; set; }
+    public string? AddressGuide { get; set; }
     public List<CloudDriveSnapshot> Snapshots { get; set; } = new();
     public string CreatedUtc { get; set; } = "";
     public string UpdatedUtc { get; set; } = "";
@@ -174,6 +187,9 @@ public sealed class CloudDriveProbe
     public bool Elevated { get; set; }
     public bool CloudflaredPresent { get; set; }
     public string? CloudflaredMessage { get; set; }
+    public bool RootfsPresent { get; set; }
+    public string? RootfsPath { get; set; }
+    public string? RootfsMessage { get; set; }
     public string Preferred { get; set; } = "none";
     public string Guidance { get; set; } = "";
 }
