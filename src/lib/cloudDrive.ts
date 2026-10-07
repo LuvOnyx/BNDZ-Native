@@ -127,14 +127,14 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       tunnelState: 'token-needed',
       tunnelMessage: 'Paste a Cloudflare Tunnel token. BNDZ stores it with Windows DPAPI and does not show it again.',
       tunnelTokenConfigured: false,
-      awayGuide: 'Away access uses Cloudflare Tunnel (cloudflared) on this PC. It is not Cloudflare Containers and it does not replace the Hyper-V disk. Point public hostnames at ssh://127.0.0.1:22210 and http://127.0.0.1:18110/.',
+      awayGuide: 'Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. Point hostnames at ssh://127.0.0.1:22210 and http://127.0.0.1:18110/ for the web panel.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'The local rootfs is not pinned in this build, so nothing is listening in the guest yet.' },
-        { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'SFTP uses the same port as SSH (capital -P).' },
+        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Nothing is listening yet — this PC has no guest image installed.' },
+        { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Same port as SSH. The client flag is a capital P.' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
-        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@127.0.0.1:21210/', state: 'pending', canCopy: true, note: 'The per-drive password stays in the Windows secure store.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'http://127.0.0.1:18110/', state: 'pending', canCopy: true, note: 'Inside the guest this is HTTP. HTTPS is the Cloudflare Tunnel.' },
-        { id: 'panel', label: 'Panel URL', copyText: '', state: 'unavailable', canCopy: false, note: 'No public panel URL yet. Save the Cloudflare hostname after the tunnel is up.' },
+        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@127.0.0.1:21210/', state: 'pending', canCopy: true, note: 'Sign-in password stays hidden. Use Copy FTPS password.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'http://127.0.0.1:18111/', state: 'pending', canCopy: true, note: 'Separate from the web panel.' },
+        { id: 'panel', label: 'Panel URL', copyText: 'http://127.0.0.1:18110/', state: 'pending', canCopy: true, note: 'Browser login for files and share links. User bndz.' },
       ],
     },
     {
@@ -153,11 +153,52 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
         { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22211 bndz@bndz-preview.fly.dev', state: 'pending', canCopy: true, note: 'SFTP uses the same port as SSH (capital -P).' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
         { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@bndz-preview.fly.dev:21211/', state: 'pending', canCopy: true, note: 'Passive data ports are not published through Fly in this slice.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'https://bndz-preview.fly.dev/', state: 'pending', canCopy: true, note: 'HTTPS is the Fly edge.' },
-        { id: 'panel', label: 'Panel URL', copyText: 'https://bndz-preview.fly.dev/', state: 'pending', canCopy: true, note: 'The full web panel is a later slice.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'http://bndz-preview.fly.dev:18111/', state: 'pending', canCopy: true, note: 'Separate from the web panel.' },
+        { id: 'panel', label: 'Panel URL', copyText: 'https://bndz-preview.fly.dev/', state: 'pending', canCopy: true, note: 'Browser login for files and share links. User bndz.' },
       ],
     },
   ];
+}
+
+export function nextAction(probe: CloudDriveProbe, placement: string, diskPath = ''): string {
+  if (placement === 'local') {
+    if (diskPath.trim()) {
+      const pathError = preflightLocalPath(diskPath);
+      if (pathError) return pathError;
+    } else {
+      return 'Pick a folder on D: or another drive. The sealed disk is created there, not on C:.';
+    }
+    if (!probe.hyperV && probe.wslVersion !== '2') {
+      return 'Turn on Hyper-V, or install WSL2 with wsl --install. Docker is not used.';
+    }
+    if (probe.hyperV && !probe.elevated) {
+      return 'Hyper-V is installed. Run BNDZ as administrator before Start so the VM can be created.';
+    }
+    return 'Create the drive. The guest image is not installed yet, so SSH and the web panel will not answer until it is.';
+  }
+  if (!probe.tokenConfigured) {
+    return 'Paste a Fly token from your own org, then save it. BNDZ does not share one cloud account.';
+  }
+  return 'Create the drive. A Fly machine is created only after a drive image is set, then you Start it.';
+}
+
+export function driveHint(drive: CloudDriveRecord): string {
+  const local = drive.placement === 'local';
+  if (drive.state === 'error') {
+    return drive.message || 'That did not finish. Try Start again after the note above is fixed.';
+  }
+  if (local) {
+    return drive.state === 'running'
+      ? 'Hyper-V says the VM is running. This PC has no guest image yet, so the web panel and SSH are not answering.'
+      : 'Start when Hyper-V is ready. The web panel is on the guest image, which is not installed yet.';
+  }
+  if (!drive.flyApp) {
+    return 'Saved here only. Set the drive image, then Start, to create the Fly machine and open the web panel.';
+  }
+  if (drive.state === 'running') {
+    return 'Open the panel URL and sign in as bndz. Use Copy FTPS password. Share links are created in that panel.';
+  }
+  return 'Start the machine, then open the panel URL. Sign in as bndz with the drive password.';
 }
 
 export function stateLabel(state: string): string {

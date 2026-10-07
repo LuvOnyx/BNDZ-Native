@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { layoutPreviewDrives, normalizeLocalPath, normalizeTunnelHostname, placementLabel, preflightLocalPath, stateLabel } from '../src/lib/cloudDrive';
+import { driveHint, layoutPreviewDrives, nextAction, normalizeLocalPath, normalizeTunnelHostname, placementLabel, preflightLocalPath, stateLabel } from '../src/lib/cloudDrive';
 
 assert.equal(preflightLocalPath(''), 'Pick a folder on a drive other than the system volume.');
 assert.match(preflightLocalPath('C:\\Users\\mikey') || '', /system volume/);
@@ -31,6 +31,16 @@ assert.match(localPreview.awayGuide || '', /Cloudflare Tunnel/);
 assert.doesNotMatch(localPreview.awayGuide || '', /Docker Desktop/i);
 assert.equal(cloudPreview.placement, 'cloud');
 assert.equal(cloudPreview.endpoints?.find(e => e.id === 'panel')?.canCopy, true);
+assert.match(localPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /^http:\/\/127\.0\.0\.1:\d+\/$/);
+assert.notEqual(
+  localPreview.endpoints?.find(e => e.id === 'panel')?.copyText,
+  localPreview.endpoints?.find(e => e.id === 'webdav')?.copyText,
+);
 assert.match(cloudPreview.tunnelMessage || '', /This PC/);
+assert.match(nextAction({}, 'cloud'), /Fly token/);
+assert.match(nextAction({ tokenConfigured: true }, 'cloud'), /drive image/);
+assert.match(nextAction({}, 'local', 'C:\\Users\\mikey'), /system volume/);
+assert.match(driveHint({ id: 'x', name: 'n', placement: 'local', state: 'stopped' }), /guest image/);
+assert.match(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo' }), /bndz/);
 
 console.log('test-cloud-drive: ok');

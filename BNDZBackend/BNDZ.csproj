@@ -188,6 +188,14 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Services/CloudDrive/guest/panel/server.py" LogicalName="BNDZ.CloudDrive.Panel.server.py" />
+    <EmbeddedResource Include="Services/CloudDrive/guest/panel/index.html" LogicalName="BNDZ.CloudDrive.Panel.index.html" />
+    <EmbeddedResource Include="Services/CloudDrive/guest/panel/app.js" LogicalName="BNDZ.CloudDrive.Panel.app.js" />
+    <EmbeddedResource Include="Services/CloudDrive/guest/panel/app.css" LogicalName="BNDZ.CloudDrive.Panel.app.css" />
+    <EmbeddedResource Include="Services/CloudDrive/guest/panel/qrcodegen.py" LogicalName="BNDZ.CloudDrive.Panel.qrcodegen.py" />
+  </ItemGroup>
+
   <!--
     Self-contained WindowsDesktop publish can overwrite NuGet Microsoft.Extensions.*
     assemblies with older shared-framework copies (9.x / 8.x). App + deps.json then

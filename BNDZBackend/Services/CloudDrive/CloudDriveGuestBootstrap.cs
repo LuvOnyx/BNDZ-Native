@@ -34,12 +34,18 @@ public static class CloudDriveGuestBootstrap
             new
             {
                 protocol = "tcp",
-                internal_port = CloudDriveProtocols.GuestWebDav,
+                internal_port = CloudDriveProtocols.GuestPanel,
                 ports = new object[]
                 {
                     new { port = 80, handlers = new[] { "http" } },
                     new { port = 443, handlers = new[] { "tls", "http" } },
                 },
+            },
+            new
+            {
+                protocol = "tcp",
+                internal_port = CloudDriveProtocols.GuestWebDav,
+                ports = new[] { new { port = drive.WebDavPort } },
             },
         };
     }
@@ -59,7 +65,7 @@ public static class CloudDriveGuestBootstrap
         fi
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -y || { log "apt-get update failed"; exec sleep infinity; }
-        apt-get install -y openssh-server vsftpd apache2 apache2-utils openssl || { log "package install failed"; exec sleep infinity; }
+        apt-get install -y openssh-server vsftpd apache2 apache2-utils openssl python3 || { log "package install failed"; exec sleep infinity; }
         id bndz >/dev/null 2>&1 || useradd --create-home --shell /bin/bash bndz
         mkdir -p /data /home/bndz/.ssh /etc/bndz /var/lib/dav /run/sshd
         chown bndz:bndz /data || true
@@ -114,8 +120,8 @@ public static class CloudDriveGuestBootstrap
         xferlog_enable=NO
         EOF
         cat > /etc/apache2/sites-available/bndz-webdav.conf <<'EOF'
-        Listen 8080
-        <VirtualHost *:8080>
+        Listen 8090
+        <VirtualHost *:8090>
           DavLockDB /var/lib/dav/lockdb
           Alias / /data/
           <Directory /data>
@@ -135,6 +141,12 @@ public static class CloudDriveGuestBootstrap
         /usr/sbin/sshd || log "sshd did not start"
         vsftpd /etc/vsftpd.conf || log "vsftpd did not start"
         apache2ctl start || apache2 -k start || log "apache did not start"
+        if [ -f /opt/bndz/panel/server.py ]; then
+          python3 /opt/bndz/panel/server.py >> /var/log/bndz-panel.log 2>&1 &
+          log "web panel starting on port 8080"
+        else
+          log "Web panel files are not on this machine. Expected /opt/bndz/panel/server.py."
+        fi
         log "bootstrap finished"
         exec sleep infinity
         """;

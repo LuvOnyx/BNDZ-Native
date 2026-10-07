@@ -15,6 +15,8 @@ import {
   FLY_REGIONS,
   layoutPreviewDrives,
   normalizeLocalPath,
+  driveHint,
+  nextAction,
   normalizeTunnelHostname,
   placementLabel,
   preflightLocalPath,
@@ -236,15 +238,22 @@ function CloudDriveBody() {
         <div className="bndz-cloud-note">{hostNote}</div>
       )}
 
+      <p className="bndz-cloud-next">{nextAction(probe, placement, diskPath)}</p>
+
       <div className="bndz-cloud-meters" aria-label="Cloud Drive readiness">
         <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
         <Meter label="Hyper-V" value={probe.hyperV ? (probe.elevated ? 'Ready' : 'Needs admin') : 'Not found'} />
         <Meter label="WSL2" value={probe.wslVersion === '2' ? 'Version 2' : probe.wslPresent ? 'Present' : 'Not found'} />
         <Meter label="cloudflared" value={probe.cloudflaredPresent ? 'Installed' : 'Not found'} hint={probe.cloudflaredMessage} />
       </div>
-      {probe.guidance && <p className="bndz-cloud-guidance">{probe.guidance}</p>}
+      {probe.guidance && (
+        <details className="bndz-cloud-guidance">
+          <summary>If Start fails</summary>
+          <p>{probe.guidance}</p>
+        </details>
+      )}
 
-      <PluginSectionTitle icon="cloud_drive">Where this drive lives</PluginSectionTitle>
+      <p className="bndz-cloud-section-label">1 · Placement</p>
       <div className="bndz-cloud-bays" role="radiogroup" aria-label="Cloud Drive placement">
         <Bay
           selected={placement === 'cloud'}
@@ -262,6 +271,7 @@ function CloudDriveBody() {
         />
       </div>
 
+      <p className="bndz-cloud-section-label">2 · Name and disk</p>
       <PluginCard className="bndz-cloud-form">
         <div className="grid gap-3">
           <label className="grid gap-1">
@@ -320,6 +330,7 @@ function CloudDriveBody() {
             </label>
           )}
           <div>
+            <p className="bndz-cloud-section-label">3 · Create</p>
             <PluginToolbarButton disabled={busy} onClick={() => void createDrive()}>Create drive</PluginToolbarButton>
           </div>
         </div>
@@ -335,7 +346,7 @@ function CloudDriveBody() {
         <PluginEmptyState
           icon="cloud_drive"
           title="No Cloud Drives yet"
-          description="Create one in the cloud on your Fly account, or reserve a sealed disk on another drive letter."
+          description={nextAction(probe, placement, diskPath)}
         />
       ) : drives.map(drive => (
         <article key={drive.id} className={`bndz-cloud-cartridge is-${drive.placement === 'local' ? 'local' : 'cloud'}`}>
@@ -356,8 +367,8 @@ function CloudDriveBody() {
               {drive.fingerprint ? ` · ${drive.fingerprint}` : ''}
             </p>
             {drive.diskPath && <p className="bndz-cloud-path" title={drive.diskPath}>{drive.diskPath}</p>}
-            {drive.message && <p className="bndz-cloud-message">{drive.message}</p>}
-            {drive.sshNote && <p className="bndz-cloud-message is-note">{drive.sshNote}</p>}
+            <p className="bndz-cloud-next">{driveHint(drive)}</p>
+            {drive.state !== 'error' && drive.sshNote && <p className="bndz-cloud-message is-note">{drive.sshNote}</p>}
             <ProtocolList
               drive={drive}
               busy={busy}
@@ -374,6 +385,7 @@ function CloudDriveBody() {
             ) : (
               <p className="bndz-cloud-message is-note">Fly publishes this machine’s address. Cloudflare Tunnel is the away path for This PC drives.</p>
             )}
+            <ShareNote drive={drive} onCopy={copyText} />
             <div className="flex flex-wrap gap-2 mt-2">
               <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'start')}>Start</PluginToolbarButton>
               <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'stop')}>Stop</PluginToolbarButton>
@@ -394,6 +406,29 @@ function CloudDriveBody() {
         </article>
       ))}
     </div>
+  );
+}
+
+function ShareNote({
+  drive,
+  onCopy,
+}: {
+  drive: CloudDriveRecord;
+  onCopy: (value: string, title: string) => void;
+}) {
+  const panel = drive.endpoints?.find(endpoint => endpoint.id === 'panel');
+  const url = panel?.copyText || '';
+  return (
+    <section className="bndz-cloud-shares" aria-label={`${drive.name} share links`}>
+      <h4 className="bndz-cloud-section-label">Share links</h4>
+      <p className="bndz-cloud-message">
+        Create them in the drive’s web panel. Each link can expire, take a password, and be revoked. The drive serves the files, not this PC.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <PluginToolbarButton disabled={!panel?.canCopy || !url} onClick={() => onCopy(url, 'Panel URL')}>Copy panel URL</PluginToolbarButton>
+        <PluginToolbarButton disabled={!panel?.canCopy || !url} onClick={() => { if (url) window.open(url, '_blank'); }}>Open panel</PluginToolbarButton>
+      </div>
+    </section>
   );
 }
 

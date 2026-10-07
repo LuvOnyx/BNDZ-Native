@@ -402,3 +402,11 @@ SSH, SFTP, FTPS, and WebDAV origins are computed on the drive record and shown i
 - **This PC:** origins are `127.0.0.1` plus per-drive high ports. The local rootfs is still not pinned, so the panel says nothing is listening in the guest yet.
 - **Away access:** local drives only. Paste a Cloudflare Tunnel install token (DPAPI, never logged, never passed as a process argument). BNDZ starts `cloudflared tunnel --no-autoupdate run` with `TUNNEL_TOKEN` in the environment. Public hostnames are configured in Cloudflare against `ssh://127.0.0.1:<sshPort>` and `http://127.0.0.1:<webDavPort>/`. Saving the hostname enables Copy panel URL. This is not Cloudflare Containers and not Docker Desktop.
 - **FTPS password:** per drive, DPAPI, copied on demand, not rendered in the panel. Passive ports 30000–30009 stay inside the guest.
+
+## Appendix — B1d UI and B2 panel
+
+The Cloud Drive panel is a three-step create flow (placement, name and disk, create) with one next-action line. Drive cards keep status, placement, protocols, and away access. Errors stay on the card; the long host note sits under “If Start fails.”
+
+The web panel ships in `BNDZBackend/Services/CloudDrive/guest/panel/` (Python stdlib plus Nayuki’s MIT `qrcodegen.py`). When `BNDZ_CLOUD_DRIVE_IMAGE` is set and bootstrap is on, those files are injected to `/opt/bndz/panel/` and `server.py` listens on guest port 8080. Fly publishes that as `https://<app>.fly.dev/`. WebDAV moves to guest port 8090 (raw TCP on the drive’s WebDAV port). Sign in as `bndz` with the per-drive password. From the panel: list, upload, download, mkdir, rename, delete under `/data`, and share links with expiry, optional password, revoke, and a QR code. Share records live in `/data/.bndz/shares.json`.
+
+On This PC the same files are in the repo, but the guest image is not booted, so the card says nothing is listening. The panel URL is the origin a Cloudflare Tunnel HTTP hostname should target.

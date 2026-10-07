@@ -276,8 +276,8 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         if (string.IsNullOrWhiteSpace(drive.Message) || drive.State is "running" or "creating" or "stopped")
         {
             drive.Message = CloudDriveGuestBootstrap.Enabled()
-                ? "Fly machine and volume exist. Guest bootstrap installs SSH, SFTP, and FTPS and serves WebDAV on port 8080 when the image has apt. Plain anonymous FTP is off. Cloudflare Containers are not the VM."
-                : "Fly machine and volume exist. Bootstrap is off (BNDZ_CLOUD_DRIVE_BOOTSTRAP=0). The pinned image must install SSH, SFTP, FTPS, and WebDAV itself.";
+                ? "Fly machine is up. The web panel is https://" + drive.FlyApp + ".fly.dev/ — sign in as bndz. SSH, FTPS, and WebDAV are on the protocol row. Plain FTP is off."
+                : "Fly machine is up. Bootstrap is off, so the image itself must serve SSH, FTPS, WebDAV, and the panel.";
         }
     }
 
@@ -302,10 +302,13 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         };
         if (CloudDriveGuestBootstrap.Enabled())
         {
-            config["files"] = new[]
+            var files = new List<object>
             {
                 new { guest_path = "/opt/bndz/bootstrap.sh", raw_value = CloudDriveGuestBootstrap.Script },
             };
+            foreach (var file in CloudDrivePanelAssets.Files())
+                files.Add(new { guest_path = file.GuestPath, raw_value = file.Text });
+            config["files"] = files;
             config["cmd"] = new[] { "bash", "/opt/bndz/bootstrap.sh" };
         }
         return new { name = "bndz", region, config };
@@ -347,17 +350,15 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
     private static string ImageMissingMessage(string? org)
     {
         var who = string.IsNullOrWhiteSpace(org) ? "your Fly org" : "Fly org " + org;
-        return "Token accepted for " + who + ". No Machine was created — this build has no pinned drive image. Set BNDZ_CLOUD_DRIVE_IMAGE to a digest, then Start. BNDZ does not host the disk.";
+        return "Fly accepted the token for " + who + ". No machine yet — set the drive image, then Start.";
     }
 
     private static string SshNote(CloudDriveRecord drive)
     {
         CloudDrivePorts.Ensure(drive);
         if (!string.IsNullOrWhiteSpace(drive.FlyMachineId))
-            return "Private key stays in the Windows secure store. SSH/SFTP use port " + drive.SshPort
-                + " on " + (drive.FlyApp ?? "the app") + ".fly.dev once the guest is listening. FTPS is port "
-                + drive.FtpsPort + ". Machine " + drive.FlyMachineId + ".";
-        return "Private key stays in the Windows secure store. Copy SSH stays empty until the Fly app exists.";
+            return "Private key stays in Windows secure storage. The panel is https://" + (drive.FlyApp ?? "the-app") + ".fly.dev/.";
+        return "Private key stays in Windows secure storage. The panel URL appears after the Fly app exists.";
     }
 
     private async Task<string?> TryOrgSlugAsync(string token, CancellationToken ct)

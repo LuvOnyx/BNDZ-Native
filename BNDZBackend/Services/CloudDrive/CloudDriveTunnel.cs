@@ -102,10 +102,9 @@ public static class CloudDriveTunnel
     public static string Guide(CloudDriveRecord drive)
     {
         CloudDrivePorts.Ensure(drive);
-        return "Away access uses Cloudflare Tunnel (cloudflared) on this PC. It is not Cloudflare Containers and it does not replace the Hyper-V disk. "
-            + "In Cloudflare Zero Trust, create a remotely-managed tunnel. Point public hostnames at "
-            + $"ssh://127.0.0.1:{drive.SshPort} and http://127.0.0.1:{drive.WebDavPort}/. "
-            + "Paste the install token here. BNDZ starts cloudflared with that token in the process environment, not on the command line.";
+        return "Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. "
+            + $"Point hostnames at ssh://127.0.0.1:{drive.SshPort} and http://127.0.0.1:{drive.WebDavPort}/ for the web panel. "
+            + "Paste the install token. BNDZ passes it to cloudflared in the environment, not on the command line.";
     }
 
     public static (bool ok, string message) Start(CloudDriveRecord drive, string token)

@@ -2624,6 +2624,19 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   font-size: 12px;
   line-height: 1.45;
 }
+.bndz-cloud-guidance summary { cursor: pointer; color: #e0f2fe; }
+.bndz-cloud-guidance p { margin: 8px 0 0; }
+.bndz-cloud-next {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 196, 110, 0.32);
+  background: linear-gradient(180deg, rgba(232, 196, 110, 0.1), rgba(0, 0, 0, 0.18));
+  color: #f4efe4;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.bndz-cloud-shares { display: grid; gap: 6px; margin-top: 8px; }
 .bndz-cloud-meters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

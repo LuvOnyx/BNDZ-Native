@@ -80,8 +80,7 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         CloudDrivePorts.Ensure(drive);
         drive.Host = "127.0.0.1";
         drive.Port = drive.SshPort;
-        drive.SshNote = "Private key stays in the Windows secure store. Local origin is 127.0.0.1:"
-            + drive.SshPort + " after the guest listens. Away access is Cloudflare Tunnel on this PC, not an open port and not a helper exe.";
+        drive.SshNote = "Private key stays in Windows secure storage. Nothing answers until a guest image is installed.";
 
         if (probe.HyperV && probe.Elevated)
         {
@@ -160,8 +159,7 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             drive.Message = "Hyper-V accepted the VM record but it is not running. " + TrimDetail(detail);
         }
         CloudDrivePorts.Ensure(drive);
-        drive.SshNote = "Private key stays in the Windows secure store. ssh -p " + drive.SshPort
-            + " bndz@127.0.0.1 is the local endpoint once the guest image publishes SSH.";
+        drive.SshNote = "Private key stays in Windows secure storage. The guest image is not installed, so SSH is not answering.";
         return Task.CompletedTask;
     }
 

@@ -50,7 +50,8 @@ public static class CloudDriveProtocols
 {
     public const int GuestSsh = 22;
     public const int GuestFtps = 990;
-    public const int GuestWebDav = 8080;
+    public const int GuestPanel = 8080;
+    public const int GuestWebDav = 8090;
 
     public static List<CloudDriveEndpoint> For(CloudDriveRecord drive)
     {
@@ -77,9 +78,7 @@ public static class CloudDriveProtocols
         return new List<CloudDriveEndpoint>
         {
             Row("ssh", "SSH", ssh, ready, haveHost, haveHost ? listen : hostNote),
-            Row("sftp", "SFTP", sftp, ready, haveHost, haveHost
-                ? listen + " SFTP uses the same port as SSH (capital -P)."
-                : hostNote),
+            Row("sftp", "SFTP", sftp, ready, haveHost, haveHost ? "Same port as SSH. The client flag is a capital P." : hostNote),
             new CloudDriveEndpoint
             {
                 Id = "ftp",
@@ -90,12 +89,12 @@ public static class CloudDriveProtocols
                 Note = "Plain FTP is off, including anonymous login. Use FTPS.",
             },
             Row("ftps", "FTPS", ftps, ready, haveHost, haveHost
-                ? listen + " The per-drive password stays in the Windows secure store. Passive data ports 30000–30009 are inside the guest and are not published through Fly in this slice."
+                ? "Sign-in password stays hidden. Use Copy FTPS password. Passive data ports are not published."
                 : hostNote),
             Row("webdav", "WebDAV", web, ready && !string.IsNullOrWhiteSpace(web), !string.IsNullOrWhiteSpace(web),
                 string.IsNullOrWhiteSpace(web)
-                    ? "WebDAV is not published until a host exists. The guest serves it on port 8080 only after the image boots."
-                    : listen + " Inside the guest this is HTTP on port 8080. HTTPS is the Fly edge or the Cloudflare Tunnel, not a certificate BNDZ invents on the PC."),
+                    ? "WebDAV appears after the drive has a host."
+                    : "Separate from the web panel. User bndz, same hidden password. " + listen),
             new CloudDriveEndpoint
             {
                 Id = "panel",
@@ -104,8 +103,8 @@ public static class CloudDriveProtocols
                 State = string.IsNullOrWhiteSpace(panel) ? "unavailable" : (ready ? "ready" : "pending"),
                 CanCopy = !string.IsNullOrWhiteSpace(panel),
                 Note = string.IsNullOrWhiteSpace(panel)
-                    ? "No public panel URL yet. On This PC, save the Cloudflare hostname after the tunnel is up. The in-guest web panel is not shipped in this slice."
-                    : "This is the away URL for the drive. The full web panel and share links are a later slice; WebDAV is the file endpoint behind it.",
+                    ? "The panel URL appears when the Fly app exists, or after you save a Cloudflare hostname."
+                    : "Browser login for files and share links. User bndz, same password as FTPS. " + listen,
             },
         };
     }
@@ -153,12 +152,10 @@ public static class CloudDriveProtocols
 
     private static string WebDavUrl(CloudDriveRecord drive, string host)
     {
-        var tun = (drive.TunnelHostname ?? "").Trim();
-        if (tun.Length > 0) return "https://" + tun + "/";
         if (!IsLocal(drive) && !string.IsNullOrWhiteSpace(drive.FlyApp))
-            return "https://" + drive.FlyApp.Trim() + ".fly.dev/";
+            return "http://" + drive.FlyApp.Trim() + ".fly.dev:" + drive.WebDavPort + "/";
         if (IsLocal(drive) && host.Length > 0)
-            return $"http://{host}:{drive.WebDavPort}/";
+            return $"http://{host}:{drive.WebDavPort + 1}/";
         return "";
     }
 
@@ -168,16 +165,19 @@ public static class CloudDriveProtocols
         if (tun.Length > 0) return "https://" + tun + "/";
         if (!IsLocal(drive) && !string.IsNullOrWhiteSpace(drive.FlyApp))
             return "https://" + drive.FlyApp.Trim() + ".fly.dev/";
+        var host = PublicHost(drive);
+        if (IsLocal(drive) && host.Length > 0)
+            return $"http://{host}:{drive.WebDavPort}/";
         return "";
     }
 
     private static string ListenNote(bool local, bool imagePinned)
     {
         if (local)
-            return "The local rootfs is not pinned in this build, so nothing is listening in the guest yet. This origin is what Cloudflare Tunnel should target.";
+            return "Nothing is listening yet — this PC has no guest image installed.";
         if (imagePinned)
-            return "A live session still needs the guest listening. This build cannot prove the port is open.";
-        return "Not listening until a pinned image boots. Set BNDZ_CLOUD_DRIVE_IMAGE and Start. No Machine is created without that digest.";
+            return "Open it when the machine is running. This PC cannot prove the port is open.";
+        return "No machine yet. Set the drive image, then Start.";
     }
 
     private static CloudDriveEndpoint Row(string id, string label, string copy, bool ready, bool canCopy, string note) => new()
