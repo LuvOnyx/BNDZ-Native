@@ -74,6 +74,9 @@ export type CloudDriveProbe = {
   elevated?: boolean;
   cloudflaredPresent?: boolean;
   cloudflaredMessage?: string;
+  rootfsPresent?: boolean;
+  rootfsPath?: string;
+  rootfsMessage?: string;
   preferred?: string;
   guidance?: string;
 };
@@ -140,7 +143,7 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       ftpsPort: 21210,
       webDavPort: 18110,
       fingerprint: 'SHA256:preview',
-      hostKeyNote: 'Same sealed disk. The client key on this PC is unchanged (SHA256:preview). The guest SSH host key travels with the VHDX.',
+      hostKeyNote: 'Data disk kept. The client key on this PC is unchanged (SHA256:preview). The guest SSH host key is on this PC\'s OS disk and is new after a move.',
       sshCommand: 'ssh -p 22210 bndz@127.0.0.1',
       publicKey: 'ssh-ed25519 AAAA preview',
       tunnelState: 'token-needed',
@@ -152,7 +155,7 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       tunnelTokenConfigured: false,
       awayGuide: 'Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. The hostname you save above is the link you send.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Uses the machine address. Nothing is listening yet — this PC has no guest image installed.' },
+        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Uses the machine address. The lamp turns ready after this PC accepts the SSH port.' },
         { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Same port as SSH. The client flag is a capital P.' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
         { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@127.0.0.1:21210/', state: 'pending', canCopy: true, note: 'On the machine address. Sign-in password stays hidden.' },
@@ -204,13 +207,17 @@ export function nextAction(probe: CloudDriveProbe, placement: string, diskPath =
     } else {
       return 'Pick a folder on D: or another drive. The sealed disk is created there, not on C:.';
     }
-    if (!probe.hyperV && probe.wslVersion !== '2') {
-      return 'Turn on Hyper-V, or install WSL2 with wsl --install. Docker is not used.';
+    if (!probe.hyperV) {
+      return 'Turn on Hyper-V. This PC Cloud Drives boot a pinned Ubuntu rootfs there. Docker is not used.';
     }
-    if (probe.hyperV && !probe.elevated) {
+    if (!probe.elevated) {
       return 'Hyper-V is installed. Run BNDZ as administrator before Start so the VM can be created.';
     }
-    return 'Create the drive. The guest image is not installed yet, so SSH and the web panel will not answer until it is.';
+    if (!probe.rootfsPresent) {
+      return probe.rootfsMessage
+        || 'Pinned rootfs is not on this PC. Run scripts/fetch-cloud-drive-rootfs.ps1 from an elevated PowerShell. Docker is not used.';
+    }
+    return 'Create. Start boots pinned Ubuntu. The sealed VHDX is only the data disk and is not recreated.';
   }
   if (!probe.tokenConfigured) {
     return 'Paste a Fly token from your own org, then save it. BNDZ does not share one cloud account.';
@@ -225,8 +232,8 @@ export function driveHint(drive: CloudDriveRecord): string {
   }
   if (local) {
     return drive.state === 'running'
-      ? 'Hyper-V says the VM is running. This PC has no guest image yet, so the web panel and SSH are not answering.'
-      : 'Start when Hyper-V is ready. The web panel is on the guest image, which is not installed yet.';
+      ? 'Hyper-V reports the VM running. The SSH and panel lamps turn ready when this PC accepts the port. First boot can take several minutes.'
+      : 'Start the drive. The pinned rootfs boots in Hyper-V. The sealed VHDX is the data disk and is not recreated.';
   }
   const pretty = (drive.tunnelHostname || '').trim();
   if (!drive.flyApp) {

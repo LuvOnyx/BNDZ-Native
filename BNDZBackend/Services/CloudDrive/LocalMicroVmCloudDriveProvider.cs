@@ -19,32 +19,37 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         var hyperV = HyperVInstalled();
         var (wslPresent, wslVersion) = ProbeWsl();
         var elevated = IsElevated();
+        var rootfs = CloudDriveLocalRootfs.Describe();
         string preferred;
         string guidance;
         if (hyperV && elevated)
         {
             preferred = "hyper-v";
-            guidance = "Hyper-V is available and this process is elevated. Start can create a VHDX and a VM record on the folder you pick. The BNDZ Linux rootfs is not pinned in this build, so sshd is not inside the guest yet.";
+            guidance = rootfs.Present
+                ? "Hyper-V is available and this process is elevated. Start boots the pinned Ubuntu rootfs. The sealed VHDX is the data disk and is not recreated."
+                : rootfs.Message;
         }
         else if (hyperV)
         {
             preferred = "hyper-v";
-            guidance = "Hyper-V is installed. Creating the VHDX and VM needs BNDZ running elevated. The sealed folder can still be reserved on the drive you pick.";
+            guidance = rootfs.Present
+                ? "Hyper-V is installed. Start needs BNDZ running elevated. The pinned rootfs is on this PC. The sealed VHDX is the data disk and is not recreated."
+                : "Hyper-V is installed. Start needs BNDZ running elevated. " + rootfs.Message;
         }
         else if (wslPresent && wslVersion == "2")
         {
-            preferred = "wsl2";
-            guidance = "WSL2 is the available VM layer. This build does not import a generic distro — the sealed folder is reserved until a pinned BNDZ rootfs can be imported with its disk on the path you pick. Hyper-V is preferred. Docker is not required.";
+            preferred = "none";
+            guidance = "WSL2 is installed, and the rootfs fetch can use it to patch cloud-init. This PC Cloud Drives still boot in Hyper-V, not in WSL. Turn on Hyper-V. Docker is not used.";
         }
         else if (wslPresent)
         {
             preferred = "none";
-            guidance = "WSL is present but not version 2. Set the default to WSL2 (wsl --set-default-version 2) or turn on Hyper-V. Docker is not required.";
+            guidance = "WSL is present but not version 2. Turn on Hyper-V to boot a This PC Cloud Drive. Docker is not used.";
         }
         else
         {
             preferred = "none";
-            guidance = "No Hyper-V or WSL2 layer was detected. Turn on the Windows Hyper-V feature, or install WSL2 with wsl --install. Cloud Drive does not use Docker Desktop.";
+            guidance = "No Hyper-V layer was detected. Turn on the Windows Hyper-V feature. Cloud Drive does not use Docker Desktop.";
         }
 
         return new CloudDriveProbe
@@ -53,6 +58,9 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             WslPresent = wslPresent,
             WslVersion = wslVersion,
             Elevated = elevated,
+            RootfsPresent = rootfs.Present,
+            RootfsPath = rootfs.Path,
+            RootfsMessage = rootfs.Message,
             Preferred = preferred,
             Guidance = guidance,
         };
@@ -80,7 +88,9 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         CloudDrivePorts.Ensure(drive);
         drive.Host = "127.0.0.1";
         drive.Port = drive.SshPort;
-        drive.SshNote = "Private key stays in Windows secure storage. Nothing answers until a guest image is installed.";
+        drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
+        if (string.IsNullOrWhiteSpace(drive.LocalGuestIp))
+            drive.LocalGuestIp = CloudDriveLocalRootfs.GuestIpFor(drive.Id);
 
         if (probe.HyperV && probe.Elevated)
         {
@@ -88,11 +98,13 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             if (!ok)
             {
                 drive.State = "stopped";
-                drive.Message = "Sealed folder is at " + slot + ". Hyper-V did not create the VHDX. " + TrimDetail(detail);
+                drive.Message = "Sealed folder is at " + slot + ". Hyper-V did not create the data VHDX. " + TrimDetail(detail);
                 return Task.CompletedTask;
             }
             drive.State = "stopped";
-            drive.Message = "Sealed VHDX is on the drive you picked. Start attaches a Hyper-V VM. The BNDZ Linux image is not pinned yet, so sshd is not inside the guest.";
+            drive.Message = probe.RootfsPresent
+                ? "Sealed data VHDX is on the drive you picked. Start boots the pinned Ubuntu rootfs and does not recreate that VHDX."
+                : "Sealed data folder is at " + slot + ". " + probe.RootfsMessage;
             return Task.CompletedTask;
         }
 
@@ -126,40 +138,96 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             return Task.CompletedTask;
         }
 
-        if (string.IsNullOrWhiteSpace(drive.VhdxPath) || !File.Exists(drive.VhdxPath))
-        {
-            var (vhdOk, vhdDetail) = TryNewVhd(drive);
-            if (!vhdOk)
-            {
-                drive.State = "error";
-                drive.Message = "Could not create the VHDX. " + TrimDetail(vhdDetail);
-                return Task.CompletedTask;
-            }
-        }
-
-        var (ok, detail) = TryStartVm(drive);
-        if (!ok)
+        if (!probe.RootfsPresent)
         {
             drive.State = "error";
-            drive.Message = detail;
+            drive.Message = probe.RootfsMessage;
+            drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
             return Task.CompletedTask;
         }
 
+        if (string.IsNullOrWhiteSpace(drive.LocalGuestIp))
+            drive.LocalGuestIp = CloudDriveLocalRootfs.GuestIpFor(drive.Id);
+        var password = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedFtpPassword);
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            drive.State = "error";
+            drive.Message = "This drive has no sign-in password in Windows secure storage. Create it again on this PC.";
+            return Task.CompletedTask;
+        }
+        if (string.IsNullOrWhiteSpace(drive.PublicKey))
+        {
+            drive.State = "error";
+            drive.Message = "This drive has no SSH public key. Create it again on this PC.";
+            return Task.CompletedTask;
+        }
+
+        var seedPath = Path.Combine(drive.DiskPath, "seed.iso");
+        try
+        {
+            var panel = CloudDrivePanelAssets.Files()
+                .Select(file => (Name: Path.GetFileName(file.GuestPath), Text: file.Text));
+            CloudDriveLocalRootfs.WriteSeed(
+                seedPath,
+                drive.Id,
+                drive.LocalGuestIp,
+                drive.PublicKey,
+                password,
+                CloudDriveProtocols.PublicHostname(drive),
+                panel);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (!File.Exists(seedPath))
+            {
+                drive.State = "error";
+                drive.Message = "Could not write the cloud-init seed. " + TrimDetail(CloudDriveSecrets.Redact(ex.Message));
+                return Task.CompletedTask;
+            }
+        }
+        catch (Exception ex)
+        {
+            drive.State = "error";
+            drive.Message = "Could not write the cloud-init seed. " + TrimDetail(CloudDriveSecrets.Redact(ex.Message));
+            return Task.CompletedTask;
+        }
+
+        var (ok, detail) = TryStartVm(drive, probe.RootfsPath ?? "", seedPath);
+        if (!ok)
+        {
+            TryClearPortProxy(drive);
+            drive.State = "error";
+            drive.Message = TrimDetail(detail);
+            return Task.CompletedTask;
+        }
+
+        CloudDrivePorts.Ensure(drive);
+        drive.Host = "127.0.0.1";
+        drive.Port = drive.SshPort;
+        drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
         if (detail.Contains("STATE=Running", StringComparison.OrdinalIgnoreCase))
         {
             drive.State = "running";
-            drive.Host = "127.0.0.1";
-            CloudDrivePorts.Ensure(drive);
-            drive.Port = drive.SshPort;
-            drive.Message = "Hyper-V reports the VM running. The BNDZ Linux image is not pinned in this build, so sshd, FTPS, and WebDAV are not inside the guest yet. Origins are ready for Cloudflare Tunnel.";
+            var panelUp = CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.WebDavPort, 700);
+            var sshUp = panelUp || CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.SshPort, 700);
+            var diskNote = detail.Contains("DATA_KEPT", StringComparison.Ordinal)
+                ? " The existing data VHDX was kept."
+                : detail.Contains("DATA_CREATED", StringComparison.Ordinal)
+                    ? " A new data VHDX was created because the sealed folder did not have one."
+                    : " The data VHDX was not recreated.";
+            if (panelUp)
+                drive.Message = "Hyper-V reports the VM running. The panel port on this PC accepted a connection." + diskNote;
+            else if (sshUp)
+                drive.Message = "Hyper-V reports the VM running. The SSH port on this PC accepted a connection." + diskNote;
+            else
+                drive.Message = "Hyper-V reports the VM running. The panel port is not accepting connections yet. First boot installs packages and can take several minutes." + diskNote;
         }
         else
         {
+            TryClearPortProxy(drive);
             drive.State = "stopped";
             drive.Message = "Hyper-V accepted the VM record but it is not running. " + TrimDetail(detail);
         }
-        CloudDrivePorts.Ensure(drive);
-        drive.SshNote = "Private key stays in Windows secure storage. The guest image is not installed, so SSH is not answering.";
         return Task.CompletedTask;
     }
 
@@ -182,15 +250,7 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             return Task.CompletedTask;
         }
 
-        var (ok, detail) = RunHyperVScript(@"
-$ErrorActionPreference = 'Stop'
-$name = $env:BNDZ_VM_NAME
-$vm = Get-VM -Name $name -ErrorAction SilentlyContinue
-if (-not $vm) { Write-Output 'STATE=Missing'; exit 0 }
-Stop-VM -Name $name -Force -TurnOff -ErrorAction SilentlyContinue
-$vm = Get-VM -Name $name
-Write-Output ('STATE=' + $vm.State)
-", VmEnv(drive));
+        var (ok, detail) = RunHyperVScript(StopScript, VmEnv(drive));
         if (!ok && !detail.Contains("STATE=", StringComparison.Ordinal))
         {
             drive.State = "error";
@@ -198,7 +258,8 @@ Write-Output ('STATE=' + $vm.State)
             return Task.CompletedTask;
         }
         drive.State = "stopped";
-        drive.Message = "VM stopped. The sealed VHDX is still at " + (drive.VhdxPath ?? drive.DiskPath) + ".";
+        TryDeleteSeed(drive);
+        drive.Message = "VM stopped. Port publishing was removed. The sealed data VHDX is still at " + (drive.VhdxPath ?? drive.DiskPath) + ".";
         return Task.CompletedTask;
     }
 
@@ -210,16 +271,7 @@ Write-Output ('STATE=' + $vm.State)
             throw new InvalidOperationException("A sealed VHDX is on disk. Elevate BNDZ and delete again so Hyper-V can drop the VM before the folder is removed.");
         if (probe.HyperV && probe.Elevated && vhdxReady && !string.IsNullOrWhiteSpace(drive.VmName))
         {
-            var (ok, detail) = RunHyperVScript(@"
-$ErrorActionPreference = 'Continue'
-$name = $env:BNDZ_VM_NAME
-$vm = Get-VM -Name $name -ErrorAction SilentlyContinue
-if ($vm) {
-  Stop-VM -Name $name -Force -TurnOff -ErrorAction SilentlyContinue
-  Remove-VM -Name $name -Force
-}
-Write-Output 'REMOVED'
-", VmEnv(drive));
+            var (ok, detail) = RunHyperVScript(DeleteScript, VmEnv(drive));
             if (!ok)
                 throw new InvalidOperationException("Hyper-V could not remove the VM, so the sealed folder was left in place. " + TrimDetail(detail));
         }
@@ -253,7 +305,15 @@ Write-Output ('STATE=' + $vm.State)
 ", VmEnv(drive));
         if (!ok) return Task.CompletedTask;
         if (detail.Contains("STATE=Running", StringComparison.OrdinalIgnoreCase))
+        {
             drive.State = "running";
+            CloudDrivePorts.Ensure(drive);
+            var panelUp = CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.WebDavPort, 400);
+            drive.Message = panelUp
+                ? "The panel port on this PC accepted a connection."
+                : "VM is running. The panel port is not accepting connections yet. First boot installs packages and can take several minutes.";
+            drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
+        }
         else if (detail.Contains("STATE=Off", StringComparison.OrdinalIgnoreCase)
                  || detail.Contains("STATE=Saved", StringComparison.OrdinalIgnoreCase)
                  || detail.Contains("STATE=Missing", StringComparison.OrdinalIgnoreCase))
@@ -354,31 +414,174 @@ Write-Output 'VHD_OK'
         });
     }
 
-    private static (bool ok, string detail) TryStartVm(CloudDriveRecord drive)
+    private static (bool ok, string detail) TryStartVm(CloudDriveRecord drive, string rootfsPath, string seedPath)
     {
         var vmDir = Path.Combine(drive.DiskPath ?? "", "vm");
         Directory.CreateDirectory(vmDir);
-        return RunHyperVScript(@"
-$ErrorActionPreference = 'Stop'
-$name = $env:BNDZ_VM_NAME
-$vm = Get-VM -Name $name -ErrorAction SilentlyContinue
-if (-not $vm) {
-  New-VM -Name $name -Generation 2 -MemoryStartupBytes 512MB -VHDPath $env:BNDZ_VHD_PATH -Path $env:BNDZ_VM_DIR | Out-Null
-  try { Set-VMFirmware -VMName $name -EnableSecureBoot Off } catch { }
-}
-Start-VM -Name $name
-Start-Sleep -Seconds 1
-$vm = Get-VM -Name $name
-Write-Output ('STATE=' + $vm.State)
-", new Dictionary<string, string>
-        {
-            ["BNDZ_VM_NAME"] = drive.VmName ?? "",
-            ["BNDZ_VHD_PATH"] = drive.VhdxPath ?? "",
-            ["BNDZ_VM_DIR"] = vmDir,
-        });
+        var osPath = Path.Combine(drive.DiskPath ?? "", "os.vhdx");
+        var bytes = (long)Math.Clamp(drive.SizeGb, 1, 4096) * 1024L * 1024L * 1024L;
+        var env = VmEnv(drive);
+        env["BNDZ_ROOTFS"] = rootfsPath;
+        env["BNDZ_OS_VHD"] = osPath;
+        env["BNDZ_DATA_VHD"] = drive.VhdxPath ?? "";
+        env["BNDZ_SEED_ISO"] = seedPath;
+        env["BNDZ_VM_DIR"] = vmDir;
+        env["BNDZ_GUEST_IP"] = drive.LocalGuestIp ?? "";
+        env["BNDZ_VHD_BYTES"] = bytes.ToString();
+        return RunHyperVScript(StartScript, env, 180_000);
     }
 
-    private static (bool ok, string detail) RunHyperVScript(string script, IReadOnlyDictionary<string, string>? env = null)
+    private static void TryClearPortProxy(CloudDriveRecord drive)
+    {
+        RunHyperVScript(ClearProxyScript, VmEnv(drive), 20_000);
+    }
+
+    private static void TryDeleteSeed(CloudDriveRecord drive)
+    {
+        if (string.IsNullOrWhiteSpace(drive.DiskPath)) return;
+        try
+        {
+            var seed = Path.Combine(drive.DiskPath, "seed.iso");
+            if (File.Exists(seed)) File.Delete(seed);
+        }
+        catch
+        {
+            /* The VM may still hold the DVD. Export skips seed.iso either way. */
+        }
+    }
+
+    private const string ClearProxyScript = """
+        $ErrorActionPreference = 'Continue'
+        foreach ($p in @($env:BNDZ_SSH_PORT, $env:BNDZ_FTPS_PORT, $env:BNDZ_PANEL_PORT, $env:BNDZ_WEBDAV_PORT)) {
+          if (-not $p) { continue }
+          netsh interface portproxy delete v4tov4 listenaddress=127.0.0.1 listenport=$p | Out-Null
+        }
+        Write-Output 'PROXY_CLEARED'
+        """;
+
+    private const string StopScript = """
+        $ErrorActionPreference = 'Stop'
+        foreach ($p in @($env:BNDZ_SSH_PORT, $env:BNDZ_FTPS_PORT, $env:BNDZ_PANEL_PORT, $env:BNDZ_WEBDAV_PORT)) {
+          if (-not $p) { continue }
+          netsh interface portproxy delete v4tov4 listenaddress=127.0.0.1 listenport=$p | Out-Null
+        }
+        $name = $env:BNDZ_VM_NAME
+        $vm = Get-VM -Name $name -ErrorAction SilentlyContinue
+        if (-not $vm) { Write-Output 'STATE=Missing'; exit 0 }
+        Stop-VM -Name $name -Force -TurnOff -ErrorAction SilentlyContinue
+        $vm = Get-VM -Name $name
+        Write-Output ('STATE=' + $vm.State)
+        """;
+
+    private const string DeleteScript = """
+        $ErrorActionPreference = 'Continue'
+        foreach ($p in @($env:BNDZ_SSH_PORT, $env:BNDZ_FTPS_PORT, $env:BNDZ_PANEL_PORT, $env:BNDZ_WEBDAV_PORT)) {
+          if (-not $p) { continue }
+          netsh interface portproxy delete v4tov4 listenaddress=127.0.0.1 listenport=$p | Out-Null
+        }
+        $name = $env:BNDZ_VM_NAME
+        $vm = Get-VM -Name $name -ErrorAction SilentlyContinue
+        if ($vm) {
+          Stop-VM -Name $name -Force -TurnOff -ErrorAction SilentlyContinue
+          Remove-VM -Name $name -Force
+        }
+        Write-Output 'REMOVED'
+        """;
+
+    private const string StartScript = """
+        $ErrorActionPreference = 'Stop'
+        function Clear-BndzProxy {
+          foreach ($p in @($env:BNDZ_SSH_PORT, $env:BNDZ_FTPS_PORT, $env:BNDZ_PANEL_PORT, $env:BNDZ_WEBDAV_PORT)) {
+            if (-not $p) { continue }
+            netsh interface portproxy delete v4tov4 listenaddress=127.0.0.1 listenport=$p | Out-Null
+          }
+        }
+        function Add-BndzProxy([string]$listen, [string]$dest) {
+          netsh interface portproxy delete v4tov4 listenaddress=127.0.0.1 listenport=$listen | Out-Null
+          netsh interface portproxy add v4tov4 listenaddress=127.0.0.1 listenport=$listen connectaddress=$env:BNDZ_GUEST_IP connectport=$dest | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "portproxy failed for $listen" }
+        }
+        if (-not (Test-Path -LiteralPath $env:BNDZ_ROOTFS)) { Clear-BndzProxy; Write-Error 'ROOTFS_MISSING'; exit 2 }
+        $data = $env:BNDZ_DATA_VHD
+        if (Test-Path -LiteralPath $data) { Write-Output 'DATA_KEPT' }
+        else {
+          New-VHD -Path $data -SizeBytes ([int64]$env:BNDZ_VHD_BYTES) -Dynamic | Out-Null
+          Write-Output 'DATA_CREATED'
+        }
+        $os = $env:BNDZ_OS_VHD
+        if (Test-Path -LiteralPath $os) { Write-Output 'OS_KEPT' }
+        else {
+          New-VHD -Path $os -ParentPath $env:BNDZ_ROOTFS -Differencing | Out-Null
+          Write-Output 'OS_CREATED'
+        }
+        $sw = Get-VMSwitch -Name 'BNDZ-CloudDrive' -ErrorAction SilentlyContinue
+        if (-not $sw) { New-VMSwitch -Name 'BNDZ-CloudDrive' -SwitchType Internal | Out-Null }
+        $alias = $null
+        for ($try = 0; $try -lt 10 -and -not $alias; $try++) {
+          $alias = Get-NetAdapter | Where-Object { $_.Name -like 'vEthernet (BNDZ-CloudDrive)*' } | Select-Object -First 1 -ExpandProperty Name
+          if (-not $alias) { Start-Sleep -Milliseconds 400 }
+        }
+        if (-not $alias) { Clear-BndzProxy; throw 'Internal switch adapter was not found.' }
+        $existingIp = Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -eq '172.30.8.1' }
+        if (-not $existingIp) { New-NetIPAddress -InterfaceAlias $alias -IPAddress 172.30.8.1 -PrefixLength 24 | Out-Null }
+        $nat = Get-NetNat -Name 'BNDZ-CloudDrive' -ErrorAction SilentlyContinue
+        if (-not $nat) { New-NetNat -Name 'BNDZ-CloudDrive' -InternalIPInterfaceAddressPrefix '172.30.8.0/24' | Out-Null }
+        Add-BndzProxy $env:BNDZ_SSH_PORT '22'
+        Add-BndzProxy $env:BNDZ_FTPS_PORT '990'
+        Add-BndzProxy $env:BNDZ_PANEL_PORT '8080'
+        Add-BndzProxy $env:BNDZ_WEBDAV_PORT '8090'
+        $name = $env:BNDZ_VM_NAME
+        $vm = Get-VM -Name $name -ErrorAction SilentlyContinue
+        if (-not $vm) {
+          New-VM -Name $name -Generation 2 -MemoryStartupBytes 1GB -VHDPath $os -SwitchName 'BNDZ-CloudDrive' -Path $env:BNDZ_VM_DIR | Out-Null
+          Add-VMHardDiskDrive -VMName $name -Path $data
+          Add-VMDvdDrive -VMName $name -Path $env:BNDZ_SEED_ISO
+          Set-VM -Name $name -AutomaticCheckpointsEnabled $false -CheckpointType Disabled
+          $osDrive = Get-VMHardDiskDrive -VMName $name | Where-Object { $_.Path -eq $os } | Select-Object -First 1
+          Set-VMFirmware -VMName $name -EnableSecureBoot Off -FirstBootDevice $osDrive
+          Set-VMProcessor -VMName $name -Count 2
+        } else {
+          $attached = @(Get-VMHardDiskDrive -VMName $name)
+          $hasOs = $false
+          foreach ($disk in $attached) { if ($disk.Path -eq $os) { $hasOs = $true } }
+          if ($vm.State -ne 'Off' -and -not $hasOs) {
+            Stop-VM -Name $name -Force -TurnOff
+            $vm = Get-VM -Name $name
+          }
+          if ($vm.State -eq 'Off') {
+            foreach ($disk in @(Get-VMHardDiskDrive -VMName $name)) {
+              if ($disk.Path -ne $os -and $disk.Path -ne $data) {
+                Remove-VMHardDiskDrive -VMName $name -ControllerType $disk.ControllerType -ControllerNumber $disk.ControllerNumber -ControllerLocation $disk.ControllerLocation
+              }
+            }
+            $now = @(Get-VMHardDiskDrive -VMName $name)
+            $hasOs = $false
+            $hasData = $false
+            foreach ($disk in $now) {
+              if ($disk.Path -eq $os) { $hasOs = $true }
+              if ($disk.Path -eq $data) { $hasData = $true }
+            }
+            if (-not $hasOs) { Add-VMHardDiskDrive -VMName $name -Path $os }
+            if (-not $hasData) { Add-VMHardDiskDrive -VMName $name -Path $data }
+            $dvd = Get-VMDvdDrive -VMName $name | Select-Object -First 1
+            if (-not $dvd) { Add-VMDvdDrive -VMName $name -Path $env:BNDZ_SEED_ISO }
+            else { Set-VMDvdDrive -VMName $name -ControllerNumber $dvd.ControllerNumber -ControllerLocation $dvd.ControllerLocation -Path $env:BNDZ_SEED_ISO }
+            Get-VMNetworkAdapter -VMName $name | Connect-VMNetworkAdapter -SwitchName 'BNDZ-CloudDrive'
+            Set-VM -Name $name -AutomaticCheckpointsEnabled $false -CheckpointType Disabled
+            $osDrive = Get-VMHardDiskDrive -VMName $name | Where-Object { $_.Path -eq $os } | Select-Object -First 1
+            if (-not $osDrive) { Clear-BndzProxy; throw 'OS disk is not attached.' }
+            Set-VMFirmware -VMName $name -EnableSecureBoot Off -FirstBootDevice $osDrive
+            Set-VMProcessor -VMName $name -Count 2
+          }
+        }
+        $vm = Get-VM -Name $name
+        if ($vm.State -ne 'Running') { Start-VM -Name $name }
+        Start-Sleep -Seconds 1
+        $vm = Get-VM -Name $name
+        Write-Output ('STATE=' + $vm.State)
+        """;
+
+    private static (bool ok, string detail) RunHyperVScript(string script, IReadOnlyDictionary<string, string>? env = null, int timeoutMs = 90_000)
     {
         var psi = new ProcessStartInfo
         {
@@ -402,7 +605,7 @@ Write-Output ('STATE=' + $vm.State)
             if (proc == null) return (false, "PowerShell did not start.");
             var stdoutTask = proc.StandardOutput.ReadToEndAsync();
             var stderrTask = proc.StandardError.ReadToEndAsync();
-            if (!proc.WaitForExit(90_000))
+            if (!proc.WaitForExit(timeoutMs))
             {
                 try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
                 return (false, "Hyper-V command timed out.");
@@ -419,10 +622,18 @@ Write-Output ('STATE=' + $vm.State)
         }
     }
 
-    private static Dictionary<string, string> VmEnv(CloudDriveRecord drive) => new()
+    private static Dictionary<string, string> VmEnv(CloudDriveRecord drive)
     {
-        ["BNDZ_VM_NAME"] = drive.VmName ?? "",
-    };
+        CloudDrivePorts.Ensure(drive);
+        return new Dictionary<string, string>
+        {
+            ["BNDZ_VM_NAME"] = drive.VmName ?? "",
+            ["BNDZ_SSH_PORT"] = drive.SshPort.ToString(),
+            ["BNDZ_FTPS_PORT"] = drive.FtpsPort.ToString(),
+            ["BNDZ_PANEL_PORT"] = drive.WebDavPort.ToString(),
+            ["BNDZ_WEBDAV_PORT"] = (drive.WebDavPort + 1).ToString(),
+        };
+    }
 
     private static bool HyperVInstalled()
     {

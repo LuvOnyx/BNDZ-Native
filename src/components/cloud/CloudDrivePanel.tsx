@@ -274,6 +274,7 @@ function CloudDriveBody() {
       <div className="bndz-cloud-meters" aria-label="Cloud Drive readiness">
         <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
         <Meter label="Hyper-V" value={probe.hyperV ? (probe.elevated ? 'Ready' : 'Needs admin') : 'Not found'} />
+        <Meter label="Rootfs" value={probe.rootfsPresent ? 'Pinned' : 'Missing'} hint={probe.rootfsMessage} />
         <Meter label="WSL2" value={probe.wslVersion === '2' ? 'Version 2' : probe.wslPresent ? 'Present' : 'Not found'} />
         <Meter label="cloudflared" value={probe.cloudflaredPresent ? 'Installed' : 'Not found'} hint={probe.cloudflaredMessage} />
       </div>
@@ -629,8 +630,8 @@ function LocalMove({
     <section className="bndz-cloud-move is-local" aria-label={`${drive.name} move`}>
       <h4 className="bndz-cloud-section-label">Move</h4>
       <p className="bndz-cloud-message">
-        Stop the drive, then copy the sealed folder. Open that copy here or on another PC to start the same files.
-        A snapshot is crash-consistent. This copy is the portable disk.
+        Stop the drive, then copy the sealed folder. The copy includes the data disk. The Linux rootfs stays on this PC and is attached again on Start.
+        A snapshot is crash-consistent. This copy is the portable data disk.
       </p>
       {running && <p className="bndz-cloud-next">Stop the drive before copying the sealed folder.</p>}
       {drive.hostKeyNote && <p className="bndz-cloud-next">{drive.hostKeyNote}</p>}

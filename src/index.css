@@ -2668,7 +2668,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 .bndz-cloud-snap .bndz-cloud-confirm { grid-column: 1 / -1; }
 .bndz-cloud-meters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 8px;
 }
 .bndz-cloud-meter {

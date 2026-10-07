@@ -4,10 +4,8 @@ using System.Text;
 namespace BNDZ.Services.CloudDrive;
 
 /// <summary>
-/// Guest web panel files embedded in BNDZ and injected onto a Fly machine.
-/// The link people send is the hostname saved on the drive. The Fly machine
-/// address is only the operator fallback. Local Hyper-V does not boot this
-/// until a rootfs is pinned.
+/// Guest web panel files embedded in BNDZ. Fly injects them onto the machine.
+/// This PC copies them from the cidata seed onto the pinned Ubuntu rootfs.
 /// </summary>
 public static class CloudDrivePanelAssets
 {

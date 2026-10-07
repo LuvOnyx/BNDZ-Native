@@ -399,7 +399,7 @@ MVP always-on ~20 GB on Fly ≈ **$7–12/mo** (shared-cpu-1x 512MB ~$3.69 + vol
 SSH, SFTP, FTPS, and WebDAV origins are computed on the drive record and shown in the Cloud Drive panel with Copy. Plain FTP stays unavailable (no anonymous login).
 
 - **Fly:** when `BNDZ_CLOUD_DRIVE_IMAGE` is set, the Machine spec publishes SSH (`22` → a high port), FTPS (`990`), and WebDAV (`8080` behind Fly HTTP/TLS on 80/443). Unless `BNDZ_CLOUD_DRIVE_BOOTSTRAP=0`, the guest command is a Debian/Ubuntu bootstrap that installs those services and sleeps. No Machine is created when the image env is unset.
-- **This PC:** origins are `127.0.0.1` plus per-drive high ports. The local rootfs is still not pinned, so the panel says nothing is listening in the guest yet.
+- **This PC:** origins are `127.0.0.1` plus per-drive high ports. Start publishes them with `netsh interface portproxy` onto a stable guest address on the `BNDZ-CloudDrive` internal switch. SSH, FTPS, the panel, and WebDAV listen only after the pinned Ubuntu rootfs has booted. If that VHDX is missing, Start does not create an empty VM.
 - **Away access:** local drives only for the tunnel process. Paste a Cloudflare Tunnel install token (DPAPI, never logged, never passed as a process argument). BNDZ starts `cloudflared tunnel --no-autoupdate run` with `TUNNEL_TOKEN` in the environment. Public hostnames are configured in Cloudflare against `ssh://127.0.0.1:<sshPort>` and `http://127.0.0.1:<webDavPort>/`. The hostname you save is the link you send. Fly drives use the same hostname field for a custom domain; they do not start cloudflared. This is not Cloudflare Containers and not Docker Desktop.
 - **FTPS password:** per drive, DPAPI, copied on demand, not rendered in the panel. Passive ports 30000–30009 stay inside the guest.
 
@@ -415,7 +415,7 @@ The link you send is a hostname you control, saved on the drive. It is not `*.fl
 
 **This PC.** In Cloudflare Tunnel, point an HTTP public hostname at `http://127.0.0.1:<panel port>/` and, if you want SSH from away, a second hostname at `ssh://127.0.0.1:<ssh port>`. Save that HTTP hostname in Send this. Loopback stays on the Machine row.
 
-On This PC the same panel files are in the repo, but the guest image is not booted, so the card says nothing is listening. The Machine row is the origin a Cloudflare Tunnel HTTP hostname should target.
+On This PC the same panel files ride on the cidata seed (`seed.iso`) and are copied to `/opt/bndz/panel` on boot. The Machine row is still the loopback origin a Cloudflare Tunnel HTTP hostname should target. The lamp stays pending until this PC accepts the SSH port.
 
 ## Appendix — B3 snapshots and move
 
@@ -431,14 +431,32 @@ On This PC the same panel files are in the repo, but the guest image is not boot
 - Drop the previous volume and confirm the live volume is untouched.
 - On Windows, with Hyper-V elevated: Stop, copy a real VHDX to another letter, Open existing, Start, and confirm the same bytes.
 - Import a sealed folder on a second PC and confirm the missing-private-key message.
-- Boot a pinned guest image so This PC SSH, FTPS, WebDAV, and the panel actually listen.
+- On BandzPC, run the rootfs fetch below, Start a This PC drive, and confirm the panel port accepts a connection. This agent did not boot a VM.
 
-### Follow-up — local guest rootfs (not in this slice)
+## Appendix — local rootfs
 
-This PC still reserves a VHDX and a Hyper-V VM record. It does not boot a rootfs, so nothing listens on the published ports. Next slice, in order:
+This PC boots a pinned Ubuntu 24.04 VHDX in Hyper-V. The sealed `disk.vhdx` is only the data disk, mounted at `/data`. Start does not recreate it when the file is already there. `mkfs` runs only when `blkid` shows no filesystem. The OS disk is a differencing `os.vhdx` and is not copied with the sealed folder. After a move, Start creates a new OS disk on that PC, so the SSH server host key is new. The client key on the PC that created the drive stays in DPAPI.
 
-1. Pin a Linux rootfs (digest or WSL import) whose disk file is the sealed VHDX on the chosen letter. No Docker Desktop.
-2. First boot writes the per-drive authorized key, FTPS user, and the panel under `/opt/bndz/panel`, and mounts the data disk at `/data`.
-3. Map guest 22 / 990 / 8080 / 8090 to the drive’s existing high ports on `127.0.0.1`.
-4. Start/Stop must not recreate the disk. Open existing reuses the same VHDX and the same host key inside it.
-5. Until that image is pinned, the card keeps saying nothing is listening.
+The parent image is Ubuntu 24.04 Azure cloud VHD:
+
+- URL: `https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64-azure.vhd.tar.gz`
+- SHA256: `3543723afd820d7a8a64ea7399376856a95ce15200439c38447170652a60a5f3`
+- Pinned path: `%LocalAppData%\BNDZ\CloudDrives\rootfs\ubuntu-24.04-server-cloudimg-amd64.vhdx`
+- Override: `BNDZ_CLOUD_DRIVE_ROOTFS` must be an existing `.vhdx`. A `.vhd` is not ready.
+
+The Azure image’s cloud-init list is Azure-only, so a cidata seed would be ignored. `scripts/fetch-cloud-drive-rootfs.ps1` checks the digest, `Convert-VHD`s to VHDX, then uses WSL to write `/etc/cloud/cloud.cfg.d/99-bndz-nocloud.cfg` (`datasource_list: [ NoCloud, None ]`) before the file is pinned. Docker is not used. The VHDX is not downloaded into the repo.
+
+Each Start regenerates `seed.iso` (volume id `cidata`) with the per-drive public key, the panel files, and a systemd unit that holds the sign-in password. The password is not passed on the PowerShell command line and is not written into the bootstrap script. The seed is not exported. Guest `22`, `990`, `8080`, and `8090` are published to `127.0.0.1` on the drive’s high ports through portproxy (IP Helper). The guest address is `172.30.8.{10-209}` on switch `BNDZ-CloudDrive`, host `172.30.8.1/24`, NAT `172.30.8.0/24`.
+
+If the rootfs file is missing, or Hyper-V is not elevated, the card’s next-action line says what to run. Start does not boot the empty data disk.
+
+### BandzPC smoke (not run here)
+
+1. Elevated PowerShell: `powershell -ExecutionPolicy Bypass -File scripts\fetch-cloud-drive-rootfs.ps1`
+2. Confirm the script prints `PINNED` and the VHDX path above. If it stops after convert, install a WSL distro (`wsl --install`) and run it again. Do not rename the `.partial` file into place.
+3. Start BNDZ elevated. Cloud Drive → This PC → a folder on `D:` (not `C:`) → Create → Start.
+4. Wait. First boot installs packages and can take several minutes. Refresh until the card says the panel port accepted a connection.
+5. Open `http://127.0.0.1:<panel port>/` from the Machine row. Sign in as `bndz` with Copy FTPS password. Create a folder. Stop, then Start, and confirm the folder is still there (`disk.vhdx` was not recreated; the card says the existing data VHDX was kept).
+6. SSH: the card’s SSH command. The private key stays in Windows DPAPI and is not written to a file. The guest `authorized_keys` is the drive’s public key. A TCP accept on the SSH port is the check this build reports in the UI.
+7. Stop, copy the sealed folder to another letter, Open existing, Start. The data bytes stay. The SSH host key is new because it lives on the OS disk, which was not copied.
+8. Away access is unchanged: Cloudflare Tunnel HTTP hostname → `http://127.0.0.1:<panel port>/`, optional SSH hostname → `ssh://127.0.0.1:<ssh port>`.

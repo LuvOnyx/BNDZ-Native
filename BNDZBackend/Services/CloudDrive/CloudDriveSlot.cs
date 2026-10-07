@@ -260,7 +260,7 @@ public static class CloudDriveSlot
         if (fingerprintMismatch)
             return "The sealed folder records a different client fingerprint than the key stored on this PC. SSH may be refused until the guest authorized_keys matches this PC.";
         var key = string.IsNullOrWhiteSpace(fingerprint) ? "stored on this PC" : fingerprint.Trim();
-        return "Data disk kept. The client key on this PC is unchanged (" + key + "). The guest SSH host key travels with the sealed VHDX. A Linux rootfs is not pinned on this PC yet.";
+        return "Data disk kept. The client key on this PC is unchanged (" + key + "). The guest SSH host key is on this PC's OS disk and is new after a move. The sealed data VHDX is not recreated.";
     }
 
     private static void CopyRecursive(DirectoryInfo source, string dest, CancellationToken ct)

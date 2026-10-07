@@ -219,6 +219,14 @@ public sealed class CloudDriveService
         var drive = Find(id);
         if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
         EnsureProtocolMaterial(drive);
+        if (string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(drive.LocalGuestIp))
+        {
+            var used = _store.Drives
+                .Where(d => !string.Equals(d.Id, drive.Id, StringComparison.Ordinal))
+                .Select(d => d.LocalGuestIp);
+            drive.LocalGuestIp = CloudDriveLocalRootfs.PickGuestIp(drive.Id, used);
+        }
         try
         {
             await op(drive, ReadToken).ConfigureAwait(false);

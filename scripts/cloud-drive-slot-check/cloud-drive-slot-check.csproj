@@ -8,5 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\BNDZBackend\Services\CloudDrive\CloudDriveSlot.cs" />
+    <Compile Include="..\..\BNDZBackend\Services\CloudDrive\CloudDriveSeedIso.cs" />
+    <Compile Include="..\..\BNDZBackend\Services\CloudDrive\CloudDriveLocalRootfs.cs" />
   </ItemGroup>
 </Project>

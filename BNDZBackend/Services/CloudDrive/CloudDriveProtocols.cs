@@ -62,8 +62,10 @@ public static class CloudDriveProtocols
         var user = string.IsNullOrWhiteSpace(drive.User) ? "bndz" : drive.User.Trim();
         var haveHost = !string.IsNullOrWhiteSpace(host);
         var imagePinned = !string.IsNullOrWhiteSpace(FlyMachinesCloudDriveProvider.PinnedImage());
-        var ready = running && haveHost && !local && imagePinned;
-        var listen = ListenNote(local, imagePinned);
+        var rootfs = local && CloudDriveLocalRootfs.Describe().Present;
+        var listening = local && running && rootfs && CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.SshPort, 400);
+        var ready = local ? listening : running && haveHost && imagePinned;
+        var listen = ListenNote(local, running, imagePinned, rootfs, listening);
         var share = ShareUrl(drive);
         var machine = MachineHost(drive);
 
@@ -179,7 +181,11 @@ public static class CloudDriveProtocols
         if (!IsLocal(drive) && !string.IsNullOrWhiteSpace(drive.FlyApp))
             return "Private key stays in Windows secure storage. Save a hostname you control before you send the panel. SSH uses " + drive.FlyApp.Trim() + ".fly.dev.";
         if (IsLocal(drive))
-            return "Private key stays in Windows secure storage. Nothing answers on this PC until the guest rootfs is pinned. Away links use the hostname you save.";
+        {
+            if (!CloudDriveLocalRootfs.Describe().Present)
+                return "Private key stays in Windows secure storage. Nothing answers on this PC until the rootfs is pinned. Away links use the hostname you save.";
+            return "Private key stays in Windows secure storage. Start boots the pinned rootfs. The sealed VHDX is only the data disk.";
+        }
         return "Private key stays in Windows secure storage. Save a hostname you control before you send the panel.";
     }
 
@@ -240,13 +246,21 @@ public static class CloudDriveProtocols
         return false;
     }
 
-    private static string ListenNote(bool local, bool imagePinned)
+    private static string ListenNote(bool local, bool running, bool imagePinned, bool rootfs, bool listening)
     {
-        if (local)
-            return "Nothing is listening yet — this PC has no guest image installed.";
-        if (imagePinned)
-            return "Open it when the machine is running. This PC cannot prove the port is open.";
-        return "No machine yet. Set the drive image, then Start.";
+        if (!local)
+        {
+            if (imagePinned)
+                return "Open it when the machine is running. This PC cannot prove the port is open.";
+            return "No machine yet. Set the drive image, then Start.";
+        }
+        if (!rootfs)
+            return "Nothing is listening. Pin the local rootfs, then Start.";
+        if (!running)
+            return "Start the drive. The pinned rootfs boots in Hyper-V. The sealed VHDX is the data disk and is not recreated.";
+        if (listening)
+            return "The SSH port on this PC accepted a connection.";
+        return "The VM may be up. The SSH port is not accepting connections yet. First boot installs packages and can take several minutes.";
     }
 
     private static CloudDriveEndpoint Row(string id, string label, string copy, bool ready, bool canCopy, string note) => new()
