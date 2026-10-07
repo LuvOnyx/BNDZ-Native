@@ -43,6 +43,13 @@ public sealed class CloudDriveRecord
     public string? TunnelState { get; set; }
     public string? TunnelMessage { get; set; }
     public string? SshNote { get; set; }
+    /// <summary>True after a Fly restore replaced the machine. The client key did not change.</summary>
+    public bool HostKeyChanged { get; set; }
+    public string? PreviousHost { get; set; }
+    /// <summary>Volume left behind after a restore. Not a secret. It still bills until dropped.</summary>
+    public string? PreviousFlyVolumeId { get; set; }
+    public string? HostKeyNote { get; set; }
+    public List<CloudDriveSnapshot> Snapshots { get; set; } = new();
     public string CreatedUtc { get; set; } = "";
     public string UpdatedUtc { get; set; } = "";
 
@@ -89,6 +96,11 @@ public sealed class CloudDriveRecord
             TunnelHostname = TunnelHostname,
             CloudflaredPresent = CloudDriveTunnel.FindCloudflared() != null,
             AwayGuide = local ? CloudDriveTunnel.Guide(this) : null,
+            HostKeyChanged = HostKeyChanged,
+            PreviousHost = PreviousHost,
+            PreviousFlyVolumeId = PreviousFlyVolumeId,
+            HostKeyNote = HostKeyNote,
+            Snapshots = Snapshots ?? new List<CloudDriveSnapshot>(),
             CreatedUtc = CreatedUtc,
             UpdatedUtc = UpdatedUtc,
         };
@@ -131,6 +143,11 @@ public sealed class CloudDriveDto
     public string? TunnelHostname { get; set; }
     public bool CloudflaredPresent { get; set; }
     public string? AwayGuide { get; set; }
+    public bool HostKeyChanged { get; set; }
+    public string? PreviousHost { get; set; }
+    public string? PreviousFlyVolumeId { get; set; }
+    public string? HostKeyNote { get; set; }
+    public List<CloudDriveSnapshot> Snapshots { get; set; } = new();
     public string CreatedUtc { get; set; } = "";
     public string UpdatedUtc { get; set; } = "";
 }

@@ -37,6 +37,18 @@ export type CloudDriveRecord = {
   tunnelHostname?: string;
   cloudflaredPresent?: boolean;
   awayGuide?: string;
+  hostKeyChanged?: boolean;
+  previousHost?: string;
+  previousFlyVolumeId?: string;
+  hostKeyNote?: string;
+  snapshots?: CloudDriveSnapshot[];
+};
+
+export type CloudDriveSnapshot = {
+  id: string;
+  status?: string;
+  createdAt?: string;
+  sizeBytes?: number;
 };
 
 export type CloudDriveEndpoint = {
@@ -122,6 +134,7 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       ftpsPort: 21210,
       webDavPort: 18110,
       fingerprint: 'SHA256:preview',
+      hostKeyNote: 'Same sealed disk. The client key on this PC is unchanged (SHA256:preview). The guest SSH host key travels with the VHDX.',
       sshCommand: 'ssh -p 22210 bndz@127.0.0.1',
       publicKey: 'ssh-ed25519 AAAA preview',
       tunnelState: 'token-needed',
@@ -145,6 +158,13 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       sizeGb: 20,
       region: 'iad',
       flyApp: 'bndz-preview',
+      flyVolumeId: 'vol_preview',
+      hostKeyChanged: true,
+      previousHost: 'bndz-preview.fly.dev',
+      hostKeyNote: 'Client key unchanged (SHA256:preview). The machine was replaced, so the SSH server host key is new. On the next SSH or SFTP connection, confirm the new host key. The app address stays the same.',
+      snapshots: [
+        { id: 'vs_preview', status: 'created', createdAt: '2026-10-07T12:00:00Z', sizeBytes: 20 * 1024 * 1024 },
+      ],
       sshCommand: 'ssh -p 22211 bndz@bndz-preview.fly.dev',
       tunnelState: 'cloud',
       tunnelMessage: 'Fly publishes this machine. Cloudflare Tunnel is the away path for This PC drives.',
@@ -199,6 +219,69 @@ export function driveHint(drive: CloudDriveRecord): string {
     return 'Open the panel URL and sign in as bndz. Use Copy FTPS password. Share links are created in that panel.';
   }
   return 'Start the machine, then open the panel URL. Sign in as bndz with the drive password.';
+}
+
+/** Client check before the host copies a sealed folder. The host repeats it. */
+export function exportFolderError(source: string, destinationParent: string, driveId: string): string | null {
+  const id = driveId.trim();
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(id)) return 'That drive id cannot be used as a folder name.';
+  const src = pathKey(source);
+  const dest = pathKey(destinationParent);
+  if (!src || !dest) return 'Pick the folder to copy the sealed disk into.';
+  if (!isAbsolute(src) || !isAbsolute(dest)) return 'Enter a full path on another drive, for example E:\\BNDZ Drives.';
+  if (isSystemVolume(src) || isSystemVolume(dest)) {
+    return 'Keep the sealed disk off the system volume (C:). Pick a folder on D:, a USB drive, or another letter.';
+  }
+  const slot = pathKey(destinationSlot(destinationParent, id));
+  if (src === slot || src === dest) return 'Pick a different folder. That is already this sealed disk.';
+  if (nested(src, dest) || nested(dest, src) || nested(src, slot) || nested(slot, src)) {
+    return 'The copy cannot sit inside the sealed folder, and the sealed folder cannot sit inside the copy.';
+  }
+  return null;
+}
+
+export function destinationSlot(destinationParent: string, driveId: string): string {
+  const dest = destinationParent.trim().replace(/[\\/]+$/, '');
+  const slash = Math.max(dest.lastIndexOf('\\'), dest.lastIndexOf('/'));
+  const leaf = slash >= 0 ? dest.slice(slash + 1) : dest;
+  if (leaf.toLowerCase() === driveId.toLowerCase()) return dest;
+  const sep = dest.includes('/') && !dest.includes('\\') ? '/' : '\\';
+  return `${dest}${sep}BNDZ${sep}CloudDrives${sep}${driveId}`;
+}
+
+export function formatSnapshotSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function pathKey(path: string): string {
+  let p = path.trim().replace(/^"|"$/g, '').replace(/\//g, '\\');
+  if (/^[A-Za-z]:$/.test(p)) p += '\\';
+  const unc = p.startsWith('\\\\');
+  let body = unc ? p.slice(2) : p;
+  while (body.includes('\\\\')) body = body.replace(/\\\\/g, '\\');
+  p = unc ? `\\\\${body}` : body;
+  if (!(p.length === 3 && p[1] === ':') && p.length > 3 && p.endsWith('\\')) p = p.replace(/\\+$/, '');
+  return p.toUpperCase();
+}
+
+function isAbsolute(key: string): boolean {
+  if (key.startsWith('\\\\')) return true;
+  if (key.length >= 3 && key[1] === ':' && key[2] === '\\') return true;
+  if (key.startsWith('\\')) return true;
+  return false;
+}
+
+function isSystemVolume(key: string): boolean {
+  return key.startsWith('C:\\') || key === 'C:';
+}
+
+function nested(parent: string, child: string): boolean {
+  if (parent === child) return false;
+  const p = parent.endsWith('\\') ? parent : `${parent}\\`;
+  return child.startsWith(p);
 }
 
 export function stateLabel(state: string): string {

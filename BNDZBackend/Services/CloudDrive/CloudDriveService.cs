@@ -56,6 +56,12 @@ public sealed class CloudDriveService
                 "CLOUD_DRIVE_TUNNEL_STOP" => StopTunnel(Str(payload, "id")),
                 "CLOUD_DRIVE_SET_TUNNEL_HOSTNAME" => SetTunnelHostname(Str(payload, "id"), Str(payload, "hostname")),
                 "CLOUD_DRIVE_REVEAL_FTP_PASSWORD" => RevealFtpPassword(Str(payload, "id")),
+                "CLOUD_DRIVE_SNAPSHOT_CREATE" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).CreateSnapshotAsync(d, token, ct), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_SNAPSHOT_LIST" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).ListSnapshotsAsync(d, token, ct), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_SNAPSHOT_RESTORE" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).RestoreSnapshotAsync(d, Str(payload, "snapshotId") ?? "", token, ct), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_DROP_PREVIOUS_VOLUME" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).DropPreviousVolumeAsync(d, token, ct), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_EXPORT" => ExportLocal(Str(payload, "id"), Str(payload, "destPath"), ct),
+                "CLOUD_DRIVE_OPEN_EXISTING" => OpenExisting(Str(payload, "diskPath")),
                 _ => new { ok = false, error = "Unknown Cloud Drive request." },
             };
         }
@@ -364,6 +370,163 @@ public sealed class CloudDriveService
         if (string.IsNullOrWhiteSpace(password))
             return new { ok = false, error = "No FTPS password is stored for this drive." };
         return new { ok = true, password };
+    }
+
+    private async Task<object> SnapshotAsync(string? id, Func<CloudDriveRecord, Func<string?>, Task<CloudDriveOp>> op, CancellationToken ct)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        EnsureProtocolMaterial(drive);
+        CloudDriveOp result;
+        try
+        {
+            result = await op(drive, ReadToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            result = new CloudDriveOp(false, CloudDriveSecrets.Redact(ex.Message));
+        }
+        if (!result.Ok && !string.IsNullOrWhiteSpace(result.Error))
+            drive.Message = result.Error;
+        drive.Message = CloudDriveSecrets.Redact(drive.Message);
+        Touch(drive);
+        Save();
+        return new
+        {
+            ok = result.Ok,
+            error = result.Ok ? null : CloudDriveSecrets.Redact(result.Error),
+            drive = drive.ToDto(),
+            drives = Dtos(),
+        };
+    }
+
+    private object ExportLocal(string? id, string? destPath, CancellationToken ct)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
+            return new { ok = false, error = "Cloud drives move by snapshot, or by the data archive in the web panel. There is no sealed VHDX on this PC.", drive = drive.ToDto(), drives = Dtos() };
+        if (drive.State is "running" or "creating" or "deleting")
+            return new { ok = false, error = "Stop the drive before copying the sealed folder.", drive = drive.ToDto(), drives = Dtos() };
+        if (string.IsNullOrWhiteSpace(drive.DiskPath) || !Directory.Exists(drive.DiskPath))
+            return new { ok = false, error = "The sealed folder is missing.", drive = drive.ToDto(), drives = Dtos() };
+
+        var dest = LocalMicroVmCloudDriveProvider.NormalizePath(destPath);
+        var pathError = LocalMicroVmCloudDriveProvider.ValidateDiskPath(dest);
+        if (pathError != null) return new { ok = false, error = pathError, drive = drive.ToDto(), drives = Dtos() };
+        var plan = CloudDriveSlot.ExportPlanError(drive.DiskPath, dest, drive.Id);
+        if (plan != null) return new { ok = false, error = plan, drive = drive.ToDto(), drives = Dtos() };
+
+        var slot = CloudDriveSlot.DestinationSlot(dest, drive.Id);
+        try
+        {
+            CloudDriveSlot.CopyInto(drive.DiskPath, slot, ct);
+            CloudDrivePorts.Ensure(drive);
+            CloudDriveSlot.Write(slot, LocalMicroVmCloudDriveProvider.ManifestFrom(drive));
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                if (Directory.Exists(slot)) Directory.Delete(slot, recursive: true);
+            }
+            catch { /* leave the partial copy if the disk is locked */ }
+            var msg = ex is OperationCanceledException
+                ? "Copy cancelled."
+                : "Could not copy the sealed folder. " + ex.Message;
+            if (msg.Contains("being used", StringComparison.OrdinalIgnoreCase) || msg.Contains("used by another", StringComparison.OrdinalIgnoreCase))
+                msg = "Could not copy the sealed folder. The disk file is in use. Stop the VM and try again.";
+            return new { ok = false, error = CloudDriveSecrets.Redact(msg), drive = drive.ToDto(), drives = Dtos() };
+        }
+
+        var hasVhdx = File.Exists(Path.Combine(slot, "disk.vhdx"));
+        drive.Message = hasVhdx
+            ? "Copied the sealed folder to " + slot + ". Open that folder here, or on another PC, to start the same disk. The original folder is unchanged."
+            : "Copied the slot notes to " + slot + ". disk.vhdx was not in the folder, so this copy has no disk image yet.";
+        Touch(drive);
+        Save();
+        return new { ok = true, exportedPath = slot, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private object OpenExisting(string? diskPath)
+    {
+        var path = LocalMicroVmCloudDriveProvider.NormalizePath(diskPath);
+        var pathError = LocalMicroVmCloudDriveProvider.ValidateDiskPath(path);
+        if (pathError != null) return new { ok = false, error = pathError, drives = Dtos() };
+
+        CloudDriveSlotManifest manifest;
+        try
+        {
+            manifest = CloudDriveSlot.Read(path);
+        }
+        catch (Exception ex)
+        {
+            return new { ok = false, error = CloudDriveSecrets.Redact(ex.Message), drives = Dtos() };
+        }
+
+        var existing = Find(manifest.Id);
+        if (existing != null)
+        {
+            if (!string.Equals(existing.Placement, "local", StringComparison.OrdinalIgnoreCase))
+                return new { ok = false, error = "That id belongs to a Cloud placement drive. Open existing is for a sealed folder on This PC.", drive = existing.ToDto(), drives = Dtos() };
+            if (existing.State is "running" or "creating" or "deleting")
+                return new { ok = false, error = "Stop the drive before pointing it at another folder.", drive = existing.ToDto(), drives = Dtos() };
+
+            var mismatch = !string.IsNullOrWhiteSpace(manifest.Fingerprint)
+                && !string.IsNullOrWhiteSpace(existing.Fingerprint)
+                && !string.Equals(manifest.Fingerprint, existing.Fingerprint, StringComparison.Ordinal);
+            existing.DiskPath = path;
+            existing.VhdxPath = Path.Combine(path, "disk.vhdx");
+            if (!string.IsNullOrWhiteSpace(manifest.VmName)) existing.VmName = manifest.VmName;
+            if (manifest.SizeGb > 0) existing.SizeGb = manifest.SizeGb;
+            existing.State = "stopped";
+            existing.Host = "127.0.0.1";
+            existing.HostKeyChanged = false;
+            existing.Hypervisor = _local.Probe().Preferred;
+            var hasKey = !string.IsNullOrWhiteSpace(existing.ProtectedPrivateKey);
+            existing.HostKeyNote = CloudDriveSlot.LocalMoveNote(hasKey, mismatch, existing.Fingerprint);
+            var vhdx = File.Exists(existing.VhdxPath);
+            existing.Message = existing.HostKeyNote + (vhdx ? "" : " disk.vhdx is not in that folder yet.");
+            if (!mismatch)
+                CloudDriveSlot.Write(path, LocalMicroVmCloudDriveProvider.ManifestFrom(existing));
+            Touch(existing);
+            Save();
+            return new { ok = true, drive = existing.ToDto(), drives = Dtos() };
+        }
+
+        var now = DateTime.UtcNow.ToString("o");
+        var drive = new CloudDriveRecord
+        {
+            Id = manifest.Id,
+            Name = manifest.Name,
+            Placement = "local",
+            Provider = _local.Id,
+            State = "stopped",
+            SizeGb = manifest.SizeGb > 0 ? manifest.SizeGb : 20,
+            DiskPath = path,
+            VhdxPath = Path.Combine(path, "disk.vhdx"),
+            VmName = string.IsNullOrWhiteSpace(manifest.VmName) ? "BNDZ-" + manifest.Id : manifest.VmName,
+            Host = "127.0.0.1",
+            User = string.IsNullOrWhiteSpace(manifest.User) ? "bndz" : manifest.User,
+            PublicKey = manifest.PublicKey,
+            Fingerprint = manifest.Fingerprint,
+            SshPort = manifest.SshPort,
+            FtpsPort = manifest.FtpsPort,
+            WebDavPort = manifest.WebDavPort,
+            Hypervisor = _local.Probe().Preferred,
+            CreatedUtc = now,
+            UpdatedUtc = now,
+        };
+        CloudDrivePorts.Ensure(drive);
+        drive.Port = drive.SshPort;
+        drive.HostKeyChanged = false;
+        drive.HostKeyNote = CloudDriveSlot.LocalMoveNote(false, false, drive.Fingerprint);
+        var importedVhdx = File.Exists(drive.VhdxPath);
+        drive.Message = drive.HostKeyNote + (importedVhdx ? "" : " disk.vhdx is not in that folder yet.");
+        drive.SshNote = "Private key stays in Windows secure storage. This PC does not have the key for this imported disk.";
+        _store.Drives.Add(drive);
+        Save();
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
     }
 
     private static void EnsureProtocolMaterial(CloudDriveRecord drive)

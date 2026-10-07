@@ -16,6 +16,8 @@ import {
   layoutPreviewDrives,
   normalizeLocalPath,
   driveHint,
+  exportFolderError,
+  formatSnapshotSize,
   nextAction,
   normalizeTunnelHostname,
   placementLabel,
@@ -60,6 +62,8 @@ function CloudDriveBody() {
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState('');
+  const [openPath, setOpenPath] = useState('');
+  const [copiedSlots, setCopiedSlots] = useState<Record<string, string>>({});
   const [hostNote, setHostNote] = useState<string | null>(IPC.isNative ? null : HOST_NOTE);
   const previewLayout = !IPC.isNative && typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).has('cloudDrivePreview');
@@ -217,6 +221,33 @@ function CloudDriveBody() {
     }
   };
 
+  const applyDrives = (r: { drives?: CloudDriveRecord[] }) => {
+    if (r.drives) setDrives(r.drives);
+  };
+
+  const openExisting = async (folder: string) => {
+    if (previewLayout || !IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Cloud Drive', message: HOST_NOTE });
+      return;
+    }
+    const localError = preflightLocalPath(folder);
+    if (localError) {
+      pushToast({ kind: 'warning', title: 'Open existing', message: localError });
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await IPC.cloudDriveOpenExisting(normalizeLocalPath(folder));
+      applyDrives(r);
+      if (!r.ok) throw new Error(r.error || 'Could not open that folder.');
+      pushToast({ kind: 'success', title: 'Opened sealed folder', message: r.drive?.hostKeyNote || r.drive?.message || 'The drive now points at that folder.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Open existing', message: e instanceof Error ? e.message : 'Could not open that folder.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copyText = async (value: string, title: string) => {
     if (!value) return;
     try {
@@ -336,6 +367,34 @@ function CloudDriveBody() {
         </div>
       </PluginCard>
 
+      <section className="bndz-cloud-move is-local" aria-label="Open an existing sealed folder">
+        <h4 className="bndz-cloud-section-label">Open existing</h4>
+        <p className="bndz-cloud-message">
+          Point BNDZ at a sealed folder you already copied. It needs drive.json. The private key stays on the PC that created the drive.
+        </p>
+        <div className="flex gap-2">
+          <input
+            className={PLUGIN_INPUT_CLASS + ' flex-1'}
+            value={openPath}
+            placeholder="E:\BNDZ Drives\BNDZ\CloudDrives\…"
+            onChange={e => setOpenPath(e.target.value)}
+          />
+          <PluginToolbarButton
+            icon="folder_open_ui"
+            disabled={busy}
+            onClick={async () => {
+              const dest = await IPC.openFolderDialog('Choose a sealed Cloud Drive folder');
+              if (dest) setOpenPath(dest);
+            }}
+          >
+            Browse…
+          </PluginToolbarButton>
+        </div>
+        <div>
+          <PluginToolbarButton disabled={busy || !openPath.trim()} onClick={() => void openExisting(openPath)}>Open folder</PluginToolbarButton>
+        </div>
+      </section>
+
       <PluginSectionTitle icon="hard_drive_ui" action={
         <PluginToolbarButton disabled={busy} onClick={() => void refresh()}>Refresh</PluginToolbarButton>
       }>
@@ -376,14 +435,33 @@ function CloudDriveBody() {
               onCopyFtpPassword={() => void copyFtpPassword(drive.id)}
             />
             {drive.placement === 'local' ? (
-              <AwayAccess
+              <>
+                <AwayAccess
+                  drive={drive}
+                  busy={busy}
+                  onChanged={async () => { if (!previewLayout) await refresh(); }}
+                  onCopy={copyText}
+                />
+                <LocalMove
+                  drive={drive}
+                  busy={busy}
+                  preview={previewLayout}
+                  copiedTo={copiedSlots[drive.id]}
+                  onCopied={path => setCopiedSlots(prev => ({ ...prev, [drive.id]: path }))}
+                  onDrives={applyDrives}
+                  onOpen={openExisting}
+                />
+              </>
+            ) : (
+              <CloudSnapshots
                 drive={drive}
                 busy={busy}
-                onChanged={async () => { if (!previewLayout) await refresh(); }}
-                onCopy={copyText}
+                preview={previewLayout}
+                onDrives={async drives => {
+                  if (drives) setDrives(drives);
+                  else if (!previewLayout) await refresh();
+                }}
               />
-            ) : (
-              <p className="bndz-cloud-message is-note">Fly publishes this machine’s address. Cloudflare Tunnel is the away path for This PC drives.</p>
             )}
             <ShareNote drive={drive} onCopy={copyText} />
             <div className="flex flex-wrap gap-2 mt-2">
@@ -406,6 +484,177 @@ function CloudDriveBody() {
         </article>
       ))}
     </div>
+  );
+}
+
+function CloudSnapshots({
+  drive,
+  busy,
+  preview,
+  onDrives,
+}: {
+  drive: CloudDriveRecord;
+  busy: boolean;
+  preview: boolean;
+  onDrives: (drives?: CloudDriveRecord[]) => Promise<void> | void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [restoreId, setRestoreId] = useState<string | null>(null);
+  const locked = busy || pending;
+  const snapshots = drive.snapshots ?? [];
+
+  const run = async (op: 'create' | 'list' | 'drop' | 'restore', snapshotId = '') => {
+    if (preview || !IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Snapshots', message: HOST_NOTE });
+      return;
+    }
+    setPending(true);
+    try {
+      const r = op === 'create'
+        ? await IPC.cloudDriveSnapshotCreate(drive.id)
+        : op === 'list'
+          ? await IPC.cloudDriveSnapshotList(drive.id)
+          : op === 'drop'
+            ? await IPC.cloudDriveDropPreviousVolume(drive.id)
+            : await IPC.cloudDriveSnapshotRestore(drive.id, snapshotId);
+      await onDrives(r.drives);
+      if (!r.ok) throw new Error(r.error || r.drive?.message || 'Fly did not finish that.');
+      const title = op === 'create' ? 'Snapshot saved' : op === 'restore' ? 'Snapshot restored' : op === 'drop' ? 'Previous volume dropped' : 'Snapshots';
+      pushToast({ kind: 'success', title, message: r.drive?.message || 'Updated.' });
+      if (op === 'restore') setRestoreId(null);
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Snapshots', message: e instanceof Error ? e.message : 'Could not update snapshots.' });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <section className="bndz-cloud-move" aria-label={`${drive.name} snapshots`}>
+      <h4 className="bndz-cloud-section-label">Snapshots</h4>
+      <p className="bndz-cloud-message">
+        A snapshot is a crash-consistent copy of the Fly volume. Stop the drive first if you need a quiet disk.
+        Restore builds a new volume and replaces the machine, so the SSH server host key changes. Your client key does not.
+        The previous volume stays in Fly and still bills until you drop it.
+      </p>
+      {drive.hostKeyNote && <p className="bndz-cloud-next">{drive.hostKeyNote}</p>}
+      {drive.previousFlyVolumeId && (
+        <p className="bndz-cloud-message">Previous volume {drive.previousFlyVolumeId} is still billing.</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <PluginToolbarButton disabled={locked} onClick={() => void run('create')}>Snapshot now</PluginToolbarButton>
+        <PluginToolbarButton disabled={locked} onClick={() => void run('list')}>Refresh snapshots</PluginToolbarButton>
+        {drive.previousFlyVolumeId && (
+          <PluginToolbarButton disabled={locked} onClick={() => void run('drop')}>Drop previous volume</PluginToolbarButton>
+        )}
+      </div>
+      {snapshots.length === 0 ? (
+        <p className="bndz-cloud-message is-note">No snapshots stored on this drive yet.</p>
+      ) : snapshots.map(snap => (
+        <div key={snap.id} className="bndz-cloud-snap">
+          <div>
+            <span className="bndz-cloud-protocol-copy">{snap.id}</span>
+            <p className="bndz-cloud-protocol-note">
+              {[snap.status, snap.createdAt ? snap.createdAt.replace('T', ' ').replace('Z', ' UTC') : '', formatSnapshotSize(snap.sizeBytes)].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <PluginToolbarButton disabled={locked} onClick={() => setRestoreId(snap.id)}>Restore</PluginToolbarButton>
+          {restoreId === snap.id && (
+            <div className="bndz-cloud-confirm">
+              <p>Replace the machine from {snap.id}. Confirm the new SSH host key on the next connection.</p>
+              <PluginToolbarButton disabled={locked} onClick={() => void run('restore', snap.id)}>Replace machine</PluginToolbarButton>
+            </div>
+          )}
+        </div>
+      ))}
+      <p className="bndz-cloud-message is-note">
+        To take the files off Fly, open the panel and use Download archive. That tar is the portable copy. A snapshot stays in your Fly account.
+      </p>
+    </section>
+  );
+}
+
+function LocalMove({
+  drive,
+  busy,
+  preview,
+  copiedTo,
+  onCopied,
+  onDrives,
+  onOpen,
+}: {
+  drive: CloudDriveRecord;
+  busy: boolean;
+  preview: boolean;
+  copiedTo?: string;
+  onCopied: (path: string) => void;
+  onDrives: (r: { drives?: CloudDriveRecord[] }) => void;
+  onOpen: (folder: string) => Promise<void>;
+}) {
+  const [dest, setDest] = useState('');
+  const [pending, setPending] = useState(false);
+  const locked = busy || pending;
+  const running = drive.state === 'running' || drive.state === 'creating' || drive.state === 'deleting';
+
+  const copySlot = async () => {
+    if (preview || !IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Move', message: HOST_NOTE });
+      return;
+    }
+    const plan = exportFolderError(drive.diskPath || '', dest, drive.id);
+    if (plan) {
+      pushToast({ kind: 'warning', title: 'Move', message: plan });
+      return;
+    }
+    setPending(true);
+    try {
+      const r = await IPC.cloudDriveExport(drive.id, normalizeLocalPath(dest));
+      onDrives(r);
+      if (!r.ok || !r.exportedPath) throw new Error(r.error || 'Could not copy the sealed folder.');
+      onCopied(r.exportedPath);
+      pushToast({ kind: 'success', title: 'Sealed folder copied', message: r.drive?.message || r.exportedPath });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Move', message: e instanceof Error ? e.message : 'Could not copy the sealed folder.' });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <section className="bndz-cloud-move is-local" aria-label={`${drive.name} move`}>
+      <h4 className="bndz-cloud-section-label">Move</h4>
+      <p className="bndz-cloud-message">
+        Stop the drive, then copy the sealed folder. Open that copy here or on another PC to start the same files.
+        A snapshot is crash-consistent. This copy is the portable disk.
+      </p>
+      {running && <p className="bndz-cloud-next">Stop the drive before copying the sealed folder.</p>}
+      {drive.hostKeyNote && <p className="bndz-cloud-next">{drive.hostKeyNote}</p>}
+      <div className="flex gap-2">
+        <input
+          className={PLUGIN_INPUT_CLASS + ' flex-1'}
+          value={dest}
+          placeholder="E:\BNDZ Drives"
+          onChange={e => setDest(e.target.value)}
+        />
+        <PluginToolbarButton
+          icon="folder_open_ui"
+          disabled={locked}
+          onClick={async () => {
+            const picked = await IPC.openFolderDialog('Choose where to copy the sealed disk');
+            if (picked) setDest(picked);
+          }}
+        >
+          Browse…
+        </PluginToolbarButton>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <PluginToolbarButton disabled={locked || running || !dest.trim()} onClick={() => void copySlot()}>Copy sealed folder</PluginToolbarButton>
+        {copiedTo && (
+          <PluginToolbarButton disabled={locked || running} onClick={() => void onOpen(copiedTo)}>Use this copy</PluginToolbarButton>
+        )}
+      </div>
+      {copiedTo && <p className="bndz-cloud-path">{copiedTo}</p>}
+    </section>
   );
 }
 

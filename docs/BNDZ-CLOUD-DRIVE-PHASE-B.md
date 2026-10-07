@@ -410,3 +410,29 @@ The Cloud Drive panel is a three-step create flow (placement, name and disk, cre
 The web panel ships in `BNDZBackend/Services/CloudDrive/guest/panel/` (Python stdlib plus Nayuki’s MIT `qrcodegen.py`). When `BNDZ_CLOUD_DRIVE_IMAGE` is set and bootstrap is on, those files are injected to `/opt/bndz/panel/` and `server.py` listens on guest port 8080. Fly publishes that as `https://<app>.fly.dev/`. WebDAV moves to guest port 8090 (raw TCP on the drive’s WebDAV port). Sign in as `bndz` with the per-drive password. From the panel: list, upload, download, mkdir, rename, delete under `/data`, and share links with expiry, optional password, revoke, and a QR code. Share records live in `/data/.bndz/shares.json`.
 
 On This PC the same files are in the repo, but the guest image is not booted, so the card says nothing is listening. The panel URL is the origin a Cloudflare Tunnel HTTP hostname should target.
+
+## Appendix — B3 snapshots and move
+
+**Cloud.** Snapshot now / Refresh snapshots / Restore talk to the Fly Machines volume snapshot API (`POST` and `GET` `/v1/apps/{app}/volumes/{id}/snapshots`). Restore stops the machine, creates a new volume with `snapshot_id`, destroys the old machine, and creates a replacement machine on the restored volume with the same client key. The SSH server host key is new because it lives on the machine rootfs, not on `/data`. The card says the client fingerprint is unchanged and that the next SSH or SFTP connection must confirm the new host key. The previous volume is left in the Fly account so its other snapshots survive; it still bills until **Drop previous volume**. A snapshot is crash-consistent. No token or private key is written into the snapshot record.
+
+**This PC.** Stop, then **Copy sealed folder**. The copy is `drive.json`, `DISK-SLOT.txt`, and `disk.vhdx` when it exists. `drive.json` carries the public key and fingerprint only. **Open existing** reads that folder: the same drive id rebinds `DiskPath` and keeps the DPAPI private key; a folder from another PC is imported without a private key, and the card says so. Copy is refused while the drive is running, on `C:`, or into the source folder.
+
+**Escape hatch.** The guest panel’s **Download archive** (`GET /api/archive`, signed-in) streams a tar of `/data` and skips symlinks. That is the portable copy when leaving Fly. It is not a volume snapshot.
+
+### Still needs a live BandzPC / Fly smoke
+
+- Create a real Fly snapshot, restore it, and confirm SSH host-key prompts plus the client key still authenticates.
+- Drop the previous volume and confirm the live volume is untouched.
+- On Windows, with Hyper-V elevated: Stop, copy a real VHDX to another letter, Open existing, Start, and confirm the same bytes.
+- Import a sealed folder on a second PC and confirm the missing-private-key message.
+- Boot a pinned guest image so This PC SSH, FTPS, WebDAV, and the panel actually listen.
+
+### Follow-up — local guest rootfs (not in this slice)
+
+This PC still reserves a VHDX and a Hyper-V VM record. It does not boot a rootfs, so nothing listens on the published ports. Next slice, in order:
+
+1. Pin a Linux rootfs (digest or WSL import) whose disk file is the sealed VHDX on the chosen letter. No Docker Desktop.
+2. First boot writes the per-drive authorized key, FTPS user, and the panel under `/opt/bndz/panel`, and mounts the data disk at `/data`.
+3. Map guest 22 / 990 / 8080 / 8090 to the drive’s existing high ports on `127.0.0.1`.
+4. Start/Stop must not recreate the disk. Open existing reuses the same VHDX and the same host key inside it.
+5. Until that image is pinned, the card keeps saying nothing is listening.

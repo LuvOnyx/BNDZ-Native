@@ -940,6 +940,30 @@ export const IPC = {
     return this._cloudDriveMutate('CLOUD_DRIVE_SET_TUNNEL_HOSTNAME', { id: driveId, hostname });
   },
 
+  cloudDriveSnapshotCreate(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SNAPSHOT_CREATE', { id: driveId }, 300000);
+  },
+
+  cloudDriveSnapshotList(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SNAPSHOT_LIST', { id: driveId }, 60000);
+  },
+
+  cloudDriveSnapshotRestore(driveId: string, snapshotId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SNAPSHOT_RESTORE', { id: driveId, snapshotId }, 360000);
+  },
+
+  cloudDriveDropPreviousVolume(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_DROP_PREVIOUS_VOLUME', { id: driveId }, 60000);
+  },
+
+  cloudDriveExport(driveId: string, destPath: string): Promise<{ ok: boolean; exportedPath?: string; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_EXPORT', { id: driveId, destPath }, 1800000);
+  },
+
+  cloudDriveOpenExisting(diskPath: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_OPEN_EXISTING', { diskPath }, 60000);
+  },
+
   cloudDriveRevealFtpPassword(driveId: string): Promise<{ ok: boolean; password?: string; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_cdFtp`;
@@ -950,11 +974,12 @@ export const IPC = {
     }));
   },
 
-  _cloudDriveMutate(type: string, payload: Record<string, unknown>): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+  _cloudDriveMutate(type: string, payload: Record<string, unknown>, timeoutMs = 120000): Promise<{ ok: boolean; exportedPath?: string; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_cdMut`;
-    return _nativeCall<any>(type, `${type}_RESULT`, id, payload, 120000).then(r => ({
+    return _nativeCall<any>(type, `${type}_RESULT`, id, payload, timeoutMs).then(r => ({
       ok: r?.ok === true,
+      exportedPath: typeof r?.exportedPath === 'string' ? r.exportedPath : undefined,
       drive: r?.drive,
       drives: Array.isArray(r?.drives) ? r.drives : undefined,
       error: r?.error,

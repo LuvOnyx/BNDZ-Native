@@ -303,31 +303,39 @@ Write-Output ('STATE=' + $vm.State)
     private static void WriteSlotNotes(CloudDriveRecord drive)
     {
         if (string.IsNullOrWhiteSpace(drive.DiskPath)) return;
-        var note = new StringBuilder();
-        note.AppendLine("BNDZ Cloud Drive — sealed disk slot");
-        note.AppendLine("Drive: " + drive.Name);
-        note.AppendLine("Id: " + drive.Id);
-        note.AppendLine("Intended size: " + drive.SizeGb + " GB");
-        note.AppendLine();
         CloudDrivePorts.Ensure(drive);
-        note.AppendLine("This folder is the microVM disk root (VHDX + VM files), not a shared folder.");
-        note.AppendLine("BNDZ remote-controls it. Do not treat loose files here as the drive.");
-        note.AppendLine("Docker Desktop is not used.");
-        note.AppendLine("SSH/SFTP 127.0.0.1:" + drive.SshPort);
-        note.AppendLine("FTPS 127.0.0.1:" + drive.FtpsPort + " (plain FTP is off)");
-        note.AppendLine("WebDAV http://127.0.0.1:" + drive.WebDavPort + "/");
-        note.AppendLine("Away access: Cloudflare Tunnel on the Windows host, not inside this VM.");
-        File.WriteAllText(Path.Combine(drive.DiskPath, "DISK-SLOT.txt"), note.ToString());
-        var meta = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            id = drive.Id,
-            name = drive.Name,
-            placement = "local",
-            sizeGb = drive.SizeGb,
-            vmName = drive.VmName,
-        });
-        File.WriteAllText(Path.Combine(drive.DiskPath, "drive.json"), meta);
+        CloudDriveSlot.Write(drive.DiskPath, ManifestFrom(drive));
     }
+
+    internal static CloudDriveSlotManifest ManifestFrom(CloudDriveRecord drive) => new()
+    {
+        Id = drive.Id,
+        Name = drive.Name,
+        Placement = "local",
+        SizeGb = drive.SizeGb,
+        VmName = drive.VmName,
+        PublicKey = drive.PublicKey,
+        Fingerprint = drive.Fingerprint,
+        SshPort = drive.SshPort,
+        FtpsPort = drive.FtpsPort,
+        WebDavPort = drive.WebDavPort,
+        User = string.IsNullOrWhiteSpace(drive.User) ? "bndz" : drive.User,
+    };
+
+    public Task<CloudDriveOp> CreateSnapshotAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct) =>
+        Task.FromResult(LocalSnapshotUnsupported());
+
+    public Task<CloudDriveOp> ListSnapshotsAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct) =>
+        Task.FromResult(LocalSnapshotUnsupported());
+
+    public Task<CloudDriveOp> RestoreSnapshotAsync(CloudDriveRecord drive, string snapshotId, Func<string?> readFlyToken, CancellationToken ct) =>
+        Task.FromResult(LocalSnapshotUnsupported());
+
+    public Task<CloudDriveOp> DropPreviousVolumeAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct) =>
+        Task.FromResult(new CloudDriveOp(false, "Previous Fly volumes belong to Cloud placement. This PC drive moves by copying the sealed folder."));
+
+    private static CloudDriveOp LocalSnapshotUnsupported() =>
+        new(false, "Snapshots are for Cloud placement. On This PC, stop the drive and copy the sealed folder.");
 
     private static (bool ok, string detail) TryNewVhd(CloudDriveRecord drive)
     {

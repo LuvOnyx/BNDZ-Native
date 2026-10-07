@@ -73,6 +73,7 @@ async function paintDrive(me) {
       <button type="button" id="up">Up</button>
       <button type="button" id="mkdir">New folder</button>
       <label class="meta">Upload <input id="file" type="file"></label>
+      <button type="button" id="archive">Download archive</button>
       <button type="button" id="out">Sign out</button>
     </div>
     <p class="crumb" id="crumb"></p>
@@ -105,6 +106,7 @@ async function paintDrive(me) {
     ev.target.value = '';
     load();
   };
+  document.getElementById('archive').onclick = () => { window.location.href = '/api/archive'; };
   document.getElementById('out').onclick = async () => { await api('/api/logout', { method: 'POST' }); paintLogin(); };
   document.getElementById('share').onsubmit = async (ev) => {
     ev.preventDefault();

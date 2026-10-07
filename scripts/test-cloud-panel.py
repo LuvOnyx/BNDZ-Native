@@ -2,10 +2,12 @@
 """Smoke the guest web panel against a temp disk. No Fly, no Hyper-V."""
 
 import http.client
+import io
 import json
 import os
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 from pathlib import Path
@@ -91,6 +93,25 @@ def run(tmp: str) -> None:
     assert body == "hello-from-test"
     status, body = call("POST", "/api/rename", {"from": "notes/hello.txt", "name": "read-me.txt"}, cookie=cookie)
     assert status == 200, body
+    outside = Path(tmp).parent / "not-on-drive.txt"
+    outside.write_text("LEAKED-ARCHIVE-BYTES")
+    link = Path(tmp) / "escape-link"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pass
+    status, raw = call_bin("GET", "/api/archive")
+    assert status == 401, raw[:80]
+    status, raw = call_bin("GET", "/api/archive", cookie)
+    assert status == 200, raw[:80]
+    assert b"LEAKED-ARCHIVE-BYTES" not in raw
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as tar:
+        names = tar.getnames()
+        assert "notes/read-me.txt" in names, names
+        member = tar.extractfile("notes/read-me.txt")
+        assert member is not None and member.read() == b"hello-from-test"
+        assert all("not-on-drive" not in name and "escape-link" not in name for name in names)
+    outside.unlink(missing_ok=True)
     status, body = call("POST", "/api/shares", {"path": "notes/read-me.txt", "hours": 2, "password": "share-pass", "write": False}, cookie=cookie)
     share = json.loads(body)["share"]
     assert share["locked"] is True
@@ -133,6 +154,16 @@ def call(method, path, payload=None, cookie="", form=None, headers=False):
     data = json.dumps(payload).encode() if payload is not None else None
     ctype = "application/json" if data is not None else None
     return call_raw(method, path, data, cookie, ctype, headers)
+
+
+def call_bin(method, path, cookie=""):
+    conn = http.client.HTTPConnection("127.0.0.1", PORT, timeout=5)
+    hdrs = {"Cookie": cookie} if cookie else {}
+    conn.request(method, path, headers=hdrs)
+    res = conn.getresponse()
+    body = res.read()
+    conn.close()
+    return res.status, body
 
 
 def call_raw(method, path, data, cookie, content_type, want_headers=False):

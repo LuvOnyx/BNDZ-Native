@@ -18,6 +18,7 @@ import re
 import secrets
 import shutil
 import sys
+import tarfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -293,6 +294,9 @@ class Panel(BaseHTTPRequestHandler):
             if path == "/api/download":
                 self._download(query.get("path", [""])[0])
                 return
+            if path == "/api/archive" and method == "GET":
+                self._archive()
+                return
             if path == "/api/shares" and method == "GET":
                 self._json({"ok": True, "shares": self._public_shares()})
                 return
@@ -382,6 +386,35 @@ class Panel(BaseHTTPRequestHandler):
                 continue
             rows.append(entry(child))
         self._json({"ok": True, "path": rel_of(folder), "entries": rows})
+
+    def _archive(self) -> None:
+        """Portable tar of /data. Symlinks are skipped so the archive cannot escape the disk."""
+        self.close_connection = True
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-tar")
+        self.send_header("Content-Disposition", 'attachment; filename="bndz-data.tar"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        root = DATA.resolve()
+        with tarfile.open(fileobj=self.wfile, mode="w|") as tar:
+            for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+                kept = []
+                for name in dirnames:
+                    child = Path(dirpath) / name
+                    if child.is_symlink():
+                        continue
+                    kept.append(name)
+                dirnames[:] = kept
+                for name in filenames:
+                    full = Path(dirpath) / name
+                    if full.is_symlink() or not full.is_file():
+                        continue
+                    try:
+                        rel = full.resolve().relative_to(root).as_posix()
+                    except ValueError:
+                        continue
+                    tar.add(str(full), arcname=rel, recursive=False)
 
     def _download(self, rel: str) -> None:
         path = safe(rel)

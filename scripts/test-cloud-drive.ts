@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { driveHint, layoutPreviewDrives, nextAction, normalizeLocalPath, normalizeTunnelHostname, placementLabel, preflightLocalPath, stateLabel } from '../src/lib/cloudDrive';
+import { destinationSlot, driveHint, exportFolderError, formatSnapshotSize, layoutPreviewDrives, nextAction, normalizeLocalPath, normalizeTunnelHostname, placementLabel, preflightLocalPath, stateLabel } from '../src/lib/cloudDrive';
 
 assert.equal(preflightLocalPath(''), 'Pick a folder on a drive other than the system volume.');
 assert.match(preflightLocalPath('C:\\Users\\mikey') || '', /system volume/);
@@ -42,5 +42,17 @@ assert.match(nextAction({ tokenConfigured: true }, 'cloud'), /drive image/);
 assert.match(nextAction({}, 'local', 'C:\\Users\\mikey'), /system volume/);
 assert.match(driveHint({ id: 'x', name: 'n', placement: 'local', state: 'stopped' }), /guest image/);
 assert.match(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo' }), /bndz/);
+
+const source = 'D:\\BNDZ\\CloudDrives\\cdabc123';
+assert.equal(exportFolderError(source, 'E:\\Backups', 'cdabc123'), null);
+assert.equal(destinationSlot('E:\\Backups', 'cdabc123'), 'E:\\Backups\\BNDZ\\CloudDrives\\cdabc123');
+assert.match(exportFolderError(source, 'C:\\Users\\mikey', 'cdabc123') || '', /system volume/);
+assert.match(exportFolderError(source, source, 'cdabc123') || '', /already this sealed disk/);
+assert.match(exportFolderError(source, 'D:\\BNDZ\\CloudDrives\\cdabc123\\nested', 'cdabc123') || '', /inside/);
+assert.match(exportFolderError('relative', 'E:\\Backups', 'cdabc123') || '', /full path/);
+assert.equal(formatSnapshotSize(20 * 1024 * 1024), '20 MB');
+assert.equal(cloudPreview.snapshots?.[0]?.id, 'vs_preview');
+assert.match(cloudPreview.hostKeyNote || '', /host key/);
+assert.match(localPreview.hostKeyNote || '', /unchanged/);
 
 console.log('test-cloud-drive: ok');

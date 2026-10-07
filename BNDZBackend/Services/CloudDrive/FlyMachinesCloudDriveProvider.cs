@@ -21,6 +21,11 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         Timeout = TimeSpan.FromSeconds(40),
     };
 
+    private static readonly HttpClient LongHttp = new()
+    {
+        Timeout = TimeSpan.FromMinutes(4),
+    };
+
     public string Id => "fly";
 
     public static string? PinnedImage()
@@ -205,6 +210,179 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
 
         ApplyMachineJson(drive, body);
         drive.SshNote = SshNote(drive);
+    }
+
+    public async Task<CloudDriveOp> CreateSnapshotAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
+    {
+        var ready = RequireVolume(drive, readFlyToken(), out var token);
+        if (ready != null) return ready.Value;
+        var url = VolumeSnapshotsUrl(drive);
+        var (status, body) = await SendAsync(HttpMethod.Post, url, token!, "{}", ct, LongHttp).ConfigureAwait(false);
+        if (status < 200 || status >= 300)
+            return new CloudDriveOp(false, "Fly did not create a snapshot. " + ErrorFromBody(body));
+        var created = CloudDriveSnapshots.Parse(body);
+        if (created.Count == 0)
+            return new CloudDriveOp(false, "Fly answered, but the snapshot id was missing.");
+        var listed = await ListSnapshotsAsync(drive, readFlyToken, ct).ConfigureAwait(false);
+        drive.Snapshots ??= new List<CloudDriveSnapshot>();
+        if (!listed.Ok || drive.Snapshots.All(s => s.Id != created[0].Id))
+            drive.Snapshots.Insert(0, created[0]);
+        var snap = drive.Snapshots.First(s => s.Id == created[0].Id);
+        drive.Message = "Snapshot " + snap.Id + " is " + (string.IsNullOrWhiteSpace(snap.Status) ? "saved" : snap.Status) + ". It is crash-consistent. Stop the drive first if you need a quiet disk. The volume keeps billing.";
+        return new CloudDriveOp(true, null);
+    }
+
+    public async Task<CloudDriveOp> ListSnapshotsAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
+    {
+        var ready = RequireVolume(drive, readFlyToken(), out var token);
+        if (ready != null) return ready.Value;
+        var (status, body) = await SendAsync(HttpMethod.Get, VolumeSnapshotsUrl(drive), token!, null, ct).ConfigureAwait(false);
+        if (status < 200 || status >= 300)
+            return new CloudDriveOp(false, "Fly did not list snapshots. " + ErrorFromBody(body));
+        drive.Snapshots = CloudDriveSnapshots.Parse(body);
+        drive.Message = drive.Snapshots.Count == 0
+            ? "No snapshots yet. A snapshot is a crash-consistent copy of the volume."
+            : drive.Snapshots.Count + " snapshot" + (drive.Snapshots.Count == 1 ? "" : "s") + " on this volume.";
+        return new CloudDriveOp(true, null);
+    }
+
+    public async Task<CloudDriveOp> RestoreSnapshotAsync(CloudDriveRecord drive, string snapshotId, Func<string?> readFlyToken, CancellationToken ct)
+    {
+        var idError = CloudDriveSnapshots.ValidateId(snapshotId);
+        if (idError != null) return new CloudDriveOp(false, idError);
+        var token = readFlyToken();
+        var ready = RequireVolume(drive, token, out token);
+        if (ready != null) return ready.Value;
+        var image = PinnedImage();
+        if (string.IsNullOrWhiteSpace(image))
+            return new CloudDriveOp(false, "Restore needs the drive image (BNDZ_CLOUD_DRIVE_IMAGE) so BNDZ can attach a machine to the restored volume. The snapshot was not changed.");
+
+        if (!string.IsNullOrWhiteSpace(drive.FlyMachineId))
+        {
+            await StopAsync(drive, readFlyToken, ct).ConfigureAwait(false);
+            if (string.Equals(drive.State, "error", StringComparison.OrdinalIgnoreCase))
+                return new CloudDriveOp(false, drive.Message ?? "Fly could not stop the machine, so the snapshot was not restored.");
+        }
+
+        var oldVolume = drive.FlyVolumeId;
+        var oldMachine = drive.FlyMachineId;
+        var previousHost = string.IsNullOrWhiteSpace(drive.FlyApp) ? drive.Host : drive.FlyApp + ".fly.dev";
+        var region = string.IsNullOrWhiteSpace(drive.Region) ? "iad" : drive.Region!;
+        var volName = RestoreVolumeName(snapshotId);
+        var volJson = JsonSerializer.Serialize(new { name = volName, region, snapshot_id = snapshotId.Trim() });
+        var volUrl = $"{MachinesApi}/v1/apps/{Uri.EscapeDataString(drive.FlyApp!)}/volumes";
+        var (volStatus, volBody) = await SendAsync(HttpMethod.Post, volUrl, token!, volJson, ct, LongHttp).ConfigureAwait(false);
+        if (volStatus < 200 || volStatus >= 300)
+        {
+            drive.State = "stopped";
+            return new CloudDriveOp(false, "The machine was stopped. Fly did not create a volume from that snapshot. Start the drive to bring the current disk back. " + ErrorFromBody(volBody));
+        }
+        var newVolume = ReadVolumeId(volBody);
+        if (string.IsNullOrWhiteSpace(newVolume))
+        {
+            drive.State = "stopped";
+            return new CloudDriveOp(false, "The machine was stopped. Fly created a volume response without an id. Start the drive to bring the current disk back.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(oldMachine))
+        {
+            var delUrl = $"{MachinesApi}/v1/apps/{Uri.EscapeDataString(drive.FlyApp!)}/machines/{Uri.EscapeDataString(oldMachine)}?force=true";
+            var (delStatus, delBody) = await SendAsync(HttpMethod.Delete, delUrl, token!, null, ct).ConfigureAwait(false);
+            if (delStatus != 404 && (delStatus < 200 || delStatus >= 300))
+            {
+                await TryDeleteVolumeAsync(drive.FlyApp!, newVolume, token!, ct).ConfigureAwait(false);
+                drive.State = "stopped";
+                drive.FlyMachineId = oldMachine;
+                drive.FlyVolumeId = oldVolume;
+                return new CloudDriveOp(false, "Fly created a restored volume, then could not replace the machine. The extra volume was removed when Fly allowed it. The current machine is still there, stopped. " + ErrorFromBody(delBody));
+            }
+        }
+
+        drive.FlyMachineId = null;
+        drive.FlyVolumeId = newVolume;
+        var machineBody = JsonSerializer.Serialize(BuildMachineSpec(drive, image, region));
+        var machineUrl = $"{MachinesApi}/v1/apps/{Uri.EscapeDataString(drive.FlyApp!)}/machines";
+        var (mStatus, mBody) = await SendAsync(HttpMethod.Post, machineUrl, token!, machineBody, ct, LongHttp).ConfigureAwait(false);
+        if (mStatus < 200 || mStatus >= 300)
+        {
+            drive.State = "error";
+            drive.PreviousFlyVolumeId = oldVolume;
+            drive.PreviousHost = previousHost;
+            drive.Message = "Restored volume " + newVolume + " exists, but Fly did not create the replacement machine. The previous machine was removed. Previous volume " + oldVolume + " may still bill. " + ErrorFromBody(mBody);
+            return new CloudDriveOp(false, drive.Message);
+        }
+
+        ApplyMachineJson(drive, mBody);
+        if (string.IsNullOrWhiteSpace(drive.FlyMachineId))
+        {
+            drive.State = "error";
+            drive.PreviousFlyVolumeId = oldVolume;
+            drive.Message = "Restored volume " + newVolume + " exists, but the new machine response had no id. Previous volume " + oldVolume + " may still bill.";
+            return new CloudDriveOp(false, drive.Message);
+        }
+
+        drive.PreviousHost = previousHost;
+        drive.HostKeyChanged = true;
+        drive.HostKeyNote = CloudDriveSlot.FlyHostKeyNote(drive.Fingerprint);
+        drive.SshNote = SshNote(drive);
+        if (!string.IsNullOrWhiteSpace(oldVolume) && !string.Equals(oldVolume, newVolume, StringComparison.Ordinal))
+        {
+            drive.PreviousFlyVolumeId = oldVolume;
+            drive.Message = drive.HostKeyNote + " Restored snapshot " + snapshotId.Trim() + ". Previous volume " + oldVolume + " is still in your Fly account and still bills, so its other snapshots remain until you drop it.";
+        }
+        else
+        {
+            drive.Message = drive.HostKeyNote + " Restored snapshot " + snapshotId.Trim() + ".";
+        }
+        drive.Snapshots = new List<CloudDriveSnapshot>();
+        return new CloudDriveOp(true, null);
+    }
+
+    public async Task<CloudDriveOp> DropPreviousVolumeAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
+    {
+        var token = readFlyToken();
+        if (string.IsNullOrWhiteSpace(token))
+            return new CloudDriveOp(false, "No Fly token is stored, so BNDZ cannot delete that volume.");
+        var previous = (drive.PreviousFlyVolumeId ?? "").Trim();
+        if (previous.Length == 0)
+            return new CloudDriveOp(false, "There is no previous volume to delete.");
+        if (string.Equals(previous, drive.FlyVolumeId, StringComparison.Ordinal))
+            return new CloudDriveOp(false, "That id is the live volume. It was not deleted.");
+        if (string.IsNullOrWhiteSpace(drive.FlyApp))
+            return new CloudDriveOp(false, "This drive has no Fly app, so the previous volume cannot be addressed.");
+        var (status, body) = await TryDeleteVolumeAsync(drive.FlyApp, previous, token, ct).ConfigureAwait(false);
+        if (status != 404 && (status < 200 || status >= 300))
+            return new CloudDriveOp(false, "Fly did not delete the previous volume. " + ErrorFromBody(body));
+        drive.PreviousFlyVolumeId = null;
+        drive.Message = "Previous volume removed from Fly. The live disk was not touched. Snapshots that belonged to that volume are gone.";
+        return new CloudDriveOp(true, null);
+    }
+
+    private static CloudDriveOp? RequireVolume(CloudDriveRecord drive, string? token, out string? readyToken)
+    {
+        readyToken = token;
+        if (string.IsNullOrWhiteSpace(drive.FlyApp) || string.IsNullOrWhiteSpace(drive.FlyVolumeId))
+            return new CloudDriveOp(false, "This drive has no Fly volume yet. Set the drive image and Start once, then snapshot.");
+        if (string.IsNullOrWhiteSpace(token))
+            return new CloudDriveOp(false, "No Fly token is stored. Paste a BYO org token to manage snapshots.");
+        return null;
+    }
+
+    private static string VolumeSnapshotsUrl(CloudDriveRecord drive) =>
+        $"{MachinesApi}/v1/apps/{Uri.EscapeDataString(drive.FlyApp!)}/volumes/{Uri.EscapeDataString(drive.FlyVolumeId!)}/snapshots";
+
+    private static string RestoreVolumeName(string snapshotId)
+    {
+        var chars = snapshotId.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray();
+        var suffix = chars.Length == 0 ? "snap" : new string(chars);
+        if (suffix.Length > 8) suffix = suffix[^8..];
+        return "bndzr" + suffix;
+    }
+
+    private static async Task<(int status, string body)> TryDeleteVolumeAsync(string app, string volumeId, string token, CancellationToken ct)
+    {
+        var url = $"{MachinesApi}/v1/apps/{Uri.EscapeDataString(app)}/volumes/{Uri.EscapeDataString(volumeId)}";
+        return await SendAsync(HttpMethod.Delete, url, token, null, ct).ConfigureAwait(false);
     }
 
     private async Task ProvisionAsync(CloudDriveRecord drive, string token, string image, CancellationToken ct)
@@ -424,6 +602,21 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         catch { return null; }
     }
 
+    private static string? ReadVolumeId(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var top = ReadProp(root, "id");
+            if (!string.IsNullOrWhiteSpace(top)) return top;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("volume", out var vol))
+                return ReadProp(vol, "id");
+        }
+        catch { /* not json */ }
+        return null;
+    }
+
     private static string? ReadProp(JsonElement el, string prop)
     {
         if (el.ValueKind != JsonValueKind.Object || !el.TryGetProperty(prop, out var v)) return null;
@@ -451,7 +644,7 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         return CloudDriveSecrets.Redact(clipped.Replace('\n', ' ').Trim());
     }
 
-    private static async Task<(int status, string body)> SendAsync(HttpMethod method, string url, string token, string? json, CancellationToken ct)
+    private static async Task<(int status, string body)> SendAsync(HttpMethod method, string url, string token, string? json, CancellationToken ct, HttpClient? client = null)
     {
         using var req = new HttpRequestMessage(method, url);
         req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
@@ -460,7 +653,7 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
             req.Content = new StringContent(json, Encoding.UTF8, "application/json");
         try
         {
-            using var res = await Http.SendAsync(req, ct).ConfigureAwait(false);
+            using var res = await (client ?? Http).SendAsync(req, ct).ConfigureAwait(false);
             var body = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             if (body.Length > 200_000) body = body[..200_000];
             return ((int)res.StatusCode, body);
