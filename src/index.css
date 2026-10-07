@@ -2626,7 +2626,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 }
 .bndz-cloud-meters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 .bndz-cloud-meter {
@@ -2730,10 +2730,70 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   background: #64748b;
   box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.2);
 }
-.bndz-cloud-lamp.is-running { background: #34d399; box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2); }
+.bndz-cloud-lamp.is-running,
+.bndz-cloud-lamp.is-ready { background: #34d399; box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2); }
 .bndz-cloud-lamp.is-creating,
-.bndz-cloud-lamp.is-deleting { background: #fbbf24; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2); }
-.bndz-cloud-lamp.is-error { background: #f87171; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2); }
+.bndz-cloud-lamp.is-deleting,
+.bndz-cloud-lamp.is-pending,
+.bndz-cloud-lamp.is-token-needed { background: #fbbf24; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2); }
+.bndz-cloud-lamp.is-error,
+.bndz-cloud-lamp.is-missing-binary { background: #f87171; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2); }
+.bndz-cloud-lamp.is-unavailable,
+.bndz-cloud-lamp.is-stopped,
+.bndz-cloud-lamp.is-cloud { background: #64748b; box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.2); }
+.bndz-cloud-protocols,
+.bndz-cloud-away {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.bndz-cloud-section-label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(243, 226, 179, 0.92);
+}
+.bndz-cloud-protocol {
+  display: grid;
+  grid-template-columns: 8px minmax(68px, 88px) minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.22));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.bndz-cloud-protocol-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+}
+.bndz-cloud-protocol-copy {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #e2e8f0;
+  word-break: break-all;
+}
+.bndz-cloud-protocol-note {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(186, 200, 216, 0.82);
+}
+.bndz-cloud-away {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  background:
+    radial-gradient(90% 80% at 0% 0%, rgba(251, 191, 36, 0.1), transparent 55%),
+    linear-gradient(165deg, rgba(32, 28, 18, 0.72), rgba(8, 10, 14, 0.92));
+}
 .bndz-cloud-badge {
   font-size: 10px;
   letter-spacing: 0.04em;
@@ -2768,7 +2828,8 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 .bndz-cloud-confirm p { margin: 0 0 8px; font-size: 12px; color: #e2e8f0; }
 @media (max-width: 720px) {
   .bndz-cloud-bays,
-  .bndz-cloud-meters { grid-template-columns: 1fr; }
+  .bndz-cloud-meters,
+  .bndz-cloud-protocol { grid-template-columns: 1fr; }
 }
 
 /* Capacity Solver ? what-if scrubbers + budget */

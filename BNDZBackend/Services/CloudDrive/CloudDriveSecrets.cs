@@ -12,7 +12,7 @@ namespace BNDZ.Services.CloudDrive;
 public static class CloudDriveSecrets
 {
     private static readonly Regex JsonSecret = new(
-        "(\"(?:flyToken|token|privateKey|apiToken|password|authorization|protectedPrivateKey)\"\\s*:\\s*\")(?:\\\\.|[^\"\\\\])*(\")",
+        "(\"(?:flyToken|token|privateKey|apiToken|password|authorization|protectedPrivateKey|tunnelToken|ftpPassword|protectedTunnelToken|protectedFtpPassword|BNDZ_FTP_PASSWORD|TUNNEL_TOKEN)\"\\s*:\\s*\")(?:\\\\.|[^\"\\\\])*(\")",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex Bearer = new(
@@ -22,6 +22,14 @@ public static class CloudDriveSecrets
     private static readonly Regex FlyToken = new(
         @"\b(?:FlyV1\s+)?fm[0-9]_[A-Za-z0-9_\-\.]+",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex EnvSecret = new(
+        @"\b(?:TUNNEL_TOKEN|BNDZ_FTP_PASSWORD)\s*[=:]\s*\S+",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex JwtLike = new(
+        @"\beyJ[A-Za-z0-9_\-]{16,}(?:\.[A-Za-z0-9_\-]+){1,2}",
+        RegexOptions.Compiled);
 
     public static string ProtectToBase64(string secret)
     {
@@ -49,7 +57,18 @@ public static class CloudDriveSecrets
         var s = JsonSecret.Replace(text, "$1[redacted]$2");
         s = Bearer.Replace(s, "Bearer [redacted]");
         s = FlyToken.Replace(s, "[redacted]");
+        s = EnvSecret.Replace(s, "[redacted]");
+        s = JwtLike.Replace(s, "[redacted]");
         return s;
+    }
+
+    public static string NewPassword(int length = 24)
+    {
+        const string alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var bytes = RandomNumberGenerator.GetBytes(length);
+        var chars = new char[length];
+        for (var i = 0; i < length; i++) chars[i] = alphabet[bytes[i] % alphabet.Length];
+        return new string(chars);
     }
 }
 

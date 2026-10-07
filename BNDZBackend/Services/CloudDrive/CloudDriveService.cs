@@ -50,6 +50,12 @@ public sealed class CloudDriveService
                 "CLOUD_DRIVE_REFRESH" => await MutateAsync(Str(payload, "id"), (d, token) => ProviderFor(d).RefreshAsync(d, token, ct), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_DELETE" => await DeleteAsync(Str(payload, "id"), Str(payload, "confirmName"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_CONNECTION" => Connection(Str(payload, "id")),
+                "CLOUD_DRIVE_SET_TUNNEL_TOKEN" => SetTunnelToken(Str(payload, "id"), Str(payload, "tunnelToken") ?? Str(payload, "token")),
+                "CLOUD_DRIVE_CLEAR_TUNNEL_TOKEN" => ClearTunnelToken(Str(payload, "id")),
+                "CLOUD_DRIVE_TUNNEL_START" => StartTunnel(Str(payload, "id")),
+                "CLOUD_DRIVE_TUNNEL_STOP" => StopTunnel(Str(payload, "id")),
+                "CLOUD_DRIVE_SET_TUNNEL_HOSTNAME" => SetTunnelHostname(Str(payload, "id"), Str(payload, "hostname")),
+                "CLOUD_DRIVE_REVEAL_FTP_PASSWORD" => RevealFtpPassword(Str(payload, "id")),
                 _ => new { ok = false, error = "Unknown Cloud Drive request." },
             };
         }
@@ -68,6 +74,11 @@ public sealed class CloudDriveService
     private CloudDriveProbe ProbeSnapshot()
     {
         var local = _local.Probe();
+        var cloudflared = CloudDriveTunnel.FindCloudflared();
+        local.CloudflaredPresent = cloudflared != null;
+        local.CloudflaredMessage = cloudflared != null
+            ? "cloudflared is installed. Away access for This PC drives can start a Cloudflare Tunnel. Cloudflare Containers are not used."
+            : "Install cloudflared (Cloudflare Tunnel) to publish a This PC drive off this network. Not Docker, and not Cloudflare Containers.";
         local.TokenConfigured = !string.IsNullOrWhiteSpace(_store.FlyTokenProtected);
         local.TokenMessage = local.TokenConfigured
             ? "A Fly token is stored with Windows DPAPI for this user. It is not shown again."
@@ -165,8 +176,9 @@ public sealed class CloudDriveService
             CreatedUtc = now,
             UpdatedUtc = now,
             User = "bndz",
-            Port = 22,
         };
+        CloudDrivePorts.Assign(drive);
+        drive.ProtectedFtpPassword = CloudDriveSecrets.ProtectToBase64(CloudDriveSecrets.NewPassword());
         Array.Clear(keys.PrivateKey, 0, keys.PrivateKey.Length);
 
         var req = new CloudDriveCreateRequest
@@ -200,6 +212,7 @@ public sealed class CloudDriveService
     {
         var drive = Find(id);
         if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        EnsureProtocolMaterial(drive);
         try
         {
             await op(drive, ReadToken).ConfigureAwait(false);
@@ -226,6 +239,7 @@ public sealed class CloudDriveService
         drive.State = "deleting";
         Touch(drive);
         Save();
+        CloudDriveTunnel.Stop(drive.Id);
         try
         {
             await ProviderFor(drive).DeleteAsync(drive, ReadToken, ct).ConfigureAwait(false);
@@ -261,8 +275,102 @@ public sealed class CloudDriveService
                 host = dto.Host,
                 port = dto.Port,
                 user = dto.User,
+                endpoints = dto.Endpoints,
+                tunnelHostname = dto.TunnelHostname,
             },
         };
+    }
+
+    private object SetTunnelToken(string? id, string? token)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
+            return new { ok = false, error = "Cloudflare Tunnel is for This PC drives. Fly publishes the machine address itself.", drive = drive.ToDto(), drives = Dtos() };
+        var trimmed = (token ?? "").Trim();
+        if (trimmed.Length < 20 || trimmed.Any(char.IsWhiteSpace))
+            return new { ok = false, error = "That tunnel token does not look usable. Paste the install token from Cloudflare, with no spaces." };
+        drive.ProtectedTunnelToken = CloudDriveSecrets.ProtectToBase64(trimmed);
+        drive.TunnelState = "stopped";
+        drive.TunnelMessage = "Token stored. Start away access when cloudflared is installed.";
+        Touch(drive);
+        Save();
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private object ClearTunnelToken(string? id)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        CloudDriveTunnel.Stop(drive.Id);
+        drive.ProtectedTunnelToken = null;
+        drive.TunnelState = "token-needed";
+        drive.TunnelMessage = "Tunnel token removed from this Windows user store.";
+        Touch(drive);
+        Save();
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private object StartTunnel(string? id)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
+            return new { ok = false, error = "Cloudflare Tunnel is for This PC drives. Fly publishes the machine address itself.", drive = drive.ToDto(), drives = Dtos() };
+        var token = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken);
+        if (string.IsNullOrWhiteSpace(token))
+            return new { ok = false, error = "Paste a Cloudflare Tunnel token first.", drive = drive.ToDto(), drives = Dtos() };
+        var started = CloudDriveTunnel.Start(drive, token);
+        token = null;
+        drive.TunnelMessage = CloudDriveSecrets.Redact(drive.TunnelMessage);
+        Touch(drive);
+        Save();
+        return new { ok = started.ok, error = started.ok ? null : drive.TunnelMessage, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private object StopTunnel(string? id)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        CloudDriveTunnel.Stop(drive.Id);
+        drive.TunnelState = string.IsNullOrWhiteSpace(drive.ProtectedTunnelToken) ? "token-needed" : "stopped";
+        drive.TunnelMessage = "Away access stopped. The sealed disk is unchanged.";
+        Touch(drive);
+        Save();
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private object SetTunnelHostname(string? id, string? hostname)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
+            return new { ok = false, error = "The Cloudflare hostname is stored for This PC drives. Fly already has an app address.", drive = drive.ToDto(), drives = Dtos() };
+        var normalized = CloudDriveProtocols.NormalizeHostname(hostname, out var error);
+        if (error != null) return new { ok = false, error, drive = drive.ToDto(), drives = Dtos() };
+        drive.TunnelHostname = string.IsNullOrEmpty(normalized) ? null : normalized;
+        Touch(drive);
+        Save();
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private object RevealFtpPassword(string? id)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        EnsureProtocolMaterial(drive);
+        Save();
+        var password = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedFtpPassword);
+        if (string.IsNullOrWhiteSpace(password))
+            return new { ok = false, error = "No FTPS password is stored for this drive." };
+        return new { ok = true, password };
+    }
+
+    private static void EnsureProtocolMaterial(CloudDriveRecord drive)
+    {
+        CloudDrivePorts.Ensure(drive);
+        if (string.IsNullOrWhiteSpace(drive.ProtectedFtpPassword))
+            drive.ProtectedFtpPassword = CloudDriveSecrets.ProtectToBase64(CloudDriveSecrets.NewPassword());
     }
 
     private ICloudDriveProvider ProviderFor(CloudDriveRecord drive) =>

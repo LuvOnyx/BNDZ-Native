@@ -920,6 +920,36 @@ export const IPC = {
     return this._cloudDriveMutate('CLOUD_DRIVE_DELETE', { id: driveId, confirmName });
   },
 
+  cloudDriveSetTunnelToken(driveId: string, tunnelToken: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_TUNNEL_TOKEN', { id: driveId, tunnelToken });
+  },
+
+  cloudDriveClearTunnelToken(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_CLEAR_TUNNEL_TOKEN', { id: driveId });
+  },
+
+  cloudDriveTunnelStart(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_TUNNEL_START', { id: driveId });
+  },
+
+  cloudDriveTunnelStop(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_TUNNEL_STOP', { id: driveId });
+  },
+
+  cloudDriveSetTunnelHostname(driveId: string, hostname: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_TUNNEL_HOSTNAME', { id: driveId, hostname });
+  },
+
+  cloudDriveRevealFtpPassword(driveId: string): Promise<{ ok: boolean; password?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdFtp`;
+    return _nativeCall<any>('CLOUD_DRIVE_REVEAL_FTP_PASSWORD', 'CLOUD_DRIVE_REVEAL_FTP_PASSWORD_RESULT', id, { id: driveId }, 20000).then(r => ({
+      ok: r?.ok === true,
+      password: typeof r?.password === 'string' ? r.password : undefined,
+      error: r?.error,
+    }));
+  },
+
   _cloudDriveMutate(type: string, payload: Record<string, unknown>): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_cdMut`;

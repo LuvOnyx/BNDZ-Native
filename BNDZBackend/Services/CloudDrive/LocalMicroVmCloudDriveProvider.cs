@@ -77,9 +77,11 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         drive.VmName = "BNDZ-" + drive.Id;
         drive.VhdxPath = Path.Combine(slot, "disk.vhdx");
         WriteSlotNotes(drive);
+        CloudDrivePorts.Ensure(drive);
         drive.Host = "127.0.0.1";
-        drive.Port = 22;
-        drive.SshNote = "Private key stays in the Windows secure store. Local SSH listens on 127.0.0.1 only after the guest image is booted — this build reserves the sealed disk and does not publish a helper exe.";
+        drive.Port = drive.SshPort;
+        drive.SshNote = "Private key stays in the Windows secure store. Local origin is 127.0.0.1:"
+            + drive.SshPort + " after the guest listens. Away access is Cloudflare Tunnel on this PC, not an open port and not a helper exe.";
 
         if (probe.HyperV && probe.Elevated)
         {
@@ -148,14 +150,18 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         {
             drive.State = "running";
             drive.Host = "127.0.0.1";
-            drive.Message = "Hyper-V reports the VM running. The BNDZ Linux image is not pinned in this build, so there is no sshd in the guest yet. The sealed VHDX stays on the drive you picked.";
+            CloudDrivePorts.Ensure(drive);
+            drive.Port = drive.SshPort;
+            drive.Message = "Hyper-V reports the VM running. The BNDZ Linux image is not pinned in this build, so sshd, FTPS, and WebDAV are not inside the guest yet. Origins are ready for Cloudflare Tunnel.";
         }
         else
         {
             drive.State = "stopped";
             drive.Message = "Hyper-V accepted the VM record but it is not running. " + TrimDetail(detail);
         }
-        drive.SshNote = "Private key stays in the Windows secure store. ssh -p 22 bndz@127.0.0.1 is the local endpoint once the guest image publishes SSH.";
+        CloudDrivePorts.Ensure(drive);
+        drive.SshNote = "Private key stays in the Windows secure store. ssh -p " + drive.SshPort
+            + " bndz@127.0.0.1 is the local endpoint once the guest image publishes SSH.";
         return Task.CompletedTask;
     }
 
@@ -305,9 +311,14 @@ Write-Output ('STATE=' + $vm.State)
         note.AppendLine("Id: " + drive.Id);
         note.AppendLine("Intended size: " + drive.SizeGb + " GB");
         note.AppendLine();
+        CloudDrivePorts.Ensure(drive);
         note.AppendLine("This folder is the microVM disk root (VHDX + VM files), not a shared folder.");
         note.AppendLine("BNDZ remote-controls it. Do not treat loose files here as the drive.");
         note.AppendLine("Docker Desktop is not used.");
+        note.AppendLine("SSH/SFTP 127.0.0.1:" + drive.SshPort);
+        note.AppendLine("FTPS 127.0.0.1:" + drive.FtpsPort + " (plain FTP is off)");
+        note.AppendLine("WebDAV http://127.0.0.1:" + drive.WebDavPort + "/");
+        note.AppendLine("Away access: Cloudflare Tunnel on the Windows host, not inside this VM.");
         File.WriteAllText(Path.Combine(drive.DiskPath, "DISK-SLOT.txt"), note.ToString());
         var meta = System.Text.Json.JsonSerializer.Serialize(new
         {

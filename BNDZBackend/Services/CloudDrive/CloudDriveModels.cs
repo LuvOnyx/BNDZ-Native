@@ -22,6 +22,9 @@ public sealed class CloudDriveRecord
     public string? Hypervisor { get; set; }
     public string? Host { get; set; }
     public int Port { get; set; } = 22;
+    public int SshPort { get; set; }
+    public int FtpsPort { get; set; }
+    public int WebDavPort { get; set; }
     public string User { get; set; } = "bndz";
     public string? FlyOrg { get; set; }
     public string? FlyApp { get; set; }
@@ -32,39 +35,64 @@ public sealed class CloudDriveRecord
     public string? Fingerprint { get; set; }
     /// <summary>DPAPI blob, base64. Never copy onto the UI DTO.</summary>
     public string? ProtectedPrivateKey { get; set; }
+    /// <summary>DPAPI blob for the per-drive FTPS/WebDAV password. Never copy onto the UI DTO.</summary>
+    public string? ProtectedFtpPassword { get; set; }
+    /// <summary>DPAPI blob for the Cloudflare Tunnel token. Local drives only. Never copy onto the UI DTO.</summary>
+    public string? ProtectedTunnelToken { get; set; }
+    public string? TunnelHostname { get; set; }
+    public string? TunnelState { get; set; }
+    public string? TunnelMessage { get; set; }
     public string? SshNote { get; set; }
     public string CreatedUtc { get; set; } = "";
     public string UpdatedUtc { get; set; } = "";
 
-    public CloudDriveDto ToDto() => new()
+    public CloudDriveDto ToDto()
     {
-        Id = Id,
-        Name = Name,
-        Placement = Placement,
-        Provider = Provider,
-        State = State,
-        Message = Message,
-        SizeGb = SizeGb,
-        Region = Region,
-        DiskPath = DiskPath,
-        VhdxPath = VhdxPath,
-        VmName = VmName,
-        Hypervisor = Hypervisor,
-        Host = Host,
-        Port = Port <= 0 ? 22 : Port,
-        User = string.IsNullOrWhiteSpace(User) ? "bndz" : User,
-        FlyOrg = FlyOrg,
-        FlyApp = FlyApp,
-        FlyMachineId = FlyMachineId,
-        FlyVolumeId = FlyVolumeId,
-        KeyType = KeyType,
-        PublicKey = PublicKey,
-        Fingerprint = Fingerprint,
-        SshCommand = CloudDriveSsh.CommandFor(this),
-        SshNote = SshNote,
-        CreatedUtc = CreatedUtc,
-        UpdatedUtc = UpdatedUtc,
-    };
+        CloudDrivePorts.Ensure(this);
+        CloudDriveTunnel.ApplyStatus(this);
+        var endpoints = CloudDriveProtocols.For(this);
+        var ssh = endpoints.FirstOrDefault(e => e.Id == "ssh")?.CopyText ?? "";
+        var local = string.Equals(Placement, "local", StringComparison.OrdinalIgnoreCase);
+        return new CloudDriveDto
+        {
+            Id = Id,
+            Name = Name,
+            Placement = Placement,
+            Provider = Provider,
+            State = State,
+            Message = CloudDriveSecrets.Redact(Message),
+            SizeGb = SizeGb,
+            Region = Region,
+            DiskPath = DiskPath,
+            VhdxPath = VhdxPath,
+            VmName = VmName,
+            Hypervisor = Hypervisor,
+            Host = Host,
+            Port = SshPort,
+            SshPort = SshPort,
+            FtpsPort = FtpsPort,
+            WebDavPort = WebDavPort,
+            User = string.IsNullOrWhiteSpace(User) ? "bndz" : User,
+            FlyOrg = FlyOrg,
+            FlyApp = FlyApp,
+            FlyMachineId = FlyMachineId,
+            FlyVolumeId = FlyVolumeId,
+            KeyType = KeyType,
+            PublicKey = PublicKey,
+            Fingerprint = Fingerprint,
+            SshCommand = ssh,
+            SshNote = SshNote,
+            Endpoints = endpoints,
+            TunnelState = TunnelState,
+            TunnelMessage = CloudDriveSecrets.Redact(TunnelMessage),
+            TunnelTokenConfigured = !string.IsNullOrWhiteSpace(ProtectedTunnelToken),
+            TunnelHostname = TunnelHostname,
+            CloudflaredPresent = CloudDriveTunnel.FindCloudflared() != null,
+            AwayGuide = local ? CloudDriveTunnel.Guide(this) : null,
+            CreatedUtc = CreatedUtc,
+            UpdatedUtc = UpdatedUtc,
+        };
+    }
 }
 
 public sealed class CloudDriveDto
@@ -83,6 +111,9 @@ public sealed class CloudDriveDto
     public string? Hypervisor { get; set; }
     public string? Host { get; set; }
     public int Port { get; set; }
+    public int SshPort { get; set; }
+    public int FtpsPort { get; set; }
+    public int WebDavPort { get; set; }
     public string User { get; set; } = "bndz";
     public string? FlyOrg { get; set; }
     public string? FlyApp { get; set; }
@@ -93,6 +124,13 @@ public sealed class CloudDriveDto
     public string? Fingerprint { get; set; }
     public string SshCommand { get; set; } = "";
     public string? SshNote { get; set; }
+    public List<CloudDriveEndpoint> Endpoints { get; set; } = new();
+    public string? TunnelState { get; set; }
+    public string? TunnelMessage { get; set; }
+    public bool TunnelTokenConfigured { get; set; }
+    public string? TunnelHostname { get; set; }
+    public bool CloudflaredPresent { get; set; }
+    public string? AwayGuide { get; set; }
     public string CreatedUtc { get; set; } = "";
     public string UpdatedUtc { get; set; } = "";
 }
@@ -117,6 +155,8 @@ public sealed class CloudDriveProbe
     public bool WslPresent { get; set; }
     public string? WslVersion { get; set; }
     public bool Elevated { get; set; }
+    public bool CloudflaredPresent { get; set; }
+    public string? CloudflaredMessage { get; set; }
     public string Preferred { get; set; } = "none";
     public string Guidance { get; set; } = "";
 }
@@ -125,11 +165,10 @@ public static class CloudDriveSsh
 {
     public static string CommandFor(CloudDriveRecord drive)
     {
-        var host = string.IsNullOrWhiteSpace(drive.Host)
-            ? (string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase) ? "127.0.0.1" : "pending-host")
-            : drive.Host.Trim();
-        var port = drive.Port <= 0 ? 22 : drive.Port;
+        CloudDrivePorts.Ensure(drive);
+        var host = CloudDriveProtocols.PublicHost(drive);
+        if (string.IsNullOrWhiteSpace(host)) return "";
         var user = string.IsNullOrWhiteSpace(drive.User) ? "bndz" : drive.User.Trim();
-        return $"ssh -p {port} {user}@{host}";
+        return $"ssh -p {drive.SshPort} {user}@{host}";
     }
 }

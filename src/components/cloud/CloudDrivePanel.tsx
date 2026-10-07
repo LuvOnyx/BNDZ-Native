@@ -13,7 +13,9 @@ import {
 } from '../plugins/PluginPanelPrimitives';
 import {
   FLY_REGIONS,
+  layoutPreviewDrives,
   normalizeLocalPath,
+  normalizeTunnelHostname,
   placementLabel,
   preflightLocalPath,
   stateLabel,
@@ -57,6 +59,8 @@ function CloudDriveBody() {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState('');
   const [hostNote, setHostNote] = useState<string | null>(IPC.isNative ? null : HOST_NOTE);
+  const previewLayout = !IPC.isNative && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('cloudDrivePreview');
 
   const refresh = useCallback(async () => {
     const listed = await IPC.cloudDriveList();
@@ -69,7 +73,14 @@ function CloudDriveBody() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (previewLayout) {
+      setDrives(layoutPreviewDrives());
+      setHostNote(HOST_NOTE);
+      return;
+    }
+    void refresh();
+  }, [previewLayout, refresh]);
 
   const saveToken = async () => {
     const trimmed = token.trim();
@@ -190,6 +201,20 @@ function CloudDriveBody() {
     }
   };
 
+  const copyFtpPassword = async (driveId: string) => {
+    setBusy(true);
+    try {
+      const revealed = await IPC.cloudDriveRevealFtpPassword(driveId);
+      if (!revealed.ok || !revealed.password) throw new Error(revealed.error || 'No FTPS password is stored.');
+      await navigator.clipboard.writeText(revealed.password);
+      pushToast({ kind: 'success', title: 'FTPS password', message: 'Copied. It is not shown in the panel.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'FTPS password', message: e instanceof Error ? e.message : 'Could not copy.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copyText = async (value: string, title: string) => {
     if (!value) return;
     try {
@@ -215,6 +240,7 @@ function CloudDriveBody() {
         <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
         <Meter label="Hyper-V" value={probe.hyperV ? (probe.elevated ? 'Ready' : 'Needs admin') : 'Not found'} />
         <Meter label="WSL2" value={probe.wslVersion === '2' ? 'Version 2' : probe.wslPresent ? 'Present' : 'Not found'} />
+        <Meter label="cloudflared" value={probe.cloudflaredPresent ? 'Installed' : 'Not found'} hint={probe.cloudflaredMessage} />
       </div>
       {probe.guidance && <p className="bndz-cloud-guidance">{probe.guidance}</p>}
 
@@ -320,6 +346,7 @@ function CloudDriveBody() {
               <h3 className="m-0 text-sm font-semibold text-white">{drive.name}</h3>
               <span className="bndz-cloud-badge">{placementLabel(drive.placement)}</span>
               <span className="bndz-cloud-badge is-quiet">{stateLabel(drive.state)}</span>
+              {drive.id.startsWith('preview-') && <span className="bndz-cloud-badge is-quiet">Layout preview</span>}
             </div>
             <p className="bndz-cloud-meta">
               {drive.sizeGb ? `${drive.sizeGb} GB` : ''}
@@ -331,6 +358,22 @@ function CloudDriveBody() {
             {drive.diskPath && <p className="bndz-cloud-path" title={drive.diskPath}>{drive.diskPath}</p>}
             {drive.message && <p className="bndz-cloud-message">{drive.message}</p>}
             {drive.sshNote && <p className="bndz-cloud-message is-note">{drive.sshNote}</p>}
+            <ProtocolList
+              drive={drive}
+              busy={busy}
+              onCopy={copyText}
+              onCopyFtpPassword={() => void copyFtpPassword(drive.id)}
+            />
+            {drive.placement === 'local' ? (
+              <AwayAccess
+                drive={drive}
+                busy={busy}
+                onChanged={async () => { if (!previewLayout) await refresh(); }}
+                onCopy={copyText}
+              />
+            ) : (
+              <p className="bndz-cloud-message is-note">Fly publishes this machine’s address. Cloudflare Tunnel is the away path for This PC drives.</p>
+            )}
             <div className="flex flex-wrap gap-2 mt-2">
               <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'start')}>Start</PluginToolbarButton>
               <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'stop')}>Stop</PluginToolbarButton>
@@ -351,6 +394,177 @@ function CloudDriveBody() {
         </article>
       ))}
     </div>
+  );
+}
+
+function ProtocolList({
+  drive,
+  busy,
+  onCopy,
+  onCopyFtpPassword,
+}: {
+  drive: CloudDriveRecord;
+  busy: boolean;
+  onCopy: (value: string, title: string) => void;
+  onCopyFtpPassword: () => void;
+}) {
+  const endpoints = drive.endpoints ?? [];
+  if (endpoints.length === 0) {
+    return <p className="bndz-cloud-message is-note">Protocol endpoints are published by the BNDZ host.</p>;
+  }
+  return (
+    <section className="bndz-cloud-protocols" aria-label={`${drive.name} protocols`}>
+      <h4 className="bndz-cloud-section-label">Protocols</h4>
+      {endpoints.map(endpoint => (
+        <div key={endpoint.id} className="bndz-cloud-protocol">
+          <span className={`bndz-cloud-lamp is-${endpoint.state || 'pending'}`} aria-hidden />
+          <span className="bndz-cloud-protocol-label">{endpoint.label}</span>
+          <span className="bndz-cloud-protocol-copy">{endpoint.copyText || '—'}</span>
+          <PluginToolbarButton
+            disabled={busy || !endpoint.canCopy || !endpoint.copyText}
+            onClick={() => onCopy(endpoint.copyText || '', endpoint.label)}
+          >
+            Copy
+          </PluginToolbarButton>
+          {endpoint.note && <p className="bndz-cloud-protocol-note">{endpoint.note}</p>}
+          {endpoint.id === 'ftps' && (
+            <div className="bndz-cloud-protocol-note">
+              <PluginToolbarButton disabled={busy} onClick={onCopyFtpPassword}>Copy FTPS password</PluginToolbarButton>
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function AwayAccess({
+  drive,
+  busy,
+  onChanged,
+  onCopy,
+}: {
+  drive: CloudDriveRecord;
+  busy: boolean;
+  onChanged: () => Promise<void> | void;
+  onCopy: (value: string, title: string) => void;
+}) {
+  const [token, setToken] = useState('');
+  const [hostname, setHostname] = useState(drive.tunnelHostname || '');
+  const [pending, setPending] = useState(false);
+  useEffect(() => { setHostname(drive.tunnelHostname || ''); }, [drive.tunnelHostname]);
+  const locked = busy || pending;
+
+  const apply = async (r: { ok: boolean; drives?: CloudDriveRecord[]; error?: string }, title: string) => {
+    if (!r.ok) throw new Error(r.error || `${title} failed`);
+    await onChanged();
+    pushToast({ kind: 'success', title, message: 'Updated.' });
+  };
+
+  const saveToken = async () => {
+    const trimmed = token.trim();
+    if (trimmed.length < 20 || /\s/.test(trimmed)) {
+      pushToast({ kind: 'warning', title: 'Tunnel token', message: 'Paste the install token from Cloudflare, with no spaces.' });
+      return;
+    }
+    setPending(true);
+    try {
+      const r = await IPC.cloudDriveSetTunnelToken(drive.id, trimmed);
+      if (!r.ok) throw new Error(r.error || 'Could not store the token.');
+      setToken('');
+      await onChanged();
+      pushToast({ kind: 'success', title: 'Tunnel token stored', message: 'It stays in the Windows secure store and is not shown again.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Tunnel token', message: e instanceof Error ? e.message : 'Could not store the token.' });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const saveHost = async () => {
+    const normalized = normalizeTunnelHostname(hostname);
+    if (!normalized.ok) {
+      pushToast({ kind: 'warning', title: 'Hostname', message: normalized.error });
+      return;
+    }
+    setPending(true);
+    try {
+      const r = await IPC.cloudDriveSetTunnelHostname(drive.id, normalized.hostname);
+      await apply(r, normalized.hostname ? 'Hostname saved' : 'Hostname cleared');
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Hostname', message: e instanceof Error ? e.message : 'Could not save the hostname.' });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const runTunnel = async (op: 'start' | 'stop' | 'clear') => {
+    setPending(true);
+    try {
+      const r = op === 'start'
+        ? await IPC.cloudDriveTunnelStart(drive.id)
+        : op === 'stop'
+          ? await IPC.cloudDriveTunnelStop(drive.id)
+          : await IPC.cloudDriveClearTunnelToken(drive.id);
+      if (op === 'clear') setToken('');
+      await apply(r, op === 'start' ? 'Away access' : op === 'stop' ? 'Tunnel stopped' : 'Token cleared');
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Away access', message: e instanceof Error ? e.message : 'Could not update the tunnel.' });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const panel = drive.endpoints?.find(endpoint => endpoint.id === 'panel');
+
+  return (
+    <section className="bndz-cloud-away" aria-label={`${drive.name} away access`}>
+      <div className="flex items-center gap-2">
+        <span className={`bndz-cloud-lamp is-${drive.tunnelState || 'token-needed'}`} aria-hidden />
+        <h4 className="bndz-cloud-section-label">Away access</h4>
+        <span className="bndz-cloud-badge is-quiet">{drive.tunnelState || 'token-needed'}</span>
+      </div>
+      <p className="bndz-cloud-message">{drive.awayGuide}</p>
+      {drive.tunnelMessage && <p className="bndz-cloud-message is-note">{drive.tunnelMessage}</p>}
+      <label className="grid gap-1">
+        <span className="bndz-plugin-field-label">Cloudflare Tunnel token</span>
+        <input
+          className={PLUGIN_INPUT_CLASS}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          name="bndz-tunnel-token"
+          placeholder={drive.tunnelTokenConfigured ? 'Token stored — paste only to replace it' : 'Paste the tunnel install token'}
+          value={token}
+          onChange={e => setToken(e.target.value)}
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <PluginToolbarButton disabled={locked || !token.trim()} onClick={() => void saveToken()}>Save token</PluginToolbarButton>
+        <PluginToolbarButton disabled={locked || !drive.tunnelTokenConfigured} onClick={() => void runTunnel('clear')}>Clear token</PluginToolbarButton>
+        <PluginToolbarButton disabled={locked} onClick={() => void runTunnel('start')}>Start tunnel</PluginToolbarButton>
+        <PluginToolbarButton disabled={locked} onClick={() => void runTunnel('stop')}>Stop tunnel</PluginToolbarButton>
+      </div>
+      <label className="grid gap-1">
+        <span className="bndz-plugin-field-label">Public hostname</span>
+        <input
+          className={PLUGIN_INPUT_CLASS}
+          value={hostname}
+          spellCheck={false}
+          placeholder="drive.example.com"
+          onChange={e => setHostname(e.target.value)}
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <PluginToolbarButton disabled={locked} onClick={() => void saveHost()}>Save hostname</PluginToolbarButton>
+        <PluginToolbarButton
+          disabled={locked || !panel?.canCopy || !panel.copyText}
+          onClick={() => onCopy(panel?.copyText || '', 'Panel URL')}
+        >
+          Copy panel URL
+        </PluginToolbarButton>
+      </div>
+    </section>
   );
 }
 

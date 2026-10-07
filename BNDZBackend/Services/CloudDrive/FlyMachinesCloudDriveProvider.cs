@@ -255,19 +255,7 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
             }
         }
 
-        var machineBody = JsonSerializer.Serialize(new
-        {
-            name = "bndz",
-            region,
-            config = new
-            {
-                image,
-                guest = new { cpu_kind = "shared", cpus = 1, memory_mb = 512 },
-                mounts = new[] { new { volume = drive.FlyVolumeId, path = "/data" } },
-                metadata = new Dictionary<string, string> { ["bndz_drive_id"] = drive.Id },
-                env = new Dictionary<string, string> { ["BNDZ_DATA_MOUNT"] = "/data" },
-            },
-        });
+        var machineBody = JsonSerializer.Serialize(BuildMachineSpec(drive, image, region));
         var machineUrl = $"{MachinesApi}/v1/apps/{Uri.EscapeDataString(drive.FlyApp)}/machines";
         var (mStatus, mBody) = await SendAsync(HttpMethod.Post, machineUrl, token, machineBody, ct).ConfigureAwait(false);
         if (mStatus < 200 || mStatus >= 300)
@@ -285,8 +273,42 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
             return;
         }
         drive.SshNote = SshNote(drive);
-        if (string.IsNullOrWhiteSpace(drive.Message))
-            drive.Message = "Fly machine and volume exist. SSH/SFTP publish with the pinned image; this build does not open port 22 by itself.";
+        if (string.IsNullOrWhiteSpace(drive.Message) || drive.State is "running" or "creating" or "stopped")
+        {
+            drive.Message = CloudDriveGuestBootstrap.Enabled()
+                ? "Fly machine and volume exist. Guest bootstrap installs SSH, SFTP, and FTPS and serves WebDAV on port 8080 when the image has apt. Plain anonymous FTP is off. Cloudflare Containers are not the VM."
+                : "Fly machine and volume exist. Bootstrap is off (BNDZ_CLOUD_DRIVE_BOOTSTRAP=0). The pinned image must install SSH, SFTP, FTPS, and WebDAV itself.";
+        }
+    }
+
+    private static object BuildMachineSpec(CloudDriveRecord drive, string image, string region)
+    {
+        CloudDrivePorts.Ensure(drive);
+        var env = new Dictionary<string, string> { ["BNDZ_DATA_MOUNT"] = "/data" };
+        if (!string.IsNullOrWhiteSpace(drive.PublicKey))
+            env["BNDZ_AUTHORIZED_KEY"] = drive.PublicKey.Trim();
+        var ftp = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedFtpPassword);
+        if (!string.IsNullOrWhiteSpace(ftp))
+            env["BNDZ_FTP_PASSWORD"] = ftp;
+
+        var config = new Dictionary<string, object?>
+        {
+            ["image"] = image,
+            ["guest"] = new { cpu_kind = "shared", cpus = 1, memory_mb = 512 },
+            ["mounts"] = new[] { new { volume = drive.FlyVolumeId, path = "/data" } },
+            ["metadata"] = new Dictionary<string, string> { ["bndz_drive_id"] = drive.Id },
+            ["env"] = env,
+            ["services"] = CloudDriveGuestBootstrap.FlyServices(drive),
+        };
+        if (CloudDriveGuestBootstrap.Enabled())
+        {
+            config["files"] = new[]
+            {
+                new { guest_path = "/opt/bndz/bootstrap.sh", raw_value = CloudDriveGuestBootstrap.Script },
+            };
+            config["cmd"] = new[] { "bash", "/opt/bndz/bootstrap.sh" };
+        }
+        return new { name = "bndz", region, config };
     }
 
     private static void ApplyMachineJson(CloudDriveRecord drive, string body)
@@ -330,9 +352,12 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
 
     private static string SshNote(CloudDriveRecord drive)
     {
+        CloudDrivePorts.Ensure(drive);
         if (!string.IsNullOrWhiteSpace(drive.FlyMachineId))
-            return "Private key stays in the Windows secure store. Public SSH/SFTP is not published until the drive image exposes port 22. Machine " + drive.FlyMachineId + " on app " + (drive.FlyApp ?? "—") + ".";
-        return "Private key stays in the Windows secure store. Copy SSH is a placeholder until the machine exists and port 22 is published.";
+            return "Private key stays in the Windows secure store. SSH/SFTP use port " + drive.SshPort
+                + " on " + (drive.FlyApp ?? "the app") + ".fly.dev once the guest is listening. FTPS is port "
+                + drive.FtpsPort + ". Machine " + drive.FlyMachineId + ".";
+        return "Private key stays in the Windows secure store. Copy SSH stays empty until the Fly app exists.";
     }
 
     private async Task<string?> TryOrgSlugAsync(string token, CancellationToken ct)

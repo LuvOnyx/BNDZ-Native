@@ -391,3 +391,14 @@ MVP always-on ~20 GB on Fly ≈ **$7–12/mo** (shared-cpu-1x 512MB ~$3.69 + vol
 ---
 
 *End of Phase B plan. No BNDZ code changes in this document turn.*
+
+---
+
+## Appendix — B1c wiring
+
+SSH, SFTP, FTPS, and WebDAV origins are computed on the drive record and shown in the Cloud Drive panel with Copy. Plain FTP stays unavailable (no anonymous login).
+
+- **Fly:** when `BNDZ_CLOUD_DRIVE_IMAGE` is set, the Machine spec publishes SSH (`22` → a high port), FTPS (`990`), and WebDAV (`8080` behind Fly HTTP/TLS on 80/443). Unless `BNDZ_CLOUD_DRIVE_BOOTSTRAP=0`, the guest command is a Debian/Ubuntu bootstrap that installs those services and sleeps. No Machine is created when the image env is unset.
+- **This PC:** origins are `127.0.0.1` plus per-drive high ports. The local rootfs is still not pinned, so the panel says nothing is listening in the guest yet.
+- **Away access:** local drives only. Paste a Cloudflare Tunnel install token (DPAPI, never logged, never passed as a process argument). BNDZ starts `cloudflared tunnel --no-autoupdate run` with `TUNNEL_TOKEN` in the environment. Public hostnames are configured in Cloudflare against `ssh://127.0.0.1:<sshPort>` and `http://127.0.0.1:<webDavPort>/`. Saving the hostname enables Copy panel URL. This is not Cloudflare Containers and not Docker Desktop.
+- **FTPS password:** per drive, DPAPI, copied on demand, not rendered in the panel. Passive ports 30000–30009 stay inside the guest.
