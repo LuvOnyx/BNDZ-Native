@@ -844,6 +844,93 @@ export const IPC = {
     }));
   },
 
+  cloudDriveProbe(): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdProbe`;
+    return _nativeCall<any>('CLOUD_DRIVE_PROBE', 'CLOUD_DRIVE_PROBE_RESULT', id, {}, 20000).then(r => ({
+      ok: r?.ok !== false,
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveList(): Promise<{ ok: boolean; drives: import('./cloudDrive').CloudDriveRecord[]; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, drives: [], error: 'Native host required' });
+    const id = `${Date.now()}_cdList`;
+    return _nativeCall<any>('CLOUD_DRIVE_LIST', 'CLOUD_DRIVE_LIST_RESULT', id, {}, 20000).then(r => ({
+      ok: r?.ok !== false,
+      drives: Array.isArray(r?.drives) ? r.drives : [],
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveSetToken(token: string): Promise<{ ok: boolean; orgSlug?: string; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdToken`;
+    return _nativeCall<any>('CLOUD_DRIVE_SET_TOKEN', 'CLOUD_DRIVE_SET_TOKEN_RESULT', id, { token }, 30000).then(r => ({
+      ok: r?.ok === true,
+      orgSlug: r?.orgSlug,
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveClearToken(): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdClear`;
+    return _nativeCall<any>('CLOUD_DRIVE_CLEAR_TOKEN', 'CLOUD_DRIVE_CLEAR_TOKEN_RESULT', id, {}, 15000).then(r => ({
+      ok: r?.ok === true,
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveCreate(body: {
+    name: string;
+    placement: 'cloud' | 'local';
+    sizeGb: number;
+    region?: string;
+    diskPath?: string;
+    flyToken?: string;
+  }): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdCreate`;
+    return _nativeCall<any>('CLOUD_DRIVE_CREATE', 'CLOUD_DRIVE_CREATE_RESULT', id, body, 120000).then(r => ({
+      ok: r?.ok === true,
+      drive: r?.drive,
+      drives: Array.isArray(r?.drives) ? r.drives : undefined,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveStart(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_START', { id: driveId });
+  },
+
+  cloudDriveStop(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_STOP', { id: driveId });
+  },
+
+  cloudDriveRefresh(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_REFRESH', { id: driveId });
+  },
+
+  cloudDriveDelete(driveId: string, confirmName: string): Promise<{ ok: boolean; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_DELETE', { id: driveId, confirmName });
+  },
+
+  _cloudDriveMutate(type: string, payload: Record<string, unknown>): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdMut`;
+    return _nativeCall<any>(type, `${type}_RESULT`, id, payload, 120000).then(r => ({
+      ok: r?.ok === true,
+      drive: r?.drive,
+      drives: Array.isArray(r?.drives) ? r.drives : undefined,
+      error: r?.error,
+    }));
+  },
+
   scanFolderSizes(paths: string[], forceRescan = false): Promise<{
     sizes: Record<string, number>;
     cancelled?: boolean;

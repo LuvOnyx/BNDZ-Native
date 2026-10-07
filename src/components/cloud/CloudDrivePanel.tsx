@@ -1,0 +1,392 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { IPC } from '../../lib/ipcBridge';
+import { Icons8Icon } from '../Icons8Icon';
+import { pushToast } from '../ToastHost';
+import PluginPanelShell from '../plugins/PluginPanelShell';
+import {
+  PluginToolbarButton,
+  PluginCard,
+  PluginEmptyState,
+  PluginSectionTitle,
+  PLUGIN_INPUT_CLASS,
+  PLUGIN_SELECT_CLASS,
+} from '../plugins/PluginPanelPrimitives';
+import {
+  FLY_REGIONS,
+  normalizeLocalPath,
+  placementLabel,
+  preflightLocalPath,
+  stateLabel,
+  type CloudDrivePlacement,
+  type CloudDriveProbe,
+  type CloudDriveRecord,
+} from '../../lib/cloudDrive';
+
+type Props = {
+  variant?: 'plugin' | 'settings';
+};
+
+const HOST_NOTE = 'Cloud Drive runs inside the BNDZ Windows host. This panel is the remote control.';
+
+export default function CloudDrivePanel({ variant = 'plugin' }: Props) {
+  const body = <CloudDriveBody />;
+  if (variant === 'settings') return body;
+  return (
+    <PluginPanelShell
+      title="Cloud Drive"
+      icon="cloud_drive"
+      iconColor="#7dd3fc"
+      variant="embedded"
+      subtitle="BNDZ remote-controls a private microVM. Files stay on that disk."
+    >
+      {body}
+    </PluginPanelShell>
+  );
+}
+
+function CloudDriveBody() {
+  const [drives, setDrives] = useState<CloudDriveRecord[]>([]);
+  const [probe, setProbe] = useState<CloudDriveProbe>({});
+  const [placement, setPlacement] = useState<CloudDrivePlacement>('cloud');
+  const [name, setName] = useState('Private drive');
+  const [sizeGb, setSizeGb] = useState(20);
+  const [region, setRegion] = useState<string>('iad');
+  const [diskPath, setDiskPath] = useState('');
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmName, setConfirmName] = useState('');
+  const [hostNote, setHostNote] = useState<string | null>(IPC.isNative ? null : HOST_NOTE);
+
+  const refresh = useCallback(async () => {
+    const listed = await IPC.cloudDriveList();
+    if (listed.error && !IPC.isNative) setHostNote(HOST_NOTE);
+    setDrives(listed.drives);
+    if (listed.probe) setProbe(listed.probe);
+    else {
+      const probed = await IPC.cloudDriveProbe();
+      if (probed.probe) setProbe(probed.probe);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const saveToken = async () => {
+    const trimmed = token.trim();
+    if (!trimmed) {
+      pushToast({ kind: 'warning', title: 'Fly token', message: 'Paste a bring-your-own Fly org token.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await IPC.cloudDriveSetToken(trimmed);
+      if (!r.ok) throw new Error(r.error || 'Token was not stored.');
+      setToken('');
+      if (r.probe) setProbe(r.probe);
+      pushToast({
+        kind: 'success',
+        title: 'Token stored',
+        message: r.orgSlug ? `Fly accepted the token for org ${r.orgSlug}.` : 'Fly accepted the token. It stays in the Windows secure store.',
+      });
+      await refresh();
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Token not stored', message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearToken = async () => {
+    setBusy(true);
+    try {
+      const r = await IPC.cloudDriveClearToken();
+      if (!r.ok) throw new Error(r.error || 'Could not clear the token.');
+      if (r.probe) setProbe(r.probe);
+      pushToast({ kind: 'success', title: 'Token cleared', message: 'The Fly token was removed from this Windows user store.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Clear failed', message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pickPath = async () => {
+    const dest = await IPC.openFolderDialog('Choose the drive folder for the sealed disk');
+    if (dest) setDiskPath(dest);
+  };
+
+  const createDrive = async () => {
+    if (placement === 'local') {
+      const localError = preflightLocalPath(diskPath);
+      if (localError) {
+        pushToast({ kind: 'warning', title: 'Pick another drive', message: localError });
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      const r = await IPC.cloudDriveCreate({
+        name: name.trim() || 'Private drive',
+        placement,
+        sizeGb,
+        region,
+        diskPath: placement === 'local' ? normalizeLocalPath(diskPath) : '',
+        flyToken: placement === 'cloud' && token.trim() ? token.trim() : undefined,
+      });
+      if (token.trim()) setToken('');
+      if (!r.ok) throw new Error(r.error || r.drive?.message || 'Create failed');
+      if (r.drives) setDrives(r.drives);
+      else await refresh();
+      const msg = r.drive?.message || (placement === 'cloud'
+        ? 'Drive record is in BNDZ. Files stay on the Fly machine, not on this PC.'
+        : 'Sealed disk slot is on the drive you picked.');
+      pushToast({ kind: r.drive?.state === 'error' ? 'warning' : 'success', title: 'Cloud Drive', message: msg });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Create failed', message: e instanceof Error ? e.message : String(e) });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const run = async (id: string, op: 'start' | 'stop' | 'refresh') => {
+    setBusy(true);
+    try {
+      const r = op === 'start'
+        ? await IPC.cloudDriveStart(id)
+        : op === 'stop'
+          ? await IPC.cloudDriveStop(id)
+          : await IPC.cloudDriveRefresh(id);
+      if (r.drives) setDrives(r.drives);
+      if (!r.ok) throw new Error(r.error || r.drive?.message || 'Request failed');
+      const title = op === 'start' ? 'Start' : op === 'stop' ? 'Stop' : 'Status';
+      pushToast({ kind: 'success', title, message: r.drive?.message || 'Updated.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Cloud Drive', message: e instanceof Error ? e.message : String(e) });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (drive: CloudDriveRecord) => {
+    if (confirmName.trim() !== drive.name) {
+      pushToast({ kind: 'warning', title: 'Confirm delete', message: 'Type the drive name exactly.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await IPC.cloudDriveDelete(drive.id, confirmName.trim());
+      if (!r.ok) throw new Error(r.error || 'Delete failed');
+      setConfirmId(null);
+      setConfirmName('');
+      if (r.drives) setDrives(r.drives);
+      pushToast({ kind: 'success', title: 'Drive deleted', message: 'The machine record was removed from BNDZ.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Delete failed', message: e instanceof Error ? e.message : String(e) });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyText = async (value: string, title: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      pushToast({ kind: 'success', title, message: 'Copied.' });
+    } catch {
+      pushToast({ kind: 'warning', title, message: value });
+    }
+  };
+
+  return (
+    <div className="bndz-cloud-stage flex flex-col gap-4 px-4 pb-4">
+      <p className="text-[12px] leading-relaxed text-slate-300/90 m-0">
+        Your files live on a private machine with its own disk. BNDZ only remote-controls it.
+        Cloud uses your Fly account. This PC keeps a sealed disk image on a drive you pick — not a shared folder, and not Docker.
+      </p>
+
+      {hostNote && (
+        <div className="bndz-cloud-note">{hostNote}</div>
+      )}
+
+      <div className="bndz-cloud-meters" aria-label="Cloud Drive readiness">
+        <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
+        <Meter label="Hyper-V" value={probe.hyperV ? (probe.elevated ? 'Ready' : 'Needs admin') : 'Not found'} />
+        <Meter label="WSL2" value={probe.wslVersion === '2' ? 'Version 2' : probe.wslPresent ? 'Present' : 'Not found'} />
+      </div>
+      {probe.guidance && <p className="bndz-cloud-guidance">{probe.guidance}</p>}
+
+      <PluginSectionTitle icon="cloud_drive">Where this drive lives</PluginSectionTitle>
+      <div className="bndz-cloud-bays" role="radiogroup" aria-label="Cloud Drive placement">
+        <Bay
+          selected={placement === 'cloud'}
+          title="Cloud elsewhere"
+          seal="Fly"
+          body="MicroVM and volume on your Fly org. You pay Fly. BNDZ stores the token encrypted and never logs it."
+          onSelect={() => setPlacement('cloud')}
+        />
+        <Bay
+          selected={placement === 'local'}
+          title="This PC — separate drive"
+          seal="Disk"
+          body="Same isolation shape. The sealed VHDX sits on a folder you pick (D:, USB, NAS letter), not on the system volume."
+          onSelect={() => setPlacement('local')}
+        />
+      </div>
+
+      <PluginCard className="bndz-cloud-form">
+        <div className="grid gap-3">
+          <label className="grid gap-1">
+            <span className="bndz-plugin-field-label">Name</span>
+            <input className={PLUGIN_INPUT_CLASS} value={name} maxLength={64} onChange={e => setName(e.target.value)} />
+          </label>
+          <label className="grid gap-1">
+            <span className="bndz-plugin-field-label">Size (GB)</span>
+            <input
+              className={PLUGIN_INPUT_CLASS}
+              type="number"
+              min={1}
+              max={500}
+              value={sizeGb}
+              onChange={e => setSizeGb(Number(e.target.value) || 20)}
+            />
+          </label>
+          {placement === 'cloud' ? (
+            <>
+              <label className="grid gap-1">
+                <span className="bndz-plugin-field-label">Region</span>
+                <select className={PLUGIN_SELECT_CLASS} value={region} onChange={e => setRegion(e.target.value)}>
+                  {FLY_REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1">
+                <span className="bndz-plugin-field-label">Fly API token</span>
+                <input
+                  className={PLUGIN_INPUT_CLASS}
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  name="bndz-fly-token"
+                  placeholder={probe.tokenConfigured ? 'Token stored — paste only to replace it' : 'Paste a BYO org token'}
+                  value={token}
+                  onChange={e => setToken(e.target.value)}
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <PluginToolbarButton disabled={busy || !token.trim()} onClick={() => void saveToken()}>Save token</PluginToolbarButton>
+                <PluginToolbarButton disabled={busy || !probe.tokenConfigured} onClick={() => void clearToken()}>Clear token</PluginToolbarButton>
+              </div>
+            </>
+          ) : (
+            <label className="grid gap-1">
+              <span className="bndz-plugin-field-label">Disk folder</span>
+              <div className="flex gap-2">
+                <input
+                  className={PLUGIN_INPUT_CLASS + ' flex-1'}
+                  value={diskPath}
+                  placeholder="D:\BNDZ Drives"
+                  onChange={e => setDiskPath(e.target.value)}
+                />
+                <PluginToolbarButton icon="folder_open_ui" onClick={() => void pickPath()}>Browse…</PluginToolbarButton>
+              </div>
+            </label>
+          )}
+          <div>
+            <PluginToolbarButton disabled={busy} onClick={() => void createDrive()}>Create drive</PluginToolbarButton>
+          </div>
+        </div>
+      </PluginCard>
+
+      <PluginSectionTitle icon="hard_drive_ui" action={
+        <PluginToolbarButton disabled={busy} onClick={() => void refresh()}>Refresh</PluginToolbarButton>
+      }>
+        Drives
+      </PluginSectionTitle>
+
+      {drives.length === 0 ? (
+        <PluginEmptyState
+          icon="cloud_drive"
+          title="No Cloud Drives yet"
+          description="Create one in the cloud on your Fly account, or reserve a sealed disk on another drive letter."
+        />
+      ) : drives.map(drive => (
+        <article key={drive.id} className={`bndz-cloud-cartridge is-${drive.placement === 'local' ? 'local' : 'cloud'}`}>
+          <div className="bndz-cloud-cartridge-spine" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`bndz-cloud-lamp is-${drive.state || 'stopped'}`} aria-hidden />
+              <h3 className="m-0 text-sm font-semibold text-white">{drive.name}</h3>
+              <span className="bndz-cloud-badge">{placementLabel(drive.placement)}</span>
+              <span className="bndz-cloud-badge is-quiet">{stateLabel(drive.state)}</span>
+            </div>
+            <p className="bndz-cloud-meta">
+              {drive.sizeGb ? `${drive.sizeGb} GB` : ''}
+              {drive.region ? ` · ${drive.region}` : ''}
+              {drive.flyApp ? ` · ${drive.flyApp}` : ''}
+              {drive.hypervisor ? ` · ${drive.hypervisor}` : ''}
+              {drive.fingerprint ? ` · ${drive.fingerprint}` : ''}
+            </p>
+            {drive.diskPath && <p className="bndz-cloud-path" title={drive.diskPath}>{drive.diskPath}</p>}
+            {drive.message && <p className="bndz-cloud-message">{drive.message}</p>}
+            {drive.sshNote && <p className="bndz-cloud-message is-note">{drive.sshNote}</p>}
+            <div className="flex flex-wrap gap-2 mt-2">
+              <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'start')}>Start</PluginToolbarButton>
+              <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'stop')}>Stop</PluginToolbarButton>
+              <PluginToolbarButton disabled={busy || !drive.sshCommand} onClick={() => void copyText(drive.sshCommand || '', 'SSH command')}>Copy SSH</PluginToolbarButton>
+              <PluginToolbarButton disabled={busy || !drive.publicKey} onClick={() => void copyText(drive.publicKey || '', 'Public key')}>Copy public key</PluginToolbarButton>
+              <PluginToolbarButton disabled={busy} onClick={() => { setConfirmId(drive.id); setConfirmName(''); }}>Delete</PluginToolbarButton>
+            </div>
+            {confirmId === drive.id && (
+              <div className="bndz-cloud-confirm">
+                <p>Type <strong>{drive.name}</strong> to destroy this drive.</p>
+                <div className="flex gap-2">
+                  <input className={PLUGIN_INPUT_CLASS} value={confirmName} onChange={e => setConfirmName(e.target.value)} />
+                  <PluginToolbarButton disabled={busy} onClick={() => void remove(drive)}>Delete drive</PluginToolbarButton>
+                </div>
+              </div>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function Meter({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="bndz-cloud-meter" title={hint}>
+      <div className="bndz-cloud-meter-value">{value}</div>
+      <div className="bndz-cloud-meter-label">{label}</div>
+    </div>
+  );
+}
+
+function Bay({
+  selected,
+  title,
+  seal,
+  body,
+  onSelect,
+}: {
+  selected: boolean;
+  title: string;
+  seal: string;
+  body: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      className={`bndz-cloud-bay${selected ? ' is-selected' : ''}`}
+      onClick={onSelect}
+    >
+      <span className="bndz-cloud-bay-seal">{seal}</span>
+      <span className="bndz-cloud-bay-title">{title}</span>
+      <span className="bndz-cloud-bay-body">{body}</span>
+    </button>
+  );
+}

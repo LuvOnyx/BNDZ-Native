@@ -5450,6 +5450,16 @@ export default function BNDZUI() {
             useShellIcon: false,
           })),
       } as NavTreeBuildNode] : []),
+      ...(installedPluginIdSet.has('cloud-drive') ? [{
+        treeKey: 'cloud-drive',
+        draggable: true,
+        label: 'Cloud Drives',
+        icon: 'cloud_drive',
+        iconColor: '#7dd3fc',
+        useShellIcon: false,
+        leaf: true,
+        onClick: () => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'cloud-drive' } })),
+      }] : []),
       {
         treeKey: 'recycle-bin',
         draggable: true,

@@ -31,6 +31,7 @@ const defFiles = {
   ActionLogPluginDef: 'ActionLogPlugin.tsx',
   ComparePluginDef: 'ComparePlugin.tsx',
   MeshPluginDef: 'MeshPlugin.tsx',
+  CloudDrivePluginDef: 'CloudDrivePlugin.tsx',
   GhostLinkPluginDef: 'GhostLinkPlugin.tsx',
 };
 
@@ -73,6 +74,7 @@ const componentPaths = {
   ActionLogPlugin: 'ActionLogPlugin.tsx',
   ComparePlugin: 'ComparePlugin.tsx',
   MeshPlugin: 'MeshPlugin.tsx',
+  CloudDrivePlugin: 'CloudDrivePlugin.tsx',
   GhostLinkPlugin: 'GhostLinkPlugin.tsx',
 };
 
