@@ -155,6 +155,7 @@ export function buildDefaultPaletteActions(handlers: {
   onRefresh?: () => void;
   onToggleSyncScroll?: () => void;
   onNewFindingTab?: () => void;
+  onOpenCloudDrive?: () => void;
 }): PaletteAction[] {
   const actions: PaletteAction[] = [
     { id: 'settings', label: 'Open Settings', hint: 'Configuration dialog', icon: 'config', onRun: handlers.onOpenSettings, keywords: ['config', 'preferences'] },
@@ -164,6 +165,7 @@ export function buildDefaultPaletteActions(handlers: {
     { id: 'rename', label: 'Batch Rename', hint: 'Rename selected files', icon: 'batch_rename', onRun: handlers.onOpenBatchRename },
     { id: 'find', label: 'Fast Search', hint: 'Global file search plugin', icon: 'search', onRun: handlers.onOpenFind, keywords: ['everything', 'search'] },
     { id: 'metadata', label: 'Metadata Inspector', hint: 'Hashes and extended properties', icon: 'metadata', onRun: handlers.onOpenMetadata ?? (() => {}), keywords: ['hash', 'properties'] },
+    ...(handlers.onOpenCloudDrive ? [{ id: 'cloud-drive', label: 'BNDZ Cloud', hint: 'Cloud Drives at cloud.bndz.org -- list and Create', icon: 'cloud_ui', onRun: handlers.onOpenCloudDrive, keywords: ['cloud', 'drive', 'create', 'share', 'cloud.bndz.org'] }] : []),
     { id: 'icons', label: 'Icon Studio', hint: 'Customize file icons', icon: 'icon_studio', onRun: handlers.onOpenIconStudio },
     { id: 'tabset', label: 'Save Tabset', hint: 'XYplorer-style workspace snapshot', icon: 'bookmark', onRun: handlers.onSaveTabset ?? (() => {}), keywords: ['workspace', 'session'] },
     { id: 'refresh', label: 'Refresh Folder', hint: 'Reload active directory', icon: 'refresh', onRun: handlers.onRefresh ?? (() => {}) },

@@ -35,6 +35,7 @@ const ActionLogPlugin = lazy(() => import('../components/plugins/ActionLogPlugin
 const MeshPlugin = lazy(() => import('../components/plugins/MeshPlugin'));
 const ProjectSandboxPlugin = lazy(() => import('../components/plugins/ProjectSandboxPlugin'));
 const BranchingTimePlugin = lazy(() => import('../components/plugins/BranchingTimePlugin'));
+const CloudDrivePlugin = lazy(() => import('../components/plugins/CloudDrivePlugin'));
 
 /**
  * Launch Ready A1 -- removed from Hub (not remapped to a living host):
@@ -211,6 +212,14 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: BranchingTimePlugin,
+    },
+
+    {
+        ...CloudDrivePluginDef,
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: CloudDrivePlugin,
     },
 ];
 

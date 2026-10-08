@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { IPC } from '../../lib/ipcBridge';
 import { Icons8Icon } from '../Icons8Icon';
 import MeshHostsManager from '../mesh/MeshHostsManager';
@@ -11,7 +11,8 @@ import { type MeshSyncRule, normalizeMeshHost, MESH_STATE_LABEL, MESH_PROVIDER_L
 import { buildMeshPath } from '../../lib/meshPaths';
 import { BNDZ_AUTOMATION, BNDZ_CANVAS } from '../../lib/bndzVirtualViews';
 import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
-import CloudDrivePanel from '../cloud/CloudDrivePanel';
+// BNDZ Cloud loads only when its settings tab is opened.
+const CloudDrivePanel = lazy(() => import('../cloud/CloudDrivePanel'));
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 
@@ -259,7 +260,7 @@ export default function WorkspaceToolsTabContent({
 
           <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar pr-1">
             {toolTab === 'cloud-drive' && (
-              <CloudDrivePanel variant="settings" />
+              <Suspense fallback={null}><CloudDrivePanel variant="settings" /></Suspense>
             )}
 
             {toolTab === 'remote-mesh' && (

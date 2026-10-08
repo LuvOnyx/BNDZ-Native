@@ -115,3 +115,12 @@ export const BranchingTimePluginDef = {
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
+
+export const CloudDrivePluginDef = {
+  id: 'cloud-drive',
+  name: 'BNDZ Cloud',
+  icon: 'cloud_ui',
+  description: 'Your own drives at cloud.bndz.org/<name>/ -- in the cloud or on this PC. Create, start, and share.',
+  targetPanel: 'bottom' as const,
+  installOnFirstUse: false,
+};

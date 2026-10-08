@@ -519,7 +519,7 @@ export default function BNDZUI() {
   }, [config, config.customKeyboardShortcuts]);
   const fileOpsRt = useMemo(() => buildFileOpsRuntime(config), [config]);
   const settingsRt = useMemo(() => buildSettingsRuntime(config), [config]);
-  const { pluginRegistry } = usePluginRegistry();
+  const { pluginRegistry, ensurePluginInstalled } = usePluginRegistry();
 
   // Real undo/redo availability for the main toolbar -- previously always-enabled regardless
   // of whether there was anything to undo/redo.
@@ -1759,7 +1759,10 @@ export default function BNDZUI() {
     // BottomPluginPanel will surface Mesh for the terminal hole without Hub install.
     const allowSystemTerminal =
       resolvedId === 'remote-mesh' && (launchMerged?.tab === 'terminal' || launch?.tab === 'terminal');
-    if (!installedPluginIdSet.has(resolvedId) && !allowSystemTerminal) {
+    // BNDZ Cloud is opened only from an explicit click (sidebar, menu, palette): install it on that click.
+    const explicitCloud = resolvedId === 'cloud-drive';
+    if (explicitCloud && !installedPluginIdSet.has(resolvedId)) ensurePluginInstalled?.('cloud-drive');
+    if (!installedPluginIdSet.has(resolvedId) && !allowSystemTerminal && !explicitCloud) {
       const label = (pluginRegistry || []).find((p: { id: string }) => p.id === resolvedId)?.name || resolvedId;
       setToastMessage(`"${label}" isn't installed. Add it from Extension Hub.`, 'warning');
       return;
@@ -1767,7 +1770,7 @@ export default function BNDZUI() {
     setIsBottomPanelOpen(true);
     setBottomPluginTab(resolvedId);
     if (launchMerged) setBottomPluginLaunch(launchMerged);
-  }, [installedPluginIdSet, pluginRegistry]);
+  }, [installedPluginIdSet, pluginRegistry, ensurePluginInstalled]);
 
 
 
@@ -7251,8 +7254,8 @@ ${classified.detail}`,
       ...(installedPluginIdSet.has('cloud-drive') ? [{
         treeKey: 'cloud-drive',
         draggable: true,
-        label: 'Cloud Drives',
-        icon: 'cloud_drive',
+        label: 'BNDZ Cloud',
+        icon: 'cloud_ui',
         iconColor: '#7dd3fc',
         useShellIcon: false,
         leaf: true,
@@ -11346,6 +11349,7 @@ ${classified.detail}`,
       onOpenBatchRename: () => openBottomPlugin('batch-rename'),
       onOpenFind: () => openBottomPlugin('find'),
       onOpenIconStudio: () => openBottomPlugin('icon-studio'),
+      onOpenCloudDrive: () => openBottomPlugin('cloud-drive'),
       onTogglePreview: togglePreviewPanel,
       onOpenMetadata: () => openBottomPlugin('metadata'),
       onSaveTabset: () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
@@ -15616,6 +15620,9 @@ ${classified.detail}`,
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsPluginStoreOpen(true))}>
                        <Icons8Icon id="extension_hub" size={14} /> Extension Hub
                     </div>
+                    <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { openBottomPlugin('cloud-drive'); closeMenu(); })}>
+                       <Icons8Icon id="cloud_ui" size={14} /> BNDZ Cloud
+                    </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); closeMenu(); })}><Icons8Icon id="tag_manager" size={14} /> Manage Tags...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setBottomPluginTab('batch-rename'); if (!isBottomPanelOpen) toggleBottomPanel(); closeMenu(); })}><Icons8Icon id="batch_rename" size={14} /> Batch Rename</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -16731,7 +16738,23 @@ ${classified.detail}`,
                      )
                   }
                   cloudProvidersContent={
-                    cloudDriveItems.length > 0 ? (
+                    <>
+                    {/* BNDZ Cloud: first-class entry beside OneDrive and other providers. Opens the drive list and Create. */}
+                    <div
+                      key="bndz-cloud"
+                      role="button"
+                      tabIndex={0}
+                      title="BNDZ Cloud -- your drives at cloud.bndz.org"
+                      className={`sidebar-pin-row relative flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 transition-all mx-1 bndz-sidebar-nav-hit ${bottomPluginTab === 'cloud-drive' && isBottomPanelOpen ? 'sidebar-pin-row-selected' : 'border-transparent'}`}
+                      onClick={(e) => { e.stopPropagation(); openBottomPlugin('cloud-drive'); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBottomPlugin('cloud-drive'); }
+                      }}
+                    >
+                      <Icons8Icon id="cloud_ui" size={14} />
+                      <span className="bndz-sidebar-pin-label text-[11px] font-medium truncate flex-1">BNDZ Cloud</span>
+                    </div>
+                    {cloudDriveItems.length > 0 ? (
                       cloudDriveItems.map((item: { label: string; path?: string; syncStatus?: string; leaf?: boolean; icon?: string; shellIconPath?: string }, idx: number) => {
                         const cloudPath = item.path ? normalizePanePath(item.path) : '';
                         const isCloudSelected = !!cloudPath && panePathsEqual(sidebarActiveNorm, cloudPath);
@@ -16778,9 +16801,10 @@ ${classified.detail}`,
                     ) : (
                       <div className="mx-3 my-2 px-3 py-4 text-center rounded-md border border-dashed border-[#333] bg-[#151515]/80">
                         <Icons8Icon id="cloud_drive" size={16} className="mx-auto mb-2 opacity-40" />
-                        <p className="text-[10px] text-gray-500 leading-relaxed">No cloud drives detected</p>
+                        <p className="text-[10px] text-gray-500 leading-relaxed">No other cloud drives detected</p>
                       </div>
-                    )
+                    )}
+                    </>
                   }
                   miniTreeContent={
                     config.showMiniTree === true ? (
