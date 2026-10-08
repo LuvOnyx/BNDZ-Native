@@ -24,7 +24,7 @@ public static class ShellThumbnailCacheService
         try
         {
             using var item = new ShellItem(filePath);
-            using var hbmp = item.GetImage(
+            using var hbmp = ShellImageFactory.TryGetImage(item,
                 new SIZE(size, size),
                 ShellItemGetImageOptions.ResizeToFit
                 | ShellItemGetImageOptions.ThumbnailOnly
