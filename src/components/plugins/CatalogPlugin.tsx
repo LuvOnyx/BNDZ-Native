@@ -22,13 +22,7 @@ function notifyCatalogChanged() {
   window.dispatchEvent(new CustomEvent('bndz-catalog-changed'));
 }
 
-export const CatalogPluginDef = {
-  id: 'catalog',
-  name: 'Catalog',
-  icon: 'bookmark',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { CatalogPluginDef } from './pluginDefs';
 
 type Props = {
   currentPath?: string;

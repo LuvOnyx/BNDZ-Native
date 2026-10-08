@@ -15,14 +15,7 @@ import {
   PluginSectionTitle,
 } from './PluginPanelPrimitives';
 
-export const BranchingTimePluginDef = {
-  id: 'branching-time',
-  name: 'Branching Time',
-  icon: 'history_ui',
-  description: 'Save folder snapshots you can preview and restore later -- like undo for a whole folder',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { BranchingTimePluginDef } from './pluginDefs';
 
 type TabId = 'branches' | 'peek' | 'vss' | 'system';
 

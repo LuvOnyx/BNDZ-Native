@@ -18,14 +18,7 @@ import {
   PluginTab,
 } from './PluginPanelPrimitives';
 
-export const FolderSyncPluginDef = {
-  id: 'folder-sync',
-  name: 'Folder Sync',
-  icon: 'sync_folders',
-  description: 'Keep folders in sync, or compare two folders side by side',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { FolderSyncPluginDef } from './pluginDefs';
 
 export interface FolderSyncJob {
   id: string;

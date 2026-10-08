@@ -35,12 +35,13 @@ const defFiles = {
 };
 
 function readDefId(defName) {
-  const file = defFiles[defName];
-  if (!file) return null;
-  const full = path.join(ROOT, 'src/components/plugins', file);
+  // Hub catalogue entries live in pluginDefs.ts (components load lazily).
+  if (!defFiles[defName]) return null;
+  const full = path.join(ROOT, 'src/components/plugins/pluginDefs.ts');
   if (!fs.existsSync(full)) return null;
   const content = fs.readFileSync(full, 'utf8');
-  const m = content.match(/id:\s*['"]([^'"]+)['"]/);
+  const block = content.match(new RegExp(String.raw`export const ${defName}\b[^=]*=\s*\{([\s\S]*?)\};`));
+  const m = block?.[1]?.match(/id:\s*['"]([^'"]+)['"]/);
   return m?.[1] ?? null;
 }
 

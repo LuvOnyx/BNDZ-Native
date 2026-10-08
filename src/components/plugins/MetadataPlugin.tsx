@@ -17,14 +17,7 @@ import {
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
-export const MetadataPluginDef = {
-    id: 'metadata',
-    name: 'Metadata',
-    icon: 'metadata',
-    description: 'Details, tags, checksums, and image convert -- one place',
-    isNative: true,
-    targetPanel: 'bottom' as const,
-};
+export { MetadataPluginDef } from './pluginDefs';
 
 const MEDIA_KEYS = new Set([
     'Dimensions', 'Duration', 'Bitrate', 'Codec', 'Camera Model', 'Camera Make', 'Date Taken',

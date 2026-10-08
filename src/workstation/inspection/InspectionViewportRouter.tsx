@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import ImageZoomPreview from '../../components/ImageZoomPreview';
-import GpuInspectionViewport from './GpuInspectionViewport';
+
+// three.js + react-three-fiber (~2 MB unminified) only load when Luma / Loupe is switched on.
+const GpuInspectionViewport = lazy(() => import('./GpuInspectionViewport'));
 
 export type InspectionShaderMode = 'passthrough' | 'histogram' | 'loupe';
 
@@ -44,27 +46,31 @@ export default function InspectionViewportRouter({
   }, [shaderMode, src]);
 
   const useGpu = wantsLens && gpuEnabled !== false && !gpuFailed;
+  const plain = (
+    <ImageZoomPreview
+      src={src}
+      alt={alt}
+      fallbackSrc={fallbackSrc}
+      filePath={filePath}
+      onOpenFloating={onOpenFloating}
+      inspectionMode={shaderMode}
+    />
+  );
 
   return (
     <div className="relative w-full h-full min-h-0 flex-1 flex flex-col">
       {useGpu ? (
-        <GpuInspectionViewport
-          src={src}
-          alt={alt}
-          filePath={filePath}
-          shaderMode={shaderMode}
-          onFailed={() => setGpuFailed(true)}
-        />
-      ) : (
-        <ImageZoomPreview
-          src={src}
-          alt={alt}
-          fallbackSrc={fallbackSrc}
-          filePath={filePath}
-          onOpenFloating={onOpenFloating}
-          inspectionMode={shaderMode}
-        />
-      )}
+        // While the GPU chunk loads, keep the plain image on screen (no blank flash).
+        <Suspense fallback={plain}>
+          <GpuInspectionViewport
+            src={src}
+            alt={alt}
+            filePath={filePath}
+            shaderMode={shaderMode}
+            onFailed={() => setGpuFailed(true)}
+          />
+        </Suspense>
+      ) : plain}
       {wantsLens && (
         <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-md bg-black/70 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-cyan-100">
           {shaderMode === 'loupe' ? 'Loupe' : 'Luma inspect'}

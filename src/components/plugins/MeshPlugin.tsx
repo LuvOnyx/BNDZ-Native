@@ -401,13 +401,7 @@ function MeshTerminalPanel({
   return <MeshSshTerminalPanel sessionId={sessionId} active={active} />;
 }
 
-export const MeshPluginDef = {
-  id: 'remote-mesh',
-  name: 'Remote',
-  icon: 'cloud_ui',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { MeshPluginDef } from './pluginDefs';
 
 type Props = {
   onNavigate?: (path: string) => void;

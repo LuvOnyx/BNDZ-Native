@@ -20,14 +20,7 @@ import {
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
 
-export const FiltersPluginDef = {
-    id: 'filters',
-    name: 'Visual Filters',
-    icon: 'filters',
-    description: 'Color rules and smart groups to highlight or hide files in the list',
-    isNative: false,
-    targetPanel: 'bottom' as const,
-};
+export { FiltersPluginDef } from './pluginDefs';
 
 const SAMPLE_ENTITY = {
     name: 'example-report.pdf',

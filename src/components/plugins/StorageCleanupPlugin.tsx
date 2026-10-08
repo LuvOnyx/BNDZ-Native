@@ -31,14 +31,7 @@ import {
   type DupGroup,
 } from '../../lib/storageOrganize';
 
-export const StorageCleanupPluginDef = {
-  id: 'storage-cleanup',
-  name: 'Storage Cleanup',
-  icon: 'storage_cleanup',
-  description: 'Free space, find large files, remove duplicates, and check library health',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { StorageCleanupPluginDef } from './pluginDefs';
 
 function launchTabIsRefs(launch: any) {
   const tab = String(launch?.tab || '').toLowerCase();

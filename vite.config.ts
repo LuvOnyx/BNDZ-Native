@@ -17,6 +17,20 @@ export default defineConfig(() => {
         },
         output: {
           manualChunks(id) {
+            // Shared runtime pieces get their own chunk. Without this Rollup parks them inside
+            // whichever manual chunk claims them first (e.g. syntax / xyflow), and the startup
+            // bundle then has to preload that whole library just to reach a 1 KB helper.
+            if (
+              id.includes('vite/preload-helper') ||
+              id.includes('commonjsHelpers') ||
+              id.includes('node_modules/@babel/runtime') ||
+              id.includes('node_modules/use-sync-external-store') ||
+              id.includes('node_modules/react/') ||
+              id.includes('node_modules/react-dom/') ||
+              id.includes('node_modules/scheduler/')
+            ) {
+              return 'vendor';
+            }
             if (id.includes('node_modules/framer-motion') || id.includes('node_modules/motion')) {
               return 'motion';
             }

@@ -1,20 +1,39 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import ContextMenuPlugin, { ContextMenuPluginDef } from '../components/plugins/ContextMenuPlugin';
-import PropertiesPlugin from '../components/plugins/PropertiesPlugin';
-import IconStudioPlugin, { IconStudioPluginDef } from '../components/plugins/IconStudio';
-import BatchRenamePlugin, { BatchRenamePluginDef } from '../components/plugins/BatchRenamePlugin';
-import FindPlugin, { FindPluginDef } from '../components/plugins/FindPlugin';
-import DropStackPlugin, { DropStackPluginDef } from '../components/plugins/DropStackPlugin';
-import FiltersPlugin, { FiltersPluginDef } from '../components/plugins/FiltersPlugin';
-import MetadataPlugin, { MetadataPluginDef } from '../components/plugins/MetadataPlugin';
-import StorageCleanupPlugin, { StorageCleanupPluginDef } from '../components/plugins/StorageCleanupPlugin';
-import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/FolderSyncPlugin';
-import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
-import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
-import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
-import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plugins/ProjectSandboxPlugin';
-import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, lazy } from 'react';
+import {
+    ContextMenuPluginDef,
+    IconStudioPluginDef,
+    BatchRenamePluginDef,
+    FindPluginDef,
+    DropStackPluginDef,
+    FiltersPluginDef,
+    MetadataPluginDef,
+    StorageCleanupPluginDef,
+    FolderSyncPluginDef,
+    CatalogPluginDef,
+    ActionLogPluginDef,
+    MeshPluginDef,
+    ProjectSandboxPluginDef,
+    BranchingTimePluginDef,
+} from '../components/plugins/pluginDefs';
 import { useAppConfig } from './configContext';
+
+// Plugin panels load on first open (Remote pulls the terminal, Storage Cleanup the scanners, ...).
+// Render sites wrap them in <Suspense>.
+const ContextMenuPlugin = lazy(() => import('../components/plugins/ContextMenuPlugin'));
+const PropertiesPlugin = lazy(() => import('../components/plugins/PropertiesPlugin'));
+const IconStudioPlugin = lazy(() => import('../components/plugins/IconStudio'));
+const BatchRenamePlugin = lazy(() => import('../components/plugins/BatchRenamePlugin'));
+const FindPlugin = lazy(() => import('../components/plugins/FindPlugin'));
+const DropStackPlugin = lazy(() => import('../components/plugins/DropStackPlugin'));
+const FiltersPlugin = lazy(() => import('../components/plugins/FiltersPlugin'));
+const MetadataPlugin = lazy(() => import('../components/plugins/MetadataPlugin'));
+const StorageCleanupPlugin = lazy(() => import('../components/plugins/StorageCleanupPlugin'));
+const FolderSyncPlugin = lazy(() => import('../components/plugins/FolderSyncPlugin'));
+const CatalogPlugin = lazy(() => import('../components/plugins/CatalogPlugin'));
+const ActionLogPlugin = lazy(() => import('../components/plugins/ActionLogPlugin'));
+const MeshPlugin = lazy(() => import('../components/plugins/MeshPlugin'));
+const ProjectSandboxPlugin = lazy(() => import('../components/plugins/ProjectSandboxPlugin'));
+const BranchingTimePlugin = lazy(() => import('../components/plugins/BranchingTimePlugin'));
 
 /**
  * Launch Ready A1 -- removed from Hub (not remapped to a living host):

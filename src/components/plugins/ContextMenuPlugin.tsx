@@ -39,11 +39,7 @@ import {
 } from '../../lib/shellMenuPresets';
 import { ShellVerbForgePanel } from './ShellVerbForgePlugin';
 
-export const ContextMenuPluginDef = {
-  id: 'context-menu-manager',
-  name: 'Shell Menus',
-  icon: 'shell_menus',
-};
+export { ContextMenuPluginDef } from './pluginDefs';
 
 type ShellTab = 'app' | 'global' | 'verbs';
 type PreviewSurface = 'file' | 'folder' | 'background';

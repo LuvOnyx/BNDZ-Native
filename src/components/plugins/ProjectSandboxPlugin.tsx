@@ -16,14 +16,7 @@ import {
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
-export const ProjectSandboxPluginDef = {
-  id: 'project-sandbox',
-  name: 'Project Sandbox',
-  icon: 'layers_ui',
-  description: 'Safe work folders with restore points and optional locked vaults',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { ProjectSandboxPluginDef } from './pluginDefs';
 
 type TabId = 'active' | 'history' | 'checkpoints' | 'vault';
 
