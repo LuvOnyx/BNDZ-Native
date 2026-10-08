@@ -48,7 +48,9 @@ var panelPort = CloudDriveQemu.FreePort();
 var sshPort = CloudDriveQemu.FreePort();
 var qmpPort = CloudDriveQemu.FreePort();
 var spec = new CloudDriveQemu.LaunchSpec("bndz-" + id, sys, data, seed, panelPort, sshPort, qmpPort,
-    Path.Combine(slot, "console.log"), Path.Combine(slot, "qemu.pid"), whpx);
+    Path.Combine(slot, "console.log"), Path.Combine(slot, "qemu.pid"), whpx,
+    Kernel: args.Contains("--bios") ? null : CloudDriveQemu.Kernel(runtime),
+    Initrd: args.Contains("--bios") ? null : CloudDriveQemu.Initrd(runtime));
 Console.WriteLine("qemu " + string.Join(' ', CloudDriveQemu.BuildArgs(spec)));
 
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
@@ -64,6 +66,7 @@ async Task<double> Boot(string label)
     {
         if (p.HasExited) throw new Exception("QEMU exited: " + SafeRead(spec.ConsoleLog + ".qemu.txt"));
         try { var r = await http.GetAsync(baseUrl + "api/health"); if (r.IsSuccessStatusCode) break; } catch { }
+        if (SafeRead(spec.ConsoleLog).Contains("Kernel panic", StringComparison.Ordinal)) { try { p.Kill(true); } catch { } throw new Exception("guest kernel panic"); }
         await Task.Delay(500);
     }
     Console.WriteLine($"{label}: panel answered after {t.Elapsed.TotalSeconds:F1}s (pid {p.Id})");

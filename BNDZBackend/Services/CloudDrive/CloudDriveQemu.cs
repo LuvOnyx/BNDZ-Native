@@ -52,8 +52,15 @@ public static class CloudDriveQemu
     public static string QemuImg(string runtime) => Path.Combine(QemuDir(runtime), "qemu-img.exe");
     public static string BaseImage(string runtime) => Path.Combine(runtime, "images", GuestImage.Name);
 
+    public static string Kernel(string runtime) => Path.Combine(runtime, "boot", "vmlinuz-virt");
+    public static string Initrd(string runtime) => Path.Combine(runtime, "boot", "initramfs-virt");
+
+    /// <summary>Kernel command line for direct kernel boot of the pinned Alpine image (skips BIOS menu and bootloader).</summary>
+    public const string KernelAppend = "root=LABEL=/ rootfstype=ext4 no_timer_check modules=virtio_pci,virtio_blk,sd-mod,ext4 console=ttyS0,115200n8 quiet";
+
     public static bool RuntimeReady(string runtime) =>
-        File.Exists(QemuExe(runtime)) && File.Exists(QemuImg(runtime)) && File.Exists(BaseImage(runtime));
+        File.Exists(QemuExe(runtime)) && File.Exists(QemuImg(runtime)) && File.Exists(BaseImage(runtime))
+        && File.Exists(Kernel(runtime)) && File.Exists(Initrd(runtime));
 
     // ---------- accelerator ----------
 
@@ -73,7 +80,7 @@ public static class CloudDriveQemu
     public sealed record LaunchSpec(
         string Name, string SystemDisk, string DataDisk, string SeedIso,
         int PanelPort, int SshPort, int QmpPort, string ConsoleLog, string PidFile,
-        bool Whpx, int MemoryMb = 512, int Cpus = 2);
+        bool Whpx, int MemoryMb = 512, int Cpus = 2, string? Kernel = null, string? Initrd = null);
 
     public static string DiskFormat(string path) =>
         Path.GetExtension(path).ToLowerInvariant() switch
@@ -91,6 +98,8 @@ public static class CloudDriveQemu
         if (s.Whpx) { a.Add("-accel"); a.Add("whpx,kernel-irqchip=off"); }
         a.Add("-accel"); a.Add("tcg,thread=multi");
         a.AddRange(new[] { "-cpu", s.Whpx ? "qemu64" : "max", "-smp", s.Cpus.ToString(), "-m", s.MemoryMb.ToString() });
+        if (!string.IsNullOrEmpty(s.Kernel) && !string.IsNullOrEmpty(s.Initrd))
+            a.AddRange(new[] { "-kernel", s.Kernel, "-initrd", s.Initrd, "-append", KernelAppend });
         a.AddRange(new[] { "-drive", "file=" + Q(s.SystemDisk) + ",if=virtio,format=" + DiskFormat(s.SystemDisk) + ",cache=writeback" });
         a.AddRange(new[] { "-drive", "file=" + Q(s.DataDisk) + ",if=virtio,format=" + DiskFormat(s.DataDisk) + ",cache=writeback" });
         a.AddRange(new[] { "-drive", "file=" + Q(s.SeedIso) + ",media=cdrom,readonly=on" });
@@ -299,8 +308,26 @@ start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh; }
             Directory.CreateDirectory(Path.GetDirectoryName(BaseImage(runtime))!);
             File.Move(img, BaseImage(runtime), overwrite: true);
         }
-        if (File.Exists(QemuExe(runtime)) && File.Exists(QemuImg(runtime))) return;
+        if (!(File.Exists(QemuExe(runtime)) && File.Exists(QemuImg(runtime))))
+            await UnpackQemuAsync(runtime, dl, progress, ct);
+        if (!File.Exists(Kernel(runtime)) || !File.Exists(Initrd(runtime)))
+        {
+            // 7-Zip reads qcow2 and ext4 directly, so the kernel comes from the pinned image itself.
+            var boot = Path.Combine(runtime, "boot.partial");
+            if (Directory.Exists(boot)) Directory.Delete(boot, true);
+            Run(SevenZipExe(runtime), new[] { "e", "-y", "-o" + boot, BaseImage(runtime), "boot\\vmlinuz-virt", "boot\\initramfs-virt" }, 120_000);
+            if (!File.Exists(Path.Combine(boot, "vmlinuz-virt")) || !File.Exists(Path.Combine(boot, "initramfs-virt")))
+                throw new InvalidOperationException("The guest kernel was not found in the pinned image.");
+            var dest = Path.GetDirectoryName(Kernel(runtime))!;
+            if (Directory.Exists(dest)) Directory.Delete(dest, true);
+            Directory.Move(boot, dest);
+        }
+    }
 
+    public static string SevenZipExe(string runtime) => Path.Combine(runtime, "7z", "7z.exe");
+
+    private static async Task UnpackQemuAsync(string runtime, string dl, IProgress<Progress>? progress, CancellationToken ct)
+    {
         var zr = await FetchAsync(SevenZipR, dl, progress, ct);
         var z = await FetchAsync(SevenZip, dl, progress, ct);
         var setup = await FetchAsync(QemuSetup, dl, progress, ct);
@@ -311,7 +338,7 @@ start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh; }
         if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
         var args = new List<string> { "x", "-y", "-o" + tmp, setup };
         args.AddRange(QemuKeep.Select(k => k.Replace('/', '\\')));
-        Run(Path.Combine(sevenDir, "7z.exe"), args, 600_000);
+        Run(SevenZipExe(runtime), args, 600_000);
         if (!File.Exists(Path.Combine(tmp, "qemu-system-x86_64.exe")))
             throw new InvalidOperationException("QEMU did not unpack from the pinned installer.");
         File.WriteAllText(Path.Combine(tmp, "SOURCE.txt"), SourceOffer);

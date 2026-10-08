@@ -3,7 +3,8 @@
 export const CLOUD_DRIVE_BASE_DOMAIN = 'cloud.bndz.org';
 
 export type CloudDrivePlacement = 'cloud' | 'local';
-export type CloudDriveLocalBackend = 'hyper-v' | 'wsl2' | 'none';
+/** 'none' only appears in old saved probes. This PC always has an engine now. */
+export type CloudDriveLocalBackend = 'hyper-v' | 'wsl2' | 'qemu-whpx' | 'qemu-tcg' | 'none';
 
 export type CloudDriveRecord = {
   id: string;
@@ -198,19 +199,27 @@ export function originHost(base: string | null | undefined, slug: string): strin
 }
 
 export function localBackend(probe: CloudDriveProbe): CloudDriveLocalBackend {
-  if (probe.localBackend === 'hyper-v' || probe.localBackend === 'wsl2' || probe.localBackend === 'none') {
-    return probe.localBackend;
-  }
+  const b = probe.localBackend;
+  if (b === 'hyper-v' || b === 'wsl2' || b === 'qemu-whpx' || b === 'qemu-tcg') return b;
   if (probe.hyperV) return 'hyper-v';
   if (probe.wslVersion === '2') return 'wsl2';
-  return 'none';
+  return 'qemu-tcg';
 }
 
-export function localBackendAvailable(probe: CloudDriveProbe): boolean {
-  return localBackend(probe) !== 'none';
+/** Always true: the bundled engine runs in compatibility mode with no Windows setup. */
+export function localBackendAvailable(_probe: CloudDriveProbe): boolean {
+  return true;
 }
 
-/** Saved choice wins. Otherwise Cloud is selected only when this PC cannot run a VM. */
+export function localAccelerated(probe: CloudDriveProbe): boolean {
+  return localBackend(probe) !== 'qemu-tcg';
+}
+
+export function localModeLabel(probe: CloudDriveProbe): string {
+  return localAccelerated(probe) ? 'Running accelerated' : 'Running in compatibility mode';
+}
+
+/** Saved choice wins. Otherwise This PC, which always works now. */
 export function defaultPlacement(probe: CloudDriveProbe, lastChoice?: string | null): CloudDrivePlacement {
   if (lastChoice === 'cloud' || lastChoice === 'local') return lastChoice;
   return localBackendAvailable(probe) ? 'local' : 'cloud';
@@ -322,15 +331,13 @@ export function nextAction(probe: CloudDriveProbe, placement: string, diskPath =
       return 'Pick a folder on D: or another drive. The sealed disk is created there, not on C:.';
     }
     const backend = localBackend(probe);
-    if (backend === 'none') {
-      return probe.localBackendMessage
-        || 'Hyper-V and WSL2 are off, so the VM cannot start yet. You can still put the disk on a drive you pick. Enable Hyper-V, then start the drive.';
+    if (backend === 'qemu-tcg' || backend === 'qemu-whpx') {
+      return backend === 'qemu-whpx'
+        ? 'Create. The drive runs accelerated on this PC. Nothing to set up in Windows.'
+        : 'Create. The drive runs in compatibility mode on this PC. Nothing to set up in Windows. Faster mode is optional.';
     }
     if (backend === 'wsl2') {
       return 'Create. This PC will run the drive with WSL2 and attach the sealed disk. It will not make a second copy.';
-    }
-    if (!probe.elevated) {
-      return 'Hyper-V is installed. Windows asks for administrator approval when the drive starts. The disk stays on the folder you pick.';
     }
     if (!probe.rootfsPresent) {
       return probe.rootfsMessage

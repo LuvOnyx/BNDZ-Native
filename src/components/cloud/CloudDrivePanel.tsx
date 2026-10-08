@@ -22,6 +22,8 @@ import {
   formatSnapshotSize,
   landingUrl,
   localBackend,
+  localAccelerated,
+  localModeLabel,
   nextAction,
   placementLabel,
   preflightLocalPath,
@@ -116,22 +118,22 @@ function CloudDriveBody() {
 
   const enableLocal = async () => {
     const how = probe.enableLocalHowTo
-      || 'Turn on Hyper-V, then restart Windows. From an administrator PowerShell: Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All';
-    try { await navigator.clipboard.writeText(how); } catch { /* toast still shows the sentence */ }
+      || 'Optional. Faster mode turns on Windows Hypervisor Platform and Virtual Machine Platform. Windows asks for administrator approval and needs a restart. Your drives work either way.';
     if (!IPC.isNative) {
-      pushToast({ kind: 'warning', title: 'Enable Hyper-V', message: how });
+      pushToast({ kind: 'info', title: 'Faster mode', message: how });
       return;
     }
     setBusy(true);
     try {
       const r = await IPC.cloudDriveEnableLocal();
-      pushToast({ kind: 'warning', title: r.started ? 'Windows is asking to enable Hyper-V' : 'Enable Hyper-V', message: r.message || how });
+      pushToast({ kind: 'info', title: r.started ? 'Windows is asking for approval' : 'Faster mode', message: (r.started ? 'Restart Windows when it finishes. ' : '') + (r.message || how) });
     } catch {
-      pushToast({ kind: 'warning', title: 'Enable Hyper-V', message: how });
+      pushToast({ kind: 'info', title: 'Faster mode', message: how });
     } finally {
       setBusy(false);
     }
   };
+
 
   const saveToken = async () => {
     const trimmed = token.trim();
@@ -362,8 +364,8 @@ function CloudDriveBody() {
 
       <div className="bndz-cloud-meters" aria-label="Cloud Drive readiness">
         <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
-        <Meter label="This PC" value={localBackend(probe) === 'hyper-v' ? (probe.elevated ? 'Hyper-V' : 'Hyper-V') : localBackend(probe) === 'wsl2' ? 'WSL2' : 'Off'} hint={probe.localBackendMessage} />
-        <Meter label="Rootfs" value={probe.rootfsPresent ? 'Pinned' : 'Missing'} hint={probe.rootfsMessage} />
+        <Meter label="This PC" value={localAccelerated(probe) ? 'Accelerated' : 'Compatibility'} hint={probe.localBackendMessage || localModeLabel(probe)} />
+        <Meter label="System" value={localBackend(probe) === 'hyper-v' ? (probe.rootfsPresent ? 'Pinned' : 'Missing') : 'Ready'} hint={localBackend(probe) === 'hyper-v' ? probe.rootfsMessage : 'Downloads once on first start (about 390 MB) to the drive you pick, not to C:.'} />
         <Meter label="Address" value={probe.cloudflareTokenConfigured ? 'Published' : 'Reserved'} hint={probe.cloudflareMessage} />
       </div>
       {probe.guidance && (
@@ -392,11 +394,11 @@ function CloudDriveBody() {
           onSelect={() => choosePlacement('local')}
         />
       </div>
-      {localBackend(probe) === 'none' && (
+      {placement === 'local' && !localAccelerated(probe) && (
         <div className="bndz-cloud-note">
-          <p className="m-0">{probe.localBackendMessage || 'Hyper-V and WSL2 are off. This PC stays available. Enable Hyper-V, then start the drive.'}</p>
+          <p className="m-0">{localModeLabel(probe)}. This PC works as it is. Faster mode is optional and needs a Windows restart.</p>
           <div className="mt-2">
-            <PluginToolbarButton disabled={busy} onClick={() => void enableLocal()}>Enable</PluginToolbarButton>
+            <PluginToolbarButton disabled={busy} onClick={() => void enableLocal()}>Turn on faster mode</PluginToolbarButton>
           </div>
         </div>
       )}

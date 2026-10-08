@@ -101,7 +101,7 @@ public sealed class CloudDriveService
             ? "A Fly token is stored with Windows DPAPI for this user. It is not shown again."
             : "No Fly token yet. Paste a bring-your-own org token. BNDZ does not host customer disks.";
         local.CloudflaredMessage = "cloudflared runs inside the drive. A copy on this PC is optional.";
-        var backend = CloudDriveLocalBackend.Choose(local.HyperV, local.WslVersion);
+        var backend = string.IsNullOrWhiteSpace(local.Preferred) || local.Preferred == CloudDriveLocalBackend.None ? CloudDriveLocalBackend.QemuTcg : local.Preferred;
         local.LocalBackend = backend;
         local.LocalBackendMessage = CloudDriveLocalBackend.Explain(backend, local.Elevated);
         local.Preferred = backend;

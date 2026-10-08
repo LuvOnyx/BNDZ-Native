@@ -20,7 +20,9 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         var (wslPresent, wslVersion) = ProbeWsl();
         var elevated = IsElevated();
         var rootfs = CloudDriveLocalRootfs.Describe();
-        var preferred = CloudDriveLocalBackend.Choose(hyperV, wslVersion);
+        var hypervisorPresent = HypervisorPresent();
+        var whpx = CloudDriveQemu.WhpxLikely(hypervisorPresent);
+        var preferred = CloudDriveLocalBackend.Choose(new CloudDriveLocalBackend.HostCaps(hyperV, hypervisorPresent, elevated, wslVersion, whpx));
         var guidance = CloudDriveLocalBackend.Explain(preferred, elevated);
         if (preferred == CloudDriveLocalBackend.HyperV && rootfs.Present && elevated)
             guidance = "Hyper-V is available. Start boots the pinned Ubuntu rootfs. The sealed VHDX is the data disk and is not recreated.";
@@ -99,14 +101,10 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             return Task.CompletedTask;
         }
 
-        var backend = CloudDriveLocalBackend.Choose(probe.HyperV, probe.WslVersion);
+        var backend = probe.Preferred;
         drive.Hypervisor = backend;
-        if (backend == CloudDriveLocalBackend.None)
-        {
-            drive.State = "stopped";
-            drive.Message = CloudDriveLocalBackend.Explain(backend, false) + " " + CloudDriveLocalBackend.EnableHowTo;
-            return Task.CompletedTask;
-        }
+        if (CloudDriveLocalBackend.IsQemu(backend) || backend == CloudDriveLocalBackend.None)
+            return StartQemuAsync(drive, backend == CloudDriveLocalBackend.None ? CloudDriveLocalBackend.QemuTcg : backend, ct);
         if (backend == CloudDriveLocalBackend.Wsl2)
             return StartWsl(drive);
 
@@ -309,6 +307,8 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
 
     public Task StopAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
     {
+        if (CloudDriveLocalBackend.IsQemu(drive.Hypervisor))
+            return StopQemuAsync(drive, ct);
         if (string.Equals(drive.Hypervisor, CloudDriveLocalBackend.Wsl2, StringComparison.Ordinal))
         {
             var wsl = FindWsl();
@@ -348,8 +348,14 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         return Task.CompletedTask;
     }
 
-    public Task DeleteAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
+    public async Task DeleteAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
     {
+        if (CloudDriveLocalBackend.IsQemu(drive.Hypervisor))
+        {
+            await StopQemuAsync(drive, ct);
+            DeleteSlot(drive);
+            return;
+        }
         var probe = Probe();
         var vhdxReady = !string.IsNullOrWhiteSpace(drive.VhdxPath) && File.Exists(drive.VhdxPath);
         if (probe.HyperV && vhdxReady && !probe.Elevated)
@@ -365,6 +371,11 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             throw new InvalidOperationException("A Hyper-V VM may still be registered. Elevate BNDZ and delete again so the VM is removed before the folder.");
         }
 
+        DeleteSlot(drive);
+    }
+
+    private static void DeleteSlot(CloudDriveRecord drive)
+    {
         if (!string.IsNullOrWhiteSpace(drive.DiskPath) && Directory.Exists(drive.DiskPath))
         {
             var root = Path.GetFullPath(drive.DiskPath);
@@ -372,11 +383,15 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
                 throw new InvalidOperationException("Refusing to delete a folder that is not a BNDZ Cloud Drive slot.");
             Directory.Delete(root, recursive: true);
         }
-        return Task.CompletedTask;
     }
 
     public Task RefreshAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
     {
+        if (CloudDriveLocalBackend.IsQemu(drive.Hypervisor))
+        {
+            RefreshQemu(drive);
+            return Task.CompletedTask;
+        }
         var probe = Probe();
         drive.Hypervisor = probe.Preferred;
         if (!probe.HyperV || !probe.Elevated || string.IsNullOrWhiteSpace(drive.VmName))
@@ -722,6 +737,131 @@ Write-Output 'VHD_OK'
             ["BNDZ_PANEL_PORT"] = drive.WebDavPort.ToString(),
             ["BNDZ_WEBDAV_PORT"] = (drive.WebDavPort + 1).ToString(),
         };
+    }
+
+    // ---------- bundled QEMU (no admin, no Windows features) ----------
+
+    private sealed class QemuState
+    {
+        public int Pid { get; set; }
+        public int QmpPort { get; set; }
+        public string Accel { get; set; } = "tcg";
+    }
+
+    private static string QemuStatePath(CloudDriveRecord drive) => Path.Combine(drive.DiskPath ?? "", "qemu.json");
+
+    private static QemuState? ReadQemuState(CloudDriveRecord drive)
+    {
+        try { return System.Text.Json.JsonSerializer.Deserialize<QemuState>(File.ReadAllText(QemuStatePath(drive))); }
+        catch { return null; }
+    }
+
+    /// <summary>Runtime lives next to the drives on the volume the user picked, never on C: by default.</summary>
+    private static string QemuRuntimeFor(CloudDriveRecord drive)
+    {
+        var drives = Path.GetDirectoryName(Path.GetFullPath(drive.DiskPath!.TrimEnd('\\', '/')))!;
+        return Path.Combine(drives, ".runtime");
+    }
+
+    private async Task StartQemuAsync(CloudDriveRecord drive, string backend, CancellationToken ct)
+    {
+        var state = ReadQemuState(drive);
+        if (state != null && CloudDriveQemu.Alive(state.Pid))
+        {
+            drive.State = "running";
+            drive.Message = CloudDriveLocalBackend.ModeLabel(backend) + ". The drive is already running.";
+            return;
+        }
+        var password = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedFtpPassword);
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            drive.State = "error";
+            drive.Message = "This drive has no sign-in password in Windows secure storage. Create it again on this PC.";
+            return;
+        }
+        var runtime = QemuRuntimeFor(drive);
+        try
+        {
+            if (!CloudDriveQemu.RuntimeReady(runtime))
+            {
+                drive.State = "starting";
+                drive.Message = "First use: downloading the drive engine (about 390 MB, once) to " + runtime + ".";
+                var progress = new Progress<CloudDriveQemu.Progress>(p =>
+                {
+                    var pct = p.Total > 0 ? p.Done * 100 / p.Total : 0;
+                    drive.Message = "First use: downloading " + (p.Name.EndsWith(".qcow2", StringComparison.Ordinal) ? "the drive system" : "the drive engine") + " " + pct + "%.";
+                });
+                await CloudDriveQemu.EnsureRuntimeAsync(runtime, progress, ct);
+            }
+            CloudDrivePorts.Ensure(drive);
+            var sys = Path.Combine(drive.DiskPath!, "system.qcow2");
+            drive.VhdxPath ??= Path.Combine(drive.DiskPath!, "disk.vhdx");
+            CloudDriveQemu.EnsureSystemDisk(runtime, sys);
+            CloudDriveQemu.EnsureDataDisk(runtime, drive.VhdxPath, 64);
+            var seed = Path.Combine(drive.DiskPath!, "seed.iso");
+            CloudDriveQemu.WriteSeed(seed, drive.Id, drive.PublicKey, password,
+                CloudDriveProtocols.GuestPublicHost(drive), CloudDrivePanelAssets.Files(),
+                CloudDriveProtocols.GuestPathPrefix(drive), drive.GuestOriginSecret);
+            var whpx = backend == CloudDriveLocalBackend.QemuWhpx;
+            var qmp = CloudDriveQemu.FreePort();
+            var spec = new CloudDriveQemu.LaunchSpec("bndz-" + drive.Id, sys, drive.VhdxPath, seed,
+                drive.WebDavPort, drive.SshPort, qmp, Path.Combine(drive.DiskPath!, "console.log"),
+                Path.Combine(drive.DiskPath!, "qemu.pid"), whpx,
+                Kernel: CloudDriveQemu.Kernel(runtime), Initrd: CloudDriveQemu.Initrd(runtime));
+            var proc = CloudDriveQemu.Launch(runtime, spec);
+            File.WriteAllText(QemuStatePath(drive), System.Text.Json.JsonSerializer.Serialize(new QemuState { Pid = proc.Id, QmpPort = qmp, Accel = CloudDriveQemu.AccelLabel(whpx) }));
+            await Task.Delay(1500, ct);
+            if (proc.HasExited)
+            {
+                drive.State = "error";
+                drive.Message = "The drive engine stopped right away. See console.log in " + drive.DiskPath + ".";
+                return;
+            }
+            drive.Host = "127.0.0.1";
+            drive.Port = drive.SshPort;
+            drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
+            drive.State = "running";
+            drive.Message = CloudDriveLocalBackend.ModeLabel(backend) + ". The panel is at http://127.0.0.1:" + drive.WebDavPort + "/ once the drive finishes booting.";
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            drive.State = "error";
+            drive.Message = "The drive engine could not start. " + TrimDetail(CloudDriveSecrets.Redact(ex.Message));
+        }
+    }
+
+    private static async Task StopQemuAsync(CloudDriveRecord drive, CancellationToken ct)
+    {
+        var state = ReadQemuState(drive);
+        if (state != null && CloudDriveQemu.Alive(state.Pid))
+            await CloudDriveQemu.StopAsync(state.QmpPort, state.Pid, TimeSpan.FromSeconds(45), ct);
+        drive.State = "stopped";
+        drive.Message = "Drive stopped. The data disk is still at " + (drive.VhdxPath ?? drive.DiskPath) + ".";
+    }
+
+    private static void RefreshQemu(CloudDriveRecord drive)
+    {
+        var state = ReadQemuState(drive);
+        if (state == null || !CloudDriveQemu.Alive(state.Pid))
+        {
+            if (drive.State == "running") drive.State = "stopped";
+            return;
+        }
+        drive.State = "running";
+        var panelUp = CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.WebDavPort, 400);
+        drive.Message = CloudDriveLocalBackend.ModeLabel(drive.Hypervisor) + (panelUp ? ". The panel is answering on this PC." : ". The drive is still booting.");
+    }
+
+    /// <summary>CPUID leaf 1 ECX bit 31: a hypervisor is already running under Windows.</summary>
+    private static bool HypervisorPresent()
+    {
+        try
+        {
+            if (!System.Runtime.Intrinsics.X86.X86Base.IsSupported) return false;
+            var (_, _, ecx, _) = System.Runtime.Intrinsics.X86.X86Base.CpuId(1, 0);
+            return (ecx & (1 << 31)) != 0;
+        }
+        catch { return false; }
     }
 
     private static bool HyperVInstalled()

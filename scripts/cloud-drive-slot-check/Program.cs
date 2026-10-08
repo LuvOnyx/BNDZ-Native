@@ -201,14 +201,36 @@ Assert(CloudDriveHostname.ContainsInternalOrigin("ssh bndz@app.fly.dev"), "fly o
 Assert(CloudDriveHostname.ContainsInternalOrigin("http://10.0.0.8/"), "ip origin");
 Assert(!CloudDriveHostname.ContainsInternalOrigin("https://cloud.bndz.org/desk/"), "public origin");
 Assert(CloudDriveLocalBackend.Choose(true, null) == "hyper-v", "prefer hyper-v");
-Assert(CloudDriveLocalBackend.Choose(false, "2") == "wsl2", "fallback wsl2");
-Assert(CloudDriveLocalBackend.Choose(false, "1") == "none", "no backend");
+Assert(CloudDriveLocalBackend.Choose(new CloudDriveLocalBackend.HostCaps(true, true, false, null, true)) == "qemu-whpx", "hyper-v without elevation does not block");
+Assert(CloudDriveLocalBackend.Choose(new CloudDriveLocalBackend.HostCaps(true, false, true, "2", false)) == "qemu-tcg", "hyper-v installed but hypervisor off uses compatibility mode");
+Assert(CloudDriveLocalBackend.Choose(new CloudDriveLocalBackend.HostCaps(false, true, false, "2", true)) == "wsl2", "wsl2 when hypervisor runs");
+Assert(CloudDriveLocalBackend.Choose(false, "2") == "qemu-tcg", "wsl2 needs a running hypervisor");
+Assert(CloudDriveLocalBackend.Choose(false, "1") == "qemu-tcg", "never none");
 Assert(CloudDriveLocalBackend.DefaultPlacement(true, null, null) == "local", "default local when hyper-v");
 Assert(CloudDriveLocalBackend.DefaultPlacement(false, "2", null) == "local", "default local when wsl2");
-Assert(CloudDriveLocalBackend.DefaultPlacement(false, null, null) == "cloud", "default cloud when none");
+Assert(CloudDriveLocalBackend.DefaultPlacement(false, null, null) == "local", "this pc always works");
 Assert(CloudDriveLocalBackend.DefaultPlacement(true, null, "cloud") == "cloud", "remember cloud");
 Assert(CloudDriveLocalBackend.DefaultPlacement(false, null, "local") == "local", "remember local");
-Assert(CloudDriveLocalBackend.EnableHowTo.Contains("Enable-WindowsOptionalFeature", StringComparison.Ordinal), "enable how-to");
+Assert(CloudDriveLocalBackend.FasterModeCommand.Contains("HypervisorPlatform", StringComparison.Ordinal) && !CloudDriveLocalBackend.FasterModeCommand.Contains("Hyper-V", StringComparison.Ordinal), "faster mode does not enable Hyper-V");
+Assert(CloudDriveLocalBackend.EnableHowTo.Contains("Optional", StringComparison.Ordinal), "faster mode is optional");
+{
+    var spec = new CloudDriveQemu.LaunchSpec("bndz-t", @"F:\d\system.qcow2", @"F:\d,x\disk.vhdx", @"F:\d\seed.iso", 18100, 22100, 40000, @"F:\d\console.log", @"F:\d\qemu.pid", false);
+    var tcg = string.Join(' ', CloudDriveQemu.BuildArgs(spec));
+    Assert(tcg.Contains("hostfwd=tcp:127.0.0.1:18100-:8080", StringComparison.Ordinal) && tcg.Contains("hostfwd=tcp:127.0.0.1:22100-:22", StringComparison.Ordinal), "qemu forwards panel and ssh on localhost only");
+    Assert(!tcg.Contains("whpx", StringComparison.Ordinal) && tcg.Contains("tcg", StringComparison.Ordinal), "compatibility mode uses tcg");
+    Assert(tcg.Contains(@"F:\d,,x\disk.vhdx,if=virtio,format=vhdx", StringComparison.Ordinal), "data disk is virtio vhdx with escaped comma");
+    Assert(!tcg.Contains("tap", StringComparison.OrdinalIgnoreCase) && tcg.Contains("-netdev user", StringComparison.Ordinal), "user-mode networking, no TAP");
+    var fast = CloudDriveQemu.BuildArgs(spec with { Whpx = true });
+    var wi = fast.ToList().IndexOf("whpx,kernel-irqchip=off");
+    Assert(wi > 0 && fast.ToList().IndexOf("tcg,thread=multi") > wi, "whpx first, tcg fallback");
+    Assert(CloudDriveQemu.DiskFormat("a.vhd") == "vpc" && CloudDriveQemu.DiskFormat("a.img") == "raw", "disk formats");
+    Assert(!CloudDriveQemu.BootstrapScript().Contains("secretpw1", StringComparison.Ordinal) && CloudDriveQemu.UserData(null, "secretpw1", null).Contains("/etc/conf.d/bndz-panel", StringComparison.Ordinal), "password only in the 0600 conf file");
+    var threw = false; try { CloudDriveQemu.PanelConf("bad'pw", null, null, null); } catch (InvalidOperationException) { threw = true; }
+    Assert(threw, "quote in password rejected");
+    Assert(CloudDriveQemu.Artifacts.All(a => a.Sha256.Length == 64 && a.Url.StartsWith("https://", StringComparison.Ordinal)), "pinned https + sha256");
+    Assert(!CloudDriveQemu.Artifacts.Any(a => a.Url.Contains("fly.dev", StringComparison.Ordinal)), "no fly.dev");
+    Assert(CloudDriveQemu.BootstrapScript().Contains("-z \"$(blkid \"$d\")\"", StringComparison.Ordinal), "formats only a blank data disk");
+}
 
 var dry = CloudDriveCloudflare.Describe("cloud.bndz.org", "desk", false);
 Assert(dry.Mode == "dry-run" && dry.PublicUrl == "https://cloud.bndz.org/desk/", "dry-run url");
