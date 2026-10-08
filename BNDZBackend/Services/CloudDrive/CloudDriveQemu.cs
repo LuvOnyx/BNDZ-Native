@@ -135,7 +135,9 @@ if [ -z ""$dev"" ]; then
   done
 fi
 grep -q 'LABEL=BNDZDATA' /etc/fstab || echo 'LABEL=BNDZDATA /data ext4 defaults,nofail 0 2' >> /etc/fstab
-mountpoint -q /data || mount /data || true
+if [ -n ""$dev"" ] && ! mountpoint -q /data; then
+  mount -t ext4 ""$dev"" /data || true
+fi
 seed=$(blkid | grep -i 'LABEL=""cidata""' | cut -d: -f1 | head -n1)
 if [ -n ""$seed"" ]; then
   mkdir -p /run/bndz-seed
@@ -148,6 +150,11 @@ if [ -n ""$seed"" ]; then
     install -m 600 /run/bndz-seed/panel.conf /etc/conf.d/bndz-panel
   fi
   umount /run/bndz-seed 2>/dev/null || true
+fi
+# Never serve files from the system disk: the panel only starts on the real data disk.
+if ! mountpoint -q /data; then
+  echo ""bndz: data disk is not mounted"" >&2
+  exit 1
 fi
 ";
 
@@ -162,7 +169,7 @@ directory=""/opt/bndz/panel""
 output_log=""/var/log/bndz-panel.log""
 error_log=""/var/log/bndz-panel.log""
 depend() { need net localmount; after sshd; }
-start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh; [ -f /etc/conf.d/bndz-panel ] && . /etc/conf.d/bndz-panel; return 0; }
+start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh || return 1; [ -f /etc/conf.d/bndz-panel ] && . /etc/conf.d/bndz-panel; return 0; }
 ";
 
     public static string PanelConf(string password, string? publicHost, string? pathPrefix, string? originSecret)

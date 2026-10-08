@@ -96,6 +96,9 @@ try
 {
     var boot1 = await Boot("first boot (cloud-init, formats data disk)");
     var cookie = await Login();
+    var me = await Json(Req(HttpMethod.Get, "api/admin", cookie));
+    var total = me.GetProperty("total").GetInt64();
+    Ok(total > 6L * 1024 * 1024 * 1024, $"panel serves the 8 GiB data disk (total {total / 1073741824.0:F1} GiB)");
     var lat = await ListLatency(cookie, 20);
     Console.WriteLine($"list latency ms: median {Median(lat):F1}  min {lat.Min():F1}  max {lat.Max():F1}");
     var t = Stopwatch.StartNew();
@@ -123,6 +126,8 @@ try
     Console.WriteLine($"list latency ms (2nd boot): median {Median(lat):F1}  min {lat.Min():F1}  max {lat.Max():F1}");
     dl = await (await http.SendAsync(Req(HttpMethod.Get, "api/download?path=persist.bin", cookie))).Content.ReadAsByteArrayAsync();
     Ok(Convert.ToHexString(SHA256.HashData(dl)) == blobHash, "file persisted across stop/start");
+    total = (await Json(Req(HttpMethod.Get, "api/admin", cookie))).GetProperty("total").GetInt64();
+    Ok(total > 6L * 1024 * 1024 * 1024, $"second boot also serves the data disk (total {total / 1073741824.0:F1} GiB)");
     pid = int.Parse(File.ReadAllText(spec.PidFile).Trim());
     proc = pid;
     clean = await CloudDriveQemu.StopAsync(qmpPort, pid, TimeSpan.FromSeconds(60), CancellationToken.None);
@@ -140,6 +145,7 @@ finally
 {
     foreach (var p in Process.GetProcessesByName("qemu-system-x86_64")) { try { if (p.MainModule?.FileName?.StartsWith(runtime, StringComparison.OrdinalIgnoreCase) == true) p.Kill(true); } catch { } }
     await Task.Delay(1000);
+    try { File.Copy(spec.ConsoleLog, Path.Combine(volume, "..", "last-console.log"), true); } catch { }
     if (!args.Contains("--keep-drive")) { try { Directory.Delete(slot, true); Console.WriteLine("deleted test drive " + slot); } catch (Exception e) { Console.WriteLine("delete failed: " + e.Message); fails++; } }
     if (!keepRuntime && !args.Contains("--keep-drive")) { try { Directory.Delete(runtime, true); Console.WriteLine("deleted runtime " + runtime); } catch (Exception e) { Console.WriteLine("runtime delete failed: " + e.Message); } }
 }
