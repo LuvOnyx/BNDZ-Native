@@ -179,6 +179,13 @@ async function createTunnel(port) {
   say('created dns ' + originHost);
 }
 
+function logStdio(name) {
+  const dir = process.env.BNDZ_E2E_LOGDIR || '';
+  if (!dir) return 'ignore';
+  const fd = openSync(join(dir, name + '-' + rand + '.log'), 'a', 0o600);
+  return ['ignore', fd, fd];
+}
+
 function startPanel(dir, port, secret, password) {
   state.panel = spawn('python3', [PANEL], {
     env: {
@@ -192,14 +199,14 @@ function startPanel(dir, port, secret, password) {
       BNDZ_ORIGIN_SECRET: secret,
       BNDZ_ROUTE_GUARD: '1',
     },
-    stdio: 'ignore',
+    stdio: logStdio('panel'),
   });
 }
 
-function startConnector() {
-  state.cloudflared = spawn(cloudflaredBin(), ['tunnel', '--no-autoupdate', 'run'], {
+function startConnector(metricsPort) {
+  state.cloudflared = spawn(cloudflaredBin(), ['tunnel', '--no-autoupdate', '--metrics', '127.0.0.1:' + metricsPort, 'run'], {
     env: { ...process.env, TUNNEL_TOKEN: state.connector },
-    stdio: 'ignore',
+    stdio: logStdio('cloudflared'),
   });
 }
 
@@ -288,12 +295,21 @@ async function run() {
 
   await createTunnel(port);
   await registerMapping();
-  startConnector();
+  const metricsPort = await freePort();
+  startConnector(metricsPort);
+  // /ready turns 200 once cloudflared has registered a connection with the Cloudflare edge.
+  await waitFor('cloudflared edge connection (needs outbound port 7844, QUIC/UDP or TCP)', async () => {
+    const { status } = await curlStatus(['http://127.0.0.1:' + metricsPort + '/ready']);
+    if (status === 200) return true;
+    throw new Error('ready HTTP ' + status);
+  }, 30);
+  say('cloudflared connected to the edge');
 
   const base = PUBLIC + '/' + slug + '/';
   await waitFor('public path', async () => {
     const { status, body } = await curlStatus([base]);
-    return status === 200 && body.includes('window.BNDZ_BASE') && body.includes('/' + slug + '/app.js');
+    if (status === 200 && body.includes('window.BNDZ_BASE') && body.includes('/' + slug + '/app.js')) return true;
+    throw new Error('HTTP ' + status + ' ' + body.replace(/\s+/g, ' ').slice(0, 160));
   }, 40);
   say('path prefix ' + base);
 

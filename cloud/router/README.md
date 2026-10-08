@@ -31,7 +31,7 @@ cd cloud/router
 
 `./e2e.sh` installs wrangler and cloudflared when they are missing, deploys if needed, then creates a throwaway tunnel `bndz-cloud-e2e-<rand>` and DNS `d-e2e-<rand>.bndz.org`. It runs the real guest panel plus cloudflared and checks path prefix, login, file list, a chunked upload larger than 100 MB, a Range download, `/s/<token>`, a rename 301, and a rejected direct visit to the origin. It prints list TTFB and total time, then deletes the throwaway tunnel, DNS, and KV keys.
 
-Needs `node`, `npm`, `curl`, and `python3` (the guest panel). A box without python3 stops before it creates a tunnel.
+Needs `node`, `npm`, `curl`, and `python3` (the guest panel). A box without python3 stops before it creates a tunnel. cloudflared also needs outbound port 7844 (QUIC/UDP or TCP) to the Cloudflare edge. If that port is blocked, e2e stops at "cloudflared edge connection" and still deletes its tunnel, DNS, and KV keys. Set `BNDZ_E2E_LOGDIR` to a directory to keep the cloudflared and panel logs.
 
 Token scopes: Zone DNS Edit, Zone Read, Account Cloudflare Tunnel Edit, Workers Scripts Edit, Workers KV Storage Edit, and Workers Routes (custom domains) on account `43aa82716ea9acc4c2e89fdd9843e182`, zone `bndz.org` = `1ac81c686fa2d4e3f175cd90afed08cc`.
 
