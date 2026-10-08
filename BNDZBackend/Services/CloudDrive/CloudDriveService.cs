@@ -842,7 +842,7 @@ public sealed class CloudDriveService
             Process.Start(new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = "-NoProfile -WindowStyle Hidden -Command \"Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -Command Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All'\"",
+                Arguments = "-NoProfile -WindowStyle Hidden -Command \"Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command " + CloudDriveLocalBackend.FasterModeCommand + "'\"",
                 UseShellExecute = true,
             });
             return new { ok = true, started = true, message = how };
