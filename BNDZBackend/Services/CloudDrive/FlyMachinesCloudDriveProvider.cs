@@ -456,7 +456,7 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
             var share = CloudDriveProtocols.ShareUrl(drive);
             drive.Message = CloudDriveGuestBootstrap.Enabled()
                 ? (share.Length == 0
-                    ? "Fly machine is up. The public address is a name on " + CloudDriveHostname.DefaultBaseDomain + ". Plain FTP is off."
+                    ? "Fly machine is up. The public address is a path on " + CloudDriveHostname.DefaultBaseDomain + ". Plain FTP is off."
                     : "Fly machine is up. Send " + share + " Plain FTP is off.")
                 : "Fly machine is up. Bootstrap is off, so the image itself must serve SSH, FTPS, WebDAV, and the panel.";
         }
@@ -471,9 +471,18 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         var ftp = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedFtpPassword);
         if (!string.IsNullOrWhiteSpace(ftp))
             env["BNDZ_FTP_PASSWORD"] = ftp;
-        var publicHost = CloudDriveProtocols.PublicHostname(drive);
+        var publicHost = CloudDriveProtocols.GuestPublicHost(drive);
         if (!string.IsNullOrWhiteSpace(publicHost))
             env["BNDZ_PUBLIC_HOST"] = publicHost;
+        var prefix = CloudDriveProtocols.GuestPathPrefix(drive);
+        if (prefix.Length > 0)
+        {
+            env["BNDZ_PATH_PREFIX"] = prefix;
+            env["BNDZ_ROUTE_GUARD"] = "1";
+        }
+        var redirects = CloudDriveProtocols.GuestRedirects(drive);
+        if (redirects.Length > 0)
+            env["BNDZ_SLUG_REDIRECTS"] = redirects;
         var tunnel = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken);
         if (!string.IsNullOrWhiteSpace(tunnel))
             env["BNDZ_TUNNEL_TOKEN"] = tunnel;

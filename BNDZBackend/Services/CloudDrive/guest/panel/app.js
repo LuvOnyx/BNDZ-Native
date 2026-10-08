@@ -13,8 +13,14 @@ let menuBound = false;
 const folderIcon = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path fill="#dcb67a" d="M1.5 3.5h4l1.2 1.5H14.5v8H1.5z"/><path fill="#c49a45" d="M1.5 6h13v7H1.5z"/></svg>';
 const fileIcon = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path fill="#d0d0d0" d="M4 1.5h5.2L13 5.2V14.5H4z"/><path fill="#1f1f1f" d="M9 1.8v3.4h3.3"/></svg>';
 
+function withBase(path) {
+  const prefix = String(window.BNDZ_BASE || '').replace(/\/$/, '');
+  if (!prefix || !path || path.charAt(0) !== '/' || path.indexOf('/s/') === 0) return path;
+  return prefix + path;
+}
+
 async function api(path, opts) {
-  const res = await fetch(path, { credentials: 'same-origin', ...opts });
+  const res = await fetch(withBase(path), { credentials: 'same-origin', ...opts });
   const type = res.headers.get('content-type') || '';
   if (!type.includes('application/json')) {
     if (!res.ok) throw new Error('The panel could not finish that.');
@@ -27,6 +33,28 @@ async function api(path, opts) {
 
 function post(path, body) {
   return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+}
+
+async function uploadFile(file) {
+  const start = await post('/api/upload/start', { dir: cwd, name: file.name, size: file.size });
+  const piece = start.chunkSize || (90 * 1024 * 1024);
+  let offset = start.offset || 0;
+  while (offset < file.size) {
+    const slice = file.slice(offset, Math.min(file.size, offset + piece));
+    const res = await fetch(withBase('/api/upload/chunk?id=' + encodeURIComponent(start.id) + '&offset=' + offset), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      body: slice,
+    });
+    const data = await res.json();
+    if (res.status === 409 && typeof data.offset === 'number') {
+      offset = data.offset;
+      continue;
+    }
+    if (!res.ok || data.ok === false) throw new Error(data.error || 'The panel could not finish that.');
+    offset = data.offset;
+  }
+  await post('/api/upload/finish', { id: start.id });
 }
 
 function esc(text) {
@@ -184,11 +212,8 @@ function paintFiles() {
     const file = ev.target.files && ev.target.files[0];
     ev.target.value = '';
     if (!file) return;
-    const body = new FormData();
-    body.append('dir', cwd);
-    body.append('file', file);
     try {
-      await api('/api/upload', { method: 'POST', body });
+      await uploadFile(file);
       notice = '';
       await load();
     } catch (err) { fail(err); }
@@ -201,7 +226,7 @@ function paintFiles() {
   document.getElementById('del').onclick = () => doDelete();
   document.getElementById('download').onclick = () => doDownload();
   document.getElementById('props').onclick = () => doProps(selected.length === 1 ? selected[0] : cwd);
-  document.getElementById('archive').onclick = () => { window.location.href = '/api/archive'; };
+  document.getElementById('archive').onclick = () => { window.location.href = withBase('/api/archive'); };
   page.querySelectorAll('th[data-sort]').forEach(th => {
     th.onclick = () => {
       const key = th.getAttribute('data-sort');
@@ -292,7 +317,7 @@ function doDownload() {
     fail(new Error(files.length ? 'Download one file at a time.' : 'Download is for a file. Folders stay on the disk.'));
     return;
   }
-  window.location.href = '/api/download?path=' + encodeURIComponent(files[0]);
+  window.location.href = withBase('/api/download?path=' + encodeURIComponent(files[0]));
 }
 
 async function doShare() {
@@ -466,7 +491,7 @@ function openItem(path) {
     selected = [];
     load();
   } else {
-    window.location.href = '/api/download?path=' + encodeURIComponent(path);
+    window.location.href = withBase('/api/download?path=' + encodeURIComponent(path));
   }
 }
 

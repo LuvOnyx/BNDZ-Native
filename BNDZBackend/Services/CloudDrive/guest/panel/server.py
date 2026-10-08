@@ -32,7 +32,8 @@ USER = os.environ.get("BNDZ_PANEL_USER", "bndz")
 PASSWORD = os.environ.get("BNDZ_FTP_PASSWORD", "")
 HOST = os.environ.get("BNDZ_PANEL_HOST", "0.0.0.0")
 PORT = int(os.environ.get("BNDZ_PANEL_PORT", "8080"))
-MAX_UPLOAD = 512 * 1024 * 1024
+CHUNK_BYTES = 90 * 1024 * 1024
+MAX_UPLOAD = CHUNK_BYTES
 
 SESSIONS: dict[str, float] = {}
 SHARE_AUTH: dict[str, float] = {}
@@ -181,6 +182,32 @@ def _bad_public_host(host: str) -> bool:
     if not bare or bare.endswith(".fly.dev") or bare in ("localhost", "127.0.0.1", "::1"):
         return True
     return _IPV4.match(bare) is not None
+
+
+def path_prefix() -> str:
+    raw = os.environ.get("BNDZ_PATH_PREFIX", "").strip().strip("/")
+    if not raw or "/" in raw or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,59}[a-z0-9])?", raw):
+        return ""
+    return "/" + raw
+
+
+def session_cookie_path() -> str:
+    prefix = path_prefix()
+    return (prefix + "/") if prefix else "/"
+
+
+def slug_redirects() -> dict[str, str]:
+    found: dict[str, str] = {}
+    raw = os.environ.get("BNDZ_SLUG_REDIRECTS", "")
+    for part in raw.split(","):
+        if ":" not in part:
+            continue
+        src, dst = part.split(":", 1)
+        src = src.strip().strip("/")
+        dst = dst.strip().strip("/")
+        if re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,59}[a-z0-9])?", src or "") and re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,59}[a-z0-9])?", dst or ""):
+            found[src] = dst
+    return found
 
 
 def public_host() -> str:
@@ -459,11 +486,28 @@ class Panel(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self._route("POST")
 
+    def do_PUT(self) -> None:
+        self._route("PUT")
+
     def _route(self, method: str) -> None:
         try:
             parsed = urlparse(self.path)
             path = unquote(parsed.path)
             query = parse_qs(parsed.query)
+            if self._origin_blocked():
+                host = public_host() or "cloud.bndz.org"
+                prefix = path_prefix()
+                where = "https://" + host + (prefix + "/" if prefix else "/")
+                self._text("This address is not the drive link. Open " + where, 404)
+                return
+            target = self._redirect_target(path)
+            if target:
+                self.send_response(301)
+                self.send_header("Location", target)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            path = self._strip_prefix(path)
             if path == "/api/health":
                 brand = load_admin().get("brandName") or "BNDZ Drive"
                 self._json({"ok": True, "data": str(DATA), "mounted": DATA.is_dir(), "brandName": brand, "publicHost": public_host()})
@@ -532,6 +576,18 @@ class Panel(BaseHTTPRequestHandler):
             if path == "/api/upload" and method == "POST":
                 self._upload()
                 return
+            if path == "/api/upload/start" and method == "POST":
+                self._upload_start()
+                return
+            if path == "/api/upload/chunk" and method == "PUT":
+                self._upload_chunk(query)
+                return
+            if path == "/api/upload/status" and method == "GET":
+                self._upload_status(query)
+                return
+            if path == "/api/upload/finish" and method == "POST":
+                self._upload_finish()
+                return
             if path == "/api/props" and method == "GET":
                 self._props(query.get("path", [""])[0])
                 return
@@ -578,7 +634,7 @@ class Panel(BaseHTTPRequestHandler):
         flag = "; Secure" if secure else ""
         self._json(
             {"ok": True, "user": panel_user(cfg)},
-            headers={"Set-Cookie": f"bndz_session={token}; HttpOnly; Path=/; SameSite=Lax{flag}"},
+            headers={"Set-Cookie": f"bndz_session={token}; HttpOnly; Path={session_cookie_path()}; SameSite=Lax{flag}"},
         )
 
     def _logout(self) -> None:
@@ -587,7 +643,7 @@ class Panel(BaseHTTPRequestHandler):
         if token:
             with LOCK:
                 SESSIONS.pop(token, None)
-        self._json({"ok": True}, headers={"Set-Cookie": "bndz_session=; HttpOnly; Path=/; Max-Age=0"})
+        self._json({"ok": True}, headers={"Set-Cookie": f"bndz_session=; HttpOnly; Path={session_cookie_path()}; Max-Age=0"})
 
     def _me(self) -> None:
         info = public_admin()
@@ -802,7 +858,7 @@ class Panel(BaseHTTPRequestHandler):
         ctype = self.headers.get("Content-Type", "")
         length = int(self.headers.get("Content-Length") or "0")
         if length <= 0 or length > MAX_UPLOAD:
-            self._json({"ok": False, "error": "Choose a file under 512 MB."}, 400)
+            self._json({"ok": False, "error": "Choose a file under 90 MB. Larger files upload in pieces."}, 400)
             return
         body = self.rfile.read(length)
         match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', ctype)
@@ -952,7 +1008,7 @@ class Panel(BaseHTTPRequestHandler):
         ctype = self.headers.get("Content-Type", "")
         length = int(self.headers.get("Content-Length") or "0")
         if length <= 0 or length > MAX_UPLOAD:
-            self._text("Choose a file under 512 MB.", 400)
+            self._text("Choose a file under 90 MB.", 400)
             return
         body = self.rfile.read(length)
         match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', ctype)
@@ -1046,11 +1102,142 @@ class Panel(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _origin_blocked(self) -> bool:
+        flag = os.environ.get("BNDZ_ROUTE_GUARD", "").strip().lower()
+        if flag not in ("1", "true", "yes"):
+            return False
+        if (self.headers.get("X-Bndz-Route") or "").strip():
+            return False
+        host = (self.headers.get("Host") or "").split(":")[0].strip().lower()
+        return host not in ("", "127.0.0.1", "localhost", "::1")
+
+    def _redirect_target(self, path: str) -> str:
+        redirects = slug_redirects()
+        trimmed = path.strip("/")
+        if not trimmed or not redirects:
+            return ""
+        first, _, rest = trimmed.partition("/")
+        dest = redirects.get(first)
+        if not dest:
+            return ""
+        host = public_host() or "cloud.bndz.org"
+        suffix = ("/" + rest) if rest else "/"
+        return "https://" + host + "/" + dest + suffix
+
+    def _strip_prefix(self, path: str) -> str:
+        prefix = path_prefix()
+        if not prefix:
+            return path
+        if path == prefix:
+            return "/"
+        if path.startswith(prefix + "/"):
+            return path[len(prefix) :] or "/"
+        return path
+
+    def _upload_dir(self, upload_id: str) -> Path:
+        if not re.fullmatch(r"[0-9a-f]{32}", upload_id or ""):
+            raise PermissionError("That upload is not on this drive.")
+        root = (DATA / ".bndz" / "uploads" / upload_id).resolve()
+        base = (DATA / ".bndz" / "uploads").resolve()
+        if base not in root.parents:
+            raise PermissionError("That upload is not on this drive.")
+        return root
+
+    def _read_meta(self, upload_id: str) -> tuple[Path, dict]:
+        folder = self._upload_dir(upload_id)
+        meta_path = folder / "meta.json"
+        if not meta_path.is_file():
+            raise FileNotFoundError(upload_id)
+        meta = json.loads(meta_path.read_text())
+        if not isinstance(meta, dict):
+            raise PermissionError("That upload is not on this drive.")
+        return folder, meta
+
+    def _write_meta(self, folder: Path, meta: dict) -> None:
+        (folder / "meta.json").write_text(json.dumps(meta))
+
+    def _upload_start(self) -> None:
+        body = self._json_body()
+        folder = safe(str(body.get("dir") or ""))
+        if not folder.is_dir():
+            raise FileNotFoundError(str(body.get("dir") or ""))
+        name = _clean_name(str(body.get("name") or ""))
+        try:
+            size = int(body.get("size") or 0)
+        except (TypeError, ValueError):
+            size = -1
+        if size < 0:
+            raise PermissionError("That file size is not usable.")
+        upload_id = secrets.token_hex(16)
+        meta = {"id": upload_id, "dir": rel_of(folder), "name": name, "size": size, "offset": 0}
+        folder_path = DATA / ".bndz" / "uploads" / upload_id
+        folder_path.mkdir(parents=True, exist_ok=False)
+        self._write_meta(folder_path, meta)
+        (folder_path / "part").write_bytes(b"")
+        self._json({"ok": True, "id": upload_id, "offset": 0, "chunkSize": CHUNK_BYTES})
+
+    def _upload_chunk(self, query: dict) -> None:
+        upload_id = query.get("id", [""])[0]
+        try:
+            offset = int(query.get("offset", ["-1"])[0])
+        except (TypeError, ValueError):
+            offset = -1
+        length = int(self.headers.get("Content-Length") or "0")
+        if length < 0 or length > CHUNK_BYTES:
+            self._json({"ok": False, "error": "That piece is larger than 90 MB."}, 400)
+            return
+        folder, meta = self._read_meta(upload_id)
+        current = int(meta.get("offset") or 0)
+        if offset != current:
+            if length:
+                self.rfile.read(length)
+            self._json({"ok": False, "error": "Upload offset does not match.", "offset": current}, 409)
+            return
+        blob = self.rfile.read(length) if length else b""
+        with (folder / "part").open("ab") as handle:
+            handle.write(blob)
+        meta["offset"] = current + len(blob)
+        self._write_meta(folder, meta)
+        self._json({"ok": True, "id": upload_id, "offset": meta["offset"]})
+
+    def _upload_status(self, query: dict) -> None:
+        upload_id = query.get("id", [""])[0]
+        _folder, meta = self._read_meta(upload_id)
+        self._json({"ok": True, "id": upload_id, "offset": int(meta.get("offset") or 0), "size": int(meta.get("size") or 0), "chunkSize": CHUNK_BYTES})
+
+    def _upload_finish(self) -> None:
+        body = self._json_body()
+        upload_id = str(body.get("id") or "")
+        folder, meta = self._read_meta(upload_id)
+        offset = int(meta.get("offset") or 0)
+        size = int(meta.get("size") or 0)
+        if offset != size:
+            self._json({"ok": False, "error": "The upload is not complete.", "offset": offset}, 409)
+            return
+        dest_dir = safe(str(meta.get("dir") or ""))
+        if not dest_dir.is_dir():
+            raise FileNotFoundError(str(meta.get("dir") or ""))
+        name = _clean_name(str(meta.get("name") or ""))
+        dest = safe((rel_of(dest_dir) + "/" + name).strip("/"))
+        part = folder / "part"
+        os.replace(part, dest)
+        shutil.rmtree(folder, ignore_errors=True)
+        self._json({"ok": True, "path": rel_of(dest), "size": dest.stat().st_size if dest.is_file() else 0})
+
     def _file(self, path: Path, content_type: str) -> None:
         if not path.is_file():
             self._text("Panel file missing.", 500)
             return
-        self._bytes(path.read_bytes(), content_type)
+        data = path.read_bytes()
+        if path.name == "index.html":
+            text = data.decode("utf-8")
+            prefix = path_prefix()
+            if prefix:
+                text = text.replace('href="/app.css"', 'href="' + prefix + '/app.css"')
+                text = text.replace('src="/app.js"', 'src="' + prefix + '/app.js"')
+                text = text.replace("<head>", '<head><script>window.BNDZ_BASE=' + json.dumps(prefix) + ';</script>', 1)
+            data = text.encode("utf-8")
+        self._bytes(data, content_type)
 
 
 def _public_share(row: dict) -> dict:

@@ -154,9 +154,11 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
                 drive.LocalGuestIp,
                 drive.PublicKey,
                 password,
-                CloudDriveProtocols.PublicHostname(drive),
+                CloudDriveProtocols.GuestPublicHost(drive),
                 panel,
-                CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken));
+                CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken),
+                CloudDriveProtocols.GuestPathPrefix(drive),
+                CloudDriveProtocols.GuestRedirects(drive));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -463,6 +465,9 @@ Write-Output ('STATE=' + $vm.State)
         WebDavPort = drive.WebDavPort,
         User = string.IsNullOrWhiteSpace(drive.User) ? "bndz" : drive.User,
         PublicSlug = drive.PublicSlug,
+        SlugRedirects = (drive.SlugRedirects ?? new List<CloudDriveSlugRedirect>())
+            .Select(r => new CloudDriveSlugRedirect { From = r.From, UntilUtc = r.UntilUtc })
+            .ToList(),
     };
 
     public Task<CloudDriveOp> CreateSnapshotAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct) =>

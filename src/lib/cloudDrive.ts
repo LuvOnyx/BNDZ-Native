@@ -39,6 +39,7 @@ export type CloudDriveRecord = {
   tunnelTokenConfigured?: boolean;
   tunnelHostname?: string;
   publicSlug?: string;
+  slugRedirects?: { from: string; untilUtc: string }[];
   publishMode?: string;
   publishMessage?: string;
   shareUrl?: string;
@@ -142,22 +143,56 @@ export function zoneName(base?: string | null): string {
   return parts.slice(1).join('.');
 }
 
-export function driveHost(base: string | null | undefined, slug: string): string {
-  const safe = slug.trim().replace(/^\.+|\.+$/g, '').toLowerCase();
-  if (!safe) return '';
-  return `${safe}.${normalizeBase(base)}`;
+export const SLUG_MAX = 61;
+export const RESERVED_SLUGS = ['s', 'api', 'admin', 'login', 'static', 'assets', 'www'] as const;
+
+export function slugify(raw: string): string {
+  let out = '';
+  let dash = false;
+  for (const ch of (raw || '').trim().toLowerCase()) {
+    if (/[a-z0-9]/.test(ch)) {
+      out += ch;
+      dash = false;
+    } else if (!dash && out.length > 0) {
+      out += '-';
+      dash = true;
+    }
+  }
+  out = out.replace(/^-+|-+$/g, '');
+  if (out.length > SLUG_MAX) out = out.slice(0, SLUG_MAX).replace(/-+$/g, '');
+  return out;
+}
+
+export function validateSlug(raw: string): string | null {
+  const s = raw ?? '';
+  if (!s.trim()) return 'Enter a path name.';
+  if (s !== s.trim() || s !== s.toLowerCase() || !/^[a-z0-9-]+$/.test(s)) {
+    return 'Use lowercase letters, numbers, and hyphens.';
+  }
+  if (s.startsWith('-') || s.endsWith('-')) return 'The path cannot start or end with a hyphen.';
+  if (s.length > SLUG_MAX) return 'The path cannot be longer than 61 characters.';
+  if ((RESERVED_SLUGS as readonly string[]).includes(s)) return 'That path is reserved.';
+  return null;
+}
+
+export function driveHost(base: string | null | undefined, _slug?: string): string {
+  return normalizeBase(base);
 }
 
 export function driveUrl(base: string | null | undefined, slug: string): string {
-  const host = driveHost(base, slug);
-  return host ? `https://${host}/` : '';
+  if (validateSlug(slug.trim().toLowerCase())) return '';
+  return `https://${normalizeBase(base)}/${slug.trim().toLowerCase()}/`;
 }
 
-export function shareLink(base: string | null | undefined, slug: string, token: string): string {
-  const host = driveHost(base, slug);
+export function shareLink(base: string | null | undefined, _slug: string, token: string): string {
   const id = token.trim();
-  if (!host || !id || id.includes('/') || id.includes(' ')) return '';
-  return `https://${host}/s/${id}`;
+  if (!id || id.includes('/') || id.includes(' ')) return '';
+  return `https://${normalizeBase(base)}/s/${id}`;
+}
+
+export function originHost(base: string | null | undefined, slug: string): string {
+  if (validateSlug(slug.trim().toLowerCase())) return '';
+  return `d-${slug.trim().toLowerCase()}.${zoneName(base)}`;
 }
 
 export function localBackend(probe: CloudDriveProbe): CloudDriveLocalBackend {
@@ -225,21 +260,21 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       publishMode: 'dry-run',
       fingerprint: 'SHA256:preview',
       hostKeyNote: 'Data disk kept. The client key on this PC is unchanged (SHA256:preview). The guest SSH host key is on this PC\'s OS disk and is new after a move.',
-      sshCommand: 'ssh bndz@desk.cloud.bndz.org',
+      sshCommand: '',
       publicKey: 'ssh-ed25519 AAAA preview',
       tunnelState: 'dry-run',
-      tunnelHostname: 'desk.cloud.bndz.org',
+      tunnelHostname: CLOUD_DRIVE_BASE_DOMAIN,
       shareUrl: desk,
-      addressGuide: `Send ${desk} Share links use that name. ${landingUrl()} is the account page. The tunnel runs inside the drive.`,
+      addressGuide: `Send ${desk} Share links are https://cloud.bndz.org/s/ and a token. ${landingUrl()} is the account page. The tunnel runs inside the drive.`,
       tunnelMessage: 'Address reserved. Save a Cloudflare API token to publish the tunnel route and DNS record.',
       tunnelTokenConfigured: false,
-      awayGuide: 'Cloudflare Tunnel publishes https://desk.cloud.bndz.org/ from inside the drive. It is not Cloudflare Containers and it does not replace the disk.',
+      awayGuide: 'Cloudflare Tunnel publishes https://cloud.bndz.org/desk/ from inside the drive. It is not Cloudflare Containers and it does not replace the disk.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh bndz@desk.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Uses desk.cloud.bndz.org.' },
-        { id: 'sftp', label: 'SFTP', copyText: 'sftp bndz@desk.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Same name as SSH.' },
+        { id: 'ssh', label: 'SSH', copyText: '', state: 'pending', canCopy: false, note: 'SSH is not on the public path.' },
+        { id: 'sftp', label: 'SFTP', copyText: '', state: 'pending', canCopy: false, note: 'SFTP is not on the public path.' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
-        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@desk.cloud.bndz.org/', state: 'pending', canCopy: true, note: 'Same name as the panel. Sign-in password stays hidden.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'https://desk.cloud.bndz.org/dav/', state: 'pending', canCopy: true, note: 'Same name as the panel, under /dav/.' },
+        { id: 'ftps', label: 'FTPS', copyText: '', state: 'pending', canCopy: false, note: 'FTPS is not on the public path.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'https://cloud.bndz.org/desk/dav/', state: 'pending', canCopy: true, note: 'Same link as the panel, under dav/.' },
         { id: 'panel', label: 'Send this', copyText: desk, state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
       ],
     },
@@ -258,18 +293,18 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       snapshots: [
         { id: 'vs_preview', status: 'created', createdAt: '2026-10-07T12:00:00Z', sizeBytes: 20 * 1024 * 1024 },
       ],
-      sshCommand: 'ssh bndz@reel.cloud.bndz.org',
-      tunnelHostname: 'reel.cloud.bndz.org',
+      sshCommand: '',
+      tunnelHostname: CLOUD_DRIVE_BASE_DOMAIN,
       shareUrl: reel,
-      addressGuide: `Send ${reel} Share links use that name. ${landingUrl()} is the account page. The tunnel runs inside the drive.`,
+      addressGuide: `Send ${reel} Share links are https://cloud.bndz.org/s/ and a token. ${landingUrl()} is the account page. The tunnel runs inside the drive.`,
       tunnelState: 'dry-run',
-      tunnelMessage: 'Address reserved as https://reel.cloud.bndz.org/. Save a Cloudflare API token to publish the tunnel route and DNS record.',
+      tunnelMessage: 'Address reserved as https://cloud.bndz.org/reel/. Save a Cloudflare API token to publish the tunnel route and DNS record.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh bndz@reel.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Uses reel.cloud.bndz.org.' },
-        { id: 'sftp', label: 'SFTP', copyText: 'sftp bndz@reel.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Same name as SSH.' },
+        { id: 'ssh', label: 'SSH', copyText: '', state: 'pending', canCopy: false, note: 'SSH is not on the public path.' },
+        { id: 'sftp', label: 'SFTP', copyText: '', state: 'pending', canCopy: false, note: 'SFTP is not on the public path.' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
-        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@reel.cloud.bndz.org/', state: 'pending', canCopy: true, note: 'Same name as the panel.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'https://reel.cloud.bndz.org/dav/', state: 'pending', canCopy: true, note: 'Same name as the panel, under /dav/.' },
+        { id: 'ftps', label: 'FTPS', copyText: '', state: 'pending', canCopy: false, note: 'FTPS is not on the public path.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'https://cloud.bndz.org/reel/dav/', state: 'pending', canCopy: true, note: 'Same link as the panel, under dav/.' },
         { id: 'panel', label: 'Send this', copyText: reel, state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
       ],
     },
@@ -305,7 +340,7 @@ export function nextAction(probe: CloudDriveProbe, placement: string, diskPath =
     return 'Paste a Fly token from your own org, then save it. BNDZ does not share one cloud account.';
   }
   const base = probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN;
-  return `Create the drive. Its address is a hostname on ${base}.`;
+  return `Create the drive. Its address is a path on ${base}.`;
 }
 
 export function driveHint(drive: CloudDriveRecord): string {
@@ -323,11 +358,11 @@ export function driveHint(drive: CloudDriveRecord): string {
   if (drive.state === 'running') {
     return pretty
       ? `Send ${pretty}. Sign in there, then open Settings for your own name and password.`
-      : 'The address is a hostname on cloud.bndz.org. Start publishes it when a Cloudflare token is saved.';
+      : 'The address is a path on cloud.bndz.org. Start publishes it when a Cloudflare token is saved.';
   }
   return pretty
     ? `Start the machine, then send ${pretty}.`
-    : 'Start the machine. The address is a hostname on cloud.bndz.org.';
+    : 'Start the machine. The address is a path on cloud.bndz.org.';
 }
 
 /** Client check before the host copies a sealed folder. The host repeats it. */

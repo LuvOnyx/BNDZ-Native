@@ -48,6 +48,7 @@ def main() -> None:
             blob = err or ""
             if SECRET in blob or "newer-secret" in blob:
                 raise SystemExit("panel password leaked to stderr")
+        prefix_case()
     print("test-cloud-panel: ok")
 
 
@@ -244,9 +245,102 @@ def call_bin(method, path, cookie=""):
     return res.status, body
 
 
-def call_raw(method, path, data, cookie, content_type, want_headers=False):
+def prefix_case() -> None:
+    global PORT
+    previous = PORT
+    PORT = 8767
+    with tempfile.TemporaryDirectory() as tmp:
+        env = os.environ.copy()
+        env.update({
+            "BNDZ_DATA_MOUNT": tmp,
+            "BNDZ_FTP_PASSWORD": SECRET,
+            "BNDZ_PANEL_HOST": "127.0.0.1",
+            "BNDZ_PANEL_PORT": str(PORT),
+            "BNDZ_PUBLIC_HOST": "cloud.bndz.org",
+            "BNDZ_PATH_PREFIX": "/studio",
+            "BNDZ_SLUG_REDIRECTS": "oldname:studio",
+            "BNDZ_ROUTE_GUARD": "1",
+        })
+        proc = subprocess.Popen(
+            [sys.executable, str(SERVER)],
+            env=env,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            for _ in range(40):
+                try:
+                    status, body = call("GET", "/studio/api/health")
+                    if status == 200 and json.loads(body)["ok"]:
+                        break
+                except OSError:
+                    time.sleep(0.05)
+            else:
+                raise SystemExit("prefixed panel did not start")
+            status, page = call("GET", "/studio/")
+            assert status == 200 and "window.BNDZ_BASE" in page and "/studio/app.js" in page, page[:240]
+            status, body, headers = call("POST", "/studio/api/login", {"user": "bndz", "password": SECRET}, headers=True)
+            assert status == 200, body
+            assert "Path=/studio/" in headers["set-cookie"]
+            cookie = headers["set-cookie"].split(";", 1)[0]
+            status, body = call("POST", "/studio/api/upload/start", {"dir": "", "name": "chunk.txt", "size": 11}, cookie=cookie)
+            meta = json.loads(body)
+            assert status == 200 and meta["chunkSize"] <= 90 * 1024 * 1024, body
+            status, body, _headers = call_raw(
+                "PUT",
+                "/studio/api/upload/chunk?id=" + meta["id"] + "&offset=5",
+                b"hello",
+                cookie,
+                "application/octet-stream",
+                True,
+            )
+            assert status == 409 and json.loads(body)["offset"] == 0, body
+            status, body = call_raw(
+                "PUT",
+                "/studio/api/upload/chunk?id=" + meta["id"] + "&offset=0",
+                b"hello-chunk",
+                cookie,
+                "application/octet-stream",
+            )
+            assert status == 200, body
+            status, body = call("POST", "/studio/api/upload/finish", {"id": meta["id"]}, cookie=cookie)
+            assert status == 200, body
+            assert Path(tmp, "chunk.txt").read_text() == "hello-chunk"
+            status, page, headers = call("GET", "/oldname/files", headers=True)
+            assert status == 301 and headers["location"].endswith("/studio/files"), headers.get("location")
+            status, body = call_raw("GET", "/studio/api/health", None, "", None, False, {"Host": "d-studio.bndz.org"})
+            assert status == 404 and "https://cloud.bndz.org/studio/" in body, body
+            status, body = call_raw(
+                "GET",
+                "/studio/api/health",
+                None,
+                "",
+                None,
+                False,
+                {"Host": "d-studio.bndz.org", "X-Bndz-Route": "1"},
+            )
+            assert status == 200, body
+            status, body = call("POST", "/studio/api/shares", {"path": "chunk.txt", "hours": 2}, cookie=cookie)
+            share = json.loads(body)["share"]
+            assert share["url"].startswith("/s/")
+            status, page = call("GET", share["url"])
+            assert status == 200 and "cloud.bndz.org" in page and "/studio/s/" not in page
+        finally:
+            PORT = previous
+            proc.terminate()
+            try:
+                proc.communicate(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate(timeout=3)
+
+
+def call_raw(method, path, data, cookie, content_type, want_headers=False, extra=None):
     conn = http.client.HTTPConnection("127.0.0.1", PORT, timeout=5)
     hdrs = {}
+    if extra:
+        hdrs.update(extra)
     if content_type and data is not None:
         hdrs["Content-Type"] = content_type
     if cookie:

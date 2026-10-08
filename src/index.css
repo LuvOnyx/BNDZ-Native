@@ -2808,6 +2808,39 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
     linear-gradient(165deg, rgba(28, 24, 14, 0.9), rgba(8, 10, 14, 0.94));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
+.bndz-cloud-pathbox {
+  display: flex;
+  align-items: stretch;
+  min-height: 36px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(232, 196, 110, 0.45);
+  background:
+    linear-gradient(180deg, rgba(255, 244, 214, 0.05), transparent 40%),
+    rgba(6, 8, 12, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.bndz-cloud-pathbox-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: rgba(246, 237, 212, 0.82);
+  background: rgba(232, 196, 110, 0.14);
+  border-right: 1px solid rgba(232, 196, 110, 0.28);
+  white-space: nowrap;
+}
+.bndz-cloud-pathbox input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #f6edd4;
+  padding: 8px 10px;
+  font: inherit;
+}
 .bndz-cloud-address-url {
   margin: 0;
   font-size: 18px;

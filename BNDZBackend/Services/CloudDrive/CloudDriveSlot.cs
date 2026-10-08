@@ -27,6 +27,8 @@ public sealed class CloudDriveSlotManifest
     public string User { get; set; } = "bndz";
     /// <summary>Keeps the public URL when the sealed folder moves.</summary>
     public string? PublicSlug { get; set; }
+    /// <summary>Old paths that still redirect. Kept with the sealed folder.</summary>
+    public List<CloudDriveSlugRedirect>? SlugRedirects { get; set; }
 }
 
 public static class CloudDriveSnapshots

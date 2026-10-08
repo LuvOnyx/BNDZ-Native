@@ -140,14 +140,63 @@ Assert(CloudDriveHostname.DefaultBaseDomain == "cloud.bndz.org", "base domain");
 Assert(CloudDriveHostname.ZoneName("cloud.bndz.org") == "bndz.org", "zone");
 Assert(CloudDriveHostname.ZoneName("example.com") == "example.com", "apex zone");
 Assert(CloudDriveHostname.LandingUrl(null) == "https://cloud.bndz.org/", "landing");
-Assert(CloudDriveHostname.DriveHost("cloud.bndz.org", "desk") == "desk.cloud.bndz.org", "drive host");
-Assert(CloudDriveHostname.ShareLink("cloud.bndz.org", "desk", "tok_1") == "https://desk.cloud.bndz.org/s/tok_1", "share link");
+Assert(CloudDriveHostname.DriveUrl("cloud.bndz.org", "desk") == "https://cloud.bndz.org/desk/", "drive url");
+Assert(CloudDriveHostname.ShareLink("cloud.bndz.org", "desk", "tok_1") == "https://cloud.bndz.org/s/tok_1", "share link");
 Assert(CloudDriveHostname.ShareLink("cloud.bndz.org", "desk", "a/b") == "", "share rejects slash");
-Assert(CloudDriveHostname.Slug("Cloud", "id", null) == "cloud-drive", "reserved slug");
+Assert(CloudDriveHostname.OriginHost("cloud.bndz.org", "desk") == "d-desk.bndz.org", "origin host");
+Assert(CloudDriveHostname.DnsLabel("desk") == "d-desk", "dns label");
+Assert(CloudDriveHostname.ValidateSlug("Desk") == "Use lowercase letters, numbers, and hyphens.", "reject upper");
+Assert(CloudDriveHostname.ValidateSlug("-desk") == "The path cannot start or end with a hyphen.", "reject hyphen");
+Assert(CloudDriveHostname.ValidateSlug(new string('a', 62)) == "The path cannot be longer than 61 characters.", "reject length");
+Assert(CloudDriveHostname.ValidateSlug("s") == "That path is reserved.", "reserved s");
+Assert(CloudDriveHostname.ValidateSlug("cloud") == null, "cloud path is allowed");
+Assert(CloudDriveHostname.Slug("S", "id", null) == "s-drive", "reserved slug");
 Assert(CloudDriveHostname.Slug("Desk", "id", new[] { "desk" }) == "desk-2", "slug collision");
+Assert(CloudDriveHostname.Slug("Cloud", "id", null) == "cloud", "cloud slug");
+var now = DateTime.UtcNow;
+var claims = new[]
+{
+    new SlugClaim
+    {
+        DriveId = "a",
+        Slug = "desk",
+        Redirects = new[] { new CloudDriveSlugRedirect { From = "old", UntilUtc = now.AddDays(1).ToString("o") } },
+    },
+};
+Assert(CloudDriveHostname.Availability("desk", claims, null, now) == "That path is already taken.", "current slug taken");
+Assert(CloudDriveHostname.Availability("old", claims, null, now) == "That path is already taken.", "redirect taken");
+Assert(CloudDriveHostname.Availability("old", claims, "a", now) == null, "owner reclaims redirect");
+Assert(CloudDriveHostname.Availability("studio", claims, null, now) == null, "free path");
+Assert(CloudDriveHostname.Availability("desk", claims, "a", now) == null, "owner keeps current");
+var renamed = new List<CloudDriveSlugRedirect>();
+Assert(CloudDriveHostname.Rename("desk", renamed, "studio", now, out var nextSlug) == null, "rename ok");
+Assert(nextSlug == "studio" && renamed.Count == 1 && renamed[0].From == "desk", "rename stores old path");
+Assert(CloudDriveHostname.RedirectActive(renamed[0].UntilUtc, now.AddDays(29)), "redirect inside grace");
+Assert(!CloudDriveHostname.RedirectActive(renamed[0].UntilUtc, now.AddDays(31)), "redirect after grace");
+Assert(CloudDriveHostname.Availability("desk", new[] { new SlugClaim { DriveId = "a", Slug = "studio", Redirects = renamed } }, null, now) == "That path is already taken.", "renamed path stays taken");
+var router = CloudDriveRouter.Script("cloud.bndz.org", new[]
+{
+    new CloudDriveRouter.DriveRoute
+    {
+        Slug = "studio",
+        Origin = "https://d-studio.bndz.org",
+        Redirects = renamed,
+    },
+});
+Assert(router.Contains("/studio/", StringComparison.Ordinal), "worker path");
+Assert(router.Contains("301", StringComparison.Ordinal), "worker redirect");
+Assert(router.Contains("\"desk\"", StringComparison.Ordinal), "worker old path");
+Assert(router.Contains("replica", StringComparison.Ordinal), "worker reason");
+Assert(router.Contains("d-studio.bndz.org", StringComparison.Ordinal), "worker origin");
+Assert(!router.Contains("fly.dev", StringComparison.Ordinal) && !router.Contains(connector, StringComparison.Ordinal), "worker has no secret");
+var prefixed = CloudDriveLocalRootfs.PanelUnit(password, "cloud.bndz.org", "/desk", "old:desk");
+Assert(prefixed.Contains("BNDZ_PATH_PREFIX=/desk", StringComparison.Ordinal), "prefix env");
+Assert(prefixed.Contains("BNDZ_SLUG_REDIRECTS=old:desk", StringComparison.Ordinal), "redirect env");
+Assert(prefixed.Contains("BNDZ_ROUTE_GUARD=1", StringComparison.Ordinal), "route guard env");
+Assert(!CloudDriveLocalRootfs.PanelUnit(password, "files.example.com").Contains("BNDZ_PATH_PREFIX", StringComparison.Ordinal), "plain unit has no prefix");
 Assert(CloudDriveHostname.ContainsInternalOrigin("ssh bndz@app.fly.dev"), "fly origin");
 Assert(CloudDriveHostname.ContainsInternalOrigin("http://10.0.0.8/"), "ip origin");
-Assert(!CloudDriveHostname.ContainsInternalOrigin("https://desk.cloud.bndz.org/"), "public origin");
+Assert(!CloudDriveHostname.ContainsInternalOrigin("https://cloud.bndz.org/desk/"), "public origin");
 Assert(CloudDriveLocalBackend.Choose(true, null) == "hyper-v", "prefer hyper-v");
 Assert(CloudDriveLocalBackend.Choose(false, "2") == "wsl2", "fallback wsl2");
 Assert(CloudDriveLocalBackend.Choose(false, "1") == "none", "no backend");
@@ -159,10 +208,12 @@ Assert(CloudDriveLocalBackend.DefaultPlacement(false, null, "local") == "local",
 Assert(CloudDriveLocalBackend.EnableHowTo.Contains("Enable-WindowsOptionalFeature", StringComparison.Ordinal), "enable how-to");
 
 var dry = CloudDriveCloudflare.Describe("cloud.bndz.org", "desk", false);
-Assert(dry.Mode == "dry-run" && dry.Hostname == "desk.cloud.bndz.org", "dry-run host");
-Assert(dry.Message.Contains("Zone DNS Edit", StringComparison.Ordinal) && !dry.Message.Contains(connector, StringComparison.Ordinal), "dry-run scopes");
+Assert(dry.Mode == "dry-run" && dry.PublicUrl == "https://cloud.bndz.org/desk/", "dry-run url");
+Assert(dry.OriginHost == "d-desk.bndz.org" && dry.DnsName == "d-desk" && dry.WorkerRoute == "cloud.bndz.org/*", "dry-run route");
+Assert(dry.Message.Contains("Zone DNS Edit", StringComparison.Ordinal) && dry.Message.Contains("Workers Scripts Edit", StringComparison.Ordinal) && !dry.Message.Contains(connector, StringComparison.Ordinal), "dry-run scopes");
 var live = await CloudDriveCloudflare.PublishAsync("cf-test-token-value-0123456789abcdef", "cloud.bndz.org", "desk", new StubHandler(), CancellationToken.None);
 Assert(live.Mode == "published" && live.TunnelId == "tun1" && live.ConnectorToken == connector, "published plan");
+Assert(live.WorkerScript.Contains("/desk/", StringComparison.Ordinal) && live.WorkerScript.Contains("301", StringComparison.Ordinal), "published worker");
 Assert(!live.Message.Contains(connector, StringComparison.Ordinal) && !live.Message.Contains("cf-test-token", StringComparison.Ordinal), "plan message has no token");
 var noToken = await CloudDriveCloudflare.PublishAsync(null, "cloud.bndz.org", "desk", new StubHandler(), CancellationToken.None);
 Assert(noToken.Mode == "dry-run" && noToken.ConnectorToken == null, "missing token stays dry-run");
@@ -255,6 +306,8 @@ file sealed class StubHandler : HttpMessageHandler
             json = """{"success":true,"result":[]}""";
         else if (request.Method == HttpMethod.Post && url.Contains("/dns_records", StringComparison.Ordinal))
             json = """{"success":true,"result":{"id":"dns1"}}""";
+        else if (url.Contains("/workers/", StringComparison.Ordinal))
+            json = """{"success":true,"result":[]}""";
         else
             json = """{"success":false,"errors":[{"message":"unexpected"}]}""";
         return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)

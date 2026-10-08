@@ -129,13 +129,23 @@ public static class CloudDriveLocalRootfs
         return BootstrapTemplate.Replace("__GUEST_IP__", ip, StringComparison.Ordinal);
     }
 
-    public static string PanelUnit(string password, string? publicHost)
+    public static string PanelUnit(string password, string? publicHost, string? pathPrefix = null, string? slugRedirects = null)
     {
         var pw = RequirePassword(password);
         var host = (publicHost ?? "").Trim();
         if (host.Contains('\n') || host.Contains('\r'))
             throw new InvalidOperationException("Public hostname is not usable in the guest unit.");
-        return "[Unit]\nDescription=BNDZ Cloud Drive panel\nAfter=network-online.target bndz-boot.service\n\n[Service]\nType=simple\nEnvironment=BNDZ_PANEL_USER=bndz\nEnvironment=BNDZ_FTP_PASSWORD=" + pw + "\nEnvironment=BNDZ_PUBLIC_HOST=" + host + "\nWorkingDirectory=/opt/bndz/panel\nExecStart=/usr/bin/python3 /opt/bndz/panel/server.py\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n";
+        var extra = "";
+        var prefix = (pathPrefix ?? "").Trim();
+        if (prefix.Length > 1 && prefix.StartsWith('/') && !prefix.Contains('\n') && !prefix.Contains('\r') && prefix.IndexOf('/', 1) < 0)
+        {
+            extra += "Environment=BNDZ_PATH_PREFIX=" + prefix + "\n";
+            extra += "Environment=BNDZ_ROUTE_GUARD=1\n";
+        }
+        var redirects = (slugRedirects ?? "").Trim();
+        if (redirects.Length > 0 && redirects.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-' or ':' or ','))
+            extra += "Environment=BNDZ_SLUG_REDIRECTS=" + redirects + "\n";
+        return "[Unit]\nDescription=BNDZ Cloud Drive panel\nAfter=network-online.target bndz-boot.service\n\n[Service]\nType=simple\nEnvironment=BNDZ_PANEL_USER=bndz\nEnvironment=BNDZ_FTP_PASSWORD=" + pw + "\nEnvironment=BNDZ_PUBLIC_HOST=" + host + "\n" + extra + "WorkingDirectory=/opt/bndz/panel\nExecStart=/usr/bin/python3 /opt/bndz/panel/server.py\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n";
     }
 
     public static string TunnelUnit(string? token)
@@ -149,7 +159,7 @@ public static class CloudDriveLocalRootfs
     public static string BootUnit() =>
         "[Unit]\nDescription=BNDZ Cloud Drive boot\nAfter=local-fs.target\nBefore=bndz-panel.service\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/bin/bash /usr/local/sbin/bndz-bootstrap.sh\n\n[Install]\nWantedBy=multi-user.target\n";
 
-    public static string UserData(string? id, string guestIp, string? publicKey, string password, string? publicHost)
+    public static string UserData(string? id, string guestIp, string? publicKey, string password, string? publicHost, string? pathPrefix = null, string? slugRedirects = null)
     {
         var script = BootstrapScript(guestIp);
         var pw = RequirePassword(password);
@@ -187,7 +197,7 @@ public static class CloudDriveLocalRootfs
         sb.AppendLine("ssh_pwauth: false");
         sb.AppendLine("write_files:");
         AppendLiteral(sb, "/usr/local/sbin/bndz-bootstrap.sh", "0755", script);
-        AppendLiteral(sb, "/etc/systemd/system/bndz-panel.service", "0644", PanelUnit(pw, publicHost));
+        AppendLiteral(sb, "/etc/systemd/system/bndz-panel.service", "0644", PanelUnit(pw, publicHost, pathPrefix, slugRedirects));
         AppendLiteral(sb, "/etc/systemd/system/bndz-boot.service", "0644", BootUnit());
         sb.AppendLine("runcmd:");
         sb.AppendLine("  - [bash, /usr/local/sbin/bndz-bootstrap.sh]");
@@ -202,15 +212,17 @@ public static class CloudDriveLocalRootfs
         string password,
         string? publicHost,
         IEnumerable<(string Name, string Text)>? panelFiles,
-        string? tunnelToken = null)
+        string? tunnelToken = null,
+        string? pathPrefix = null,
+        string? slugRedirects = null)
     {
         var files = new List<(string Name, byte[] Data)>
         {
-            ("user-data", Utf8(UserData(id, guestIp, publicKey, password, publicHost))),
+            ("user-data", Utf8(UserData(id, guestIp, publicKey, password, publicHost, pathPrefix, slugRedirects))),
             ("meta-data", Utf8(MetaData(id))),
             ("network-config", Utf8(NetworkConfig(guestIp))),
             ("bootstrap.sh", Utf8(BootstrapScript(guestIp))),
-            ("panel.service", Utf8(PanelUnit(password, publicHost))),
+            ("panel.service", Utf8(PanelUnit(password, publicHost, pathPrefix, slugRedirects))),
             ("bndz-boot.service", Utf8(BootUnit())),
             ("bndz.pub", Utf8(((publicKey ?? "").Trim()) + "\n")),
         };

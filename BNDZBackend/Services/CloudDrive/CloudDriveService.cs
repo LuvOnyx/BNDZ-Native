@@ -60,6 +60,8 @@ public sealed class CloudDriveService
                 "CLOUD_DRIVE_SET_CLOUDFLARE_TOKEN" => await SetCloudflareTokenAsync(Str(payload, "token") ?? Str(payload, "cloudflareToken"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_CLEAR_CLOUDFLARE_TOKEN" => ClearCloudflareToken(),
                 "CLOUD_DRIVE_PUBLISH" => await PublishOneAsync(Str(payload, "id"), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_CHECK_SLUG" => CheckSlug(Str(payload, "slug"), Str(payload, "id")),
+                "CLOUD_DRIVE_RENAME_SLUG" => await RenameSlugAsync(Str(payload, "id"), Str(payload, "slug"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_SET_PLACEMENT_PREF" => SetPlacementPref(Str(payload, "placement")),
                 "CLOUD_DRIVE_ENABLE_LOCAL" => EnableLocal(),
                 "CLOUD_DRIVE_REVEAL_FTP_PASSWORD" => RevealFtpPassword(Str(payload, "id")),
@@ -178,6 +180,13 @@ public sealed class CloudDriveService
         if (placement == "cloud" && string.IsNullOrWhiteSpace(ReadToken()))
             return new { ok = false, error = "Paste your Fly API token first. BNDZ does not keep a shared cloud account for Cloud Drives." };
 
+        var requested = (Str(payload, "slug") ?? "").Trim().ToLowerInvariant();
+        if (requested.Length > 0)
+        {
+            var slugError = CloudDriveHostname.Availability(requested, Claims(), null, DateTime.UtcNow);
+            if (slugError != null) return new { ok = false, error = slugError };
+        }
+
         CloudDriveKeyMaterial keys;
         try { keys = CloudDriveKeys.Create(); }
         catch (Exception ex)
@@ -202,6 +211,7 @@ public sealed class CloudDriveService
             CreatedUtc = now,
             UpdatedUtc = now,
             User = "bndz",
+            PublicSlug = requested.Length > 0 ? requested : null,
         };
         CloudDrivePorts.Assign(drive);
         drive.ProtectedFtpPassword = CloudDriveSecrets.ProtectToBase64(CloudDriveSecrets.NewPassword());
@@ -522,6 +532,7 @@ public sealed class CloudDriveService
             existing.Hypervisor = _local.Probe().Preferred;
             var hasKey = !string.IsNullOrWhiteSpace(existing.ProtectedPrivateKey);
             if (!string.IsNullOrWhiteSpace(manifest.PublicSlug)) existing.PublicSlug = manifest.PublicSlug;
+            existing.SlugRedirects = CopyRedirects(manifest.SlugRedirects);
             EnsurePublicAddress(existing);
             existing.HostKeyNote = CloudDriveSlot.LocalMoveNote(hasKey, mismatch, existing.Fingerprint);
             var vhdx = File.Exists(existing.VhdxPath);
@@ -554,6 +565,7 @@ public sealed class CloudDriveService
             WebDavPort = manifest.WebDavPort,
             Hypervisor = _local.Probe().Preferred,
             PublicSlug = manifest.PublicSlug,
+            SlugRedirects = CopyRedirects(manifest.SlugRedirects),
             CreatedUtc = now,
             UpdatedUtc = now,
         };
@@ -600,25 +612,116 @@ public sealed class CloudDriveService
     {
         var beforeSlug = drive.PublicSlug;
         var beforeHost = drive.TunnelHostname;
+        drive.SlugRedirects ??= new List<CloudDriveSlugRedirect>();
+        var beforeRedirects = drive.SlugRedirects.Count;
+        var now = DateTime.UtcNow;
+        drive.SlugRedirects.RemoveAll(r =>
+            !CloudDriveHostname.RedirectActive(r.UntilUtc, now)
+            || string.Equals((r.From ?? "").Trim(), drive.PublicSlug, StringComparison.OrdinalIgnoreCase));
         if (string.IsNullOrWhiteSpace(drive.PublicSlug))
         {
             drive.PublicSlug = CloudDriveHostname.Slug(
                 drive.Name,
                 drive.Id,
-                _store.Drives.Where(d => !ReferenceEquals(d, drive)).Select(d => d.PublicSlug));
+                CloudDriveHostname.Occupied(Claims(), now, drive.Id));
         }
-        var host = CloudDriveHostname.DriveHost(BaseDomain(), drive.PublicSlug);
+        var host = BaseDomain();
         if (CloudDriveHostname.IsPublicHost(host))
             drive.TunnelHostname = host;
         return !string.Equals(beforeSlug, drive.PublicSlug, StringComparison.Ordinal)
-            || !string.Equals(beforeHost, drive.TunnelHostname, StringComparison.Ordinal);
+            || !string.Equals(beforeHost, drive.TunnelHostname, StringComparison.Ordinal)
+            || beforeRedirects != drive.SlugRedirects.Count;
+    }
+
+    private object CheckSlug(string? slug, string? exceptId)
+    {
+        var normalized = (slug ?? "").Trim().ToLowerInvariant();
+        var error = CloudDriveHostname.Availability(slug, Claims(), exceptId, DateTime.UtcNow);
+        return new
+        {
+            ok = error == null,
+            available = error == null,
+            error,
+            slug = normalized,
+            url = error == null ? CloudDriveHostname.DriveUrl(BaseDomain(), normalized) : "",
+        };
+    }
+
+    private async Task<object> RenameSlugAsync(string? id, string? slug, CancellationToken ct)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        drive.SlugRedirects ??= new List<CloudDriveSlugRedirect>();
+        var taken = CloudDriveHostname.Availability(slug, Claims(), drive.Id, DateTime.UtcNow);
+        if (taken != null) return new { ok = false, error = taken, drive = drive.ToDto(), drives = Dtos() };
+        var renameError = CloudDriveHostname.Rename(drive.PublicSlug, drive.SlugRedirects, slug, DateTime.UtcNow, out var updated);
+        if (renameError != null) return new { ok = false, error = renameError, drive = drive.ToDto(), drives = Dtos() };
+        drive.PublicSlug = updated;
+        EnsurePublicAddress(drive);
+        try
+        {
+            await PublishDriveAsync(drive, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            drive.PublishMode = "dry-run";
+            drive.PublishMessage = CloudDriveSecrets.Redact(ex.Message);
+        }
+        if (string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(drive.DiskPath))
+        {
+            try { CloudDriveSlot.Write(drive.DiskPath, LocalMicroVmCloudDriveProvider.ManifestFrom(drive)); }
+            catch (Exception ex) { drive.Message = CloudDriveSecrets.Redact(ex.Message); }
+        }
+        Touch(drive);
+        Save();
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private List<SlugClaim> Claims() => _store.Drives.Select(d => new SlugClaim
+    {
+        DriveId = d.Id,
+        Slug = d.PublicSlug ?? "",
+        Redirects = d.SlugRedirects,
+    }).ToList();
+
+    private List<CloudDriveRouter.DriveRoute> RouteMap()
+    {
+        var list = new List<CloudDriveRouter.DriveRoute>();
+        foreach (var drive in _store.Drives)
+        {
+            var slug = (drive.PublicSlug ?? "").Trim().ToLowerInvariant();
+            if (CloudDriveHostname.ValidateSlug(slug) != null) continue;
+            var origin = CloudDriveHostname.OriginHost(BaseDomain(), slug);
+            if (origin.Length == 0) continue;
+            list.Add(new CloudDriveRouter.DriveRoute
+            {
+                Slug = slug,
+                Origin = "https://" + origin,
+                Redirects = drive.SlugRedirects ?? new List<CloudDriveSlugRedirect>(),
+            });
+        }
+        return list;
+    }
+
+    private static List<CloudDriveSlugRedirect> CopyRedirects(IEnumerable<CloudDriveSlugRedirect>? redirects)
+    {
+        var copy = new List<CloudDriveSlugRedirect>();
+        if (redirects == null) return copy;
+        foreach (var redirect in redirects)
+        {
+            var from = (redirect.From ?? "").Trim().ToLowerInvariant();
+            if (from.Length == 0) continue;
+            copy.Add(new CloudDriveSlugRedirect { From = from, UntilUtc = redirect.UntilUtc ?? "" });
+        }
+        return copy;
     }
 
     private async Task PublishDriveAsync(CloudDriveRecord drive, CancellationToken ct)
     {
         EnsurePublicAddress(drive);
         var token = CloudDriveSecrets.UnprotectFromBase64(_store.CloudflareTokenProtected);
-        var plan = await CloudDriveCloudflare.PublishAsync(token, BaseDomain(), drive.PublicSlug, null, ct).ConfigureAwait(false);
+        var plan = await CloudDriveCloudflare.PublishAsync(token, BaseDomain(), drive.PublicSlug, null, ct, RouteMap()).ConfigureAwait(false);
         drive.PublishMode = plan.Mode;
         drive.PublishMessage = CloudDriveSecrets.Redact(plan.Message);
         if (!string.IsNullOrWhiteSpace(plan.ConnectorToken))

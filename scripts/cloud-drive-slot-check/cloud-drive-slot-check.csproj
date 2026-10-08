@@ -13,5 +13,6 @@
     <Compile Include="..\..\BNDZBackend\Services\CloudDrive\CloudDriveHostname.cs" />
     <Compile Include="..\..\BNDZBackend\Services\CloudDrive\CloudDriveLocalBackend.cs" />
     <Compile Include="..\..\BNDZBackend\Services\CloudDrive\CloudDriveCloudflare.cs" />
+    <Compile Include="..\..\BNDZBackend\Services\CloudDrive\CloudDriveRouter.cs" />
   </ItemGroup>
 </Project>

@@ -39,8 +39,10 @@ public sealed class CloudDriveRecord
     public string? ProtectedFtpPassword { get; set; }
     /// <summary>DPAPI blob for the Cloudflare Tunnel token. Local drives only. Never copy onto the UI DTO.</summary>
     public string? ProtectedTunnelToken { get; set; }
-    /// <summary>Stable public name. The hostname is slug.base. Survives a move.</summary>
+    /// <summary>Path on the public host. Survives a move.</summary>
     public string? PublicSlug { get; set; }
+    /// <summary>Previous paths that 301 to PublicSlug until their grace time.</summary>
+    public List<CloudDriveSlugRedirect> SlugRedirects { get; set; } = new();
     public string? PublishMode { get; set; }
     public string? PublishMessage { get; set; }
     public string? TunnelHostname { get; set; }
@@ -81,6 +83,10 @@ public sealed class CloudDriveRecord
             VmName = VmName,
             Hypervisor = Hypervisor,
             PublicSlug = PublicSlug,
+            SlugRedirects = (SlugRedirects ?? new List<CloudDriveSlugRedirect>())
+                .Where(r => CloudDriveHostname.RedirectActive(r.UntilUtc, DateTime.UtcNow))
+                .Select(r => new CloudDriveSlugRedirect { From = r.From, UntilUtc = r.UntilUtc })
+                .ToList(),
             PublishMode = PublishMode,
             PublishMessage = CloudDriveSecrets.Redact(PublishMessage),
             Host = CloudDriveProtocols.PublicHostname(this),
@@ -134,6 +140,7 @@ public sealed class CloudDriveDto
     public string? VmName { get; set; }
     public string? Hypervisor { get; set; }
     public string? PublicSlug { get; set; }
+    public List<CloudDriveSlugRedirect> SlugRedirects { get; set; } = new();
     public string? PublishMode { get; set; }
     public string? PublishMessage { get; set; }
     public string? Host { get; set; }
@@ -164,7 +171,7 @@ public sealed class CloudDriveDto
     public string? HostKeyNote { get; set; }
     /// <summary>Stable guest address on the local Hyper-V switch. Not a secret.</summary>
     public string? LocalGuestIp { get; set; }
-    /// <summary>https://slug.base/ people send.</summary>
+    /// <summary>https://host/slug/ people send.</summary>
     public string? ShareUrl { get; set; }
     /// <summary>Kept empty. Machine origins are not shown.</summary>
     public string? MachineHost { get; set; }

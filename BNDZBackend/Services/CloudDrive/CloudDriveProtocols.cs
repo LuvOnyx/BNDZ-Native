@@ -67,18 +67,16 @@ public static class CloudDriveProtocols
         var ready = local ? listening : running && haveHost && imagePinned;
         var listen = ListenNote(local, running, imagePinned, rootfs, listening);
         var share = ShareUrl(drive);
-        var ssh = haveHost ? $"ssh {user}@{host}" : "";
-        var sftp = haveHost ? $"sftp {user}@{host}" : "";
-        var ftps = haveHost ? $"ftps://{user}@{host}/" : "";
-        var web = haveHost ? "https://" + host + "/dav/" : "";
-        var note = haveHost
-            ? "Uses " + host + ". " + listen
-            : "The address is assigned on " + CloudDriveHostname.DefaultBaseDomain + " when the drive is created.";
+        var web = share.Length == 0 ? "" : share + "dav/";
+        var note = share.Length == 0
+            ? "The address is assigned on " + CloudDriveHostname.DefaultBaseDomain + " when the drive is created."
+            : "The panel is " + share + " " + listen;
+        var sshNote = "SSH is not on the public path. Send the panel link. " + listen;
 
         return new List<CloudDriveEndpoint>
         {
-            Row("ssh", "SSH", ssh, ready, haveHost, note),
-            Row("sftp", "SFTP", sftp, ready, haveHost, haveHost ? "Same name as SSH. " + listen : note),
+            Row("ssh", "SSH", "", false, false, sshNote),
+            Row("sftp", "SFTP", "", false, false, "SFTP is not on the public path. Send the panel link. " + listen),
             new CloudDriveEndpoint
             {
                 Id = "ftp",
@@ -88,11 +86,10 @@ public static class CloudDriveProtocols
                 CanCopy = false,
                 Note = "Plain FTP is off, including anonymous login. Use FTPS.",
             },
-            Row("ftps", "FTPS", ftps, ready, haveHost, haveHost
-                ? "Same name as the panel. Sign-in password stays hidden. Use Copy FTPS password."
-                : note),
+            Row("ftps", "FTPS", "", false, false,
+                "FTPS is not on the public path. The sign-in password still unlocks the panel and WebDAV."),
             Row("webdav", "WebDAV", web, ready && web.Length > 0, web.Length > 0,
-                web.Length == 0 ? note : "Same name as the panel, under /dav/. User bndz, same hidden password. " + listen),
+                web.Length == 0 ? note : "Same link as the panel, under dav/. User " + user + ", same hidden password. " + listen),
             new CloudDriveEndpoint
             {
                 Id = "panel",
@@ -102,23 +99,48 @@ public static class CloudDriveProtocols
                 CanCopy = share.Length > 0,
                 Note = share.Length == 0
                     ? note
-                    : "This is the link you send. Sign in, then open Settings for your name and password. " + listen,
+                    : "This is the link you send. Share links stay at /s/ and a token if this path is renamed. " + listen,
             },
         };
     }
 
-    /// <summary>Assigned public hostname. Never a machine origin.</summary>
-    public static string PublicHostname(CloudDriveRecord drive)
-    {
-        var host = (drive.TunnelHostname ?? "").Trim().TrimEnd('.').ToLowerInvariant();
-        return CloudDriveHostname.IsPublicHost(host) ? host : "";
-    }
+    /// <summary>Assigned public hostname. Never a machine origin or a per-drive host.</summary>
+    public static string PublicHostname(CloudDriveRecord drive) => PathHost(drive);
 
-    /// <summary>https URL people send.</summary>
+    /// <summary>https://host/slug/ people send.</summary>
     public static string ShareUrl(CloudDriveRecord drive)
     {
-        var host = PublicHostname(drive);
-        return host.Length == 0 ? "" : "https://" + host + "/";
+        var slug = (drive.PublicSlug ?? "").Trim().ToLowerInvariant();
+        var host = PathHost(drive);
+        if (host.Length == 0 || CloudDriveHostname.ValidateSlug(slug) != null) return "";
+        return CloudDriveHostname.DriveUrl(host, slug);
+    }
+
+    public static string GuestPublicHost(CloudDriveRecord drive)
+    {
+        var host = PathHost(drive);
+        return host.Length > 0 ? host : CloudDriveHostname.DefaultBaseDomain;
+    }
+
+    public static string GuestPathPrefix(CloudDriveRecord drive)
+    {
+        var slug = (drive.PublicSlug ?? "").Trim().ToLowerInvariant();
+        return CloudDriveHostname.ValidateSlug(slug) == null ? "/" + slug : "";
+    }
+
+    public static string GuestRedirects(CloudDriveRecord drive) =>
+        CloudDriveHostname.FormatRedirects(drive.PublicSlug, drive.SlugRedirects, DateTime.UtcNow);
+
+    private static string PathHost(CloudDriveRecord drive)
+    {
+        var host = (drive.TunnelHostname ?? "").Trim().TrimEnd('.').ToLowerInvariant();
+        if (!CloudDriveHostname.IsPublicHost(host)) return "";
+        var slug = (drive.PublicSlug ?? "").Trim().ToLowerInvariant();
+        if (slug.Length > 0 && host.StartsWith(slug + ".", StringComparison.Ordinal))
+            host = host[(slug.Length + 1)..];
+        if (host.StartsWith("d-", StringComparison.Ordinal))
+            return CloudDriveHostname.DefaultBaseDomain;
+        return CloudDriveHostname.IsPublicHost(host) ? host : "";
     }
 
     /// <summary>Internal origin. Not copied into the UI.</summary>
@@ -128,12 +150,11 @@ public static class CloudDriveProtocols
     {
         var share = ShareUrl(drive);
         var host = PublicHostname(drive);
-        var dot = host.IndexOf('.');
-        var baseDomain = dot > 0 ? host[(dot + 1)..] : CloudDriveHostname.DefaultBaseDomain;
-        var landing = CloudDriveHostname.LandingUrl(baseDomain);
+        if (host.Length == 0) host = CloudDriveHostname.DefaultBaseDomain;
+        var landing = CloudDriveHostname.LandingUrl(host);
         if (share.Length == 0)
-            return "Every drive gets a name on " + CloudDriveHostname.DefaultBaseDomain + ". " + landing + " is the account page.";
-        return "Send " + share + " Share links use that name plus /s/ and a token. " + landing + " is the account page. The tunnel runs inside the drive.";
+            return "Every drive gets a path on " + host + ". " + landing + " is the account page.";
+        return "Send " + share + " Share links are " + landing.TrimEnd('/') + "/s/ and a token. They keep working if this path is renamed. " + landing + " is the account page. The tunnel runs inside the drive.";
     }
 
     public static string OperatorNote(CloudDriveRecord drive)
@@ -145,7 +166,7 @@ public static class CloudDriveProtocols
             return "Private key stays in Windows secure storage. The address is on " + CloudDriveHostname.DefaultBaseDomain + ". Nothing answers on this PC until the rootfs is pinned.";
         if (IsLocal(drive))
             return "Private key stays in Windows secure storage. Start boots the pinned rootfs. The sealed VHDX is only the data disk.";
-        return "Private key stays in Windows secure storage. The address is a name on " + CloudDriveHostname.DefaultBaseDomain + ".";
+        return "Private key stays in Windows secure storage. The address is a path on " + CloudDriveHostname.DefaultBaseDomain + ".";
     }
 
     public static string PublicHost(CloudDriveRecord drive) => PublicHostname(drive);

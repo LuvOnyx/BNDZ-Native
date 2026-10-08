@@ -25,7 +25,9 @@ import {
   nextAction,
   placementLabel,
   preflightLocalPath,
+  slugify,
   stateLabel,
+  validateSlug,
   type CloudDrivePlacement,
   type CloudDriveProbe,
   type CloudDriveRecord,
@@ -60,6 +62,9 @@ function CloudDriveBody() {
   const [placement, setPlacement] = useState<CloudDrivePlacement>('local');
   const placementSet = useRef(false);
   const [name, setName] = useState('Private drive');
+  const [slug, setSlug] = useState('private-drive');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [slugStatus, setSlugStatus] = useState('');
   const [sizeGb, setSizeGb] = useState(20);
   const [region, setRegion] = useState<string>('iad');
   const [diskPath, setDiskPath] = useState('');
@@ -172,7 +177,45 @@ function CloudDriveBody() {
     if (dest) setDiskPath(dest);
   };
 
+  useEffect(() => {
+    if (!slugTouched) setSlug(slugify(name) || 'drive');
+  }, [name, slugTouched]);
+
+  useEffect(() => {
+    const local = validateSlug(slug);
+    if (local) {
+      setSlugStatus(local);
+      return;
+    }
+    if (previewLayout || !IPC.isNative) {
+      setSlugStatus('Available');
+      return;
+    }
+    let cancel = false;
+    const timer = window.setTimeout(() => {
+      void IPC.cloudDriveCheckSlug(slug).then(r => {
+        if (cancel) return;
+        setSlugStatus(r.ok ? 'Available' : (r.error || 'That path is already taken.'));
+      }).catch(() => {
+        if (!cancel) setSlugStatus('');
+      });
+    }, 280);
+    return () => {
+      cancel = true;
+      window.clearTimeout(timer);
+    };
+  }, [slug, previewLayout]);
+
   const createDrive = async () => {
+    const slugError = validateSlug(slug);
+    if (slugError) {
+      pushToast({ kind: 'warning', title: 'Address', message: slugError });
+      return;
+    }
+    if (slugStatus && slugStatus !== 'Available') {
+      pushToast({ kind: 'warning', title: 'Address', message: slugStatus });
+      return;
+    }
     if (placement === 'local') {
       const localError = preflightLocalPath(diskPath);
       if (localError) {
@@ -184,6 +227,7 @@ function CloudDriveBody() {
     try {
       const r = await IPC.cloudDriveCreate({
         name: name.trim() || 'Private drive',
+        slug: slug.trim().toLowerCase(),
         placement,
         sizeGb,
         region,
@@ -307,7 +351,7 @@ function CloudDriveBody() {
     <div className="bndz-cloud-stage flex flex-col gap-4 px-4 pb-4">
       <p className="text-[12px] leading-relaxed text-slate-300/90 m-0">
         Your files live on a private machine with its own disk. BNDZ only remote-controls it.
-        Cloud and This PC are the same drive. The address is always a name on {probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN}.
+        Cloud and This PC are the same drive. The address is a path on {probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN}.
       </p>
 
       {hostNote && (
@@ -337,7 +381,7 @@ function CloudDriveBody() {
           selected={placement === 'cloud'}
           title="Cloud"
           seal="Fly"
-          body="The VM runs on your Fly account. The address is still a name on cloud.bndz.org."
+          body="The VM runs on your Fly account. The address is still a path on cloud.bndz.org."
           onSelect={() => choosePlacement('cloud')}
         />
         <Bay
@@ -363,6 +407,24 @@ function CloudDriveBody() {
           <label className="grid gap-1">
             <span className="bndz-plugin-field-label">Name</span>
             <input className={PLUGIN_INPUT_CLASS} value={name} maxLength={64} onChange={e => setName(e.target.value)} />
+          </label>
+          <label className="grid gap-1">
+            <span className="bndz-plugin-field-label">Address</span>
+            <div className="bndz-cloud-pathbox">
+              <span className="bndz-cloud-pathbox-prefix">{(probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN) + '/'}</span>
+              <input
+                value={slug}
+                maxLength={61}
+                spellCheck={false}
+                autoCapitalize="off"
+                aria-label="Path name"
+                onChange={e => {
+                  setSlugTouched(true);
+                  setSlug(e.target.value.toLowerCase());
+                }}
+              />
+            </div>
+            {slugStatus && <p className={slugStatus === 'Available' ? 'bndz-cloud-message' : 'bndz-cloud-next'}>{slugStatus}</p>}
           </label>
           <label className="grid gap-1">
             <span className="bndz-plugin-field-label">Size (GB)</span>
@@ -417,7 +479,7 @@ function CloudDriveBody() {
           )}
           <div>
             <p className="bndz-cloud-section-label">3 · Create</p>
-            <PluginToolbarButton disabled={busy} onClick={() => void createDrive()}>Create drive</PluginToolbarButton>
+            <PluginToolbarButton disabled={busy || Boolean(validateSlug(slug)) || (slugStatus !== '' && slugStatus !== 'Available')} onClick={() => void createDrive()}>Create drive</PluginToolbarButton>
           </div>
         </div>
       </PluginCard>
@@ -775,7 +837,7 @@ function AddressAdmin({
       <h4 className="bndz-cloud-section-label">Address</h4>
       <p className="bndz-cloud-address-url">{probe.landingUrl || landingUrl(base)}</p>
       <p className="bndz-cloud-message">
-        {probe.landingUrl || landingUrl(base)} is the account page. Each drive is a name under {base}. {probe.cloudflareMessage || 'Zone DNS Edit, Zone Read, and Account Cloudflare Tunnel Edit on the bndz.org zone.'}
+        {probe.landingUrl || landingUrl(base)} is the account page. Each drive is a path under that host. {probe.cloudflareMessage || 'Zone DNS Edit, Zone Read, Account Cloudflare Tunnel Edit, and Workers Scripts Edit on the bndz.org zone.'}
       </p>
       <label className="grid gap-1">
         <span className="bndz-plugin-field-label">Base domain</span>
@@ -818,6 +880,58 @@ function AddressPlate({
   const panel = drive.endpoints?.find(endpoint => endpoint.id === 'panel');
   const send = drive.shareUrl || (panel?.copyText?.startsWith('https://') ? panel.copyText : '');
   const [pending, setPending] = useState(false);
+  const [nextSlug, setNextSlug] = useState(drive.publicSlug || '');
+  const [slugNote, setSlugNote] = useState('');
+  useEffect(() => { setNextSlug(drive.publicSlug || ''); }, [drive.publicSlug, drive.id]);
+  useEffect(() => {
+    const local = validateSlug(nextSlug);
+    if (local) {
+      setSlugNote(local);
+      return;
+    }
+    if (nextSlug === (drive.publicSlug || '')) {
+      setSlugNote('This is the current path.');
+      return;
+    }
+    if (preview || !IPC.isNative) {
+      setSlugNote('Available');
+      return;
+    }
+    let cancel = false;
+    const timer = window.setTimeout(() => {
+      void IPC.cloudDriveCheckSlug(nextSlug, drive.id).then(r => {
+        if (cancel) return;
+        setSlugNote(r.ok ? 'Available' : (r.error || 'That path is already taken.'));
+      }).catch(() => { if (!cancel) setSlugNote(''); });
+    }, 280);
+    return () => {
+      cancel = true;
+      window.clearTimeout(timer);
+    };
+  }, [nextSlug, drive.id, drive.publicSlug, preview]);
+
+  const rename = async () => {
+    const local = validateSlug(nextSlug);
+    if (local) {
+      pushToast({ kind: 'warning', title: 'Address', message: local });
+      return;
+    }
+    if (preview || !IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Address', message: HOST_NOTE });
+      return;
+    }
+    setPending(true);
+    try {
+      const r = await IPC.cloudDriveRenameSlug(drive.id, nextSlug.trim().toLowerCase());
+      if (!r.ok) throw new Error(r.error || 'Could not rename the path.');
+      await onChanged();
+      pushToast({ kind: 'success', title: 'Address', message: 'The old path redirects here for 30 days. Share links keep working.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Address', message: e instanceof Error ? e.message : 'Could not rename the path.' });
+    } finally {
+      setPending(false);
+    }
+  };
 
   const publish = async () => {
     if (preview || !IPC.isNative) {
@@ -845,9 +959,27 @@ function AddressPlate({
       ) : (
         <p className="bndz-cloud-next">The address is assigned when the drive is created.</p>
       )}
-      <p className="bndz-cloud-message">{drive.addressGuide || `Share links use this name. ${landingUrl()} is the account page.`}</p>
+      <p className="bndz-cloud-message">{drive.addressGuide || `Share links stay at /s/ and a token. ${landingUrl()} is the account page.`}</p>
+      {(drive.slugRedirects || []).map(redirect => (
+        <p key={redirect.from} className="bndz-cloud-message is-note">{redirect.from} redirects here until {redirect.untilUtc}.</p>
+      ))}
       {drive.publishMode && <p className="bndz-cloud-message is-note">{drive.publishMode === 'published' ? 'Published' : 'Reserved'}{drive.publishMessage ? ` · ${drive.publishMessage}` : ''}</p>}
+      <label className="grid gap-1">
+        <span className="bndz-plugin-field-label">Path name</span>
+        <div className="bndz-cloud-pathbox">
+          <span className="bndz-cloud-pathbox-prefix">{CLOUD_DRIVE_BASE_DOMAIN + '/'}</span>
+          <input
+            value={nextSlug}
+            maxLength={61}
+            spellCheck={false}
+            aria-label="Rename path"
+            onChange={e => setNextSlug(e.target.value.toLowerCase())}
+          />
+        </div>
+        {slugNote && <p className={slugNote === 'Available' || slugNote === 'This is the current path.' ? 'bndz-cloud-message' : 'bndz-cloud-next'}>{slugNote}</p>}
+      </label>
       <div className="flex flex-wrap gap-2">
+        <PluginToolbarButton disabled={busy || pending || Boolean(validateSlug(nextSlug)) || nextSlug === (drive.publicSlug || '')} onClick={() => void rename()}>Rename path</PluginToolbarButton>
         <PluginToolbarButton disabled={busy || pending} onClick={() => void publish()}>Publish</PluginToolbarButton>
         <PluginToolbarButton disabled={!send} onClick={() => onCopy(send, 'Send this')}>Copy link</PluginToolbarButton>
         <PluginToolbarButton disabled={!send} onClick={() => { if (send) window.open(send, '_blank'); }}>Open panel</PluginToolbarButton>

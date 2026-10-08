@@ -893,6 +893,7 @@ export const IPC = {
     region?: string;
     diskPath?: string;
     flyToken?: string;
+    slug?: string;
   }): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_cdCreate`;
@@ -950,6 +951,14 @@ export const IPC = {
 
   cloudDrivePublish(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
     return this._cloudDriveMutate('CLOUD_DRIVE_PUBLISH', { id: driveId }, 60000);
+  },
+
+  cloudDriveCheckSlug(slug: string, driveId?: string): Promise<{ ok: boolean; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_CHECK_SLUG', { slug, id: driveId }, 15000);
+  },
+
+  cloudDriveRenameSlug(driveId: string, slug: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_RENAME_SLUG', { id: driveId, slug }, 60000);
   },
 
   cloudDriveSetPlacement(placement: 'cloud' | 'local'): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
