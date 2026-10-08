@@ -173,9 +173,19 @@ def check_password(password: str, cfg: dict | None = None) -> bool:
     return _same(password, PASSWORD)
 
 
+_IPV4 = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$")
+
+
+def _bad_public_host(host: str) -> bool:
+    bare = host.split(":")[0].strip().lower().rstrip(".")
+    if not bare or bare.endswith(".fly.dev") or bare in ("localhost", "127.0.0.1", "::1"):
+        return True
+    return _IPV4.match(bare) is not None
+
+
 def public_host() -> str:
     host = os.environ.get("BNDZ_PUBLIC_HOST", "").strip().lower().rstrip(".")
-    if not host or host.endswith(".fly.dev") or host in ("localhost", "127.0.0.1"):
+    if _bad_public_host(host):
         return ""
     return host
 
@@ -1061,8 +1071,10 @@ def _absolute(handler: BaseHTTPRequestHandler, path: str) -> str:
     if chosen:
         return "https://" + chosen + path
     proto = handler.headers.get("X-Forwarded-Proto") or "http"
-    host = handler.headers.get("X-Forwarded-Host") or handler.headers.get("Host") or "localhost"
+    host = handler.headers.get("X-Forwarded-Host") or handler.headers.get("Host") or ""
     host = host.split(",")[0].strip()
+    if _bad_public_host(host):
+        return path
     return f"{proto}://{host}{path}"
 
 

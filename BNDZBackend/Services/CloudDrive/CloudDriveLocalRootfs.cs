@@ -138,6 +138,14 @@ public static class CloudDriveLocalRootfs
         return "[Unit]\nDescription=BNDZ Cloud Drive panel\nAfter=network-online.target bndz-boot.service\n\n[Service]\nType=simple\nEnvironment=BNDZ_PANEL_USER=bndz\nEnvironment=BNDZ_FTP_PASSWORD=" + pw + "\nEnvironment=BNDZ_PUBLIC_HOST=" + host + "\nWorkingDirectory=/opt/bndz/panel\nExecStart=/usr/bin/python3 /opt/bndz/panel/server.py\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n";
     }
 
+    public static string TunnelUnit(string? token)
+    {
+        var tok = (token ?? "").Trim();
+        if (tok.Length == 0 || tok.Any(char.IsWhiteSpace) || tok.Contains('"') || tok.Contains('\\'))
+            return "";
+        return "[Unit]\nDescription=BNDZ Cloudflare Tunnel\nAfter=network-online.target bndz-panel.service\n\n[Service]\nType=simple\nEnvironment=TUNNEL_TOKEN=" + tok + "\nExecStart=/usr/bin/cloudflared tunnel run\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n";
+    }
+
     public static string BootUnit() =>
         "[Unit]\nDescription=BNDZ Cloud Drive boot\nAfter=local-fs.target\nBefore=bndz-panel.service\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/bin/bash /usr/local/sbin/bndz-bootstrap.sh\n\n[Install]\nWantedBy=multi-user.target\n";
 
@@ -193,7 +201,8 @@ public static class CloudDriveLocalRootfs
         string? publicKey,
         string password,
         string? publicHost,
-        IEnumerable<(string Name, string Text)>? panelFiles)
+        IEnumerable<(string Name, string Text)>? panelFiles,
+        string? tunnelToken = null)
     {
         var files = new List<(string Name, byte[] Data)>
         {
@@ -205,6 +214,9 @@ public static class CloudDriveLocalRootfs
             ("bndz-boot.service", Utf8(BootUnit())),
             ("bndz.pub", Utf8(((publicKey ?? "").Trim()) + "\n")),
         };
+        var tunnel = TunnelUnit(tunnelToken);
+        if (tunnel.Length > 0)
+            files.Add(("bndz-tunnel.service", Utf8(tunnel)));
         if (panelFiles != null)
         {
             foreach (var file in panelFiles)
@@ -323,6 +335,7 @@ public static class CloudDriveLocalRootfs
           done
           if [ -f "$seed/panel.service" ]; then cp "$seed/panel.service" /etc/systemd/system/bndz-panel.service; fi
           if [ -f "$seed/bndz-boot.service" ]; then cp "$seed/bndz-boot.service" /etc/systemd/system/bndz-boot.service; fi
+          if [ -f "$seed/bndz-tunnel.service" ]; then cp "$seed/bndz-tunnel.service" /etc/systemd/system/bndz-tunnel.service; fi
           if [ -f "$seed/bndz.pub" ]; then cp "$seed/bndz.pub" /home/bndz/.ssh/authorized_keys; fi
         fi
         if [ -f /home/bndz/.ssh/authorized_keys ]; then
@@ -476,6 +489,13 @@ public static class CloudDriveLocalRootfs
         systemctl enable bndz-boot.service 2>/dev/null || true
         systemctl enable bndz-panel.service 2>/dev/null || true
         systemctl restart bndz-panel.service 2>/dev/null || true
+        if [ -f /etc/systemd/system/bndz-tunnel.service ]; then
+          if ! command -v cloudflared >/dev/null 2>&1; then
+            apt-get install -y cloudflared >/dev/null 2>&1 || true
+          fi
+          systemctl enable bndz-tunnel.service 2>/dev/null || true
+          systemctl restart bndz-tunnel.service 2>/dev/null || true
+        fi
         if ! systemctl is-active --quiet bndz-panel.service 2>/dev/null; then
           if [ -f /opt/bndz/panel/server.py ]; then
             python3 /opt/bndz/panel/server.py >> /var/log/bndz-panel.log 2>&1 &

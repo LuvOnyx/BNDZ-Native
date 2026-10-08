@@ -39,6 +39,10 @@ public sealed class CloudDriveRecord
     public string? ProtectedFtpPassword { get; set; }
     /// <summary>DPAPI blob for the Cloudflare Tunnel token. Local drives only. Never copy onto the UI DTO.</summary>
     public string? ProtectedTunnelToken { get; set; }
+    /// <summary>Stable public name. The hostname is slug.base. Survives a move.</summary>
+    public string? PublicSlug { get; set; }
+    public string? PublishMode { get; set; }
+    public string? PublishMessage { get; set; }
     public string? TunnelHostname { get; set; }
     public string? TunnelState { get; set; }
     public string? TunnelMessage { get; set; }
@@ -76,7 +80,10 @@ public sealed class CloudDriveRecord
             VhdxPath = VhdxPath,
             VmName = VmName,
             Hypervisor = Hypervisor,
-            Host = Host,
+            PublicSlug = PublicSlug,
+            PublishMode = PublishMode,
+            PublishMessage = CloudDriveSecrets.Redact(PublishMessage),
+            Host = CloudDriveProtocols.PublicHostname(this),
             Port = SshPort,
             SshPort = SshPort,
             FtpsPort = FtpsPort,
@@ -99,12 +106,11 @@ public sealed class CloudDriveRecord
             CloudflaredPresent = CloudDriveTunnel.FindCloudflared() != null,
             AwayGuide = local ? CloudDriveTunnel.Guide(this) : null,
             HostKeyChanged = HostKeyChanged,
-            PreviousHost = PreviousHost,
+            PreviousHost = CloudDriveHostname.ContainsInternalOrigin(PreviousHost) ? null : PreviousHost,
             PreviousFlyVolumeId = PreviousFlyVolumeId,
             HostKeyNote = HostKeyNote,
-            LocalGuestIp = LocalGuestIp,
             ShareUrl = CloudDriveProtocols.ShareUrl(this),
-            MachineHost = CloudDriveProtocols.MachineHost(this),
+            MachineHost = "",
             AddressGuide = CloudDriveProtocols.AddressGuide(this),
             Snapshots = Snapshots ?? new List<CloudDriveSnapshot>(),
             CreatedUtc = CreatedUtc,
@@ -127,6 +133,9 @@ public sealed class CloudDriveDto
     public string? VhdxPath { get; set; }
     public string? VmName { get; set; }
     public string? Hypervisor { get; set; }
+    public string? PublicSlug { get; set; }
+    public string? PublishMode { get; set; }
+    public string? PublishMessage { get; set; }
     public string? Host { get; set; }
     public int Port { get; set; }
     public int SshPort { get; set; }
@@ -155,9 +164,9 @@ public sealed class CloudDriveDto
     public string? HostKeyNote { get; set; }
     /// <summary>Stable guest address on the local Hyper-V switch. Not a secret.</summary>
     public string? LocalGuestIp { get; set; }
-    /// <summary>https://hostname/ people send. Empty until a hostname you control is saved.</summary>
+    /// <summary>https://slug.base/ people send.</summary>
     public string? ShareUrl { get; set; }
-    /// <summary>Fly machine address or this-PC loopback. Not the link you send.</summary>
+    /// <summary>Kept empty. Machine origins are not shown.</summary>
     public string? MachineHost { get; set; }
     public string? AddressGuide { get; set; }
     public List<CloudDriveSnapshot> Snapshots { get; set; } = new();
@@ -192,6 +201,14 @@ public sealed class CloudDriveProbe
     public string? RootfsMessage { get; set; }
     public string Preferred { get; set; } = "none";
     public string Guidance { get; set; } = "";
+    public string PublicBaseDomain { get; set; } = CloudDriveHostname.DefaultBaseDomain;
+    public string LandingUrl { get; set; } = "";
+    public bool CloudflareTokenConfigured { get; set; }
+    public string? CloudflareMessage { get; set; }
+    public string LocalBackend { get; set; } = CloudDriveLocalBackend.None;
+    public string? LocalBackendMessage { get; set; }
+    public string? LastPlacement { get; set; }
+    public string EnableLocalHowTo { get; set; } = CloudDriveLocalBackend.EnableHowTo;
 }
 
 public static class CloudDriveSsh
@@ -202,6 +219,6 @@ public static class CloudDriveSsh
         var host = CloudDriveProtocols.PublicHost(drive);
         if (string.IsNullOrWhiteSpace(host)) return "";
         var user = string.IsNullOrWhiteSpace(drive.User) ? "bndz" : drive.User.Trim();
-        return $"ssh -p {drive.SshPort} {user}@{host}";
+        return $"ssh {user}@{host}";
     }
 }

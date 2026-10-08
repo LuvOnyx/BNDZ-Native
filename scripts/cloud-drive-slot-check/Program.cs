@@ -125,6 +125,48 @@ Assert(fetchText.Contains(CloudDriveLocalRootfs.ImageUrl, StringComparison.Ordin
 Assert(fetchText.Contains("99-bndz-nocloud.cfg", StringComparison.Ordinal), "fetch patches datasource");
 Assert(fetchText.Contains("Docker is not used", StringComparison.Ordinal), "fetch refuses docker");
 
+const string connector = "secret-connector-token-value-0123456789";
+Assert(!script.Contains(connector, StringComparison.Ordinal), "bootstrap has no tunnel token");
+var unit = CloudDriveLocalRootfs.TunnelUnit(connector);
+Assert(unit.Contains("Environment=TUNNEL_TOKEN=" + connector, StringComparison.Ordinal), "unit holds the token");
+Assert(!unit.Contains("--token", StringComparison.Ordinal), "unit does not pass --token");
+var tunnelIso = Path.Combine(root, "tunnel.iso");
+CloudDriveLocalRootfs.WriteSeed(tunnelIso, "cdabc123", "172.30.8.10", publicKey, password, "files.example.com", null, connector);
+var tunnelFiles = ReadCidata(tunnelIso);
+Assert(Encoding.UTF8.GetString(tunnelFiles["bndz-tunnel.service"]).Contains(connector, StringComparison.Ordinal), "seed unit has token");
+Assert(!Encoding.UTF8.GetString(tunnelFiles["bootstrap.sh"]).Contains(connector, StringComparison.Ordinal), "seed bootstrap has no token");
+
+Assert(CloudDriveHostname.DefaultBaseDomain == "cloud.bndz.org", "base domain");
+Assert(CloudDriveHostname.ZoneName("cloud.bndz.org") == "bndz.org", "zone");
+Assert(CloudDriveHostname.ZoneName("example.com") == "example.com", "apex zone");
+Assert(CloudDriveHostname.LandingUrl(null) == "https://cloud.bndz.org/", "landing");
+Assert(CloudDriveHostname.DriveHost("cloud.bndz.org", "desk") == "desk.cloud.bndz.org", "drive host");
+Assert(CloudDriveHostname.ShareLink("cloud.bndz.org", "desk", "tok_1") == "https://desk.cloud.bndz.org/s/tok_1", "share link");
+Assert(CloudDriveHostname.ShareLink("cloud.bndz.org", "desk", "a/b") == "", "share rejects slash");
+Assert(CloudDriveHostname.Slug("Cloud", "id", null) == "cloud-drive", "reserved slug");
+Assert(CloudDriveHostname.Slug("Desk", "id", new[] { "desk" }) == "desk-2", "slug collision");
+Assert(CloudDriveHostname.ContainsInternalOrigin("ssh bndz@app.fly.dev"), "fly origin");
+Assert(CloudDriveHostname.ContainsInternalOrigin("http://10.0.0.8/"), "ip origin");
+Assert(!CloudDriveHostname.ContainsInternalOrigin("https://desk.cloud.bndz.org/"), "public origin");
+Assert(CloudDriveLocalBackend.Choose(true, null) == "hyper-v", "prefer hyper-v");
+Assert(CloudDriveLocalBackend.Choose(false, "2") == "wsl2", "fallback wsl2");
+Assert(CloudDriveLocalBackend.Choose(false, "1") == "none", "no backend");
+Assert(CloudDriveLocalBackend.DefaultPlacement(true, null, null) == "local", "default local when hyper-v");
+Assert(CloudDriveLocalBackend.DefaultPlacement(false, "2", null) == "local", "default local when wsl2");
+Assert(CloudDriveLocalBackend.DefaultPlacement(false, null, null) == "cloud", "default cloud when none");
+Assert(CloudDriveLocalBackend.DefaultPlacement(true, null, "cloud") == "cloud", "remember cloud");
+Assert(CloudDriveLocalBackend.DefaultPlacement(false, null, "local") == "local", "remember local");
+Assert(CloudDriveLocalBackend.EnableHowTo.Contains("Enable-WindowsOptionalFeature", StringComparison.Ordinal), "enable how-to");
+
+var dry = CloudDriveCloudflare.Describe("cloud.bndz.org", "desk", false);
+Assert(dry.Mode == "dry-run" && dry.Hostname == "desk.cloud.bndz.org", "dry-run host");
+Assert(dry.Message.Contains("Zone DNS Edit", StringComparison.Ordinal) && !dry.Message.Contains(connector, StringComparison.Ordinal), "dry-run scopes");
+var live = await CloudDriveCloudflare.PublishAsync("cf-test-token-value-0123456789abcdef", "cloud.bndz.org", "desk", new StubHandler(), CancellationToken.None);
+Assert(live.Mode == "published" && live.TunnelId == "tun1" && live.ConnectorToken == connector, "published plan");
+Assert(!live.Message.Contains(connector, StringComparison.Ordinal) && !live.Message.Contains("cf-test-token", StringComparison.Ordinal), "plan message has no token");
+var noToken = await CloudDriveCloudflare.PublishAsync(null, "cloud.bndz.org", "desk", new StubHandler(), CancellationToken.None);
+Assert(noToken.Mode == "dry-run" && noToken.ConnectorToken == null, "missing token stays dry-run");
+
 Directory.Delete(root, recursive: true);
 Console.WriteLine("cloud-drive-slot-check: ok");
 
@@ -193,4 +235,31 @@ static Dictionary<string, byte[]> ReadCidata(string path)
         pos += recLen;
     }
     return map;
+}
+
+file sealed class StubHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var url = request.RequestUri?.AbsoluteUri ?? "";
+        string json;
+        if (url.Contains("/zones?name=", StringComparison.Ordinal))
+            json = """{"success":true,"result":[{"id":"zone1","account":{"id":"acct1"}}]}""";
+        else if (url.Contains("/cfd_tunnel?", StringComparison.Ordinal))
+            json = """{"success":true,"result":[]}""";
+        else if (request.Method == HttpMethod.Post && url.Contains("/cfd_tunnel", StringComparison.Ordinal) && !url.Contains("/configurations", StringComparison.Ordinal))
+            json = """{"success":true,"result":{"id":"tun1","token":"secret-connector-token-value-0123456789"}}""";
+        else if (url.Contains("/configurations", StringComparison.Ordinal))
+            json = """{"success":true,"result":{}}""";
+        else if (url.Contains("/dns_records?", StringComparison.Ordinal))
+            json = """{"success":true,"result":[]}""";
+        else if (request.Method == HttpMethod.Post && url.Contains("/dns_records", StringComparison.Ordinal))
+            json = """{"success":true,"result":{"id":"dns1"}}""";
+        else
+            json = """{"success":false,"errors":[{"message":"unexpected"}]}""";
+        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        });
+    }
 }

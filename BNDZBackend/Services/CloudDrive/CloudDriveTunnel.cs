@@ -102,15 +102,15 @@ public static class CloudDriveTunnel
     public static string Guide(CloudDriveRecord drive)
     {
         CloudDrivePorts.Ensure(drive);
-        return "Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. "
-            + "Paste the install token. BNDZ passes it to cloudflared in the environment, not on the command line. "
-            + "The hostname you save above is the link you send.";
+        var share = CloudDriveProtocols.ShareUrl(drive);
+        var where = share.Length > 0 ? share : "the drive address";
+        return "Cloudflare Tunnel publishes " + where + " from inside the drive. It is not Cloudflare Containers and it does not replace the disk.";
     }
 
     public static (bool ok, string message) Start(CloudDriveRecord drive, string token)
     {
         if (!IsLocal(drive))
-            return (false, "Cloudflare Tunnel is for This PC drives. Fly publishes the machine address itself.");
+            return (false, "The tunnel for a Cloud placement drive runs inside that machine.");
 
         var exe = FindCloudflared();
         if (exe == null)

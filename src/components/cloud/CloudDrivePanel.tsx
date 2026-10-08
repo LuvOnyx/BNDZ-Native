@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IPC } from '../../lib/ipcBridge';
 import { Icons8Icon } from '../Icons8Icon';
 import { pushToast } from '../ToastHost';
@@ -12,14 +12,17 @@ import {
   PLUGIN_SELECT_CLASS,
 } from '../plugins/PluginPanelPrimitives';
 import {
+  CLOUD_DRIVE_BASE_DOMAIN,
   FLY_REGIONS,
   layoutPreviewDrives,
   normalizeLocalPath,
+  defaultPlacement,
   driveHint,
   exportFolderError,
   formatSnapshotSize,
+  landingUrl,
+  localBackend,
   nextAction,
-  normalizeTunnelHostname,
   placementLabel,
   preflightLocalPath,
   stateLabel,
@@ -53,7 +56,9 @@ export default function CloudDrivePanel({ variant = 'plugin' }: Props) {
 function CloudDriveBody() {
   const [drives, setDrives] = useState<CloudDriveRecord[]>([]);
   const [probe, setProbe] = useState<CloudDriveProbe>({});
-  const [placement, setPlacement] = useState<CloudDrivePlacement>('cloud');
+  const [probeReady, setProbeReady] = useState(false);
+  const [placement, setPlacement] = useState<CloudDrivePlacement>('local');
+  const placementSet = useRef(false);
   const [name, setName] = useState('Private drive');
   const [sizeGb, setSizeGb] = useState(20);
   const [region, setRegion] = useState<string>('iad');
@@ -77,6 +82,7 @@ function CloudDriveBody() {
       const probed = await IPC.cloudDriveProbe();
       if (probed.probe) setProbe(probed.probe);
     }
+    setProbeReady(true);
   }, []);
 
   useEffect(() => {
@@ -87,6 +93,40 @@ function CloudDriveBody() {
     }
     void refresh();
   }, [previewLayout, refresh]);
+
+  useEffect(() => {
+    if (placementSet.current || previewLayout || !probeReady) return;
+    let stored: string | null = null;
+    try { stored = localStorage.getItem('bndz.cloudDrive.lastPlacement'); } catch { stored = null; }
+    setPlacement(defaultPlacement(probe, probe.lastPlacement || stored));
+    placementSet.current = true;
+  }, [previewLayout, probe, probeReady]);
+
+  const choosePlacement = (next: CloudDrivePlacement) => {
+    placementSet.current = true;
+    setPlacement(next);
+    try { localStorage.setItem('bndz.cloudDrive.lastPlacement', next); } catch { /* private mode */ }
+    if (IPC.isNative) void IPC.cloudDriveSetPlacement(next);
+  };
+
+  const enableLocal = async () => {
+    const how = probe.enableLocalHowTo
+      || 'Turn on Hyper-V, then restart Windows. From an administrator PowerShell: Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All';
+    try { await navigator.clipboard.writeText(how); } catch { /* toast still shows the sentence */ }
+    if (!IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Enable Hyper-V', message: how });
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await IPC.cloudDriveEnableLocal();
+      pushToast({ kind: 'warning', title: r.started ? 'Windows is asking to enable Hyper-V' : 'Enable Hyper-V', message: r.message || how });
+    } catch {
+      pushToast({ kind: 'warning', title: 'Enable Hyper-V', message: how });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const saveToken = async () => {
     const trimmed = token.trim();
@@ -177,7 +217,12 @@ function CloudDriveBody() {
       if (r.drives) setDrives(r.drives);
       if (!r.ok) throw new Error(r.error || r.drive?.message || 'Request failed');
       const title = op === 'start' ? 'Start' : op === 'stop' ? 'Stop' : 'Status';
-      pushToast({ kind: 'success', title, message: r.drive?.message || 'Updated.' });
+      const started = op === 'start' && r.drive?.state === 'running';
+      pushToast({
+        kind: op === 'start' && !started ? 'warning' : 'success',
+        title,
+        message: r.drive?.message || 'Updated.',
+      });
     } catch (e) {
       pushToast({ kind: 'error', title: 'Cloud Drive', message: e instanceof Error ? e.message : String(e) });
       await refresh();
@@ -262,7 +307,7 @@ function CloudDriveBody() {
     <div className="bndz-cloud-stage flex flex-col gap-4 px-4 pb-4">
       <p className="text-[12px] leading-relaxed text-slate-300/90 m-0">
         Your files live on a private machine with its own disk. BNDZ only remote-controls it.
-        Cloud uses your Fly account. This PC keeps a sealed disk image on a drive you pick — not a shared folder, and not Docker.
+        Cloud and This PC are the same drive. The address is always a name on {probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN}.
       </p>
 
       {hostNote && (
@@ -273,10 +318,9 @@ function CloudDriveBody() {
 
       <div className="bndz-cloud-meters" aria-label="Cloud Drive readiness">
         <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
-        <Meter label="Hyper-V" value={probe.hyperV ? (probe.elevated ? 'Ready' : 'Needs admin') : 'Not found'} />
+        <Meter label="This PC" value={localBackend(probe) === 'hyper-v' ? (probe.elevated ? 'Hyper-V' : 'Hyper-V') : localBackend(probe) === 'wsl2' ? 'WSL2' : 'Off'} hint={probe.localBackendMessage} />
         <Meter label="Rootfs" value={probe.rootfsPresent ? 'Pinned' : 'Missing'} hint={probe.rootfsMessage} />
-        <Meter label="WSL2" value={probe.wslVersion === '2' ? 'Version 2' : probe.wslPresent ? 'Present' : 'Not found'} />
-        <Meter label="cloudflared" value={probe.cloudflaredPresent ? 'Installed' : 'Not found'} hint={probe.cloudflaredMessage} />
+        <Meter label="Address" value={probe.cloudflareTokenConfigured ? 'Published' : 'Reserved'} hint={probe.cloudflareMessage} />
       </div>
       {probe.guidance && (
         <details className="bndz-cloud-guidance">
@@ -285,23 +329,33 @@ function CloudDriveBody() {
         </details>
       )}
 
+      <AddressAdmin probe={probe} busy={busy} onProbe={setProbe} onBusy={setBusy} />
+
       <p className="bndz-cloud-section-label">1 · Placement</p>
       <div className="bndz-cloud-bays" role="radiogroup" aria-label="Cloud Drive placement">
         <Bay
           selected={placement === 'cloud'}
-          title="Cloud elsewhere"
+          title="Cloud"
           seal="Fly"
-          body="MicroVM and volume on your Fly org. You pay Fly. After it is up, attach a hostname you own. That name is what you send."
-          onSelect={() => setPlacement('cloud')}
+          body="The VM runs on your Fly account. The address is still a name on cloud.bndz.org."
+          onSelect={() => choosePlacement('cloud')}
         />
         <Bay
           selected={placement === 'local'}
-          title="This PC — separate drive"
+          title="This PC"
           seal="Disk"
-          body="Same isolation shape. The sealed VHDX sits on a folder you pick (D:, USB, NAS letter), not on the system volume."
-          onSelect={() => setPlacement('local')}
+          body={probe.localBackendMessage || 'The VM runs on this PC. Pick the drive where the disk lives.'}
+          onSelect={() => choosePlacement('local')}
         />
       </div>
+      {localBackend(probe) === 'none' && (
+        <div className="bndz-cloud-note">
+          <p className="m-0">{probe.localBackendMessage || 'Hyper-V and WSL2 are off. This PC stays available. Enable Hyper-V, then start the drive.'}</p>
+          <div className="mt-2">
+            <PluginToolbarButton disabled={busy} onClick={() => void enableLocal()}>Enable</PluginToolbarButton>
+          </div>
+        </div>
+      )}
 
       <p className="bndz-cloud-section-label">2 · Name and disk</p>
       <PluginCard className="bndz-cloud-form">
@@ -349,7 +403,7 @@ function CloudDriveBody() {
             </>
           ) : (
             <label className="grid gap-1">
-              <span className="bndz-plugin-field-label">Disk folder</span>
+              <span className="bndz-plugin-field-label">Disk folder — where the VM disk lives</span>
               <div className="flex gap-2">
                 <input
                   className={PLUGIN_INPUT_CLASS + ' flex-1'}
@@ -422,7 +476,6 @@ function CloudDriveBody() {
             <p className="bndz-cloud-meta">
               {drive.sizeGb ? `${drive.sizeGb} GB` : ''}
               {drive.region ? ` · ${drive.region}` : ''}
-              {drive.flyApp ? ` · ${drive.flyApp}` : ''}
               {drive.hypervisor ? ` · ${drive.hypervisor}` : ''}
               {drive.fingerprint ? ` · ${drive.fingerprint}` : ''}
             </p>
@@ -664,6 +717,91 @@ function LocalMove({
   );
 }
 
+function AddressAdmin({
+  probe,
+  busy,
+  onProbe,
+  onBusy,
+}: {
+  probe: CloudDriveProbe;
+  busy: boolean;
+  onProbe: (probe: CloudDriveProbe) => void;
+  onBusy: (busy: boolean) => void;
+}) {
+  const base = probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN;
+  const [domain, setDomain] = useState(base);
+  const [token, setToken] = useState('');
+  useEffect(() => { setDomain(probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN); }, [probe.publicBaseDomain]);
+
+  const saveDomain = async () => {
+    if (!IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Base domain', message: HOST_NOTE });
+      return;
+    }
+    onBusy(true);
+    try {
+      const r = await IPC.cloudDriveSetPublicDomain(domain.trim());
+      if (!r.ok) throw new Error(r.error || 'Could not save the base domain.');
+      if (r.probe) onProbe(r.probe);
+      pushToast({ kind: 'success', title: 'Base domain', message: `Drives use names on ${domain.trim() || CLOUD_DRIVE_BASE_DOMAIN}.` });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Base domain', message: e instanceof Error ? e.message : 'Could not save the base domain.' });
+    } finally {
+      onBusy(false);
+    }
+  };
+
+  const saveToken = async () => {
+    if (!IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Cloudflare', message: HOST_NOTE });
+      return;
+    }
+    onBusy(true);
+    try {
+      const r = await IPC.cloudDriveSetCloudflareToken(token.trim());
+      if (!r.ok) throw new Error(r.error || 'Could not store the token.');
+      setToken('');
+      if (r.probe) onProbe(r.probe);
+      pushToast({ kind: 'success', title: 'Cloudflare token stored', message: 'It stays in the Windows secure store and is not shown again.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Cloudflare', message: e instanceof Error ? e.message : 'Could not store the token.' });
+    } finally {
+      onBusy(false);
+    }
+  };
+
+  return (
+    <section className="bndz-cloud-address" aria-label="Cloud Drive address">
+      <h4 className="bndz-cloud-section-label">Address</h4>
+      <p className="bndz-cloud-address-url">{probe.landingUrl || landingUrl(base)}</p>
+      <p className="bndz-cloud-message">
+        {probe.landingUrl || landingUrl(base)} is the account page. Each drive is a name under {base}. {probe.cloudflareMessage || 'Zone DNS Edit, Zone Read, and Account Cloudflare Tunnel Edit on the bndz.org zone.'}
+      </p>
+      <label className="grid gap-1">
+        <span className="bndz-plugin-field-label">Base domain</span>
+        <input className={PLUGIN_INPUT_CLASS} value={domain} spellCheck={false} onChange={e => setDomain(e.target.value)} />
+      </label>
+      <label className="grid gap-1">
+        <span className="bndz-plugin-field-label">Cloudflare API token</span>
+        <input
+          className={PLUGIN_INPUT_CLASS}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          name="bndz-cloudflare-token"
+          placeholder={probe.cloudflareTokenConfigured ? 'Token stored — paste only to replace it' : 'Paste an API token'}
+          value={token}
+          onChange={e => setToken(e.target.value)}
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <PluginToolbarButton disabled={busy} onClick={() => void saveDomain()}>Save domain</PluginToolbarButton>
+        <PluginToolbarButton disabled={busy || !token.trim()} onClick={() => void saveToken()}>Save Cloudflare token</PluginToolbarButton>
+      </div>
+    </section>
+  );
+}
+
 function AddressPlate({
   drive,
   busy,
@@ -677,36 +815,23 @@ function AddressPlate({
   onChanged: () => Promise<void> | void;
   onCopy: (value: string, title: string) => void;
 }) {
-  const [hostname, setHostname] = useState(drive.tunnelHostname || '');
-  const [pending, setPending] = useState(false);
-  useEffect(() => { setHostname(drive.tunnelHostname || ''); }, [drive.tunnelHostname, drive.id]);
   const panel = drive.endpoints?.find(endpoint => endpoint.id === 'panel');
-  const machine = drive.endpoints?.find(endpoint => endpoint.id === 'machine');
-  const send = drive.shareUrl || (panel?.copyText?.startsWith('https://') && !panel.copyText.includes('.fly.dev') ? panel.copyText : '');
-  const local = drive.placement === 'local';
+  const send = drive.shareUrl || (panel?.copyText?.startsWith('https://') ? panel.copyText : '');
+  const [pending, setPending] = useState(false);
 
-  const saveHost = async () => {
-    const normalized = normalizeTunnelHostname(hostname);
-    if (!normalized.ok) {
-      pushToast({ kind: 'warning', title: 'Hostname', message: normalized.error });
-      return;
-    }
+  const publish = async () => {
     if (preview || !IPC.isNative) {
-      pushToast({ kind: 'warning', title: 'Hostname', message: HOST_NOTE });
+      pushToast({ kind: 'warning', title: 'Address', message: HOST_NOTE });
       return;
     }
     setPending(true);
     try {
-      const r = await IPC.cloudDriveSetTunnelHostname(drive.id, normalized.hostname);
-      if (!r.ok) throw new Error(r.error || 'Could not save the hostname.');
+      const r = await IPC.cloudDrivePublish(drive.id);
+      if (!r.ok) throw new Error(r.error || 'Could not publish the address.');
       await onChanged();
-      pushToast({
-        kind: 'success',
-        title: normalized.hostname ? 'Hostname saved' : 'Hostname cleared',
-        message: normalized.hostname ? `Send https://${normalized.hostname}/` : 'The send link is cleared.',
-      });
+      pushToast({ kind: 'success', title: 'Address', message: r.drive?.publishMessage || 'The address is reserved.' });
     } catch (e) {
-      pushToast({ kind: 'error', title: 'Hostname', message: e instanceof Error ? e.message : 'Could not save the hostname.' });
+      pushToast({ kind: 'error', title: 'Address', message: e instanceof Error ? e.message : 'Could not publish the address.' });
     } finally {
       setPending(false);
     }
@@ -718,24 +843,12 @@ function AddressPlate({
       {send ? (
         <p className="bndz-cloud-address-url">{send}</p>
       ) : (
-        <p className="bndz-cloud-next">Add a hostname you control. The Fly machine address stays off this row.</p>
+        <p className="bndz-cloud-next">The address is assigned when the drive is created.</p>
       )}
-      <p className="bndz-cloud-message">{drive.addressGuide || (local
-        ? 'Point a Cloudflare Tunnel hostname at this PC, then save that name here.'
-        : 'Point your DNS at the machine, add the certificate, then save the hostname here.')}</p>
-      {machine?.copyText && <p className="bndz-cloud-address-machine">Machine · {machine.copyText}</p>}
-      <label className="grid gap-1">
-        <span className="bndz-plugin-field-label">Public hostname</span>
-        <input
-          className={PLUGIN_INPUT_CLASS}
-          value={hostname}
-          spellCheck={false}
-          placeholder="files.example.com"
-          onChange={e => setHostname(e.target.value)}
-        />
-      </label>
+      <p className="bndz-cloud-message">{drive.addressGuide || `Share links use this name. ${landingUrl()} is the account page.`}</p>
+      {drive.publishMode && <p className="bndz-cloud-message is-note">{drive.publishMode === 'published' ? 'Published' : 'Reserved'}{drive.publishMessage ? ` · ${drive.publishMessage}` : ''}</p>}
       <div className="flex flex-wrap gap-2">
-        <PluginToolbarButton disabled={busy || pending} onClick={() => void saveHost()}>Save hostname</PluginToolbarButton>
+        <PluginToolbarButton disabled={busy || pending} onClick={() => void publish()}>Publish</PluginToolbarButton>
         <PluginToolbarButton disabled={!send} onClick={() => onCopy(send, 'Send this')}>Copy link</PluginToolbarButton>
         <PluginToolbarButton disabled={!send} onClick={() => { if (send) window.open(send, '_blank'); }}>Open panel</PluginToolbarButton>
       </div>

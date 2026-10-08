@@ -58,32 +58,27 @@ public static class CloudDriveProtocols
         CloudDrivePorts.Ensure(drive);
         var local = IsLocal(drive);
         var running = string.Equals(drive.State, "running", StringComparison.OrdinalIgnoreCase);
-        var host = PublicHost(drive);
+        var host = PublicHostname(drive);
         var user = string.IsNullOrWhiteSpace(drive.User) ? "bndz" : drive.User.Trim();
-        var haveHost = !string.IsNullOrWhiteSpace(host);
+        var haveHost = host.Length > 0;
         var imagePinned = !string.IsNullOrWhiteSpace(FlyMachinesCloudDriveProvider.PinnedImage());
         var rootfs = local && CloudDriveLocalRootfs.Describe().Present;
         var listening = local && running && rootfs && CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.SshPort, 400);
         var ready = local ? listening : running && haveHost && imagePinned;
         var listen = ListenNote(local, running, imagePinned, rootfs, listening);
         var share = ShareUrl(drive);
-        var machine = MachineHost(drive);
+        var ssh = haveHost ? $"ssh {user}@{host}" : "";
+        var sftp = haveHost ? $"sftp {user}@{host}" : "";
+        var ftps = haveHost ? $"ftps://{user}@{host}/" : "";
+        var web = haveHost ? "https://" + host + "/dav/" : "";
+        var note = haveHost
+            ? "Uses " + host + ". " + listen
+            : "The address is assigned on " + CloudDriveHostname.DefaultBaseDomain + " when the drive is created.";
 
-        var ssh = haveHost ? $"ssh -p {drive.SshPort} {user}@{host}" : "";
-        var sftp = haveHost ? $"sftp -P {drive.SshPort} {user}@{host}" : "";
-        var ftps = haveHost ? $"ftps://{user}@{host}:{drive.FtpsPort}/" : "";
-        var web = WebDavUrl(drive, host);
-        var send = share.Length > 0 ? share : (local ? LoopbackPanel(drive) : "");
-        var sendLabel = share.Length > 0 ? "Send this" : "On this PC";
-
-        var hostNote = haveHost
-            ? "Uses the machine address. Not the link you send. " + listen
-            : "The machine address appears after the Fly app exists. SSH is not copied until then.";
-
-        var rows = new List<CloudDriveEndpoint>
+        return new List<CloudDriveEndpoint>
         {
-            Row("ssh", "SSH", ssh, ready, haveHost, haveHost ? hostNote : "SSH uses the machine address. " + hostNote),
-            Row("sftp", "SFTP", sftp, ready, haveHost, haveHost ? "Same port as SSH. The client flag is a capital P. " + hostNote : hostNote),
+            Row("ssh", "SSH", ssh, ready, haveHost, note),
+            Row("sftp", "SFTP", sftp, ready, haveHost, haveHost ? "Same name as SSH. " + listen : note),
             new CloudDriveEndpoint
             {
                 Id = "ftp",
@@ -94,102 +89,66 @@ public static class CloudDriveProtocols
                 Note = "Plain FTP is off, including anonymous login. Use FTPS.",
             },
             Row("ftps", "FTPS", ftps, ready, haveHost, haveHost
-                ? "On the machine address. Sign-in password stays hidden. Use Copy FTPS password. Passive data ports are not published."
-                : hostNote),
-            Row("webdav", "WebDAV", web, ready && !string.IsNullOrWhiteSpace(web), !string.IsNullOrWhiteSpace(web),
-                string.IsNullOrWhiteSpace(web)
-                    ? "WebDAV appears with the machine address."
-                    : "On the machine address, separate from the link you send. User bndz, same hidden password. " + listen),
+                ? "Same name as the panel. Sign-in password stays hidden. Use Copy FTPS password."
+                : note),
+            Row("webdav", "WebDAV", web, ready && web.Length > 0, web.Length > 0,
+                web.Length == 0 ? note : "Same name as the panel, under /dav/. User bndz, same hidden password. " + listen),
             new CloudDriveEndpoint
             {
                 Id = "panel",
-                Label = sendLabel,
-                CopyText = send,
-                State = string.IsNullOrWhiteSpace(send) ? "unavailable" : (share.Length > 0 && ready ? "ready" : "pending"),
-                CanCopy = !string.IsNullOrWhiteSpace(send),
-                Note = string.IsNullOrWhiteSpace(send)
-                    ? "Save a hostname you control. The Fly machine address is not the link you send."
-                    : (share.Length > 0
-                        ? "This is the link you send. Sign in, then open Settings for your name and password. " + listen
-                        : "On this PC only. Save a hostname you control before you send a link. " + listen),
+                Label = "Send this",
+                CopyText = share,
+                State = share.Length == 0 ? "unavailable" : (ready ? "ready" : "pending"),
+                CanCopy = share.Length > 0,
+                Note = share.Length == 0
+                    ? note
+                    : "This is the link you send. Sign in, then open Settings for your name and password. " + listen,
             },
         };
-        if (machine.Length > 0 && (share.Length > 0 || !local))
-        {
-            var machineCopy = local ? LoopbackPanel(drive) : "https://" + machine + "/";
-            rows.Add(new CloudDriveEndpoint
-            {
-                Id = "machine",
-                Label = "Machine",
-                CopyText = machineCopy,
-                State = "pending",
-                CanCopy = true,
-                Note = local
-                    ? "Loopback on this PC. Away access uses the hostname above."
-                    : "Fly machine address for SSH and FTPS. Do not send this.",
-            });
-        }
-        return rows;
     }
 
-    /// <summary>Hostname the owner chose. Never a *.fly.dev machine address.</summary>
+    /// <summary>Assigned public hostname. Never a machine origin.</summary>
     public static string PublicHostname(CloudDriveRecord drive)
     {
         var host = (drive.TunnelHostname ?? "").Trim().TrimEnd('.').ToLowerInvariant();
-        if (host.Length == 0 || host.EndsWith(".fly.dev", StringComparison.Ordinal)) return "";
-        return host;
+        return CloudDriveHostname.IsPublicHost(host) ? host : "";
     }
 
-    /// <summary>https URL people send. Empty until a hostname you control is saved.</summary>
+    /// <summary>https URL people send.</summary>
     public static string ShareUrl(CloudDriveRecord drive)
     {
         var host = PublicHostname(drive);
         return host.Length == 0 ? "" : "https://" + host + "/";
     }
 
-    /// <summary>Fly app host, or 127.0.0.1 for This PC. Not the link you send.</summary>
-    public static string MachineHost(CloudDriveRecord drive)
-    {
-        if (IsLocal(drive))
-            return string.IsNullOrWhiteSpace(drive.Host) ? "127.0.0.1" : drive.Host.Trim();
-        if (!string.IsNullOrWhiteSpace(drive.FlyApp))
-            return drive.FlyApp.Trim() + ".fly.dev";
-        return "";
-    }
+    /// <summary>Internal origin. Not copied into the UI.</summary>
+    public static string MachineHost(CloudDriveRecord drive) => "";
 
     public static string AddressGuide(CloudDriveRecord drive)
     {
-        CloudDrivePorts.Ensure(drive);
-        if (IsLocal(drive))
-        {
-            return "The link you send is a hostname you own. In Cloudflare Tunnel, point an HTTP public hostname at http://127.0.0.1:"
-                + drive.WebDavPort + "/ for the panel, and a second hostname at ssh://127.0.0.1:"
-                + drive.SshPort + " if you want SSH from away. BNDZ does not mint a public name.";
-        }
-        var app = string.IsNullOrWhiteSpace(drive.FlyApp) ? "your-app" : drive.FlyApp.Trim();
-        return "Save a hostname you control, such as files.example.com. In Cloudflare DNS add a CNAME to "
-            + app + ".fly.dev, then add the certificate on the Fly app: fly certs add files.example.com -a " + app
-            + ". The panel and share links use that name. SSH, SFTP, and FTPS stay on " + app
-            + ".fly.dev. BNDZ does not mint a branded subdomain, and it does not offer the machine address as the link you send.";
+        var share = ShareUrl(drive);
+        var host = PublicHostname(drive);
+        var dot = host.IndexOf('.');
+        var baseDomain = dot > 0 ? host[(dot + 1)..] : CloudDriveHostname.DefaultBaseDomain;
+        var landing = CloudDriveHostname.LandingUrl(baseDomain);
+        if (share.Length == 0)
+            return "Every drive gets a name on " + CloudDriveHostname.DefaultBaseDomain + ". " + landing + " is the account page.";
+        return "Send " + share + " Share links use that name plus /s/ and a token. " + landing + " is the account page. The tunnel runs inside the drive.";
     }
 
     public static string OperatorNote(CloudDriveRecord drive)
     {
         var share = ShareUrl(drive);
         if (share.Length > 0)
-            return "Private key stays in Windows secure storage. Send " + share + " SSH uses the machine address.";
-        if (!IsLocal(drive) && !string.IsNullOrWhiteSpace(drive.FlyApp))
-            return "Private key stays in Windows secure storage. Save a hostname you control before you send the panel. SSH uses " + drive.FlyApp.Trim() + ".fly.dev.";
+            return "Private key stays in Windows secure storage. Send " + share;
+        if (IsLocal(drive) && !CloudDriveLocalRootfs.Describe().Present)
+            return "Private key stays in Windows secure storage. The address is on " + CloudDriveHostname.DefaultBaseDomain + ". Nothing answers on this PC until the rootfs is pinned.";
         if (IsLocal(drive))
-        {
-            if (!CloudDriveLocalRootfs.Describe().Present)
-                return "Private key stays in Windows secure storage. Nothing answers on this PC until the rootfs is pinned. Away links use the hostname you save.";
             return "Private key stays in Windows secure storage. Start boots the pinned rootfs. The sealed VHDX is only the data disk.";
-        }
-        return "Private key stays in Windows secure storage. Save a hostname you control before you send the panel.";
+        return "Private key stays in Windows secure storage. The address is a name on " + CloudDriveHostname.DefaultBaseDomain + ".";
     }
 
-    public static string PublicHost(CloudDriveRecord drive) => MachineHost(drive) is { Length: > 0 } host && !IsPrivate(host) ? host : "";
+    public static string PublicHost(CloudDriveRecord drive) => PublicHostname(drive);
 
     public static string? NormalizeHostname(string? raw, out string? error)
     {
@@ -221,29 +180,6 @@ public static class CloudDriveProtocols
         }
         error = null;
         return s;
-    }
-
-    private static string LoopbackPanel(CloudDriveRecord drive)
-    {
-        var host = string.IsNullOrWhiteSpace(drive.Host) ? "127.0.0.1" : drive.Host.Trim();
-        return $"http://{host}:{drive.WebDavPort}/";
-    }
-
-    private static string WebDavUrl(CloudDriveRecord drive, string host)
-    {
-        if (!IsLocal(drive) && !string.IsNullOrWhiteSpace(drive.FlyApp))
-            return "http://" + drive.FlyApp.Trim() + ".fly.dev:" + drive.WebDavPort + "/";
-        if (IsLocal(drive) && host.Length > 0)
-            return $"http://{host}:{drive.WebDavPort + 1}/";
-        return "";
-    }
-
-    private static bool IsPrivate(string host)
-    {
-        if (host.StartsWith("fdaa:", StringComparison.OrdinalIgnoreCase)) return true;
-        if (host.StartsWith("10.", StringComparison.Ordinal) || host.StartsWith("192.168.", StringComparison.Ordinal))
-            return true;
-        return false;
     }
 
     private static string ListenNote(bool local, bool running, bool imagePinned, bool rootfs, bool listening)

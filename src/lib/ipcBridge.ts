@@ -940,6 +940,26 @@ export const IPC = {
     return this._cloudDriveMutate('CLOUD_DRIVE_SET_TUNNEL_HOSTNAME', { id: driveId, hostname });
   },
 
+  cloudDriveSetPublicDomain(domain: string): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_PUBLIC_DOMAIN', { domain });
+  },
+
+  cloudDriveSetCloudflareToken(token: string): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_CLOUDFLARE_TOKEN', { token });
+  },
+
+  cloudDrivePublish(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_PUBLISH', { id: driveId }, 60000);
+  },
+
+  cloudDriveSetPlacement(placement: 'cloud' | 'local'): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_PLACEMENT_PREF', { placement });
+  },
+
+  cloudDriveEnableLocal(): Promise<{ ok: boolean; started?: boolean; message?: string; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_ENABLE_LOCAL', {});
+  },
+
   cloudDriveSnapshotCreate(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
     return this._cloudDriveMutate('CLOUD_DRIVE_SNAPSHOT_CREATE', { id: driveId }, 300000);
   },
@@ -974,7 +994,7 @@ export const IPC = {
     }));
   },
 
-  _cloudDriveMutate(type: string, payload: Record<string, unknown>, timeoutMs = 120000): Promise<{ ok: boolean; exportedPath?: string; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+  _cloudDriveMutate(type: string, payload: Record<string, unknown>, timeoutMs = 120000): Promise<{ ok: boolean; exportedPath?: string; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; probe?: import('./cloudDrive').CloudDriveProbe; started?: boolean; message?: string; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_cdMut`;
     return _nativeCall<any>(type, `${type}_RESULT`, id, payload, timeoutMs).then(r => ({
@@ -982,6 +1002,9 @@ export const IPC = {
       exportedPath: typeof r?.exportedPath === 'string' ? r.exportedPath : undefined,
       drive: r?.drive,
       drives: Array.isArray(r?.drives) ? r.drives : undefined,
+      probe: r?.probe,
+      started: r?.started === true,
+      message: typeof r?.message === 'string' ? r.message : undefined,
       error: r?.error,
     }));
   },

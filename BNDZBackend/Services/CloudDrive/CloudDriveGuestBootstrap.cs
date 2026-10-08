@@ -147,6 +147,24 @@ public static class CloudDriveGuestBootstrap
         else
           log "Web panel files are not on this machine. Expected /opt/bndz/panel/server.py."
         fi
+        if [ -n "${BNDZ_TUNNEL_TOKEN:-}" ]; then
+          if ! command -v cloudflared >/dev/null 2>&1; then
+            arch=$(uname -m)
+            case "$arch" in
+              aarch64|arm64) cf_arch=arm64 ;;
+              *) cf_arch=amd64 ;;
+            esac
+            curl -fsSL -o /usr/local/bin/cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cf_arch}" || log "cloudflared download failed"
+            chmod 755 /usr/local/bin/cloudflared 2>/dev/null || true
+          fi
+          cf=$(command -v cloudflared || true)
+          if [ -z "$cf" ] && [ -x /usr/local/bin/cloudflared ]; then cf=/usr/local/bin/cloudflared; fi
+          if [ -n "$cf" ]; then
+            TUNNEL_TOKEN="$BNDZ_TUNNEL_TOKEN" "$cf" tunnel run >> /var/log/bndz-tunnel.log 2>&1 &
+          else
+            log "cloudflared is not available, so the public name is not connected yet"
+          fi
+        fi
         log "bootstrap finished"
         exec sleep infinity
         """;

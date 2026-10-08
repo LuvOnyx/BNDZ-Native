@@ -12,7 +12,7 @@ namespace BNDZ.Services.CloudDrive;
 public static class CloudDriveSecrets
 {
     private static readonly Regex JsonSecret = new(
-        "(\"(?:flyToken|token|privateKey|apiToken|password|authorization|protectedPrivateKey|tunnelToken|ftpPassword|protectedTunnelToken|protectedFtpPassword|BNDZ_FTP_PASSWORD|TUNNEL_TOKEN)\"\\s*:\\s*\")(?:\\\\.|[^\"\\\\])*(\")",
+        "(\"(?:flyToken|token|privateKey|apiToken|password|authorization|protectedPrivateKey|tunnelToken|ftpPassword|protectedTunnelToken|protectedFtpPassword|cloudflareToken|protectedCloudflareToken|connectorToken|BNDZ_FTP_PASSWORD|BNDZ_TUNNEL_TOKEN|TUNNEL_TOKEN)\"\\s*:\\s*\")(?:\\\\.|[^\"\\\\])*(\")",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex Bearer = new(
@@ -24,7 +24,7 @@ public static class CloudDriveSecrets
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex EnvSecret = new(
-        @"\b(?:TUNNEL_TOKEN|BNDZ_FTP_PASSWORD)\s*[=:]\s*\S+",
+        @"\b(?:TUNNEL_TOKEN|BNDZ_TUNNEL_TOKEN|BNDZ_FTP_PASSWORD)\s*[=:]\s*\S+",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex JwtLike = new(

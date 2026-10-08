@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace BNDZ.Services.CloudDrive;
@@ -55,6 +56,12 @@ public sealed class CloudDriveService
                 "CLOUD_DRIVE_TUNNEL_START" => StartTunnel(Str(payload, "id")),
                 "CLOUD_DRIVE_TUNNEL_STOP" => StopTunnel(Str(payload, "id")),
                 "CLOUD_DRIVE_SET_TUNNEL_HOSTNAME" => SetTunnelHostname(Str(payload, "id"), Str(payload, "hostname")),
+                "CLOUD_DRIVE_SET_PUBLIC_DOMAIN" => await SetPublicDomainAsync(Str(payload, "domain") ?? Str(payload, "publicBaseDomain"), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_SET_CLOUDFLARE_TOKEN" => await SetCloudflareTokenAsync(Str(payload, "token") ?? Str(payload, "cloudflareToken"), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_CLEAR_CLOUDFLARE_TOKEN" => ClearCloudflareToken(),
+                "CLOUD_DRIVE_PUBLISH" => await PublishOneAsync(Str(payload, "id"), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_SET_PLACEMENT_PREF" => SetPlacementPref(Str(payload, "placement")),
+                "CLOUD_DRIVE_ENABLE_LOCAL" => EnableLocal(),
                 "CLOUD_DRIVE_REVEAL_FTP_PASSWORD" => RevealFtpPassword(Str(payload, "id")),
                 "CLOUD_DRIVE_SNAPSHOT_CREATE" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).CreateSnapshotAsync(d, token, ct), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_SNAPSHOT_LIST" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).ListSnapshotsAsync(d, token, ct), ct).ConfigureAwait(false),
@@ -89,6 +96,19 @@ public sealed class CloudDriveService
         local.TokenMessage = local.TokenConfigured
             ? "A Fly token is stored with Windows DPAPI for this user. It is not shown again."
             : "No Fly token yet. Paste a bring-your-own org token. BNDZ does not host customer disks.";
+        local.CloudflaredMessage = "cloudflared runs inside the drive. A copy on this PC is optional.";
+        var backend = CloudDriveLocalBackend.Choose(local.HyperV, local.WslVersion);
+        local.LocalBackend = backend;
+        local.LocalBackendMessage = CloudDriveLocalBackend.Explain(backend, local.Elevated);
+        local.Preferred = backend;
+        local.EnableLocalHowTo = CloudDriveLocalBackend.EnableHowTo;
+        local.PublicBaseDomain = BaseDomain();
+        local.LandingUrl = CloudDriveHostname.LandingUrl(local.PublicBaseDomain);
+        local.CloudflareTokenConfigured = !string.IsNullOrWhiteSpace(_store.CloudflareTokenProtected);
+        local.CloudflareMessage = local.CloudflareTokenConfigured
+            ? "A Cloudflare API token is stored for this Windows user. It is not shown again. " + CloudDriveCloudflare.RequiredScopes
+            : "No Cloudflare API token yet. Addresses are still reserved. " + CloudDriveCloudflare.RequiredScopes;
+        local.LastPlacement = _store.LastPlacement is "cloud" or "local" ? _store.LastPlacement : null;
         return local;
     }
 
@@ -186,6 +206,8 @@ public sealed class CloudDriveService
         CloudDrivePorts.Assign(drive);
         drive.ProtectedFtpPassword = CloudDriveSecrets.ProtectToBase64(CloudDriveSecrets.NewPassword());
         Array.Clear(keys.PrivateKey, 0, keys.PrivateKey.Length);
+        _store.LastPlacement = placement;
+        EnsurePublicAddress(drive);
 
         var req = new CloudDriveCreateRequest
         {
@@ -198,6 +220,15 @@ public sealed class CloudDriveService
 
         _store.Drives.Add(drive);
         Save();
+        try
+        {
+            await PublishDriveAsync(drive, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            drive.PublishMode = "dry-run";
+            drive.PublishMessage = CloudDriveSecrets.Redact(ex.Message);
+        }
         try
         {
             await ProviderFor(drive).CreateAsync(drive, req, ReadToken, ct).ConfigureAwait(false);
@@ -300,7 +331,7 @@ public sealed class CloudDriveService
         var drive = Find(id);
         if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
         if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
-            return new { ok = false, error = "Cloudflare Tunnel is for This PC drives. Fly publishes the machine address itself.", drive = drive.ToDto(), drives = Dtos() };
+            return new { ok = false, error = "The tunnel for a Cloud placement drive runs inside that machine.", drive = drive.ToDto(), drives = Dtos() };
         var trimmed = (token ?? "").Trim();
         if (trimmed.Length < 20 || trimmed.Any(char.IsWhiteSpace))
             return new { ok = false, error = "That tunnel token does not look usable. Paste the install token from Cloudflare, with no spaces." };
@@ -330,7 +361,7 @@ public sealed class CloudDriveService
         var drive = Find(id);
         if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
         if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
-            return new { ok = false, error = "Cloudflare Tunnel is for This PC drives. Fly publishes the machine address itself.", drive = drive.ToDto(), drives = Dtos() };
+            return new { ok = false, error = "The tunnel for a Cloud placement drive runs inside that machine.", drive = drive.ToDto(), drives = Dtos() };
         var token = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken);
         if (string.IsNullOrWhiteSpace(token))
             return new { ok = false, error = "Paste a Cloudflare Tunnel token first.", drive = drive.ToDto(), drives = Dtos() };
@@ -358,13 +389,12 @@ public sealed class CloudDriveService
     {
         var drive = Find(id);
         if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
-        var normalized = CloudDriveProtocols.NormalizeHostname(hostname, out var error);
-        if (error != null) return new { ok = false, error, drive = drive.ToDto(), drives = Dtos() };
-        drive.TunnelHostname = string.IsNullOrEmpty(normalized) ? null : normalized;
+        _ = hostname;
+        EnsurePublicAddress(drive);
         drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
         Touch(drive);
         Save();
-        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos(), hostname = drive.TunnelHostname };
     }
 
     private object RevealFtpPassword(string? id)
@@ -491,6 +521,8 @@ public sealed class CloudDriveService
             existing.HostKeyChanged = false;
             existing.Hypervisor = _local.Probe().Preferred;
             var hasKey = !string.IsNullOrWhiteSpace(existing.ProtectedPrivateKey);
+            if (!string.IsNullOrWhiteSpace(manifest.PublicSlug)) existing.PublicSlug = manifest.PublicSlug;
+            EnsurePublicAddress(existing);
             existing.HostKeyNote = CloudDriveSlot.LocalMoveNote(hasKey, mismatch, existing.Fingerprint);
             var vhdx = File.Exists(existing.VhdxPath);
             existing.Message = existing.HostKeyNote + (vhdx ? "" : " disk.vhdx is not in that folder yet.");
@@ -521,10 +553,12 @@ public sealed class CloudDriveService
             FtpsPort = manifest.FtpsPort,
             WebDavPort = manifest.WebDavPort,
             Hypervisor = _local.Probe().Preferred,
+            PublicSlug = manifest.PublicSlug,
             CreatedUtc = now,
             UpdatedUtc = now,
         };
         CloudDrivePorts.Ensure(drive);
+        EnsurePublicAddress(drive);
         drive.Port = drive.SshPort;
         drive.HostKeyChanged = false;
         drive.HostKeyNote = CloudDriveSlot.LocalMoveNote(false, false, drive.Fingerprint);
@@ -551,7 +585,127 @@ public sealed class CloudDriveService
     private CloudDriveRecord? Find(string? id) =>
         string.IsNullOrWhiteSpace(id) ? null : _store.Drives.FirstOrDefault(d => string.Equals(d.Id, id, StringComparison.Ordinal));
 
-    private List<CloudDriveDto> Dtos() => _store.Drives.Select(d => d.ToDto()).ToList();
+    private List<CloudDriveDto> Dtos()
+    {
+        var changed = false;
+        foreach (var drive in _store.Drives)
+            changed |= EnsurePublicAddress(drive);
+        if (changed) Save();
+        return _store.Drives.Select(d => d.ToDto()).ToList();
+    }
+
+    private string BaseDomain() => CloudDriveHostname.NormalizeBase(_store.PublicBaseDomain);
+
+    private bool EnsurePublicAddress(CloudDriveRecord drive)
+    {
+        var beforeSlug = drive.PublicSlug;
+        var beforeHost = drive.TunnelHostname;
+        if (string.IsNullOrWhiteSpace(drive.PublicSlug))
+        {
+            drive.PublicSlug = CloudDriveHostname.Slug(
+                drive.Name,
+                drive.Id,
+                _store.Drives.Where(d => !ReferenceEquals(d, drive)).Select(d => d.PublicSlug));
+        }
+        var host = CloudDriveHostname.DriveHost(BaseDomain(), drive.PublicSlug);
+        if (CloudDriveHostname.IsPublicHost(host))
+            drive.TunnelHostname = host;
+        return !string.Equals(beforeSlug, drive.PublicSlug, StringComparison.Ordinal)
+            || !string.Equals(beforeHost, drive.TunnelHostname, StringComparison.Ordinal);
+    }
+
+    private async Task PublishDriveAsync(CloudDriveRecord drive, CancellationToken ct)
+    {
+        EnsurePublicAddress(drive);
+        var token = CloudDriveSecrets.UnprotectFromBase64(_store.CloudflareTokenProtected);
+        var plan = await CloudDriveCloudflare.PublishAsync(token, BaseDomain(), drive.PublicSlug, null, ct).ConfigureAwait(false);
+        drive.PublishMode = plan.Mode;
+        drive.PublishMessage = CloudDriveSecrets.Redact(plan.Message);
+        if (!string.IsNullOrWhiteSpace(plan.ConnectorToken))
+            drive.ProtectedTunnelToken = CloudDriveSecrets.ProtectToBase64(plan.ConnectorToken);
+    }
+
+    private async Task<object> SetPublicDomainAsync(string? raw, CancellationToken ct)
+    {
+        var entered = (raw ?? "").Trim();
+        var stripped = entered;
+        if (stripped.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) stripped = stripped[8..];
+        else if (stripped.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) stripped = stripped[7..];
+        var slash = stripped.IndexOf('/');
+        if (slash >= 0) stripped = stripped[..slash];
+        stripped = stripped.Trim().TrimEnd('.').ToLowerInvariant();
+        var host = entered.Length == 0 ? CloudDriveHostname.DefaultBaseDomain : CloudDriveHostname.NormalizeBase(stripped);
+        if (entered.Length > 0 && (!CloudDriveHostname.IsPublicHost(host) || !string.Equals(host, stripped, StringComparison.Ordinal)))
+            return new { ok = false, error = "Enter a public base domain such as cloud.bndz.org." };
+        _store.PublicBaseDomain = host;
+        foreach (var drive in _store.Drives) EnsurePublicAddress(drive);
+        Save();
+        foreach (var drive in _store.Drives)
+            await PublishDriveAsync(drive, ct).ConfigureAwait(false);
+        Save();
+        return new { ok = true, probe = ProbeSnapshot(), drives = Dtos() };
+    }
+
+    private async Task<object> SetCloudflareTokenAsync(string? token, CancellationToken ct)
+    {
+        var trimmed = (token ?? "").Trim();
+        if (trimmed.Length < 20 || trimmed.Any(char.IsWhiteSpace))
+            return new { ok = false, error = "Paste a Cloudflare API token with no spaces." };
+        _store.CloudflareTokenProtected = CloudDriveSecrets.ProtectToBase64(trimmed);
+        Save();
+        foreach (var drive in _store.Drives)
+            await PublishDriveAsync(drive, ct).ConfigureAwait(false);
+        Save();
+        return new { ok = true, probe = ProbeSnapshot(), drives = Dtos() };
+    }
+
+    private object ClearCloudflareToken()
+    {
+        _store.CloudflareTokenProtected = null;
+        Save();
+        return new { ok = true, probe = ProbeSnapshot(), drives = Dtos() };
+    }
+
+    private async Task<object> PublishOneAsync(string? id, CancellationToken ct)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        await PublishDriveAsync(drive, ct).ConfigureAwait(false);
+        Touch(drive);
+        Save();
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private object SetPlacementPref(string? placement)
+    {
+        var value = (placement ?? "").Trim().ToLowerInvariant();
+        if (value is not ("cloud" or "local"))
+            return new { ok = false, error = "Choose Cloud or This PC." };
+        _store.LastPlacement = value;
+        Save();
+        return new { ok = true, probe = ProbeSnapshot() };
+    }
+
+    private static object EnableLocal()
+    {
+        var how = CloudDriveLocalBackend.EnableHowTo;
+        if (!OperatingSystem.IsWindows())
+            return new { ok = true, started = false, message = how };
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -WindowStyle Hidden -Command \"Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -Command Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All'\"",
+                UseShellExecute = true,
+            });
+            return new { ok = true, started = true, message = how };
+        }
+        catch
+        {
+            return new { ok = true, started = false, message = how };
+        }
+    }
 
     private static void Touch(CloudDriveRecord drive) => drive.UpdatedUtc = DateTime.UtcNow.ToString("o");
 
@@ -602,6 +756,9 @@ public sealed class CloudDriveService
     private sealed class Store
     {
         public string? FlyTokenProtected { get; set; }
+        public string? PublicBaseDomain { get; set; }
+        public string? CloudflareTokenProtected { get; set; }
+        public string? LastPlacement { get; set; }
         public List<CloudDriveRecord> Drives { get; set; } = new();
     }
 }

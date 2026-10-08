@@ -1,6 +1,9 @@
 /** Client preflight for Cloud Drive placement. The native host is authoritative. */
 
+export const CLOUD_DRIVE_BASE_DOMAIN = 'cloud.bndz.org';
+
 export type CloudDrivePlacement = 'cloud' | 'local';
+export type CloudDriveLocalBackend = 'hyper-v' | 'wsl2' | 'none';
 
 export type CloudDriveRecord = {
   id: string;
@@ -35,6 +38,9 @@ export type CloudDriveRecord = {
   tunnelMessage?: string;
   tunnelTokenConfigured?: boolean;
   tunnelHostname?: string;
+  publicSlug?: string;
+  publishMode?: string;
+  publishMessage?: string;
   shareUrl?: string;
   machineHost?: string;
   addressGuide?: string;
@@ -79,6 +85,14 @@ export type CloudDriveProbe = {
   rootfsMessage?: string;
   preferred?: string;
   guidance?: string;
+  publicBaseDomain?: string;
+  landingUrl?: string;
+  cloudflareTokenConfigured?: boolean;
+  cloudflareMessage?: string;
+  localBackend?: CloudDriveLocalBackend | string;
+  localBackendMessage?: string;
+  lastPlacement?: string | null;
+  enableLocalHowTo?: string;
 };
 
 export const FLY_REGIONS = ['iad', 'ewr', 'lhr', 'fra', 'sjc', 'syd'] as const;
@@ -107,6 +121,72 @@ export function placementLabel(placement: string): string {
   return placement === 'local' ? 'This PC' : 'Cloud';
 }
 
+export function normalizeBase(raw?: string | null): string {
+  let s = (raw || '').trim();
+  s = s.replace(/^https?:\/\//i, '');
+  const slash = s.indexOf('/');
+  if (slash >= 0) s = s.slice(0, slash);
+  s = s.trim().replace(/\.+$/, '').toLowerCase();
+  if (!s || !isPublicHost(s)) return CLOUD_DRIVE_BASE_DOMAIN;
+  return s;
+}
+
+export function landingUrl(base?: string | null): string {
+  return `https://${normalizeBase(base)}/`;
+}
+
+export function zoneName(base?: string | null): string {
+  const host = normalizeBase(base);
+  const parts = host.split('.');
+  if (parts.length <= 2) return host;
+  return parts.slice(1).join('.');
+}
+
+export function driveHost(base: string | null | undefined, slug: string): string {
+  const safe = slug.trim().replace(/^\.+|\.+$/g, '').toLowerCase();
+  if (!safe) return '';
+  return `${safe}.${normalizeBase(base)}`;
+}
+
+export function driveUrl(base: string | null | undefined, slug: string): string {
+  const host = driveHost(base, slug);
+  return host ? `https://${host}/` : '';
+}
+
+export function shareLink(base: string | null | undefined, slug: string, token: string): string {
+  const host = driveHost(base, slug);
+  const id = token.trim();
+  if (!host || !id || id.includes('/') || id.includes(' ')) return '';
+  return `https://${host}/s/${id}`;
+}
+
+export function localBackend(probe: CloudDriveProbe): CloudDriveLocalBackend {
+  if (probe.localBackend === 'hyper-v' || probe.localBackend === 'wsl2' || probe.localBackend === 'none') {
+    return probe.localBackend;
+  }
+  if (probe.hyperV) return 'hyper-v';
+  if (probe.wslVersion === '2') return 'wsl2';
+  return 'none';
+}
+
+export function localBackendAvailable(probe: CloudDriveProbe): boolean {
+  return localBackend(probe) !== 'none';
+}
+
+/** Saved choice wins. Otherwise Cloud is selected only when this PC cannot run a VM. */
+export function defaultPlacement(probe: CloudDriveProbe, lastChoice?: string | null): CloudDrivePlacement {
+  if (lastChoice === 'cloud' || lastChoice === 'local') return lastChoice;
+  return localBackendAvailable(probe) ? 'local' : 'cloud';
+}
+
+function isPublicHost(host: string): boolean {
+  if (!host || host.length > 253 || !host.includes('.')) return false;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return false;
+  if (host.endsWith('.fly.dev')) return false;
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)) return false;
+  return /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host);
+}
+
 /** Client check before the host stores a Cloudflare hostname. Empty clears it. */
 export function normalizeTunnelHostname(raw: string): { ok: true; hostname: string } | { ok: false; error: string } {
   let s = raw.trim();
@@ -119,7 +199,7 @@ export function normalizeTunnelHostname(raw: string): { ok: true; hostname: stri
     return { ok: false, error: 'Away access needs a public hostname, not localhost.' };
   }
   if (s.endsWith('.fly.dev')) {
-    return { ok: false, error: 'That is the Fly machine address. Save a hostname you control, such as files.example.com.' };
+    return { ok: false, error: 'That is a machine address. Drives use a name on cloud.bndz.org.' };
   }
   if (s.length > 253 || !s.includes('.') || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(s)) {
     return { ok: false, error: 'Enter a public hostname such as drive.example.com, without a path.' };
@@ -129,6 +209,8 @@ export function normalizeTunnelHostname(raw: string): { ok: true; hostname: stri
 
 /** Layout fixture for the shell preview. Live drives come from the host. */
 export function layoutPreviewDrives(): CloudDriveRecord[] {
+  const desk = driveUrl(CLOUD_DRIVE_BASE_DOMAIN, 'desk');
+  const reel = driveUrl(CLOUD_DRIVE_BASE_DOMAIN, 'reel');
   return [
     {
       id: 'preview-local',
@@ -138,30 +220,27 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       sizeGb: 40,
       diskPath: 'D:\\BNDZ Drives\\BNDZ\\CloudDrives\\preview-local',
       hypervisor: 'hyper-v',
-      host: '127.0.0.1',
-      sshPort: 22210,
-      ftpsPort: 21210,
-      webDavPort: 18110,
+      host: driveHost(CLOUD_DRIVE_BASE_DOMAIN, 'desk'),
+      publicSlug: 'desk',
+      publishMode: 'dry-run',
       fingerprint: 'SHA256:preview',
       hostKeyNote: 'Data disk kept. The client key on this PC is unchanged (SHA256:preview). The guest SSH host key is on this PC\'s OS disk and is new after a move.',
-      sshCommand: 'ssh -p 22210 bndz@127.0.0.1',
+      sshCommand: 'ssh bndz@desk.cloud.bndz.org',
       publicKey: 'ssh-ed25519 AAAA preview',
-      tunnelState: 'token-needed',
-      tunnelHostname: 'desk.example.com',
-      shareUrl: 'https://desk.example.com/',
-      machineHost: '127.0.0.1',
-      addressGuide: 'The link you send is a hostname you own. In Cloudflare Tunnel, point an HTTP public hostname at http://127.0.0.1:18110/ for the panel. BNDZ does not mint a public name.',
-      tunnelMessage: 'Paste a Cloudflare Tunnel token. BNDZ stores it with Windows DPAPI and does not show it again.',
+      tunnelState: 'dry-run',
+      tunnelHostname: 'desk.cloud.bndz.org',
+      shareUrl: desk,
+      addressGuide: `Send ${desk} Share links use that name. ${landingUrl()} is the account page. The tunnel runs inside the drive.`,
+      tunnelMessage: 'Address reserved. Save a Cloudflare API token to publish the tunnel route and DNS record.',
       tunnelTokenConfigured: false,
-      awayGuide: 'Cloudflare Tunnel publishes this PC drive. It is not Cloudflare Containers and it does not replace the disk. The hostname you save above is the link you send.',
+      awayGuide: 'Cloudflare Tunnel publishes https://desk.cloud.bndz.org/ from inside the drive. It is not Cloudflare Containers and it does not replace the disk.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Uses the machine address. The lamp turns ready after this PC accepts the SSH port.' },
-        { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22210 bndz@127.0.0.1', state: 'pending', canCopy: true, note: 'Same port as SSH. The client flag is a capital P.' },
+        { id: 'ssh', label: 'SSH', copyText: 'ssh bndz@desk.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Uses desk.cloud.bndz.org.' },
+        { id: 'sftp', label: 'SFTP', copyText: 'sftp bndz@desk.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Same name as SSH.' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
-        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@127.0.0.1:21210/', state: 'pending', canCopy: true, note: 'On the machine address. Sign-in password stays hidden.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'http://127.0.0.1:18111/', state: 'pending', canCopy: true, note: 'On the machine address, separate from the link you send.' },
-        { id: 'panel', label: 'Send this', copyText: 'https://desk.example.com/', state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
-        { id: 'machine', label: 'Machine', copyText: 'http://127.0.0.1:18110/', state: 'pending', canCopy: true, note: 'Loopback on this PC. Away access uses the hostname above.' },
+        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@desk.cloud.bndz.org/', state: 'pending', canCopy: true, note: 'Same name as the panel. Sign-in password stays hidden.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'https://desk.cloud.bndz.org/dav/', state: 'pending', canCopy: true, note: 'Same name as the panel, under /dav/.' },
+        { id: 'panel', label: 'Send this', copyText: desk, state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
       ],
     },
     {
@@ -171,29 +250,27 @@ export function layoutPreviewDrives(): CloudDriveRecord[] {
       state: 'stopped',
       sizeGb: 20,
       region: 'iad',
-      flyApp: 'bndz-preview',
-      flyVolumeId: 'vol_preview',
+      publicSlug: 'reel',
+      publishMode: 'dry-run',
+      host: driveHost(CLOUD_DRIVE_BASE_DOMAIN, 'reel'),
       hostKeyChanged: true,
-      previousHost: 'bndz-preview.fly.dev',
-      hostKeyNote: 'Client key unchanged (SHA256:preview). The machine was replaced, so the SSH server host key is new. On the next SSH or SFTP connection, confirm the new host key. The app address stays the same.',
+      hostKeyNote: 'Client key unchanged (SHA256:preview). The machine was replaced, so the SSH server host key is new. On the next SSH or SFTP connection, confirm the new host key. The address stays the same.',
       snapshots: [
         { id: 'vs_preview', status: 'created', createdAt: '2026-10-07T12:00:00Z', sizeBytes: 20 * 1024 * 1024 },
       ],
-      sshCommand: 'ssh -p 22211 bndz@bndz-preview.fly.dev',
-      tunnelHostname: 'reel.example.com',
-      shareUrl: 'https://reel.example.com/',
-      machineHost: 'bndz-preview.fly.dev',
-      addressGuide: 'Save a hostname you control, such as files.example.com. In Cloudflare DNS add a CNAME to bndz-preview.fly.dev, then add the certificate: fly certs add files.example.com -a bndz-preview. SSH stays on the machine address.',
-      tunnelState: 'cloud',
-      tunnelMessage: 'Fly publishes this machine. The link you send is the hostname you save, not the machine address.',
+      sshCommand: 'ssh bndz@reel.cloud.bndz.org',
+      tunnelHostname: 'reel.cloud.bndz.org',
+      shareUrl: reel,
+      addressGuide: `Send ${reel} Share links use that name. ${landingUrl()} is the account page. The tunnel runs inside the drive.`,
+      tunnelState: 'dry-run',
+      tunnelMessage: 'Address reserved as https://reel.cloud.bndz.org/. Save a Cloudflare API token to publish the tunnel route and DNS record.',
       endpoints: [
-        { id: 'ssh', label: 'SSH', copyText: 'ssh -p 22211 bndz@bndz-preview.fly.dev', state: 'pending', canCopy: true, note: 'Uses the machine address. Not the link you send.' },
-        { id: 'sftp', label: 'SFTP', copyText: 'sftp -P 22211 bndz@bndz-preview.fly.dev', state: 'pending', canCopy: true, note: 'SFTP uses the same port as SSH (capital -P).' },
+        { id: 'ssh', label: 'SSH', copyText: 'ssh bndz@reel.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Uses reel.cloud.bndz.org.' },
+        { id: 'sftp', label: 'SFTP', copyText: 'sftp bndz@reel.cloud.bndz.org', state: 'pending', canCopy: true, note: 'Same name as SSH.' },
         { id: 'ftp', label: 'FTP', copyText: '', state: 'unavailable', canCopy: false, note: 'Plain FTP is off, including anonymous login. Use FTPS.' },
-        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@bndz-preview.fly.dev:21211/', state: 'pending', canCopy: true, note: 'On the machine address. Passive data ports are not published.' },
-        { id: 'webdav', label: 'WebDAV', copyText: 'http://bndz-preview.fly.dev:18111/', state: 'pending', canCopy: true, note: 'On the machine address, separate from the link you send.' },
-        { id: 'panel', label: 'Send this', copyText: 'https://reel.example.com/', state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
-        { id: 'machine', label: 'Machine', copyText: 'https://bndz-preview.fly.dev/', state: 'pending', canCopy: true, note: 'Fly machine address for SSH and FTPS. Do not send this.' },
+        { id: 'ftps', label: 'FTPS', copyText: 'ftps://bndz@reel.cloud.bndz.org/', state: 'pending', canCopy: true, note: 'Same name as the panel.' },
+        { id: 'webdav', label: 'WebDAV', copyText: 'https://reel.cloud.bndz.org/dav/', state: 'pending', canCopy: true, note: 'Same name as the panel, under /dav/.' },
+        { id: 'panel', label: 'Send this', copyText: reel, state: 'pending', canCopy: true, note: 'This is the link you send. Sign in, then open Settings.' },
       ],
     },
   ];
@@ -207,11 +284,16 @@ export function nextAction(probe: CloudDriveProbe, placement: string, diskPath =
     } else {
       return 'Pick a folder on D: or another drive. The sealed disk is created there, not on C:.';
     }
-    if (!probe.hyperV) {
-      return 'Turn on Hyper-V. This PC Cloud Drives boot a pinned Ubuntu rootfs there. Docker is not used.';
+    const backend = localBackend(probe);
+    if (backend === 'none') {
+      return probe.localBackendMessage
+        || 'Hyper-V and WSL2 are off, so the VM cannot start yet. You can still put the disk on a drive you pick. Enable Hyper-V, then start the drive.';
+    }
+    if (backend === 'wsl2') {
+      return 'Create. This PC will run the drive with WSL2 and attach the sealed disk. It will not make a second copy.';
     }
     if (!probe.elevated) {
-      return 'Hyper-V is installed. Run BNDZ as administrator before Start so the VM can be created.';
+      return 'Hyper-V is installed. Windows asks for administrator approval when the drive starts. The disk stays on the folder you pick.';
     }
     if (!probe.rootfsPresent) {
       return probe.rootfsMessage
@@ -222,31 +304,30 @@ export function nextAction(probe: CloudDriveProbe, placement: string, diskPath =
   if (!probe.tokenConfigured) {
     return 'Paste a Fly token from your own org, then save it. BNDZ does not share one cloud account.';
   }
-  return 'Create the drive. After Start, save a hostname you control. That name is the link you send, not the Fly machine address.';
+  const base = probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN;
+  return `Create the drive. Its address is a hostname on ${base}.`;
 }
 
 export function driveHint(drive: CloudDriveRecord): string {
   const local = drive.placement === 'local';
+  const pretty = (drive.shareUrl || '').trim()
+    || ((drive.tunnelHostname || '').trim() ? `https://${drive.tunnelHostname}/` : '');
   if (drive.state === 'error') {
     return drive.message || 'That did not finish. Try Start again after the note above is fixed.';
   }
   if (local) {
     return drive.state === 'running'
-      ? 'Hyper-V reports the VM running. The SSH and panel lamps turn ready when this PC accepts the port. First boot can take several minutes.'
-      : 'Start the drive. The pinned rootfs boots in Hyper-V. The sealed VHDX is the data disk and is not recreated.';
-  }
-  const pretty = (drive.tunnelHostname || '').trim();
-  if (!drive.flyApp) {
-    return 'Saved here only. Set the drive image, then Start. After it is up, save a hostname you control. That name is the link you send.';
+      ? (pretty ? `Send ${pretty}. The sealed data disk is not recreated.` : 'The drive is running on this PC. The sealed data disk is not recreated.')
+      : 'Start the drive. The sealed VHDX is the data disk and is not recreated.';
   }
   if (drive.state === 'running') {
     return pretty
-      ? `Send https://${pretty}/ . Sign in there, then open Settings for your own name and password. SSH stays on the machine address.`
-      : 'Save a hostname you control, such as files.example.com, before you send this drive. SSH stays on the Fly machine address.';
+      ? `Send ${pretty}. Sign in there, then open Settings for your own name and password.`
+      : 'The address is a hostname on cloud.bndz.org. Start publishes it when a Cloudflare token is saved.';
   }
   return pretty
-    ? `Start the machine, then send https://${pretty}/ .`
-    : 'Start the machine, then save a hostname you control. The Fly machine address is for SSH, not the link you text.';
+    ? `Start the machine, then send ${pretty}.`
+    : 'Start the machine. The address is a hostname on cloud.bndz.org.';
 }
 
 /** Client check before the host copies a sealed folder. The host repeats it. */

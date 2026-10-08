@@ -266,7 +266,7 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
 
         var oldVolume = drive.FlyVolumeId;
         var oldMachine = drive.FlyMachineId;
-        var previousHost = string.IsNullOrWhiteSpace(drive.FlyApp) ? drive.Host : drive.FlyApp + ".fly.dev";
+        var previousHost = CloudDriveProtocols.PublicHostname(drive);
         var region = string.IsNullOrWhiteSpace(drive.Region) ? "iad" : drive.Region!;
         var volName = RestoreVolumeName(snapshotId);
         var volJson = JsonSerializer.Serialize(new { name = volName, region, snapshot_id = snapshotId.Trim() });
@@ -453,10 +453,11 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         drive.SshNote = SshNote(drive);
         if (string.IsNullOrWhiteSpace(drive.Message) || drive.State is "running" or "creating" or "stopped")
         {
+            var share = CloudDriveProtocols.ShareUrl(drive);
             drive.Message = CloudDriveGuestBootstrap.Enabled()
-                ? (string.IsNullOrWhiteSpace(CloudDriveProtocols.ShareUrl(drive))
-                    ? "Fly machine is up. Save a hostname you control before you send the panel. SSH, FTPS, and WebDAV stay on the machine address. Plain FTP is off."
-                    : "Fly machine is up. Send " + CloudDriveProtocols.ShareUrl(drive) + " SSH stays on the machine address. Plain FTP is off.")
+                ? (share.Length == 0
+                    ? "Fly machine is up. The public address is a name on " + CloudDriveHostname.DefaultBaseDomain + ". Plain FTP is off."
+                    : "Fly machine is up. Send " + share + " Plain FTP is off.")
                 : "Fly machine is up. Bootstrap is off, so the image itself must serve SSH, FTPS, WebDAV, and the panel.";
         }
     }
@@ -473,6 +474,9 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         var publicHost = CloudDriveProtocols.PublicHostname(drive);
         if (!string.IsNullOrWhiteSpace(publicHost))
             env["BNDZ_PUBLIC_HOST"] = publicHost;
+        var tunnel = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken);
+        if (!string.IsNullOrWhiteSpace(tunnel))
+            env["BNDZ_TUNNEL_TOKEN"] = tunnel;
 
         var config = new Dictionary<string, object?>
         {

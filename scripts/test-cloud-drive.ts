@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { destinationSlot, driveHint, exportFolderError, formatSnapshotSize, layoutPreviewDrives, nextAction, normalizeLocalPath, normalizeTunnelHostname, placementLabel, preflightLocalPath, stateLabel } from '../src/lib/cloudDrive';
+import { CLOUD_DRIVE_BASE_DOMAIN, defaultPlacement, destinationSlot, driveHint, driveUrl, exportFolderError, formatSnapshotSize, landingUrl, layoutPreviewDrives, localBackend, nextAction, normalizeLocalPath, normalizeTunnelHostname, placementLabel, preflightLocalPath, shareLink, stateLabel, zoneName } from '../src/lib/cloudDrive';
 
 assert.equal(preflightLocalPath(''), 'Pick a folder on a drive other than the system volume.');
 assert.match(preflightLocalPath('C:\\Users\\mikey') || '', /system volume/);
@@ -27,27 +27,30 @@ assert.equal(flyHost.ok, false);
 if (!flyHost.ok) assert.match(flyHost.error, /machine address/);
 
 const [localPreview, cloudPreview] = layoutPreviewDrives();
+const previewText = JSON.stringify(layoutPreviewDrives());
+assert.doesNotMatch(previewText, /fly\.dev/);
+assert.doesNotMatch(previewText, /\b(?:\d{1,3}\.){3}\d{1,3}\b/);
 assert.equal(localPreview.placement, 'local');
-assert.match(localPreview.endpoints?.find(e => e.id === 'ssh')?.copyText || '', /^ssh -p \d+ bndz@127\.0\.0\.1$/);
-assert.match(localPreview.endpoints?.find(e => e.id === 'sftp')?.copyText || '', /^sftp -P \d+ /);
+assert.equal(localPreview.endpoints?.find(e => e.id === 'ssh')?.copyText, 'ssh bndz@desk.cloud.bndz.org');
+assert.equal(localPreview.endpoints?.find(e => e.id === 'sftp')?.copyText, 'sftp bndz@desk.cloud.bndz.org');
 assert.equal(localPreview.endpoints?.find(e => e.id === 'ftp')?.canCopy, false);
+assert.equal(localPreview.endpoints?.find(e => e.id === 'machine'), undefined);
 assert.match(localPreview.awayGuide || '', /Cloudflare Tunnel/);
 assert.doesNotMatch(localPreview.awayGuide || '', /Docker Desktop/i);
 assert.equal(cloudPreview.placement, 'cloud');
 assert.equal(cloudPreview.endpoints?.find(e => e.id === 'panel')?.canCopy, true);
-assert.match(localPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /^https:\/\/desk\.example\.com\/$/);
-assert.match(localPreview.endpoints?.find(e => e.id === 'machine')?.copyText || '', /^http:\/\/127\.0\.0\.1:\d+\/$/);
-assert.match(cloudPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /^https:\/\/reel\.example\.com\/$/);
-assert.doesNotMatch(cloudPreview.endpoints?.find(e => e.id === 'panel')?.copyText || '', /fly\.dev/);
-assert.match(cloudPreview.endpoints?.find(e => e.id === 'machine')?.copyText || '', /fly\.dev/);
-assert.match(cloudPreview.addressGuide || '', /fly certs add/);
+assert.equal(localPreview.endpoints?.find(e => e.id === 'panel')?.copyText, 'https://desk.cloud.bndz.org/');
+assert.equal(cloudPreview.endpoints?.find(e => e.id === 'panel')?.copyText, 'https://reel.cloud.bndz.org/');
+assert.equal(cloudPreview.endpoints?.find(e => e.id === 'machine'), undefined);
+assert.match(cloudPreview.addressGuide || '', /cloud\.bndz\.org/);
 assert.notEqual(
   localPreview.endpoints?.find(e => e.id === 'panel')?.copyText,
   localPreview.endpoints?.find(e => e.id === 'webdav')?.copyText,
 );
-assert.match(cloudPreview.tunnelMessage || '', /hostname you save/);
+assert.match(cloudPreview.tunnelMessage || '', /Cloudflare API token/);
 assert.match(nextAction({}, 'cloud'), /Fly token/);
 assert.match(nextAction({ tokenConfigured: true }, 'cloud'), /hostname/);
+assert.doesNotMatch(nextAction({ tokenConfigured: true }, 'cloud'), /Hyper-V/);
 assert.match(nextAction({}, 'local', 'C:\\Users\\mikey'), /system volume/);
 assert.match(driveHint({ id: 'x', name: 'n', placement: 'local', state: 'stopped' }), /data disk|not recreated/);
 assert.match(nextAction({ hyperV: true, elevated: true, rootfsPresent: false }, 'local', 'D:\\BNDZ'), /rootfs|Ubuntu/);
@@ -55,6 +58,23 @@ assert.match(nextAction({ hyperV: true, elevated: true, rootfsPresent: true }, '
 assert.match(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo' }), /hostname/);
 assert.match(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo', tunnelHostname: 'files.example.com' }), /files\.example\.com/);
 assert.doesNotMatch(driveHint({ id: 'x', name: 'n', placement: 'cloud', state: 'running', flyApp: 'bndz-demo', tunnelHostname: 'files.example.com' }), /fly\.dev/);
+
+assert.equal(CLOUD_DRIVE_BASE_DOMAIN, 'cloud.bndz.org');
+assert.equal(zoneName('cloud.bndz.org'), 'bndz.org');
+assert.equal(zoneName('example.com'), 'example.com');
+assert.equal(landingUrl(''), 'https://cloud.bndz.org/');
+assert.equal(driveUrl('cloud.bndz.org', 'desk'), 'https://desk.cloud.bndz.org/');
+assert.equal(shareLink('cloud.bndz.org', 'desk', 'tok_1'), 'https://desk.cloud.bndz.org/s/tok_1');
+assert.equal(shareLink('cloud.bndz.org', 'desk', 'a/b'), '');
+assert.equal(localBackend({ hyperV: true }), 'hyper-v');
+assert.equal(localBackend({ wslVersion: '2' }), 'wsl2');
+assert.equal(localBackend({}), 'none');
+assert.equal(defaultPlacement({ hyperV: true }, null), 'local');
+assert.equal(defaultPlacement({ wslVersion: '2' }, undefined), 'local');
+assert.equal(defaultPlacement({}, null), 'cloud');
+assert.equal(defaultPlacement({ hyperV: true }, 'cloud'), 'cloud');
+assert.equal(defaultPlacement({}, 'local'), 'local');
+assert.equal(defaultPlacement({ hyperV: true }, 'somewhere'), 'local');
 
 const source = 'D:\\BNDZ\\CloudDrives\\cdabc123';
 assert.equal(exportFolderError(source, 'E:\\Backups', 'cdabc123'), null);

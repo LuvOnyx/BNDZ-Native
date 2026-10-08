@@ -25,6 +25,8 @@ public sealed class CloudDriveSlotManifest
     public int FtpsPort { get; set; }
     public int WebDavPort { get; set; }
     public string User { get; set; } = "bndz";
+    /// <summary>Keeps the public URL when the sealed folder moves.</summary>
+    public string? PublicSlug { get; set; }
 }
 
 public static class CloudDriveSnapshots
@@ -286,7 +288,8 @@ public static class CloudDriveSlot
     /// <summary>OS differencing disk and the cloud-init seed stay on this PC. The seed holds the guest password.</summary>
     private static bool SkipExportFile(string name) =>
         name.Equals("seed.iso", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("os.vhdx", StringComparison.OrdinalIgnoreCase);
+        || name.Equals("os.vhdx", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("bndz-tunnel.service", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsAbsolute(string key)
     {

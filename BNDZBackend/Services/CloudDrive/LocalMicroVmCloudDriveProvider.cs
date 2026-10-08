@@ -20,37 +20,12 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         var (wslPresent, wslVersion) = ProbeWsl();
         var elevated = IsElevated();
         var rootfs = CloudDriveLocalRootfs.Describe();
-        string preferred;
-        string guidance;
-        if (hyperV && elevated)
-        {
-            preferred = "hyper-v";
-            guidance = rootfs.Present
-                ? "Hyper-V is available and this process is elevated. Start boots the pinned Ubuntu rootfs. The sealed VHDX is the data disk and is not recreated."
-                : rootfs.Message;
-        }
-        else if (hyperV)
-        {
-            preferred = "hyper-v";
-            guidance = rootfs.Present
-                ? "Hyper-V is installed. Start needs BNDZ running elevated. The pinned rootfs is on this PC. The sealed VHDX is the data disk and is not recreated."
-                : "Hyper-V is installed. Start needs BNDZ running elevated. " + rootfs.Message;
-        }
-        else if (wslPresent && wslVersion == "2")
-        {
-            preferred = "none";
-            guidance = "WSL2 is installed, and the rootfs fetch can use it to patch cloud-init. This PC Cloud Drives still boot in Hyper-V, not in WSL. Turn on Hyper-V. Docker is not used.";
-        }
-        else if (wslPresent)
-        {
-            preferred = "none";
-            guidance = "WSL is present but not version 2. Turn on Hyper-V to boot a This PC Cloud Drive. Docker is not used.";
-        }
-        else
-        {
-            preferred = "none";
-            guidance = "No Hyper-V layer was detected. Turn on the Windows Hyper-V feature. Cloud Drive does not use Docker Desktop.";
-        }
+        var preferred = CloudDriveLocalBackend.Choose(hyperV, wslVersion);
+        var guidance = CloudDriveLocalBackend.Explain(preferred, elevated);
+        if (preferred == CloudDriveLocalBackend.HyperV && rootfs.Present && elevated)
+            guidance = "Hyper-V is available. Start boots the pinned Ubuntu rootfs. The sealed VHDX is the data disk and is not recreated.";
+        else if (preferred == CloudDriveLocalBackend.HyperV && !rootfs.Present)
+            guidance = guidance + " " + rootfs.Message;
 
         return new CloudDriveProbe
         {
@@ -124,24 +99,30 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
             return Task.CompletedTask;
         }
 
-        if (!probe.HyperV)
+        var backend = CloudDriveLocalBackend.Choose(probe.HyperV, probe.WslVersion);
+        drive.Hypervisor = backend;
+        if (backend == CloudDriveLocalBackend.None)
         {
-            drive.State = "error";
-            drive.Message = probe.Guidance;
-            drive.SshNote = drive.SshNote;
+            drive.State = "stopped";
+            drive.Message = CloudDriveLocalBackend.Explain(backend, false) + " " + CloudDriveLocalBackend.EnableHowTo;
             return Task.CompletedTask;
         }
+        if (backend == CloudDriveLocalBackend.Wsl2)
+            return StartWsl(drive);
+
         if (!probe.Elevated)
         {
-            drive.State = "error";
-            drive.Message = "Hyper-V is installed, but BNDZ is not elevated. Approve the administrator prompt and Start again. The disk slot stays at " + drive.DiskPath + ".";
+            drive.State = "stopped";
+            drive.Message = CloudDriveLocalBackend.Explain(CloudDriveLocalBackend.HyperV, false);
             return Task.CompletedTask;
         }
 
         if (!probe.RootfsPresent)
         {
-            drive.State = "error";
-            drive.Message = probe.RootfsMessage;
+            drive.State = "stopped";
+            drive.Message = string.IsNullOrWhiteSpace(probe.RootfsMessage)
+                ? "The pinned Ubuntu rootfs is not on this PC yet. Run scripts/fetch-cloud-drive-rootfs.ps1 from an administrator PowerShell."
+                : probe.RootfsMessage;
             drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
             return Task.CompletedTask;
         }
@@ -174,7 +155,8 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
                 drive.PublicKey,
                 password,
                 CloudDriveProtocols.PublicHostname(drive),
-                panel);
+                panel,
+                CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -231,8 +213,108 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
         return Task.CompletedTask;
     }
 
+    private static Task StartWsl(CloudDriveRecord drive)
+    {
+        var vhdx = string.IsNullOrWhiteSpace(drive.VhdxPath) ? null : drive.VhdxPath;
+        if (string.IsNullOrWhiteSpace(vhdx) || !File.Exists(vhdx))
+        {
+            drive.State = "stopped";
+            drive.Message = "The sealed folder is ready. WSL2 attaches an existing disk and will not create a second copy. The data disk appears after Hyper-V creates it, or when you open a folder that already has disk.vhdx.";
+            return Task.CompletedTask;
+        }
+        var wsl = FindWsl();
+        if (wsl == null)
+        {
+            drive.State = "stopped";
+            drive.Message = CloudDriveLocalBackend.Explain(CloudDriveLocalBackend.Wsl2, true) + " " + CloudDriveLocalBackend.EnableHowTo;
+            return Task.CompletedTask;
+        }
+        var listed = RunProcess(wsl, "-l -q", 15000, unicode: true);
+        var listText = listed.detail.Replace("\0", "", StringComparison.Ordinal).Trim();
+        if (!listed.ok || listText.Length == 0 || listText.Contains("no installed distributions", StringComparison.OrdinalIgnoreCase))
+        {
+            drive.State = "stopped";
+            drive.Message = "WSL2 is installed, but this PC has no Linux distribution yet. Install one, then Start again. The sealed disk was not copied.";
+            return Task.CompletedTask;
+        }
+        var mount = RunProcess(wsl, "--mount --vhd \"" + vhdx + "\" --bare", 30000, unicode: false);
+        if (!mount.ok)
+        {
+            drive.State = "stopped";
+            drive.Message = "WSL2 could not attach the sealed disk. The folder was left as it is. " + CloudDriveLocalBackend.EnableHowTo;
+            return Task.CompletedTask;
+        }
+        CloudDrivePorts.Ensure(drive);
+        drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
+        var panelUp = CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.WebDavPort, 400);
+        var share = CloudDriveProtocols.ShareUrl(drive);
+        if (panelUp)
+        {
+            drive.State = "running";
+            drive.Message = share.Length > 0
+                ? "The sealed disk is attached in WSL2 and the panel port on this PC accepted a connection. Send " + share
+                : "The sealed disk is attached in WSL2 and the panel port on this PC accepted a connection.";
+        }
+        else
+        {
+            drive.State = "stopped";
+            drive.Message = share.Length > 0
+                ? "The sealed disk is attached in WSL2. The panel is not listening on this PC yet. Send " + share + " once the guest tunnel is up."
+                : "The sealed disk is attached in WSL2. The panel is not listening on this PC yet.";
+        }
+        return Task.CompletedTask;
+    }
+
+    private static string? FindWsl()
+    {
+        var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+        var candidate = string.IsNullOrWhiteSpace(system) ? "wsl.exe" : Path.Combine(system, "wsl.exe");
+        return File.Exists(candidate) ? candidate : null;
+    }
+
+    private static (bool ok, string detail) RunProcess(string file, string args, int timeoutMs, bool unicode)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo(file, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            if (unicode)
+            {
+                psi.StandardOutputEncoding = Encoding.Unicode;
+                psi.StandardErrorEncoding = Encoding.Unicode;
+            }
+            using var proc = Process.Start(psi);
+            if (proc == null) return (false, "");
+            if (!proc.WaitForExit(timeoutMs))
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
+                return (false, "");
+            }
+            var text = (proc.StandardOutput.ReadToEnd() + "\n" + proc.StandardError.ReadToEnd()).Trim();
+            return (proc.ExitCode == 0, text);
+        }
+        catch
+        {
+            return (false, "");
+        }
+    }
+
     public Task StopAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct)
     {
+        if (string.Equals(drive.Hypervisor, CloudDriveLocalBackend.Wsl2, StringComparison.Ordinal))
+        {
+            var wsl = FindWsl();
+            if (wsl != null && !string.IsNullOrWhiteSpace(drive.VhdxPath))
+                RunProcess(wsl, "--unmount \"" + drive.VhdxPath + "\"", 15000, unicode: false);
+            drive.State = "stopped";
+            drive.Message = "WSL2 released the sealed disk. The folder is unchanged.";
+            return Task.CompletedTask;
+        }
         var probe = Probe();
         var vhdxReady = !string.IsNullOrWhiteSpace(drive.VhdxPath) && File.Exists(drive.VhdxPath);
         if (!vhdxReady || !probe.HyperV)
@@ -380,6 +462,7 @@ Write-Output ('STATE=' + $vm.State)
         FtpsPort = drive.FtpsPort,
         WebDavPort = drive.WebDavPort,
         User = string.IsNullOrWhiteSpace(drive.User) ? "bndz" : drive.User,
+        PublicSlug = drive.PublicSlug,
     };
 
     public Task<CloudDriveOp> CreateSnapshotAsync(CloudDriveRecord drive, Func<string?> readFlyToken, CancellationToken ct) =>
