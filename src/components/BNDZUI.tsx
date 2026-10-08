@@ -300,7 +300,7 @@ import { isMeshPath, buildMeshPath, MESH_ROOT, parseMeshPath } from '../lib/mesh
 import { preserveMeshOrFsPath, meshShellHere, meshDownloadSelection } from '../lib/meshFsOps';
 import { remoteUndoHonestyMessage } from '../lib/remoteMutationHint';
 import { canonicalDropPath, resolveDropRoute, resolveEntityDragPath, MESH_DROP_INBOX_DEST } from '../lib/fsPathRouting';
-import { isValidOutboundDragPath } from '../lib/pathUtils';
+import { isValidOutboundDragPath, isWslRootPanePath } from '../lib/pathUtils';
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
 import { finishCreateAndRename, dedupeListingByName } from '../lib/createItemFlow';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites, collapseKnownFolderShadowPath, orderRapidAccessItems, knownFolderDedupeKey } from '../lib/rapidAccessDefaults';
@@ -14129,6 +14129,8 @@ ${classified.detail}`,
                           : isGlobal && config.enableEverythingSearch === false
                             ? 'No results. Everything is off -- enable it in Settings or build the BNDZ index.'
                           : isGlobal ? 'No global search results.'
+                          : isWslRootPanePath(panePath)
+                            ? 'No Linux distributions found. WSL is installed but no distro is registered (or WSL is not running). Install one with "wsl --install -d Ubuntu" in a terminal, then refresh.'
                           : (config.showMessageWhenListIsEmpty !== false ? 'This folder is empty.' : '')}
                       </span>
                     </>
