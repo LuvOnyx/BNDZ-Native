@@ -92,7 +92,7 @@ export default function TrialExpiredGate({
                 Activate with license key
               </button>
               <p className="text-[10px] bndz-native-dialog-muted text-center leading-relaxed">
-                Help → Register BNDZ | Purchase at your vendor portal
+                Help → Register BNDZ | Buy a key at bndz.org/file-manager
               </p>
             </div>
           }
