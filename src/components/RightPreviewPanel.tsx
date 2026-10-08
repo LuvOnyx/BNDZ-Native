@@ -15,15 +15,16 @@ import { Icons8Icon, PopOutGlyph } from './Icons8Icon';
 import { BndzPlaque } from './BndzPlaque';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
-import TextPreviewEditor from './TextPreviewEditor';
+// Heavy preview engines (syntax highlighting, pdf.js, markdown) load on first use -- prefetched on idle.
+const TextPreviewEditor = lazy(() => import('./TextPreviewEditor'));
 const MonacoMicroEditor = lazy(() => import('./preview/MonacoMicroEditor'));
 const AudioWaveformEditor = lazy(() => import('./preview/AudioWaveformEditor'));
 import SvgVectorPreview from './SvgVectorPreview';
 import InspectionViewportRouter from '../workstation/inspection/InspectionViewportRouter';
 import type { InspectionShaderMode } from '../workstation/inspection/InspectionViewportRouter';
 import { probeWebGL } from '../workstation/webglProbe';
-import PdfPreviewPanel from './PdfPreviewPanel';
-import MarkdownPreviewPanel from './MarkdownPreviewPanel';
+const PdfPreviewPanel = lazy(() => import('./PdfPreviewPanel'));
+const MarkdownPreviewPanel = lazy(() => import('./MarkdownPreviewPanel'));
 import HtmlPreviewPanel from './HtmlPreviewPanel';
 const DocxPreviewPanel = lazy(() => import('./DocxPreviewPanel'));
 const GpuModelViewport = lazy(() => import('../workstation/inspection/GpuModelViewport'));
@@ -38,6 +39,7 @@ import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
 import PreviewMetadataStrip from './preview/PreviewMetadataStrip';
+import { prefetchWhenIdle } from '../lib/idlePrefetch';
 import { SelectionFilmstrip } from './SelectionFilmstrip';
 import BndzLensStage from './preview/BndzLensStage';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
@@ -68,7 +70,35 @@ interface RightPreviewPanelProps {
   onToast?: (message: string, tone?: 'info' | 'warning') => void;
 }
 
+/** First `k` items of `items` in `cmp` order (stable, like sort().slice(0, k)) without a full sort. */
+function firstSorted<T>(items: T[], k: number, cmp: (a: T, b: T) => number): T[] {
+  if (items.length <= k * 4) return [...items].sort(cmp).slice(0, k);
+  const top: T[] = [];
+  for (const item of items) {
+    if (top.length === k && cmp(item, top[k - 1]) >= 0) continue;
+    // Upper-bound insertion keeps equal items in input order (sort stability).
+    let lo = 0;
+    let hi = top.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cmp(item, top[mid]) < 0) hi = mid;
+      else lo = mid + 1;
+    }
+    top.splice(lo, 0, item);
+    if (top.length > k) top.pop();
+  }
+  return top;
+}
+
+/** Cached collator -- localeCompare(..., options) builds one per call (seconds on a 20k-item folder). */
+const FOLDER_PREVIEW_NAME_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' });
+
 export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview, selectionPaths, onSelectPath, onToast }: RightPreviewPanelProps) {
+  useEffect(() => {
+    // Warm the common preview engines once the panel is visible (plain text first).
+    prefetchWhenIdle('preview-text', () => import('./TextPreviewEditor'));
+    prefetchWhenIdle('preview-markdown', () => import('./MarkdownPreviewPanel'), 8000);
+  }, []);
   const { config, updateConfig } = useAppConfig();
   const [thumbnailNative, setThumbnailNative] = useState<string | null>(null);
   const [shellIcon, setShellIcon] = useState<string | null>(null);
@@ -193,28 +223,29 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              setFolderChildren([]);
            } else {
            const sortBy = String(config.folderContentsPreviewSortedBy || 'Name');
-           const sortItems = (items: any[]) => {
-             const dirsFirst = [...items].sort((a, b) => {
-               if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-               switch (sortBy) {
-                 case 'Size': return (b.size || 0) - (a.size || 0);
-                 case 'Date': return String(b.modified || '').localeCompare(String(a.modified || ''));
-                 case 'Type': return String(a.extension || '').localeCompare(String(b.extension || ''));
-                 default: return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
-               }
-             });
-             return dirsFirst;
+           const compareChildren = (a: any, b: any) => {
+             if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+             switch (sortBy) {
+               case 'Size': return (b.size || 0) - (a.size || 0);
+               case 'Date': return String(b.modified || '').localeCompare(String(a.modified || ''));
+               case 'Type': return String(a.extension || '').localeCompare(String(b.extension || ''));
+               default: return FOLDER_PREVIEW_NAME_COLLATOR.compare(String(a.name || ''), String(b.name || ''));
+             }
            };
            const applyItems = (items: any[]) => {
               if (!active || !items) return;
-              const sorted = sortItems(items);
-              const files = sorted.filter((i: any) => i.type === 'file').length;
-              const folders = sorted.filter((i: any) => i.type === 'directory').length;
-              const size = sorted.reduce((sum: number, i: any) => sum + (i.type === 'file' ? (i.size || 0) : 0), 0);
+              // One pass for the stats; only the first 48 children are shown, so pick those with a
+              // bounded insertion instead of sorting the whole folder (20k items on every focus move).
+              let files = 0;
+              let folders = 0;
+              let size = 0;
+              for (const i of items) {
+                if (i.type === 'file') { files++; size += i.size || 0; }
+                else if (i.type === 'directory') folders++;
+              }
               setFolderStats({ files, folders, size });
               setFolderChildren(
-                sorted
-                  .slice(0, 48)
+                firstSorted(items, 48, compareChildren)
                   .map((i: any) => ({ name: i.name, type: i.type, size: i.size }))
               );
            };
@@ -843,7 +874,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       // 3. Document / PDF
       if (isPdf && previewAllowed) {
-          return <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><PdfPreviewPanel url={virtualUrl} title={entity.name} /></div>;
+          return (
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col">
+              <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading document...</div>}>
+                <PdfPreviewPanel url={virtualUrl} title={entity.name} />
+              </Suspense>
+            </div>
+          );
       }
 
       // 3a. Word (.docx)
@@ -903,11 +940,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 ) : contentError ? (
                   <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 m-2 rounded">{contentError}</div>
                 ) : fileContent != null ? (
-                  <MarkdownPreviewPanel content={fileContent} />
+                  <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading markdown...</div>}>
+                    <MarkdownPreviewPanel content={fileContent} />
+                  </Suspense>
                 ) : null
               ) : (
                 fileContent != null && path ? (
-                  <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
+                  <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>}>
+                    <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
+                  </Suspense>
                 ) : (
                   <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>
                 )
@@ -942,7 +983,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 path ? <HtmlPreviewPanel path={path} title={entity.name} /> : null
               ) : (
                 fileContent != null && path ? (
-                  <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
+                  <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>}>
+                    <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
+                  </Suspense>
                 ) : (
                   <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>
                 )
@@ -967,13 +1010,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 );
               }
               return (
-                <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><TextPreviewEditor
+                <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><Suspense fallback={<div className="p-4 text-xs text-gray-400 font-mono animate-pulse">Loading text...</div>}><TextPreviewEditor
                   path={path}
                   fileName={entity.name}
                   extension={ext}
                   initialContent={fileContent}
                   displayTabsAsSpaces={previewRt.displayTabsAsSpaces}
-                /></div>
+                /></Suspense></div>
               );
           }
       }

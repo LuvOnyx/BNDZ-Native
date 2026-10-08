@@ -5,6 +5,9 @@ import { packGridTracks } from '../lib/viewModeMetrics';
 /** Trailing empty canvas so deselect / marquee / folder context stay reachable when the list is full. */
 export const LIST_FOLDER_CONTEXT_PAD_PX = 280;
 
+/** Rows rendered before the scroll parent is known (never painted; see renderBody). */
+const FIRST_PASS_ROW_CAP = 160;
+
 interface VirtualizedFileListProps<T> {
   items: T[];
   enabled?: boolean;
@@ -49,6 +52,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
     tileWidth: Math.max(1, gridMinItemWidth),
   }));
   const useVirtual = enabled && items.length >= threshold;
+  const allItems = items;
 
   // Discover the overflow scroll parent once -- never use setState in parent ref callbacks.
   useLayoutEffect(() => {
@@ -204,6 +208,11 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
 
   const renderBody = () => {
     if (!useVirtual || !scrollEl) {
+      // First commit of a virtual list: the scroll parent is discovered in a layout effect, which
+      // re-renders virtualised before the browser paints. Rendering every item here meant a
+      // 20k-file folder mounted 20k rows (and forced a layout over them) for a frame no one sees,
+      // so cap that pass to what can fill a screen.
+      const items = useVirtual ? allItems.slice(0, FIRST_PASS_ROW_CAP) : allItems;
       if (mode === 'grid') {
         return (
           <div

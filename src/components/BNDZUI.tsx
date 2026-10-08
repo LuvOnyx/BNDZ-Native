@@ -148,7 +148,8 @@ import OmnibarCommandHub from './OmnibarCommandHub';
 import { matchOmnibarCommands, looksLikeOmnibarPath } from '../lib/omnibarCommands';
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
-import MeshDropDialog from './meshdrop/MeshDropDialog';
+// Mesh Drop (LAN transfer UI + terminal log) only loads when opened.
+const MeshDropDialog = lazy(() => import('./meshdrop/MeshDropDialog'));
 import LanShareDialog from './lanshare/LanShareDialog';
 import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
@@ -179,6 +180,9 @@ import { parseCustomColumnListId, resolveCustomColumns, setCustomColumnEnabled }
 import { invalidateExtendedMetadata, prefetchExtendedMetadataBatch } from '../lib/extendedMetadataCache';
 import { hideFloatingTooltip, getFloatingTooltip, isShiftKeyHeld, subscribeShiftKey, getHoverPending, subscribeFloatingTooltip } from '../lib/floatingTooltip';
 import { registerEscapeLayer } from '../lib/globalEscape';
+import { prefetchWhenIdle } from '../lib/idlePrefetch';
+import { selectedIdFilter } from '../lib/selectedIdFilter';
+import { beginNavTiming, bootMark } from '../lib/perfMarks';
 import FloatingTooltipHost from './FloatingTooltipHost';
 import LicenseBanner from './LicenseBanner';
 import TrialExpiredGate from './TrialExpiredGate';
@@ -214,15 +218,18 @@ import { JobTicketOverdueBadge } from './preview/JobTicketPanel';
 import SearchToolbar, { type SearchScope, type SearchKindFilter } from '../spacedrive/port/SearchToolbar';
 import FolderSizeTreemap from './views/FolderSizeTreemap';
 import FolderSizeListView from './views/FolderSizeListView';
-import SizeView from '../spacedrive/port/SizeView';
+// Bubble size view pulls the full d3 bundle -- load only when that visualisation is picked.
+const SizeView = lazy(() => import('../spacedrive/port/SizeView'));
 import FindingTabToolbar from './FindingTabToolbar';
 import BndzMediaView from './views/BndzMediaView';
 import BndzHubView from './views/BndzHubView';
 import BndzHomeView from './views/BndzHomeView';
-import BndzSpatialCanvasView from './views/BndzSpatialCanvasView';
-import BndzAutomationView from './views/BndzAutomationView';
-import BndzTwinVolumeChessView from './views/BndzTwinVolumeChessView';
-import BndzTemporalDiffView from './views/BndzTemporalDiffView';
+// Workspace tools load on first visit (Spatial Canvas pulls fabric-style canvas code; Automation
+// pulls @xyflow). Keeps them off the cold-start bundle; prefetched on idle after first paint.
+const BndzSpatialCanvasView = lazy(() => import('./views/BndzSpatialCanvasView'));
+const BndzAutomationView = lazy(() => import('./views/BndzAutomationView'));
+const BndzTwinVolumeChessView = lazy(() => import('./views/BndzTwinVolumeChessView'));
+const BndzTemporalDiffView = lazy(() => import('./views/BndzTemporalDiffView'));
 import BndzRecentsView from './views/BndzRecentsView';
 import BndzIndexEmptyState from './views/BndzIndexEmptyState';
 import { isPortableDeviceReadOnly } from '../lib/portablePaths';
@@ -232,7 +239,8 @@ import { useLiveShareCursor, isPathInPeerSelection } from '../lib/liveShareCurso
 import { initAdaptiveListDensity, onAdaptiveListScroll, onAdaptiveListFocus } from '../lib/adaptiveListDensity';
 import { useJobTicketOverdueMap } from '../lib/useJobTicketOverdueMap';
 import { useHealthProblemMap, HEALTH_BADGE_COLORS } from '../lib/useHealthProblemMap';
-import BndzQuickPreview from './preview/BndzQuickPreview';
+// Quick Look (Space) carries PDF / Markdown / syntax highlighting -- loaded on idle, mounted on first open.
+const BndzQuickPreview = lazy(() => import('./preview/BndzQuickPreview'));
 import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
 import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
@@ -318,6 +326,7 @@ import {
   evaluateColorFilter,
   filterListEntities,
   sortEntities,
+  listSortConfigSignature,
   wrapListIndex,
   getDisplayName,
   getRenameInitialValue,
@@ -836,7 +845,28 @@ export default function BNDZUI() {
   // Launch Ready A1: no sidebar RAM/Ghost tree chrome -- zones only used to hide mount letters from This PC.
   const [sidebarRamZones, setSidebarRamZones] = useState<{ id: string; name: string; isDirty?: boolean; driveLetter?: string }[]>([]);
   const lastFolderIntentRef = useRef<string>('');
+  /** Sorted-list memo for renderPane, keyed by the unsorted contents array (see renderPane). */
+  const paneSortMemoRef = useRef(new WeakMap<object, {
+    config: unknown;
+    configSig: string;
+    sortColumn: unknown;
+    sortDirection: unknown;
+    sizeSource: unknown;
+    panePath: string;
+    length: number;
+    sorted: any[];
+  }>());
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
+  // Quick Look mounts on first open and then stays warm (instant Space afterwards).
+  const [quickPreviewMountedSticky, setQuickPreviewMountedSticky] = useState(false);
+  const quickPreviewMounted = quickPreviewMountedSticky || quickPreviewOpen;
+  useEffect(() => {
+    if (quickPreviewOpen && !quickPreviewMountedSticky) setQuickPreviewMountedSticky(true);
+  }, [quickPreviewOpen, quickPreviewMountedSticky]);
+  useEffect(() => {
+    bootMark('fe-first-render');
+    prefetchWhenIdle('quick-look', () => import('./preview/BndzQuickPreview'), 6000);
+  }, []);
   const quickPreviewOpenRef = useRef(false);
   const openQuickPreviewRef = useRef<((startIndex?: number) => void) | null>(null);
   useEffect(() => { quickPreviewOpenRef.current = quickPreviewOpen; }, [quickPreviewOpen]);
@@ -2144,18 +2174,27 @@ export default function BNDZUI() {
       // early soft-refresh used to wipe them and leave a blank until manual F5.
       const mergeOptimistic = (server: any[]): any[] => {
         const now = Date.now();
+        const normPath = normalizePanePath(path);
+        // Optimistic / just-pasted rows by lower-case name, built once. (A per-row
+        // existing.find() here was O(n^2): ~400M string compares on a 20k-file refresh.)
+        const priorFlagged = new Map<string, any>();
+        if (existing?.length) {
+          for (const x of existing) {
+            if (!(x?.__recentPaste || x?.__optimisticDrop)) continue;
+            const k = String(x?.name || '').toLowerCase();
+            if (!priorFlagged.has(k)) priorFlagged.set(k, x);
+          }
+        }
         const stampRecent = (rows: any[]): any[] => rows.map((e: any) => {
-          const key = `${normalizePanePath(path)}::${String(e?.name || '').toLowerCase()}`;
-          const until = recentPasteUntilRef.current.get(key);
+          const lowerName = String(e?.name || '').toLowerCase();
+          const key = `${normPath}::${lowerName}`;
+          const until = recentPasteUntilRef.current.size ? recentPasteUntilRef.current.get(key) : undefined;
           if (until && until > now) {
             return { ...e, __recentPaste: true };
           }
           if (until && until <= now) recentPasteUntilRef.current.delete(key);
           // Preserve flash flag from optimistic row when server catches up.
-          const prior = existing?.find((x: any) =>
-            String(x?.name || '').toLowerCase() === String(e?.name || '').toLowerCase()
-            && (x?.__recentPaste || x?.__optimisticDrop),
-          );
+          const prior = priorFlagged.size ? priorFlagged.get(lowerName) : undefined;
           if (prior?.__recentPaste) return { ...e, __recentPaste: true };
           if (!e?.__optimisticDrop && !e?.__provisionalFs) return e;
           const { __optimisticDrop, __provisionalFs, ...rest } = e;
@@ -2195,8 +2234,16 @@ export default function BNDZUI() {
       if (config.addNewItemsAtTheEndOfTheList && existing?.length && filtered?.length) {
         const existingIds = new Set(existing.map((e: any) => e.id || e.name));
         const existingNames = new Set(existing.map((e: any) => e.name));
+        // Set lookups instead of filtered.some() per row (was O(n^2) on big folders).
+        const serverIds = new Set<any>();
+        const serverNames = new Set<any>();
+        for (const n of filtered) {
+          if (n.id) serverIds.add(n.id);
+          serverNames.add(n.name);
+        }
+        const onServer = (e: any) => (e.id != null && serverIds.has(e.id)) || serverNames.has(e.name);
         const kept = existing.filter((e: any) =>
-          filtered.some((n: any) => (n.id && n.id === e.id) || n.name === e.name)
+          onServer(e)
           || e?.__optimisticDrop
           || e?.__provisionalFs,
         );
@@ -2205,11 +2252,9 @@ export default function BNDZUI() {
         );
         const pendingOnly = kept.filter((e: any) =>
           (e?.__optimisticDrop || e?.__provisionalFs)
-          && !filtered.some((n: any) => n.name === e.name),
+          && !serverNames.has(e.name),
         );
-        const confirmed = kept.filter((e: any) =>
-          filtered.some((n: any) => (n.id && n.id === e.id) || n.name === e.name),
-        );
+        const confirmed = kept.filter((e: any) => onServer(e));
         return commit(setPathCacheEntry(prev, path, [...confirmed, ...added, ...pendingOnly]));
       }
       return commit(setPathCacheEntry(prev, path, mergeOptimistic(filtered || [])));
@@ -2569,6 +2614,7 @@ export default function BNDZUI() {
     // Successful empties are cached as []; failed fetches must NOT stamp sticky [].
     if (!opts?.force && pathContentsCacheRef.current[path] !== undefined) {
       const cached = pathContentsCacheRef.current[path];
+      if (Array.isArray(cached)) beginNavTiming(path, 'cache')(cached.length);
       if (Array.isArray(cached) && cached.length > 0) {
         prefetchListingVisuals(cached, path, listingPrefetchFromConfig(configRef.current));
       }
@@ -2610,10 +2656,12 @@ export default function BNDZUI() {
         return next;
       });
 
+      const navDone = beginNavTiming(path, 'fetch');
       return IPC.getDirContents(path).then(data => {
         const normalized = normalizeDirEntries(data);
         filesFedPathsRef.current.add(path);
         cachePathContents(path, normalized, { retainLarger: true });
+        navDone(normalized.length);
         resolveFilesHostListingWaiters(path);
         setPathLoadErrors((prev) => {
           if (!(path in prev)) return prev;
@@ -4237,7 +4285,7 @@ export default function BNDZUI() {
           if (tab && tab.selectedItems.length > 0) {
                  const norm = normalizePanePath(tab.path);
                  const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || [];
-                 const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id)).map((x: any) => ({
+                 const selectedEntities = dirContents.filter(selectedIdFilter(tab.selectedItems)).map((x: any) => ({
                     id: x.id,
                     name: x.name,
                     path: x.path || undefined,
@@ -4263,7 +4311,7 @@ export default function BNDZUI() {
           if (tab) {
             const norm = normalizePanePath(tab.path);
             const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || [];
-            const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+            const selectedEntities = dirContents.filter(selectedIdFilter(tab.selectedItems));
             const dest = resolvePasteDestination(config, tab.path, selectedEntities);
             void executePaste(dest);
           }
@@ -4389,7 +4437,7 @@ export default function BNDZUI() {
              if (tab.selectedItems.length > 0) {
                const norm = normalizePanePath(tab.path);
                const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || [];
-               const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+               const selectedEntities = dirContents.filter(selectedIdFilter(tab.selectedItems));
                if (selectedEntities.length > 0) {
                  handleDeleteRequestRef.current(selectedEntities, tab.path, focusedItemId === 'TREE', { permanent: e.shiftKey });
                }
@@ -5912,7 +5960,7 @@ ${classified.detail}`,
     const activeItems = pathContentsCache[aTab.path] || [];
     const selectedNames = new Set(
       activeItems
-        .filter((x: any) => aTab.selectedItems.includes(x.id))
+        .filter(selectedIdFilter(aTab.selectedItems))
         .map((x: any) => String(x.name || '').toLowerCase()),
     );
     if (!selectedNames.size) return;
@@ -5973,7 +6021,7 @@ ${classified.detail}`,
   const selectionSummaryLine = useMemo(() => {
     if (!activeTab.selectedItems?.length) return '';
     const items = pathContentsCache[currentPath] || [];
-    const selected = items.filter((x: any) => activeTab.selectedItems.includes(x.id));
+    const selected = items.filter(selectedIdFilter(activeTab.selectedItems));
     if (!selected.length) return '';
     return formatSelectionSummaryLine(summarizeSelection(selected), formatSize);
   }, [activeTab.selectedItems, currentPath, pathContentsCache]);
@@ -7559,7 +7607,7 @@ ${classified.detail}`,
         if (!ap) return;
         const tab = ap.tabs[ap.activeTabIndex];
         const contents = getCachedPaneContents(tab.path);
-        const selected = contents.filter((x: any) => tab.selectedItems.includes(x.id));
+        const selected = contents.filter(selectedIdFilter(tab.selectedItems));
         const target = selected.length > 0
           ? selected.map((s: any) => toWindowsPath(joinPanePath(tab.path, s))).join('\n')
           : toWindowsPath(tab.path);
@@ -8304,7 +8352,7 @@ ${classified.detail}`,
   const getMenuSelectedEntities = () => {
     const tab = currentTab;
     const dirContents = getCachedPaneContents(tab.path);
-    const selected = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+    const selected = dirContents.filter(selectedIdFilter(tab.selectedItems));
     if (selected.length) return selected;
     if (focusedItemId) {
       const focused = dirContents.find((x: any) => x.id === focusedItemId)
@@ -10641,6 +10689,29 @@ ${classified.detail}`,
     });
   };
 
+  /**
+   * filterListEntities + sortEntities, memoised per unsorted contents array (paneSortMemoRef).
+   * renderPane runs on every BNDZUI render and arrow-key handlers re-read the sorted list, so a
+   * 20k-item folder must not be re-sorted unless its contents, config or sort actually changed.
+   */
+  const sortListCached = (source: any[], sortColumn: unknown, sortDirection: unknown, panePath: string): any[] => {
+    const memo = paneSortMemoRef.current.get(source);
+    const configSig = memo && memo.config === config ? memo.configSig : listSortConfigSignature(config);
+    if (memo && memo.configSig === configSig && memo.sortColumn === sortColumn && memo.sortDirection === sortDirection
+      && memo.sizeSource === resolveEntityByteSize && memo.panePath === panePath && memo.length === source.length) {
+      return memo.sorted;
+    }
+    const sorted = sortEntities(filterListEntities(source, config), config, {
+      sortColumn: sortColumn as any,
+      sortDirection: sortDirection as any,
+      getByteSize: (entity) => resolveEntityByteSize(entity, panePath),
+    });
+    paneSortMemoRef.current.set(source, {
+      config, configSig, sortColumn, sortDirection, sizeSource: resolveEntityByteSize, panePath, length: source.length, sorted,
+    });
+    return sorted;
+  };
+
   const getSortedContentsForActivePane = React.useCallback(() => {
     const pane = panes.find(p => p.id === activePaneId);
     if (!pane) return [] as any[];
@@ -10706,11 +10777,7 @@ ${classified.detail}`,
     }
 
 
-    return sortEntities(filterListEntities(contents, config), config, {
-      sortColumn: pane.sortColumn,
-      sortDirection: pane.sortDirection,
-      getByteSize: (entity) => resolveEntityByteSize(entity, panePath),
-    });
+    return sortListCached(contents, pane.sortColumn, pane.sortDirection, panePath);
   }, [panes, activePaneId, pathContentsCache, drives, config, filterText, debouncedFilterText, globalSearchResults, resolveEntityByteSize, libraryListEntities]);
 
   const goUp = (paneId: string = activePaneId) => {
@@ -11181,7 +11248,7 @@ ${classified.detail}`,
              if (tab.selectedItems.length > 0) {
                  const norm = normalizePanePath(tab.path);
                  const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || getSortedContentsForActivePane() || [];
-                 const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                 const selectedEntities = dirContents.filter(selectedIdFilter(tab.selectedItems));
                  if (selectedEntities.length > 0) {
                      handleDeleteRequestRef.current(selectedEntities, tab.path, focusedItemId === 'TREE', { permanent: e.shiftKey });
                  }
@@ -11199,7 +11266,7 @@ ${classified.detail}`,
       if (!tab.selectedItems.length) return;
       const norm = normalizePanePath(tab.path);
       const dirContents = pathContentsCache[tab.path] || pathContentsCache[norm] || getSortedContentsForActivePane() || [];
-      const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+      const selectedEntities = dirContents.filter(selectedIdFilter(tab.selectedItems));
       if (selectedEntities.length > 0) {
         handleDeleteRequest(selectedEntities, tab.path, focusedItemId === 'TREE', { permanent: e.shiftKey });
       }
@@ -11258,7 +11325,9 @@ ${classified.detail}`,
         : safeGetDirContents(fileSystem, currentPath);
     if (isGlobal) activeContents = globalSearchResults || [];
     
-    const activeFilesMap = activeContents?.filter(c => activeTab.selectedItems.includes(c.id)) || [];
+    // Set lookup: includes() per row was O(rows x selected) -- Ctrl+A in a 20k folder = 400M checks per render.
+    const activeSelectedIdSet = activeTab.selectedItems.length ? new Set(activeTab.selectedItems) : null;
+    const activeFilesMap = (activeSelectedIdSet && activeContents?.filter(c => activeSelectedIdSet.has(c.id))) || [];
 
   const paletteActions = useMemo(() => {
     const base = buildDefaultPaletteActions({
@@ -11436,24 +11505,12 @@ ${classified.detail}`,
     }
 
     if (contents) {
-        contents = sortEntities(filterListEntities(contents, config), {
-          ...config,
-          keepFoldersOnTop: config.keepFoldersOnTop,
-          sortFoldersApart: config.sortFoldersApart,
-          sortFilenamesByBase: config.sortFilenamesByBase,
-          sortMethod: config.sortMethod,
-          sortFoldersAlwaysAscending: config.sortFoldersAlwaysAscending,
-          defaultToTreeLikeSortOrder: config.defaultToTreeLikeSortOrder,
-          onSortingKeepTaggedItemsOnTop: config.onSortingKeepTaggedItemsOnTop,
-          mixedSortOnDateColumns: config.mixedSortOnDateColumns,
-          mixedSortOnTagColumns: config.mixedSortOnTagColumns,
-          mixedSortOnPathColumns: config.mixedSortOnPathColumns,
-          treatHyphensAndApostrophesLikeNormalCharacters: config.treatHyphensAndApostrophesLikeNormalCharacters,
-        }, {
-            sortColumn: (config.rememberListSettingsPerTab && currentTab.sortColumn) || pane.sortColumn,
-            sortDirection: (config.rememberListSettingsPerTab && currentTab.sortDirection) || pane.sortDirection,
-            getByteSize: (entity) => resolveEntityByteSize(entity, panePath),
-        });
+        // renderPane runs on every BNDZUI render (hover, selection, timers...). Re-filtering and
+        // re-sorting a 20k-item folder each time is what made big folders feel sticky, so the
+        // sorted list is memoised on the exact inputs (same array, config, sort, size source).
+        const sortColumn = (config.rememberListSettingsPerTab && currentTab.sortColumn) || pane.sortColumn;
+        const sortDirection = (config.rememberListSettingsPerTab && currentTab.sortDirection) || pane.sortDirection;
+        contents = sortListCached(contents, sortColumn, sortDirection, panePath);
     }
 
     const listGroupBy: ListGroupBy = isSemanticDeskActive()
@@ -13725,6 +13782,7 @@ ${classified.detail}`,
             />
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzCanvasPath(normPanePath) && (
+            <Suspense fallback={null}>
             <BndzSpatialCanvasView
               onNavigate={p => setCurrentPath(p, pane.id)}
               onOpenPath={p => {
@@ -13732,14 +13790,16 @@ ${classified.detail}`,
                 void IPC.executeContextMenuVerb(toWindowsPath(panePathNorm), 'open');
               }}
             />
+            </Suspense>
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzAutomationPath(normPanePath) && (
-            <BndzAutomationView />
+            <Suspense fallback={null}><BndzAutomationView /></Suspense>
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzTwinVolumePath(normPanePath) && (
-            <BndzTwinVolumeChessView />
+            <Suspense fallback={null}><BndzTwinVolumeChessView /></Suspense>
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzTemporalDiffPath(normPanePath) && (
+            <Suspense fallback={null}>
             <BndzTemporalDiffView
               watchFolder={(() => {
                 const ap = panes.find(p => p.id === activePaneId);
@@ -13749,6 +13809,7 @@ ${classified.detail}`,
               })()}
               onNavigate={p => setCurrentPath(p, pane.id)}
             />
+            </Suspense>
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && normPanePath === BNDZ_VIEWS_ROOT && (
             <BndzHubView
@@ -13795,7 +13856,9 @@ ${classified.detail}`,
               if (viz === 'bubbles') {
                 return (
                   <div className="h-full min-h-0 p-2">
-                    <SizeView items={sizeItems} onNavigate={p => setCurrentPath(p, pane.id)} onScanFolderSizes={onScanSizes} />
+                    <Suspense fallback={null}>
+                      <SizeView items={sizeItems} onNavigate={p => setCurrentPath(p, pane.id)} onScanFolderSizes={onScanSizes} />
+                    </Suspense>
                   </div>
                 );
               }
@@ -14257,29 +14320,39 @@ ${classified.detail}`,
     return joinPanePath(currentTab.path, previewEntity);
   }, [previewEntity, currentTab.path]);
 
+  // Whole-folder Quick Look list depends only on the folder, not on the selection, so arrow-key
+  // focus moves in a 20k-item folder no longer rebuild 20k path records each step.
+  const folderQuickPreviewItems = useMemo(() => {
+    if (!activeContents) return [] as Array<{ entity: any; path: string }>;
+    return activeContents.map((ent: any) => ({
+      entity: ent,
+      path: ent.path ? toPanePath(ent.path) : joinPanePath(currentTab.path, ent),
+    }));
+  }, [activeContents, currentTab.path]);
+
   const quickPreviewItems = useMemo(() => {
     if (!activeContents) return [];
-    const toItem = (ent: any) => {
-      const p = ent.path ? toPanePath(ent.path) : joinPanePath(currentTab.path, ent);
-      return { entity: ent, path: p };
-    };
     // With 2+ items explicitly selected, Quick Look browses just that selection.
     // With 0 or 1 selected (the common case -- Space on a single file), browse the
     // whole folder like macOS Quick Look / Explorer preview do, so arrow keys can
     // page through every file in the folder, not just the one item you started on.
     if (currentTab.selectedItems.length > 1) {
+      // Index by id once (select-all in a 20k folder made the old per-id find() O(n^2)).
+      const byId = new Map<any, { entity: any; path: string }>();
+      for (const it of folderQuickPreviewItems) {
+        if (!byId.has(it.entity?.id)) byId.set(it.entity?.id, it);
+      }
       return currentTab.selectedItems
-        .map(id => activeContents.find((c: any) => c.id === id))
-        .filter(Boolean)
-        .map(toItem);
+        .map(id => byId.get(id))
+        .filter(Boolean) as Array<{ entity: any; path: string }>;
     }
     const anchorId =
       (focusedItemId && currentTab.selectedItems.includes(focusedItemId))
         ? focusedItemId
         : (currentTab.selectedItems[0] || focusedItemId);
     if (!anchorId) return [];
-    return activeContents.map(toItem);
-  }, [currentTab.selectedItems, focusedItemId, activeContents, currentTab.path]);
+    return folderQuickPreviewItems;
+  }, [currentTab.selectedItems, focusedItemId, activeContents, folderQuickPreviewItems]);
 
   const quickPreviewStartIndex = useMemo(() => {
     if (currentTab.selectedItems.length > 1) return 0;
@@ -14975,7 +15048,7 @@ ${classified.detail}`,
                       const tab = currentTab;
                       if (tab.selectedItems.length > 0) {
                         const dirContents = pathContentsCache[tab.path] || pathContentsCache[normalizePanePath(tab.path)] || [];
-                        const entities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                        const entities = dirContents.filter(selectedIdFilter(tab.selectedItems));
                         if (entities.length > 0) handleDeleteRequest(entities, tab.path);
                       } else setToastMessage('Select item(s) to delete.');
                     })}><Icons8Icon id="delete" size={14} /> Delete <span className="ml-auto text-[10px] text-gray-500">Del</span></div>
@@ -15243,7 +15316,7 @@ ${classified.detail}`,
                       const tab = currentTab;
                       if (tab.selectedItems.length > 0) {
                         const dirContents = pathContentsCache[tab.path] || pathContentsCache[normalizePanePath(tab.path)] || [];
-                        const entities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                        const entities = dirContents.filter(selectedIdFilter(tab.selectedItems));
                         if (entities.length > 0) handleDeleteRequest(entities, tab.path);
                       } else setToastMessage('Select item(s) to delete.');
                     })}><Icons8Icon id="delete" size={14} /> Delete Selected</div>
@@ -16104,7 +16177,7 @@ ${classified.detail}`,
                                const tab = resolvePaneTab(ap);
                                if (tab && tab.selectedItems.length > 0) {
                                    const dirContents = getCachedPaneContents(tab.path);
-                                   const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                                   const selectedEntities = dirContents.filter(selectedIdFilter(tab.selectedItems));
                                    if (selectedEntities.length > 0) {
                                        setClipboardState(
                                          selectedEntities.map((ent: any) => joinPanePath(tab.path, ent)),
@@ -16126,7 +16199,7 @@ ${classified.detail}`,
                               const delTab = resolvePaneTab(activePaneForBtn);
                               if (delTab && delTab.selectedItems.length > 0) {
                                   const dirContents = getCachedPaneContents(delTab.path);
-                                  const selectedEntities = dirContents.filter((x: any) => delTab.selectedItems.includes(x.id));
+                                  const selectedEntities = dirContents.filter(selectedIdFilter(delTab.selectedItems));
                                   if (selectedEntities.length > 0) {
                                       handleDeleteRequest(selectedEntities, delTab.path);
                                   }
@@ -16188,7 +16261,7 @@ ${classified.detail}`,
                                if (ap) {
                                    const tab = ap.tabs[ap.activeTabIndex];
                                    const contents = getCachedPaneContents(tab.path);
-                                   const selected = contents.filter((x: any) => tab.selectedItems.includes(x.id));
+                                   const selected = contents.filter(selectedIdFilter(tab.selectedItems));
                                    const target = selected.length > 0
                                        ? selected.map((s: any) => toWindowsPath(joinPanePath(tab.path, s))).join('\n')
                                        : toWindowsPath(tab.path);
@@ -16409,7 +16482,7 @@ ${classified.detail}`,
             installedPlugins: Array.isArray(config.installedPlugins) ? config.installedPlugins : [],
             onQuickLook: () => openQuickPreview(),
             onCopy: () => {
-              const selectedEntities = activeContents?.filter((x: any) => activeTab.selectedItems.includes(x.id)) || [];
+              const selectedEntities = activeContents?.filter(selectedIdFilter(activeTab.selectedItems)) || [];
               if (selectedEntities.length) {
                 setClipboardState(
                   selectedEntities.map((ent: any) => joinPanePath(currentPath, ent)),
@@ -16418,7 +16491,7 @@ ${classified.detail}`,
               }
             },
             onCut: () => {
-              const selectedEntities = activeContents?.filter((x: any) => activeTab.selectedItems.includes(x.id)) || [];
+              const selectedEntities = activeContents?.filter(selectedIdFilter(activeTab.selectedItems)) || [];
               if (selectedEntities.length) {
                 setClipboardState(
                   selectedEntities.map((ent: any) => joinPanePath(currentPath, ent)),
@@ -16428,7 +16501,7 @@ ${classified.detail}`,
             },
             onPaste: () => { void pasteIntoActivePane(); },
             onDelete: () => {
-              const selectedEntities = activeContents?.filter((x: any) => activeTab.selectedItems.includes(x.id)) || [];
+              const selectedEntities = activeContents?.filter(selectedIdFilter(activeTab.selectedItems)) || [];
               if (selectedEntities.length) handleDeleteRequest(selectedEntities, currentPath);
             },
             onCopyPath: () => {
@@ -17527,11 +17600,13 @@ ${classified.detail}`,
           />
         )}
         {showMeshDropDialog && (
+          <Suspense key="mesh-drop" fallback={null}>
           <MeshDropDialog
             paths={meshDropPaths}
             initialMode={meshDropInitialMode}
             onClose={() => { setShowMeshDropDialog(false); setMeshDropPaths([]); setMeshDropInitialMode('host'); }}
           />
+          </Suspense>
         )}
       </AnimatePresence>
       {isPluginStoreOpen && (
@@ -17947,6 +18022,8 @@ ${classified.detail}`,
           setQuickPreviewStudio(false);
         }}
       >
+      {quickPreviewMounted && (
+      <Suspense fallback={null}>
       <BndzQuickPreview
         open={quickPreviewOpen && ((homeQuickPreview?.items?.length ?? 0) > 0 || quickPreviewItems.length > 0)}
         items={homeQuickPreview?.items?.length ? homeQuickPreview.items : quickPreviewItems}
@@ -17971,6 +18048,8 @@ ${classified.detail}`,
         onNavigate={p => setCurrentPath(p)}
         startInStudioEdit={quickPreviewStudio}
       />
+      </Suspense>
+      )}
       </BndzErrorBoundary>
       <CommandPalette 
           isOpen={isCommandPaletteOpen} 
@@ -17991,7 +18070,7 @@ ${classified.detail}`,
                   const key = resolveTagKey(tag);
                   if (!key || !currentTab.selectedItems.length) return false;
                   const items = pathContentsCache[normalizePanePath(currentPath)] || [];
-                  const selected = items.filter((x: any) => currentTab.selectedItems.includes(x.id));
+                  const selected = items.filter(selectedIdFilter(currentTab.selectedItems));
                   return selected.length > 0 && selected.every((x: any) => entityHasTag((x as any).tags, key));
                 }}
               />

@@ -268,11 +268,35 @@ function sortKeyName(name: string, config: AppConfig): string {
   return dot > 0 ? name.substring(0, dot) : name;
 }
 
+/*
+ * Collators are built once and reused. `a.localeCompare(b, undefined, options)` constructs an ICU
+ * collator on every call: sorting a 20k-file folder took ~1 s in Chromium that way versus ~60 ms
+ * with a cached Intl.Collator. Results are identical (localeCompare is specified in terms of
+ * Intl.Collator).
+ */
+const collatorCache = new Map<string, Intl.Collator>();
+function getCollator(numeric: boolean, sensitivity?: Intl.CollatorOptions['sensitivity']): Intl.Collator {
+  const key = `${numeric ? 'n' : '-'}:${sensitivity ?? 'default'}`;
+  let c = collatorCache.get(key);
+  if (!c) {
+    const opts: Intl.CollatorOptions = {};
+    if (numeric) opts.numeric = true;
+    if (sensitivity) opts.sensitivity = sensitivity;
+    c = numeric || sensitivity ? new Intl.Collator(undefined, opts) : new Intl.Collator();
+    collatorCache.set(key, c);
+  }
+  return c;
+}
+/** Same result as `a.localeCompare(b)`. */
+const plainCompare = (a: string, b: string) => getCollator(false).compare(a, b);
+/** Same result as `baseCompare(a, b)`. */
+const baseCompare = (a: string, b: string) => getCollator(false, 'base').compare(a, b);
+
 function naturalCompare(a: string, b: string, config: AppConfig): number {
   const sa = sortKeyName(a || '', config);
   const sb = sortKeyName(b || '', config);
   const sensitivity = config.treatHyphensAndApostrophesLikeNormalCharacters ? 'variant' : 'base';
-  return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: sensitivity as Intl.CollatorOptions['sensitivity'] });
+  return getCollator(true, sensitivity).compare(sa, sb);
 }
 
 /** Stable sort key for FS entities (shell folders may omit `name`) */
@@ -323,134 +347,178 @@ export function compareEntities(
   config: AppConfig,
   pane?: PaneSortState
 ): number {
+  return createEntityComparator(config, pane)(a, b);
+}
+
+/**
+ * Comparator with everything that does not depend on the two items resolved once (settings
+ * runtime, sort column/direction, collators) and per-item date parses memoised -- a 20k-item
+ * sort makes ~300k comparisons.
+ */
+export function createEntityComparator(config: AppConfig, pane?: PaneSortState): (a: any, b: any) => number {
   const rt = buildSettingsRuntime(config);
-
-  if (config.onSortingKeepTaggedItemsOnTop) {
-    const tagsA = (a.tags?.length ?? 0) > 0 ? 1 : 0;
-    const tagsB = (b.tags?.length ?? 0) > 0 ? 1 : 0;
-    if (tagsA !== tagsB) return tagsB - tagsA;
-  }
-
-  if (rt.sort.foldersFirst || config.sortFoldersApart || config.defaultToTreeLikeSortOrder) {
-    const dirA = a.type === 'directory' ? -1 : 1;
-    const dirB = b.type === 'directory' ? -1 : 1;
-    if (dirA !== dirB) return dirA - dirB;
-  }
-
+  const keepTaggedOnTop = !!config.onSortingKeepTaggedItemsOnTop;
+  const foldersApart = !!(rt.sort.foldersFirst || config.sortFoldersApart || config.defaultToTreeLikeSortOrder);
   const col = resolveSortColumn(config, pane);
   const dir = resolveSortDirection(col, pane?.sortDirection, config);
   const mul = dir === 'desc' ? -1 : 1;
+  const method = rt.sort.method;
+  const naturalCollator = getCollator(true, config.treatHyphensAndApostrophesLikeNormalCharacters ? 'variant' : 'base');
+  const nat = (x: string, y: string) =>
+    naturalCollator.compare(sortKeyName(x || '', config), sortKeyName(y || '', config));
+  // Only one date column is ever compared per comparator, so one memo per entity is enough.
+  const dateCache = new Map<any, number>();
+  const dateMs = (entity: any, field: 'modified' | 'created'): number => {
+    let ms = dateCache.get(entity);
+    if (ms === undefined) {
+      ms = new Date(entity[field]).getTime() || 0;
+      dateCache.set(entity, ms);
+    }
+    return ms;
+  };
 
-  if (col === 'name') {
-    const method = rt.sort.method;
-    const nameA = entitySortName(a);
-    const nameB = entitySortName(b);
-    if (method === 'Alphabetical') return mul * nameA.localeCompare(nameB);
-    return mul * naturalCompare(nameA, nameB, config);
-  }
-  if (col === 'type') {
-    const typeA = a.driveInfo?.type || a.driveInfo?.format || a.extension || (a.type === 'directory' ? 'folder' : '');
-    const typeB = b.driveInfo?.type || b.driveInfo?.format || b.extension || (b.type === 'directory' ? 'folder' : '');
-    return mul * String(typeA).localeCompare(String(typeB));
-  }
-  if (col === 'size') {
-    const sizeA = pane?.getByteSize ? pane.getByteSize(a) : (a.size || 0);
-    const sizeB = pane?.getByteSize ? pane.getByteSize(b) : (b.size || 0);
-    if (sizeA !== sizeB) return mul * (sizeA - sizeB);
-    // Stable tie-break by name so equal/unknown folder sizes still reorder predictably.
-    return mul * naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'modified') {
-    if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
-    if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
-    return mul * ((new Date(a.modified).getTime() || 0) - (new Date(b.modified).getTime() || 0));
-  }
-  if (col === 'created') {
-    if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
-    if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
-    return mul * ((new Date(a.created).getTime() || 0) - (new Date(b.created).getTime() || 0));
-  }
-  if (col === 'tags') {
-    const tagA = (Array.isArray(a.tags) ? a.tags : []).filter(Boolean).join('\0');
-    const tagB = (Array.isArray(b.tags) ? b.tags : []).filter(Boolean).join('\0');
-    if (config.mixedSortOnTagColumns) {
-      if (a.type === 'directory' && b.type !== 'directory') return -1;
-      if (b.type === 'directory' && a.type !== 'directory') return 1;
+  return (a: any, b: any): number => {
+    if (keepTaggedOnTop) {
+      const tagsA = (a.tags?.length ?? 0) > 0 ? 1 : 0;
+      const tagsB = (b.tags?.length ?? 0) > 0 ? 1 : 0;
+      if (tagsA !== tagsB) return tagsB - tagsA;
     }
-    // Both untagged: keep current relative order (do not reshuffle by name asc/desc).
-    if (!tagA && !tagB) return 0;
-    // Untagged after tagged when ascending; reverse when descending.
-    if (!tagA || !tagB) {
-      if (!tagA) return mul;
-      return -mul;
+
+    if (foldersApart) {
+      const dirA = a.type === 'directory' ? -1 : 1;
+      const dirB = b.type === 'directory' ? -1 : 1;
+      if (dirA !== dirB) return dirA - dirB;
     }
-    const cmp = tagA.localeCompare(tagB);
-    if (cmp !== 0) return mul * cmp;
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'ghostState') {
-    const gA = a.isGhostLink ? 1 : 0;
-    const gB = b.isGhostLink ? 1 : 0;
-    if (gA !== gB) return mul * (gA - gB);
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'ramZone') {
-    const zA = String(a.ramZoneId || a.ramZone || '');
-    const zB = String(b.ramZoneId || b.ramZone || '');
-    const cmp = zA.localeCompare(zB);
-    if (cmp !== 0) return mul * cmp;
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'cloudStatus') {
-    const cloudA = String(a.cloudStatus || '').toLowerCase();
-    const cloudB = String(b.cloudStatus || '').toLowerCase();
-    // Empty (local / non-cloud) after labeled statuses when ascending.
-    if (!cloudA && !cloudB) return naturalCompare(entitySortName(a), entitySortName(b), config);
-    if (!cloudA || !cloudB) {
-      if (!cloudA) return mul;
-      return -mul;
+
+    if (col === 'name') {
+      const nameA = entitySortName(a);
+      const nameB = entitySortName(b);
+      if (method === 'Alphabetical') return mul * plainCompare(nameA, nameB);
+      return mul * nat(nameA, nameB);
     }
-    const cmp = cloudA.localeCompare(cloudB, undefined, { sensitivity: 'base' });
-    if (cmp !== 0) return mul * cmp;
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'path') {
-    const pathA = String(a.path || a.id || '');
-    const pathB = String(b.path || b.id || '');
-    if (config.mixedSortOnPathColumns) {
-      if (a.type === 'directory' && b.type !== 'directory') return -1;
-      if (b.type === 'directory' && a.type !== 'directory') return 1;
+    if (col === 'type') {
+      const typeA = a.driveInfo?.type || a.driveInfo?.format || a.extension || (a.type === 'directory' ? 'folder' : '');
+      const typeB = b.driveInfo?.type || b.driveInfo?.format || b.extension || (b.type === 'directory' ? 'folder' : '');
+      return mul * plainCompare(String(typeA), String(typeB));
     }
-    const cmp = pathA.localeCompare(pathB, undefined, { sensitivity: 'base' });
-    if (cmp !== 0) return mul * cmp;
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'attributes') {
-    const attrA = Array.isArray(a.attributes) ? a.attributes.filter(Boolean).join('\0') : String(a.attributes || '');
-    const attrB = Array.isArray(b.attributes) ? b.attributes.filter(Boolean).join('\0') : String(b.attributes || '');
-    const cmp = attrA.localeCompare(attrB, undefined, { sensitivity: 'base' });
-    if (cmp !== 0) return mul * cmp;
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'label') {
-    const labelA = String(a.label || '');
-    const labelB = String(b.label || '');
-    const cmp = labelA.localeCompare(labelB, undefined, { sensitivity: 'base' });
-    if (cmp !== 0) return mul * cmp;
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  if (col === 'comment') {
-    const commentA = String(a.comment || '');
-    const commentB = String(b.comment || '');
-    const cmp = commentA.localeCompare(commentB, undefined, { sensitivity: 'base' });
-    if (cmp !== 0) return mul * cmp;
-    return naturalCompare(entitySortName(a), entitySortName(b), config);
-  }
-  return 0;
+    if (col === 'size') {
+      const sizeA = pane?.getByteSize ? pane.getByteSize(a) : (a.size || 0);
+      const sizeB = pane?.getByteSize ? pane.getByteSize(b) : (b.size || 0);
+      if (sizeA !== sizeB) return mul * (sizeA - sizeB);
+      // Stable tie-break by name so equal/unknown folder sizes still reorder predictably.
+      return mul * nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'modified') {
+      if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
+      if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
+      return mul * (dateMs(a, 'modified') - dateMs(b, 'modified'));
+    }
+    if (col === 'created') {
+      if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
+      if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
+      return mul * (dateMs(a, 'created') - dateMs(b, 'created'));
+    }
+    if (col === 'tags') {
+      const tagA = (Array.isArray(a.tags) ? a.tags : []).filter(Boolean).join('\0');
+      const tagB = (Array.isArray(b.tags) ? b.tags : []).filter(Boolean).join('\0');
+      if (config.mixedSortOnTagColumns) {
+        if (a.type === 'directory' && b.type !== 'directory') return -1;
+        if (b.type === 'directory' && a.type !== 'directory') return 1;
+      }
+      // Both untagged: keep current relative order (do not reshuffle by name asc/desc).
+      if (!tagA && !tagB) return 0;
+      // Untagged after tagged when ascending; reverse when descending.
+      if (!tagA || !tagB) {
+        if (!tagA) return mul;
+        return -mul;
+      }
+      const cmp = plainCompare(tagA, tagB);
+      if (cmp !== 0) return mul * cmp;
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'ghostState') {
+      const gA = a.isGhostLink ? 1 : 0;
+      const gB = b.isGhostLink ? 1 : 0;
+      if (gA !== gB) return mul * (gA - gB);
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'ramZone') {
+      const zA = String(a.ramZoneId || a.ramZone || '');
+      const zB = String(b.ramZoneId || b.ramZone || '');
+      const cmp = plainCompare(zA, zB);
+      if (cmp !== 0) return mul * cmp;
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'cloudStatus') {
+      const cloudA = String(a.cloudStatus || '').toLowerCase();
+      const cloudB = String(b.cloudStatus || '').toLowerCase();
+      // Empty (local / non-cloud) after labeled statuses when ascending.
+      if (!cloudA && !cloudB) return nat(entitySortName(a), entitySortName(b));
+      if (!cloudA || !cloudB) {
+        if (!cloudA) return mul;
+        return -mul;
+      }
+      const cmp = baseCompare(cloudA, cloudB);
+      if (cmp !== 0) return mul * cmp;
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'path') {
+      const pathA = String(a.path || a.id || '');
+      const pathB = String(b.path || b.id || '');
+      if (config.mixedSortOnPathColumns) {
+        if (a.type === 'directory' && b.type !== 'directory') return -1;
+        if (b.type === 'directory' && a.type !== 'directory') return 1;
+      }
+      const cmp = baseCompare(pathA, pathB);
+      if (cmp !== 0) return mul * cmp;
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'attributes') {
+      const attrA = Array.isArray(a.attributes) ? a.attributes.filter(Boolean).join('\0') : String(a.attributes || '');
+      const attrB = Array.isArray(b.attributes) ? b.attributes.filter(Boolean).join('\0') : String(b.attributes || '');
+      const cmp = baseCompare(attrA, attrB);
+      if (cmp !== 0) return mul * cmp;
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'label') {
+      const labelA = String(a.label || '');
+      const labelB = String(b.label || '');
+      const cmp = baseCompare(labelA, labelB);
+      if (cmp !== 0) return mul * cmp;
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    if (col === 'comment') {
+      const commentA = String(a.comment || '');
+      const commentB = String(b.comment || '');
+      const cmp = baseCompare(commentA, commentB);
+      if (cmp !== 0) return mul * cmp;
+      return nat(entitySortName(a), entitySortName(b));
+    }
+    return 0;
+  };
+}
+
+/**
+ * Every setting that filterListEntities + sortEntities read. Lets callers memoise a sorted list
+ * across config objects that only differ in unrelated keys (tab/session state is saved into the
+ * same config object on every navigation and selection). Keep in sync with createEntityComparator,
+ * resolveSortColumn/resolveSortDirection, sortKeyName and treeListItemFilter.
+ */
+const LIST_SORT_CONFIG_KEYS = [
+  'sortMethod', 'sortFoldersFirst', 'sortFoldersApart', 'defaultToTreeLikeSortOrder', 'sortFoldersAlwaysAscending',
+  'sortFilenamesByBase', 'sortSizeColumnsDescendingByDefault', 'sortDateColumnsDescendingByDefault',
+  'listSortColumn', 'listSortDirection', 'onSortingKeepTaggedItemsOnTop', 'mixedSortOnDateColumns',
+  'mixedSortOnTagColumns', 'mixedSortOnPathColumns', 'treatHyphensAndApostrophesLikeNormalCharacters',
+  'showHiddenFiles', 'showSystemFiles', 'showHiddenSystemFoldersInTree', 'treeListVisibleItemTypes',
+] as const;
+
+export function listSortConfigSignature(config: AppConfig): string {
+  const c = config as Record<string, unknown>;
+  return JSON.stringify(LIST_SORT_CONFIG_KEYS.map(k => c[k] ?? null));
 }
 
 export function sortEntities(items: any[], config: AppConfig, pane?: PaneSortState): any[] {
-  return [...items].sort((a, b) => compareEntities(a, b, config, pane));
+  return [...items].sort(createEntityComparator(config, pane));
 }
 
 /** Display name respecting showFileExtensions and virtual locations (e.g. Recycle Bin) */

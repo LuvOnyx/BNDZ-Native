@@ -1,3 +1,6 @@
+/** Cached collator (same order as localeCompare(..., { sensitivity: 'base' }), built once). */
+const ARCHIVE_NAME_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' });
+
 /** Archive extensions BNDZ can list in preview */
 export const ARCHIVE_EXTENSIONS = [
   'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'lz', 'cab', 'iso', 'jar', 'war', 'ear',
@@ -72,7 +75,7 @@ export function listArchiveFolder(entries: ArchiveEntry[], folderPath: string): 
 
   return Array.from(childMap.values()).sort((a, b) => {
     if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    return ARCHIVE_NAME_COLLATOR.compare(a.name, b.name);
   });
 }
 
@@ -133,7 +136,7 @@ export function buildArchiveFolderTree(entries: ArchiveEntry[]): ArchiveTreeNode
     const kids = childMap.get(parentPath);
     if (!kids?.size) return [];
     return [...kids]
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .sort((a, b) => ARCHIVE_NAME_COLLATOR.compare(a, b))
       .map(name => {
         const path = parentPath ? `${parentPath}/${name}` : name;
         return { path, name, children: build(path) };
@@ -160,7 +163,7 @@ export function sortArchiveEntries(items: ArchiveEntry[], key: ArchiveSortKey, a
         return (ta - tb) * dir;
       }
       default:
-        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) * dir;
+        return ARCHIVE_NAME_COLLATOR.compare(a.name, b.name) * dir;
     }
   });
 }

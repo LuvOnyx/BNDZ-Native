@@ -66,47 +66,55 @@ export function resolveTreeListVisibleTypes(
   return saved;
 }
 
-/** Whether an entity should appear in tree/list. */
-export function isTreeListItemVisible(
-  entity: FsEntity,
-  config: {
-    treeListVisibleItemTypes?: TreeListItemType[];
-    /** Legacy combined toggle (tree). Use showHiddenFiles / showSystemFiles for finer control. */
-    showHiddenSystemFoldersInTree?: boolean;
-    /** Show hidden-attributed files/folders in the list. Defaults to showHiddenSystemFoldersInTree. */
-    showHiddenFiles?: boolean;
-    /** Show system-attributed files/folders in the list. Defaults to showHiddenSystemFoldersInTree. */
-    showSystemFiles?: boolean;
-  },
-): boolean {
-  const name = String(entity.name || '');
-  const attrs = entity.attributes || [];
+type TreeListVisibilityConfig = {
+  treeListVisibleItemTypes?: TreeListItemType[];
+  /** Legacy combined toggle (tree). Use showHiddenFiles / showSystemFiles for finer control. */
+  showHiddenSystemFoldersInTree?: boolean;
+  /** Show hidden-attributed files/folders in the list. Defaults to showHiddenSystemFoldersInTree. */
+  showHiddenFiles?: boolean;
+  /** Show system-attributed files/folders in the list. Defaults to showHiddenSystemFoldersInTree. */
+  showSystemFiles?: boolean;
+};
+
+/** Visibility predicate with the config resolved once (filtering 20k rows built 20k Sets before). */
+export function createTreeListVisibilityTest(config: TreeListVisibilityConfig): (entity: FsEntity) => boolean {
   const legacyShow = !!config.showHiddenSystemFoldersInTree;
   const showHidden = config.showHiddenFiles != null ? !!config.showHiddenFiles : legacyShow;
   const showSystem = config.showSystemFiles != null ? !!config.showSystemFiles : legacyShow;
-
-  if (!showHidden) {
-    // Explorer parity: "Show protected operating system files" reveals Hidden+System
-    // even when ordinary hidden items stay concealed.
-    const isSystem = attrs.includes('system') || (name.startsWith('$') && name.length > 1);
-    if (attrs.includes('hidden') && !(showSystem && isSystem)) return false;
-    if (name.startsWith('.') && name !== '..' && !(showSystem && isSystem)) return false;
-  }
-  if (!showSystem) {
-    if (attrs.includes('system')) return false;
-    // `$...` protected-style names (e.g. $Recycle.Bin, $WinREAgent) even if attr bits lag.
-    if (name.startsWith('$') && name.length > 1) return false;
-  }
-
   const allowed = new Set(resolveTreeListVisibleTypes(config));
-  const itemTypes = classifyTreeListItemTypes(entity);
-  const primary = entity.type === 'directory' ? 'folders' : 'files';
-  if (!allowed.has(primary)) return false;
 
-  const specialties = itemTypes.filter(t => t !== 'folders' && t !== 'files');
-  return specialties.every(t => allowed.has(t));
+  return (entity: FsEntity): boolean => {
+    const name = String(entity.name || '');
+    const attrs = entity.attributes || [];
+
+    if (!showHidden) {
+      // Explorer parity: "Show protected operating system files" reveals Hidden+System
+      // even when ordinary hidden items stay concealed.
+      const isSystem = attrs.includes('system') || (name.startsWith('$') && name.length > 1);
+      if (attrs.includes('hidden') && !(showSystem && isSystem)) return false;
+      if (name.startsWith('.') && name !== '..' && !(showSystem && isSystem)) return false;
+    }
+    if (!showSystem) {
+      if (attrs.includes('system')) return false;
+      // `$...` protected-style names (e.g. $Recycle.Bin, $WinREAgent) even if attr bits lag.
+      if (name.startsWith('$') && name.length > 1) return false;
+    }
+
+    const itemTypes = classifyTreeListItemTypes(entity);
+    const primary = entity.type === 'directory' ? 'folders' : 'files';
+    if (!allowed.has(primary)) return false;
+
+    const specialties = itemTypes.filter(t => t !== 'folders' && t !== 'files');
+    return specialties.every(t => allowed.has(t));
+  };
 }
 
-export function filterTreeListEntities<T extends FsEntity>(items: T[], config: Parameters<typeof isTreeListItemVisible>[1]): T[] {
-  return items.filter(item => isTreeListItemVisible(item, config));
+/** Whether an entity should appear in tree/list. */
+export function isTreeListItemVisible(entity: FsEntity, config: TreeListVisibilityConfig): boolean {
+  return createTreeListVisibilityTest(config)(entity);
+}
+
+export function filterTreeListEntities<T extends FsEntity>(items: T[], config: TreeListVisibilityConfig): T[] {
+  const visible = createTreeListVisibilityTest(config);
+  return items.filter(item => visible(item));
 }

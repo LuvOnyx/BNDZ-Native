@@ -5,6 +5,9 @@ import { joinPanePath, normalizePanePath } from '../lib/pathUtils';
 import { getDisplayName, entitySortName } from '../lib/settingsRuntime';
 import { protectDirectionalFormatting } from '../lib/bidiProtection';
 
+/** Cached collator (same order as localeCompare(..., { sensitivity: 'base' }), built once). */
+const BRANCH_NAME_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' });
+
 type Entity = {
   id: string;
   name: string;
@@ -41,7 +44,7 @@ export default function BranchViewStrip({ panePath, contents, config, branchType
     let dirs = contents.filter(c => c.type === 'directory');
     const mode = branchType || 'Files and folders';
     if (mode === 'Files only') return [];
-    return dirs.sort((a, b) => entitySortName(a).localeCompare(entitySortName(b), undefined, { sensitivity: 'base' }));
+    return dirs.sort((a, b) => BRANCH_NAME_COLLATOR.compare(entitySortName(a), entitySortName(b)));
   }, [contents, config, panePath, branchType]);
 
   // Settings → Multi branch view lists top folders
