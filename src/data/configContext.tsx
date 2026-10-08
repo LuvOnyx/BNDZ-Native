@@ -182,6 +182,33 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     },
 };
 
+/**
+ * Old XYplorer-style seeds filled rows with solid light green / white backgrounds
+ * (unreadable in the dark theme, e.g. Recent files where every row is "modified today").
+ * Swap those exact untouched seed styles for dark-theme ones; user-edited styles are kept.
+ * Declared above applyConfigAliases: defaultConfig = normalizeConfig(...) runs at module load,
+ * so this const must be initialized first (a later declaration threw a TDZ ReferenceError
+ * at startup and left the UI blank).
+ */
+const LEGACY_COLOR_FILTER_STYLES: Record<string, { from: string; to: string }> = {
+    'ageM: <= 30 n //modified in the last 30 mins': { from: 'bg-[#82E05B] text-black px-1', to: 'bg-[rgba(130,224,91,0.18)] text-[#C8F5B8] px-1' },
+    'ageM: d //modified today': { from: 'bg-[#82E05B] text-white px-1', to: 'text-[#9BE77F] px-1' },
+    'size:0 //empty files': { from: 'bg-[#FDFDFD] text-[#3498DB] px-1', to: 'text-[#7FB2E5] px-1' },
+};
+
+export function migrateLegacyColorFilterStyles<T extends { t: string; style: string }>(rows: T[]): T[] {
+    let changed = false;
+    const next = rows.map((row) => {
+        const legacy = row && typeof row.t === 'string' ? LEGACY_COLOR_FILTER_STYLES[row.t.trim()] : undefined;
+        if (legacy && String(row.style || '').trim() === legacy.from) {
+            changed = true;
+            return { ...row, style: legacy.to };
+        }
+        return row;
+    });
+    return changed ? next : rows;
+}
+
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
     applySettingsKeyAliases(merged as Record<string, any>, raw as Record<string, any>);
     if ('fileTagging' in raw) merged.fileTaggingFeature = !!raw.fileTagging;
@@ -496,29 +523,6 @@ export const defaultConfig: AppConfig = normalizeConfig({
     ],
 });
 
-/**
- * Old XYplorer-style seeds filled rows with solid light green / white backgrounds
- * (unreadable in the dark theme, e.g. Recent files where every row is "modified today").
- * Swap those exact untouched seed styles for dark-theme ones; user-edited styles are kept.
- */
-const LEGACY_COLOR_FILTER_STYLES: Record<string, { from: string; to: string }> = {
-    'ageM: <= 30 n //modified in the last 30 mins': { from: 'bg-[#82E05B] text-black px-1', to: 'bg-[rgba(130,224,91,0.18)] text-[#C8F5B8] px-1' },
-    'ageM: d //modified today': { from: 'bg-[#82E05B] text-white px-1', to: 'text-[#9BE77F] px-1' },
-    'size:0 //empty files': { from: 'bg-[#FDFDFD] text-[#3498DB] px-1', to: 'text-[#7FB2E5] px-1' },
-};
-
-export function migrateLegacyColorFilterStyles<T extends { t: string; style: string }>(rows: T[]): T[] {
-    let changed = false;
-    const next = rows.map((row) => {
-        const legacy = row && typeof row.t === 'string' ? LEGACY_COLOR_FILTER_STYLES[row.t.trim()] : undefined;
-        if (legacy && String(row.style || '').trim() === legacy.from) {
-            changed = true;
-            return { ...row, style: legacy.to };
-        }
-        return row;
-    });
-    return changed ? next : rows;
-}
 
 let settingsSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSettingsSave: AppConfig | null = null;
