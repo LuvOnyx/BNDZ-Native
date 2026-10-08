@@ -391,7 +391,11 @@ public static class LicenseService
         try
         {
             if (string.IsNullOrEmpty(rec.Token)) return;
-            var hwid = MachineIdService.GetHardwareId();
+            // Report the seat's bound id when this machine still matches it (e.g. CPU count drift),
+            // so the server sees the same seat instead of a new machine.
+            var hwid = !string.IsNullOrWhiteSpace(rec.Hwid) && MachineIdService.MatchesStoredHardwareId(rec.Hwid)
+                ? rec.Hwid
+                : MachineIdService.GetHardwareId();
             using var resp = Http.PostAsJsonAsync($"{LicenseApiBase}/v1/validate", new
             {
                 serial = rec.Serial,
