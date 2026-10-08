@@ -32,6 +32,7 @@ const defFiles = {
   MeshPluginDef: 'MeshPlugin.tsx',
   ProjectSandboxPluginDef: 'ProjectSandboxPlugin.tsx',
   BranchingTimePluginDef: 'BranchingTimePlugin.tsx',
+  CloudDrivePluginDef: 'CloudDrivePlugin.tsx',
 };
 
 function readDefId(defName) {
@@ -75,6 +76,7 @@ const componentPaths = {
   MeshPlugin: 'MeshPlugin.tsx',
   ProjectSandboxPlugin: 'ProjectSandboxPlugin.tsx',
   BranchingTimePlugin: 'BranchingTimePlugin.tsx',
+  CloudDrivePlugin: 'CloudDrivePlugin.tsx',
 };
 
 for (const comp of components) {

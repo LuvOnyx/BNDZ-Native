@@ -14,6 +14,7 @@ import {
     MeshPluginDef,
     ProjectSandboxPluginDef,
     BranchingTimePluginDef,
+    CloudDrivePluginDef,
 } from '../components/plugins/pluginDefs';
 import { useAppConfig } from './configContext';
 

@@ -26,6 +26,7 @@ using BNDZ.Services.LanShare;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
 using BNDZ.Services.OsQuickLook;
+using BNDZ.Services.CloudDrive;
 using BNDZ.Utilities;
 using Microsoft.Web.WebView2.Core;
 
@@ -4185,7 +4186,7 @@ namespace BNDZ.Services
         {
             try
             {
-                IpcDebugLog($"[RECV] {messageStr}");
+                IpcDebugLog("[RECV] " + CloudDriveSecrets.Redact(messageStr));
 
                 using var doc = JsonDocument.Parse(messageStr);
                 var root = doc.RootElement;
@@ -4238,6 +4239,29 @@ namespace BNDZ.Services
                     var blockedJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() =>
                         DeliverIpcJson(JsonSerializer.Serialize(blockedResponse, blockedJson)));
+                    return;
+                }
+
+                if (type.StartsWith("CLOUD_DRIVE_", StringComparison.Ordinal))
+                {
+                    JsonElement cloudPayload = default;
+                    if (root.TryGetProperty("payload", out var cloudPayloadEl))
+                        cloudPayload = cloudPayloadEl.Clone();
+                    var cloudType = type;
+                    var cloudId = reqId;
+                    _ = Task.Run(async () =>
+                    {
+                        object result;
+                        try
+                        {
+                            result = await CloudDriveService.Shared.HandleAsync(cloudType, cloudPayload).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            result = new { ok = false, error = CloudDriveSecrets.Redact(ex.Message) };
+                        }
+                        PostMeshIpcResult(cloudId, cloudType + "_RESULT", result);
+                    });
                     return;
                 }
 
