@@ -844,6 +844,184 @@ export const IPC = {
     }));
   },
 
+  cloudDriveProbe(): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdProbe`;
+    return _nativeCall<any>('CLOUD_DRIVE_PROBE', 'CLOUD_DRIVE_PROBE_RESULT', id, {}, 20000).then(r => ({
+      ok: r?.ok !== false,
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveList(): Promise<{ ok: boolean; drives: import('./cloudDrive').CloudDriveRecord[]; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, drives: [], error: 'Native host required' });
+    const id = `${Date.now()}_cdList`;
+    return _nativeCall<any>('CLOUD_DRIVE_LIST', 'CLOUD_DRIVE_LIST_RESULT', id, {}, 20000).then(r => ({
+      ok: r?.ok !== false,
+      drives: Array.isArray(r?.drives) ? r.drives : [],
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveSetToken(token: string): Promise<{ ok: boolean; orgSlug?: string; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdToken`;
+    return _nativeCall<any>('CLOUD_DRIVE_SET_TOKEN', 'CLOUD_DRIVE_SET_TOKEN_RESULT', id, { token }, 30000).then(r => ({
+      ok: r?.ok === true,
+      orgSlug: r?.orgSlug,
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveClearToken(): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdClear`;
+    return _nativeCall<any>('CLOUD_DRIVE_CLEAR_TOKEN', 'CLOUD_DRIVE_CLEAR_TOKEN_RESULT', id, {}, 15000).then(r => ({
+      ok: r?.ok === true,
+      probe: r?.probe,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveCreate(body: {
+    name: string;
+    placement: 'cloud' | 'local';
+    sizeGb: number;
+    region?: string;
+    diskPath?: string;
+    flyToken?: string;
+    slug?: string;
+  }): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdCreate`;
+    return _nativeCall<any>('CLOUD_DRIVE_CREATE', 'CLOUD_DRIVE_CREATE_RESULT', id, body, 120000).then(r => ({
+      ok: r?.ok === true,
+      drive: r?.drive,
+      drives: Array.isArray(r?.drives) ? r.drives : undefined,
+      error: r?.error,
+    }));
+  },
+
+  cloudDriveStart(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_START', { id: driveId });
+  },
+
+  cloudDriveStop(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_STOP', { id: driveId });
+  },
+
+  cloudDriveRefresh(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_REFRESH', { id: driveId });
+  },
+
+  cloudDriveDelete(driveId: string, confirmName: string): Promise<{ ok: boolean; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_DELETE', { id: driveId, confirmName });
+  },
+
+  cloudDriveSetTunnelToken(driveId: string, tunnelToken: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_TUNNEL_TOKEN', { id: driveId, tunnelToken });
+  },
+
+  cloudDriveClearTunnelToken(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_CLEAR_TUNNEL_TOKEN', { id: driveId });
+  },
+
+  cloudDriveTunnelStart(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_TUNNEL_START', { id: driveId });
+  },
+
+  cloudDriveTunnelStop(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_TUNNEL_STOP', { id: driveId });
+  },
+
+  cloudDriveSetTunnelHostname(driveId: string, hostname: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_TUNNEL_HOSTNAME', { id: driveId, hostname });
+  },
+
+  cloudDriveSetPublicDomain(domain: string): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_PUBLIC_DOMAIN', { domain });
+  },
+
+  cloudDriveSetCloudflareToken(token: string): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_CLOUDFLARE_TOKEN', { token });
+  },
+
+  cloudDriveSetOriginSecret(originSecret: string): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_ORIGIN_SECRET', { originSecret });
+  },
+
+  cloudDrivePublish(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_PUBLISH', { id: driveId }, 60000);
+  },
+
+  cloudDriveCheckSlug(slug: string, driveId?: string): Promise<{ ok: boolean; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_CHECK_SLUG', { slug, id: driveId }, 15000);
+  },
+
+  cloudDriveRenameSlug(driveId: string, slug: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_RENAME_SLUG', { id: driveId, slug }, 60000);
+  },
+
+  cloudDriveSetPlacement(placement: 'cloud' | 'local'): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_PLACEMENT_PREF', { placement });
+  },
+
+  cloudDriveEnableLocal(): Promise<{ ok: boolean; started?: boolean; message?: string; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_ENABLE_LOCAL', {});
+  },
+
+  cloudDriveSnapshotCreate(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SNAPSHOT_CREATE', { id: driveId }, 300000);
+  },
+
+  cloudDriveSnapshotList(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SNAPSHOT_LIST', { id: driveId }, 60000);
+  },
+
+  cloudDriveSnapshotRestore(driveId: string, snapshotId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SNAPSHOT_RESTORE', { id: driveId, snapshotId }, 360000);
+  },
+
+  cloudDriveDropPreviousVolume(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_DROP_PREVIOUS_VOLUME', { id: driveId }, 60000);
+  },
+
+  cloudDriveExport(driveId: string, destPath: string): Promise<{ ok: boolean; exportedPath?: string; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_EXPORT', { id: driveId, destPath }, 1800000);
+  },
+
+  cloudDriveOpenExisting(diskPath: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_OPEN_EXISTING', { diskPath }, 60000);
+  },
+
+  cloudDriveRevealFtpPassword(driveId: string): Promise<{ ok: boolean; password?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdFtp`;
+    return _nativeCall<any>('CLOUD_DRIVE_REVEAL_FTP_PASSWORD', 'CLOUD_DRIVE_REVEAL_FTP_PASSWORD_RESULT', id, { id: driveId }, 20000).then(r => ({
+      ok: r?.ok === true,
+      password: typeof r?.password === 'string' ? r.password : undefined,
+      error: r?.error,
+    }));
+  },
+
+  _cloudDriveMutate(type: string, payload: Record<string, unknown>, timeoutMs = 120000): Promise<{ ok: boolean; exportedPath?: string; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; probe?: import('./cloudDrive').CloudDriveProbe; started?: boolean; message?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdMut`;
+    return _nativeCall<any>(type, `${type}_RESULT`, id, payload, timeoutMs).then(r => ({
+      ok: r?.ok === true,
+      exportedPath: typeof r?.exportedPath === 'string' ? r.exportedPath : undefined,
+      drive: r?.drive,
+      drives: Array.isArray(r?.drives) ? r.drives : undefined,
+      probe: r?.probe,
+      started: r?.started === true,
+      message: typeof r?.message === 'string' ? r.message : undefined,
+      error: r?.error,
+    }));
+  },
+
   scanFolderSizes(paths: string[], forceRescan = false): Promise<{
     sizes: Record<string, number>;
     cancelled?: boolean;

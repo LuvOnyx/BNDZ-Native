@@ -13,6 +13,7 @@ import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPl
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
 import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
 import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
+import CloudDrivePlugin, { CloudDrivePluginDef } from '../components/plugins/CloudDrivePlugin';
 import GhostLinkPlugin, { GhostLinkPluginDef } from '../components/plugins/GhostLinkPlugin';
 import RamStagingPlugin, { RamStagingPluginDef } from '../components/plugins/RamStagingPlugin';
 import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plugins/ProjectSandboxPlugin';
@@ -176,6 +177,14 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: MeshPlugin,
+    },
+    {
+        ...CloudDrivePluginDef,
+        description: 'Private microVM disk you remote-control from BNDZ — Fly bring-your-own token, or a sealed image on a drive you pick.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: CloudDrivePlugin,
     },
     {
         ...GhostLinkPluginDef,
