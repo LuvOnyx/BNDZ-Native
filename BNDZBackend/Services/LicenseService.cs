@@ -258,7 +258,9 @@ public static class LicenseService
         if (!IsUsingDefaultSecret && !ValidateSerial(serial))
             return (false, "Invalid serial number. Check the format and try again.");
 
-        var hwid = MachineIdService.GetHardwareId();
+        // Re-activating the same serial on this PC after fingerprint drift (e.g. CPU count change):
+        // reuse the seat's bound id, otherwise the server answers "already activated on another PC".
+        var hwid = SeatHwidForThisMachine(ReadLicenseRecord(), serial) ?? MachineIdService.GetHardwareId();
         try
         {
             using var resp = await Http.PostAsJsonAsync($"{LicenseApiBase}/v1/activate", new
@@ -309,7 +311,9 @@ public static class LicenseService
     public static async Task DeactivateAsync()
     {
         var rec = ReadLicenseRecord();
-        var hwid = MachineIdService.GetHardwareId();
+        // The server frees the seat only for the id inside the token, so send the bound id when
+        // this machine still matches it.
+        var hwid = SeatHwidForThisMachine(rec, rec?.Serial) ?? MachineIdService.GetHardwareId();
         if (rec != null && !string.IsNullOrEmpty(rec.Token))
         {
             try
@@ -386,6 +390,14 @@ public static class LicenseService
         }
     }
 
+    /// <summary>Stored seat id when it belongs to <paramref name="serial"/> and still matches this machine.</summary>
+    private static string? SeatHwidForThisMachine(LicenseRecord? rec, string? serial)
+    {
+        if (rec == null || string.IsNullOrWhiteSpace(rec.Hwid) || string.IsNullOrWhiteSpace(serial)) return null;
+        if (!string.Equals(rec.Serial?.Trim(), serial.Trim(), StringComparison.OrdinalIgnoreCase)) return null;
+        return MachineIdService.MatchesStoredHardwareId(rec.Hwid) ? rec.Hwid.Trim().ToLowerInvariant() : null;
+    }
+
     private static void TryValidateOnline(LicenseRecord rec)
     {
         try
@@ -393,9 +405,7 @@ public static class LicenseService
             if (string.IsNullOrEmpty(rec.Token)) return;
             // Report the seat's bound id when this machine still matches it (e.g. CPU count drift),
             // so the server sees the same seat instead of a new machine.
-            var hwid = !string.IsNullOrWhiteSpace(rec.Hwid) && MachineIdService.MatchesStoredHardwareId(rec.Hwid)
-                ? rec.Hwid
-                : MachineIdService.GetHardwareId();
+            var hwid = SeatHwidForThisMachine(rec, rec.Serial) ?? MachineIdService.GetHardwareId();
             using var resp = Http.PostAsJsonAsync($"{LicenseApiBase}/v1/validate", new
             {
                 serial = rec.Serial,
