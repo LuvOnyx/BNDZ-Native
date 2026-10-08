@@ -287,6 +287,7 @@ import {
 import ListColumnHeaderStrip from './ListColumnHeaderStrip';
 import { computeAutosizedColumnWidths, parseColumnAutosizeLimits } from '../lib/columnAutosize';
 import BndzErrorBoundary from './BndzErrorBoundary';
+import RenderCallback from './RenderCallback';
 import ClipboardMarkBadge from './ClipboardMarkBadge';
 import {
   describeClipboardState,
@@ -507,11 +508,6 @@ const Spinner = () => (
     <div className="w-[40px] h-[40px] border-[3.5px] border-transparent border-b-[#22c55e] border-l-[#22c55e] rounded-full animate-[spin_1.5s_cubic-bezier(0.5,0,0.5,1)_infinite_reverse] absolute opacity-70" />
   </div>
 );
-
-/** Calls a render callback during its own render, so an error boundary around it can catch the throw. */
-function RenderCallback({ render }: { render: () => React.ReactNode }) {
-  return <>{render()}</>;
-}
 
 export default function BNDZUI() {
   const { showModal, confirm } = useModal();
