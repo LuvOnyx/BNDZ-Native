@@ -4,6 +4,7 @@ Living checklist for the next version after V1 (site installer freeze).
 Update this as we decide, ship, or kill ideas. Do not lose the goal in day-to-day patches.
 
 **Status:** skeleton — structure first; fill sections as we go.  
+**Blocked on:** finish `docs/BNDZ-PREMIUM-GAP.md` (premium / top-5 bar) before filling this playbook out — that gap list drives V2 path and priorities.  
 **Branch:** `cursor/tabs-formatting-consistency-3e94` (working).  
 **Frozen release:** `V1` @ `b6c2f519` (do not rewrite history of that tip).  
 **Bar:** Explorer-grade native craft. Trust like XYplorer. No web-appy / AI slop. No lazy half-measures.
@@ -43,13 +44,20 @@ High-level sequence — reorder only with a note why.
 
 ### 3.1 Storage Cleanup
 
+### Capacity tab (ditch)
+- **Decision (2026-09-21):** Capacity inside Cleanup was filler from an old agent (ex-Capacity Solver). **Ditch** it from the product story — do not polish as a pillar. Sidebar/Properties free-space honesty still matters; the Cleanup Capacity tab does not.
+
+### Cleanup vs premium gap doc
+- Cleanup redesign stays **planned work** in this playbook. It is **not** listed as a top-5 blocker in `BNDZ-PREMIUM-GAP.md` (that doc tracks main FM feel + real marketplace + no demo tools).
+
+
 - [ ] Overview is the real home / landing (not an empty wizard dump).
 - [ ] “Deep Clean” renamed to a clear plain name (e.g. Scan & Clean) and not flavorless.
 - [ ] Front flow: pick folder/target → scan → detailed report → select keep vs delete.
 - [ ] Duplicate finder reliable (no host IPC death on big trees); progress + cancel.
 - [ ] Other modes (Capacity, Apps, Organize, Health, etc.) actually work and feel solid.
 - [ ] Feels native / trustworthy — not web-appy.
-- [ ] *(Optional idea)* Segmented “what’s using space” wheel by type with hover → top offenders; must stay snappy (smart sample, no whole-drive freeze).
+- [ ] ~~Cleanup Capacity tab~~ — **ditch** (filler); do not invest
 - [ ] *(Possibility — not chosen yet)* Rebuild Cleanup using **WinZenith** as the playbook — see §5.
 
 ### 3.2 System Properties / capacity
@@ -117,10 +125,17 @@ Fill concrete numbers as we lock them. Placeholders for now.
 
 ---
 
-## 7. How to use this doc
+## 7. Related: Premium gap doc (do first)
 
-1. Before a Cleanup / Properties / craft batch: read §1–§3 for that area.  
+See `docs/BNDZ-PREMIUM-GAP.md` — why we still feel cheap/gimmicky vs a top-5 team-built FM, and the checklist to get there. Complete / firm that up, then come back here and finish §1–§4 from it.
+
+---
+
+## 8. How to use this doc
+
+1. Before a Cleanup / Properties / craft batch: read Premium Gap §2–§4, then this playbook §1–§3 for that area.  
 2. After a decision: update the checkbox + one line under the right section.  
 3. After a ship: append §6 with commit / what changed.  
 4. Never delete the Goal — only refine it.
+
 
