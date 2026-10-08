@@ -241,7 +241,7 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
             className={`${PLUGIN_INPUT_CLASS} flex-1`}
             value={folderDraft}
             onChange={e => setFolderDraft(e.target.value)}
-            placeholder="C:\\Users\\...\\Shared"
+            placeholder="C:\Users\...\Shared"
             onKeyDown={e => { if (e.key === 'Enter') void addSharedFolder(); }}
           />
           <PluginToolbarButton onClick={() => void addSharedFolder()}>Add folder</PluginToolbarButton>
