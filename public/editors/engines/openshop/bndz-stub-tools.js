@@ -969,17 +969,20 @@
     }
 
     // 3) Re-place overlays after every viewport change. The engine only did this when a pixel mask
-    //    existed, so a bounds-only selection box stayed at its old screen position.
-    OS.canvas?.on?.('after:render', () => {
-      const key = String(OS.canvas.viewportTransform);
-      if (key === OS._bndzOverlayViewport) return;
-      OS._bndzOverlayViewport = key;
+    //    existed, so a bounds-only selection box stayed at its old screen position. Hook the engine's
+    //    own per-viewport-change callback (install can run before the fabric canvas exists).
+    const syncSelectionOverlays = () => {
       if (OS._selectionBounds) OS._placeSelectionBox?.();
-      if (OS._lassoDocPoints && OS._selectionMask) {
+      if (OS._lassoDocPoints && OS._selectionMask && OS.canvas) {
         const poly = lassoPolygon();
         if (poly) poly.setAttribute('points', projectDocPoints(OS._lassoDocPoints, OS.canvas.viewportTransform));
       }
-    });
+    };
+    const origSyncVector = OS._syncVectorOverlaysToViewport?.bind(OS);
+    OS._syncVectorOverlaysToViewport = function (...args) {
+      try { syncSelectionOverlays(); } catch { /* overlay sync is cosmetic */ }
+      return origSyncVector?.(...args);
+    };
 
     // 4) Select All / Deselect after a wand or lasso: Ctrl+A used to switch to the Move tool and
     //    select layer objects, leaving the old pixel selection in place. With a pixel-selection tool
