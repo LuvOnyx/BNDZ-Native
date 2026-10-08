@@ -17,6 +17,7 @@ import os
 import re
 import secrets
 import shutil
+import socket
 import stat
 import sys
 import tarfile
@@ -34,6 +35,19 @@ HOST = os.environ.get("BNDZ_PANEL_HOST", "0.0.0.0")
 PORT = int(os.environ.get("BNDZ_PANEL_PORT", "8080"))
 CHUNK_BYTES = 90 * 1024 * 1024
 MAX_UPLOAD = CHUNK_BYTES
+# After an early reject the panel sends Connection: close, then discards what the client is still
+# sending for a short while so the response is not lost to a TCP reset, then closes.
+LINGER_SECONDS = 5.0
+LINGER_BYTES = CHUNK_BYTES + 16 * 1024 * 1024
+READ_BLOCK = 1024 * 1024
+
+
+class BodyTooLarge(Exception):
+    """The request body is over the cap for this route."""
+
+
+class BadBody(Exception):
+    """The request body is malformed or ended early."""
 
 SESSIONS: dict[str, float] = {}
 SHARE_AUTH: dict[str, float] = {}
@@ -519,6 +533,131 @@ class Panel(BaseHTTPRequestHandler):
             super().handle()
         except (ConnectionResetError, BrokenPipeError, TimeoutError):
             return
+        if getattr(self, "_linger", False):
+            self._linger_close()
+
+    def send_response(self, code: int, message: str | None = None) -> None:
+        self._sent_connection = False
+        super().send_response(code, message)
+
+    def send_header(self, keyword: str, value: str) -> None:
+        if keyword.lower() == "connection":
+            self._sent_connection = True
+        super().send_header(keyword, value)
+
+    def end_headers(self) -> None:
+        # A reply that leaves request body bytes unread cannot keep the connection: the leftover
+        # bytes would be parsed as the next request. Tell the client and close after replying.
+        if self._body_pending():
+            if not getattr(self, "_sent_connection", False):
+                self.send_header("Connection", "close")
+            self.close_connection = True
+            self._linger = True
+        super().end_headers()
+
+    def _linger_close(self) -> None:
+        self._linger = False
+        try:
+            self.wfile.flush()
+            sock = self.connection
+            sock.shutdown(socket.SHUT_WR)
+        except OSError:
+            return
+        deadline = time.monotonic() + LINGER_SECONDS
+        drained = 0
+        try:
+            while drained < LINGER_BYTES:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    break
+                sock.settimeout(left)
+                data = sock.recv(65536)
+                if not data:
+                    break
+                drained += len(data)
+        except OSError:
+            pass
+
+    def _chunked(self) -> bool:
+        raw = (self.headers.get("Transfer-Encoding") or "").strip().lower()
+        if not raw:
+            return False
+        codings = [part.strip() for part in raw.split(",") if part.strip()]
+        if not codings or codings[-1] != "chunked":
+            raise BadBody("Transfer-Encoding " + raw + " is not supported.")
+        return True
+
+    def _content_length(self) -> int:
+        raw = (self.headers.get("Content-Length") or "").strip()
+        if not raw:
+            return 0
+        if not raw.isdigit():
+            return -1
+        return int(raw)
+
+    def _body_pending(self) -> bool:
+        if getattr(self, "_body_consumed", True):
+            return False
+        try:
+            if self._chunked():
+                return True
+        except BadBody:
+            return True
+        return self._content_length() != 0
+
+    def _body_chunks(self, limit: int):
+        """Yield the request body in blocks, from Content-Length or Transfer-Encoding: chunked.
+
+        Raises BodyTooLarge as soon as the declared or received size passes limit, before those
+        bytes are read. Raises BadBody when the framing is broken or the body ends early.
+        """
+        if self._chunked():
+            total = 0
+            while True:
+                line = self.rfile.readline(1026)
+                if not line.endswith(b"\n"):
+                    raise BadBody("chunk size line is missing or too long")
+                size_text = line.split(b";", 1)[0].strip()
+                if not size_text or any(c not in b"0123456789abcdefABCDEF" for c in size_text):
+                    raise BadBody("chunk size is not hex")
+                size = int(size_text, 16)
+                if size == 0:
+                    for _ in range(64):
+                        trailer = self.rfile.readline(8192)
+                        if trailer in (b"\r\n", b"\n"):
+                            self._body_consumed = True
+                            return
+                        if not trailer.endswith(b"\n"):
+                            raise BadBody("chunked trailer ended early")
+                    raise BadBody("too many chunked trailers")
+                if total + size > limit:
+                    raise BodyTooLarge()
+                remaining = size
+                while remaining:
+                    block = self.rfile.read(min(remaining, READ_BLOCK))
+                    if not block:
+                        raise BadBody("chunked body ended early")
+                    remaining -= len(block)
+                    total += len(block)
+                    yield block
+                if self.rfile.readline(3) not in (b"\r\n", b"\n"):
+                    raise BadBody("chunk is not followed by CRLF")
+        length = self._content_length()
+        if length < 0:
+            raise BadBody("Content-Length is not a number")
+        if length > limit:
+            raise BodyTooLarge()
+        remaining = length
+        while remaining:
+            block = self.rfile.read(min(remaining, READ_BLOCK))
+            if not block:
+                raise BadBody("body ended early")
+            remaining -= len(block)
+            yield block
+        self._body_consumed = True
+
+    def _read_body(self, limit: int) -> bytes:
+        return b"".join(self._body_chunks(limit))
 
     def do_GET(self) -> None:
         self._route("GET")
@@ -530,6 +669,8 @@ class Panel(BaseHTTPRequestHandler):
         self._route("PUT")
 
     def _route(self, method: str) -> None:
+        self._body_consumed = False
+        self._linger = False
         try:
             parsed = urlparse(self.path)
             path = unquote(parsed.path)
@@ -638,6 +779,10 @@ class Panel(BaseHTTPRequestHandler):
                 self._transfer(move=True)
                 return
             self._json({"ok": False, "error": "Not found."}, 404)
+        except BodyTooLarge:
+            self._json({"ok": False, "error": "That request is larger than 90 MB."}, 413)
+        except BadBody:
+            self._json({"ok": False, "error": "The request body was cut off or malformed."}, 400)
         except PermissionError as ex:
             self._json({"ok": False, "error": str(ex)}, 400)
         except FileExistsError:
@@ -895,11 +1040,13 @@ class Panel(BaseHTTPRequestHandler):
 
     def _upload(self) -> None:
         ctype = self.headers.get("Content-Type", "")
-        length = int(self.headers.get("Content-Length") or "0")
-        if length <= 0 or length > MAX_UPLOAD:
+        try:
+            body = self._read_body(MAX_UPLOAD)
+        except BodyTooLarge:
+            body = b""
+        if not body:
             self._json({"ok": False, "error": "Choose a file under 90 MB. Larger files upload in pieces."}, 400)
             return
-        body = self.rfile.read(length)
         match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', ctype)
         if not match:
             self._json({"ok": False, "error": "Upload was not a file form."}, 400)
@@ -1045,11 +1192,13 @@ class Panel(BaseHTTPRequestHandler):
 
     def _share_upload(self, row: dict, base: Path) -> None:
         ctype = self.headers.get("Content-Type", "")
-        length = int(self.headers.get("Content-Length") or "0")
-        if length <= 0 or length > MAX_UPLOAD:
+        try:
+            body = self._read_body(MAX_UPLOAD)
+        except (BodyTooLarge, BadBody):
+            body = b""
+        if not body:
             self._text("Choose a file under 90 MB.", 400)
             return
-        body = self.rfile.read(length)
         match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', ctype)
         if not match:
             self._text("Upload was not a file form.", 400)
@@ -1092,10 +1241,12 @@ class Panel(BaseHTTPRequestHandler):
         self._bytes(data, "text/html; charset=utf-8")
 
     def _json_body(self) -> dict:
-        length = int(self.headers.get("Content-Length") or "0")
-        if length <= 0 or length > 1_000_000:
+        try:
+            raw = self._read_body(1_000_000)
+        except (BodyTooLarge, BadBody):
             return {}
-        raw = self.rfile.read(length)
+        if not raw:
+            return {}
         try:
             data = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -1103,10 +1254,10 @@ class Panel(BaseHTTPRequestHandler):
         return data if isinstance(data, dict) else {}
 
     def _form_body(self) -> dict[str, str]:
-        length = int(self.headers.get("Content-Length") or "0")
-        if length <= 0 or length > 100_000:
+        try:
+            raw = self._read_body(100_000).decode("utf-8", "replace")
+        except (BodyTooLarge, BadBody):
             return {}
-        raw = self.rfile.read(length).decode("utf-8", "replace")
         parsed = parse_qs(raw, keep_blank_values=True)
         return {k: v[0] if v else "" for k, v in parsed.items()}
 
@@ -1269,21 +1420,34 @@ class Panel(BaseHTTPRequestHandler):
             offset = int(query.get("offset", ["-1"])[0])
         except (TypeError, ValueError):
             offset = -1
-        length = int(self.headers.get("Content-Length") or "0")
-        if length < 0 or length > CHUNK_BYTES:
+        if self._content_length() > CHUNK_BYTES:
             self._json({"ok": False, "error": "That piece is larger than 90 MB."}, 400)
             return
         folder, meta = self._read_meta(upload_id)
         current = int(meta.get("offset") or 0)
         if offset != current:
-            if length:
-                self.rfile.read(length)
+            if not self._chunked():
+                for _block in self._body_chunks(CHUNK_BYTES):
+                    pass
             self._json({"ok": False, "error": "Upload offset does not match.", "offset": current}, 409)
             return
-        blob = self.rfile.read(length) if length else b""
+        # Stream straight to disk. The 90 MB cap is enforced while reading, so a chunked body that
+        # runs over is cut off and the partial bytes are trimmed back off the part file.
+        written = 0
         with (folder / "part").open("ab") as handle:
-            handle.write(blob)
-        meta["offset"] = current + len(blob)
+            start = handle.tell()
+            try:
+                for block in self._body_chunks(CHUNK_BYTES):
+                    handle.write(block)
+                    written += len(block)
+            except (BodyTooLarge, BadBody) as ex:
+                handle.truncate(start)
+                if isinstance(ex, BodyTooLarge):
+                    self._json({"ok": False, "error": "That piece is larger than 90 MB.", "offset": current}, 400)
+                else:
+                    self._json({"ok": False, "error": "That piece was cut off. Send it again.", "offset": current}, 400)
+                return
+        meta["offset"] = current + written
         self._write_meta(folder, meta)
         self._json({"ok": True, "id": upload_id, "offset": meta["offset"]})
 

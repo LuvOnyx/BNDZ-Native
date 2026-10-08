@@ -5,6 +5,7 @@ import http.client
 import io
 import json
 import os
+import socket
 import subprocess
 import sys
 import tarfile
@@ -50,6 +51,7 @@ def main() -> None:
                 raise SystemExit("panel password leaked to stderr")
         prefix_case()
         origin_case()
+        body_case()
     print("test-cloud-panel: ok")
 
 
@@ -433,6 +435,210 @@ def origin_case() -> None:
                 _, err = proc.communicate(timeout=3)
             if secret in (err or ""):
                 raise SystemExit("origin secret leaked to stderr")
+
+
+CHUNK_CAP = 90 * 1024 * 1024
+
+
+def raw_open(port):
+    sock = socket.create_connection(("127.0.0.1", port), timeout=10)
+    return sock
+
+
+def raw_response(sock):
+    """Read one HTTP/1.1 response with a Content-Length body. Returns (status, headers, body)."""
+    buf = b""
+    while b"\r\n\r\n" not in buf:
+        chunk = sock.recv(65536)
+        if not chunk:
+            raise AssertionError("connection closed before a response: " + repr(buf[:200]))
+        buf += chunk
+    head, _, rest = buf.partition(b"\r\n\r\n")
+    lines = head.decode("latin-1").split("\r\n")
+    status = int(lines[0].split()[1])
+    headers = {}
+    for line in lines[1:]:
+        key, _, value = line.partition(":")
+        headers[key.strip().lower()] = value.strip()
+    need = int(headers.get("content-length", "0"))
+    while len(rest) < need:
+        chunk = sock.recv(65536)
+        if not chunk:
+            break
+        rest += chunk
+    return status, headers, rest[:need].decode("utf-8", "replace")
+
+
+def raw_head(method, path, extra):
+    lines = [f"{method} {path} HTTP/1.1", "Host: 127.0.0.1"] + [f"{k}: {v}" for k, v in extra.items()]
+    return ("\r\n".join(lines) + "\r\n\r\n").encode()
+
+
+def chunked(*parts):
+    out = b""
+    for part in parts:
+        out += f"{len(part):x}\r\n".encode() + part + b"\r\n"
+    return out + b"0\r\n\r\n"
+
+
+def closes_soon(sock, seconds=8.0):
+    """True when the server closes its side (EOF) within seconds, discarding anything else it sends."""
+    sock.settimeout(seconds)
+    end = time.monotonic() + seconds
+    try:
+        while time.monotonic() < end:
+            if not sock.recv(65536):
+                return True
+    except socket.timeout:
+        return False
+    except OSError:
+        return True
+    return False
+
+
+def body_case() -> None:
+    """Transfer-Encoding: chunked bodies, the 90 MB cap while reading, and Connection: close on early rejects."""
+    global PORT
+    previous = PORT
+    PORT = 8769
+    with tempfile.TemporaryDirectory() as tmp:
+        env = os.environ.copy()
+        env.update({
+            "BNDZ_DATA_MOUNT": tmp,
+            "BNDZ_FTP_PASSWORD": SECRET,
+            "BNDZ_PANEL_HOST": "127.0.0.1",
+            "BNDZ_PANEL_PORT": str(PORT),
+        })
+        proc = subprocess.Popen([sys.executable, str(SERVER)], env=env, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        try:
+            wait_up()
+            # Chunked JSON login, split across chunks, then a second keep-alive request on the same socket.
+            login = json.dumps({"user": "bndz", "password": SECRET}).encode()
+            sock = raw_open(PORT)
+            sock.sendall(raw_head("POST", "/api/login", {"Content-Type": "application/json", "Transfer-Encoding": "chunked"}) + chunked(login[:7], login[7:]))
+            status, headers, body = raw_response(sock)
+            assert status == 200 and "set-cookie" in headers, (status, body)
+            assert headers.get("connection", "").lower() != "close", headers
+            cookie = headers["set-cookie"].split(";", 1)[0]
+            sock.sendall(raw_head("GET", "/api/list?path=", {"Cookie": cookie}))
+            status, headers, body = raw_response(sock)
+            assert status == 200 and "entries" in body, (status, body)
+            sock.close()
+
+            def start(name, size):
+                status, body = call("POST", "/api/upload/start", {"dir": "", "name": name, "size": size}, cookie=cookie)
+                assert status == 200, body
+                return json.loads(body)["id"]
+
+            def status_of(upload_id):
+                status, body = call("GET", "/api/upload/status?id=" + upload_id, cookie=cookie)
+                return json.loads(body)["offset"]
+
+            # Chunked upload piece streams to disk and finishes.
+            upload_id = start("chunked.bin", 11)
+            sock = raw_open(PORT)
+            sock.sendall(raw_head("PUT", f"/api/upload/chunk?id={upload_id}&offset=0", {"Cookie": cookie, "Transfer-Encoding": "chunked"}) + chunked(b"hello", b"-", b"chunk"))
+            status, headers, body = raw_response(sock)
+            assert status == 200 and json.loads(body)["offset"] == 11, body
+            sock.close()
+            status, body = call("POST", "/api/upload/finish", {"id": upload_id}, cookie=cookie)
+            assert status == 200, body
+            assert Path(tmp, "chunked.bin").read_bytes() == b"hello-chunk"
+
+            # A single chunk declared over the cap is refused before its bytes are read, and the socket closes.
+            upload_id = start("big.bin", CHUNK_CAP + 1)
+            sock = raw_open(PORT)
+            began = time.monotonic()
+            sock.sendall(raw_head("PUT", f"/api/upload/chunk?id={upload_id}&offset=0", {"Cookie": cookie, "Transfer-Encoding": "chunked"}) + f"{CHUNK_CAP + 1:x}\r\n".encode() + b"a" * 65536)
+            status, headers, body = raw_response(sock)
+            assert status == 400 and "90 MB" in body and headers.get("connection", "").lower() == "close", (status, headers, body)
+            assert closes_soon(sock), "server kept an over-cap chunked connection open"
+            assert time.monotonic() - began < 8, "over-cap chunked reject hung"
+            sock.close()
+            assert status_of(upload_id) == 0
+
+            # Chunks that only pass the cap together are cut off while reading, and the partial bytes are trimmed.
+            sock = raw_open(PORT)
+            first = b"b" * (60 * 1024 * 1024)
+            sock.sendall(raw_head("PUT", f"/api/upload/chunk?id={upload_id}&offset=0", {"Cookie": cookie, "Transfer-Encoding": "chunked"}) + f"{len(first):x}\r\n".encode())
+            sock.sendall(first + b"\r\n" + f"{31 * 1024 * 1024:x}\r\n".encode() + b"c" * 4096)
+            status, headers, body = raw_response(sock)
+            assert status == 400 and "90 MB" in body and headers.get("connection", "").lower() == "close", (status, body)
+            assert closes_soon(sock)
+            sock.close()
+            assert status_of(upload_id) == 0
+            assert Path(tmp, ".bndz", "uploads", upload_id, "part").stat().st_size == 0
+
+            # Content-Length over the cap: an early 400 with Connection: close, then the server closes
+            # without waiting for the 90 MB+ body the client never finishes sending.
+            sock = raw_open(PORT)
+            began = time.monotonic()
+            sock.sendall(raw_head("PUT", f"/api/upload/chunk?id={upload_id}&offset=0", {"Cookie": cookie, "Content-Length": str(CHUNK_CAP + 1)}) + b"d" * 65536)
+            status, headers, body = raw_response(sock)
+            assert status == 400 and headers.get("connection", "").lower() == "close", (status, headers, body)
+            assert closes_soon(sock), "server kept an over-cap Content-Length connection open"
+            assert time.monotonic() - began < 8
+            sock.close()
+
+            # Offset mismatch on a chunked piece: 409 with the real offset, and the connection closes.
+            sock = raw_open(PORT)
+            sock.sendall(raw_head("PUT", f"/api/upload/chunk?id={upload_id}&offset=5", {"Cookie": cookie, "Transfer-Encoding": "chunked"}) + b"5\r\nhello\r\n")
+            status, headers, body = raw_response(sock)
+            assert status == 409 and json.loads(body)["offset"] == 0 and headers.get("connection", "").lower() == "close", (status, body)
+            assert closes_soon(sock)
+            sock.close()
+
+            # Unauthenticated PUT with an unread body: 401, Connection: close, socket closed.
+            sock = raw_open(PORT)
+            sock.sendall(raw_head("PUT", f"/api/upload/chunk?id={upload_id}&offset=0", {"Content-Length": "1048576"}) + b"e" * 4096)
+            status, headers, body = raw_response(sock)
+            assert status == 401 and headers.get("connection", "").lower() == "close", (status, headers)
+            assert closes_soon(sock)
+            sock.close()
+
+            # A JSON body over the 1 MB cap is not left in the socket to poison the next request.
+            sock = raw_open(PORT)
+            sock.sendall(raw_head("POST", "/api/login", {"Content-Type": "application/json", "Content-Length": str(2 * 1024 * 1024)}) + b"{" * 8192)
+            status, headers, body = raw_response(sock)
+            assert status == 401 and headers.get("connection", "").lower() == "close", (status, headers, body)
+            assert closes_soon(sock)
+            sock.close()
+
+            # Broken chunk framing is a 400 that closes the connection.
+            sock = raw_open(PORT)
+            sock.sendall(raw_head("POST", "/api/mkdir", {"Cookie": cookie, "Transfer-Encoding": "chunked"}) + b"zz\r\n{}\r\n0\r\n\r\n")
+            status, headers, body = raw_response(sock)
+            assert status == 400 and headers.get("connection", "").lower() == "close", (status, body)
+            assert closes_soon(sock)
+            sock.close()
+            sock = raw_open(PORT)
+            sock.sendall(raw_head("POST", "/api/login", {"Transfer-Encoding": "gzip"}) + b"xx")
+            status, headers, body = raw_response(sock)
+            assert status in (400, 401) and headers.get("connection", "").lower() == "close", (status, body)
+            sock.close()
+
+            # Normal Content-Length requests still keep the connection alive.
+            sock = raw_open(PORT)
+            payload = json.dumps({"path": "", "name": "kept"}).encode()
+            for name in ("kept", "kept2"):
+                payload = json.dumps({"path": "", "name": name}).encode()
+                sock.sendall(raw_head("POST", "/api/mkdir", {"Cookie": cookie, "Content-Type": "application/json", "Content-Length": str(len(payload))}) + payload)
+                status, headers, body = raw_response(sock)
+                assert status == 200 and headers.get("connection", "").lower() != "close", (status, headers, body)
+            sock.close()
+            assert Path(tmp, "kept2").is_dir()
+            status, body = call("GET", "/api/health")
+            assert status == 200, "panel stopped answering after the body cases"
+        finally:
+            PORT = previous
+            proc.terminate()
+            try:
+                _, err = proc.communicate(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                _, err = proc.communicate(timeout=3)
+            if SECRET in (err or ""):
+                raise SystemExit("panel password leaked to stderr")
 
 
 def call_raw(method, path, data, cookie, content_type, want_headers=False, extra=None):
