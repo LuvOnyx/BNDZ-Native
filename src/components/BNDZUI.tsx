@@ -508,6 +508,11 @@ const Spinner = () => (
   </div>
 );
 
+/** Calls a render callback during its own render, so an error boundary around it can catch the throw. */
+function RenderCallback({ render }: { render: () => React.ReactNode }) {
+  return <>{render()}</>;
+}
+
 export default function BNDZUI() {
   const { showModal, confirm } = useModal();
   const { clipboard, clipboardHistory, setClipboardState, executePaste, restorePreviousClipboard, clearClipboard } = useClipboard();
@@ -11387,6 +11392,25 @@ ${classified.detail}`,
   }, [panes, activePaneId, currentPath, config.syncDualPaneScroll, config.userDefinedCommands, filterText]);
 
   // --- Subcomponents ---
+  /**
+   * renderPane inside its own component + isolated boundary: a throw while building one pane's rows
+   * (e.g. a bad filter pattern) shows an in-pane error with Retry instead of the full-UI crash screen.
+   */
+  const renderPaneIsolated = (pane: PaneState | undefined, index: number) => {
+    if (!pane) return null;
+    const panePathKey = pane.tabs[pane.activeTabIndex]?.path || '';
+    return (
+      <BndzErrorBoundary
+        isolate
+        label="This folder view"
+        resetKey={`${pane.id}:${panePathKey}`}
+        onError={(err) => { try { setToastMessage(`Folder view error: ${err.message}`, 'warning'); } catch { /* ignore */ } }}
+      >
+        <RenderCallback render={() => renderPane(pane, index)} />
+      </BndzErrorBoundary>
+    );
+  };
+
   const renderPane = (pane: PaneState, index: number) => {
     const isActive = pane.id === activePaneId;
     const previewTabIndex = fileDragListPreview?.paneId === pane.id
@@ -16906,7 +16930,7 @@ ${classified.detail}`,
                                  minSize={panelPct(20)}
                                  className="flex flex-col min-w-0 min-h-0 overflow-hidden"
                                >
-                                 {renderPane(panes[0], 0)}
+                                 {renderPaneIsolated(panes[0], 0)}
                                </ResizablePanel>
                                <ResizableHandle
                                  direction="horizontal"
@@ -16920,12 +16944,12 @@ ${classified.detail}`,
                                  className="flex flex-col min-w-0 min-h-0 overflow-hidden"
                                >
                                  <div ref={dualPaneSecondRef} className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
-                                   {renderPane(panes[1], 1)}
+                                   {renderPaneIsolated(panes[1], 1)}
                                  </div>
                                </ResizablePanel>
                              </ResizablePanelGroup>
                            ) : (
-                             renderPane(panes[0], 0)
+                             renderPaneIsolated(panes[0], 0)
                            )}
                            </div>
                            {/* DualPane DiffPlex compare strip -- shown when diff mode is active */}
