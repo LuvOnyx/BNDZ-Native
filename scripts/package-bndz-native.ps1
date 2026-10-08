@@ -13,7 +13,8 @@ param(
   [string]$Version = '1.0.0',
   [switch]$SkipBuild,
   [switch]$SkipInstaller,
-  [switch]$RequireRelease
+  [switch]$RequireRelease,
+  [switch]$SkipReadyToRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -158,6 +159,14 @@ if (-not (Test-Path (Join-Path $publish 'Assets\ui'))) {
   & robocopy $uiSrc $uiDst /MIR /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
   if ($LASTEXITCODE -ge 8) { throw "ui robocopy failed ($LASTEXITCODE)" }
   $LASTEXITCODE = 0
+}
+
+# dotnet build never applies the csproj's PublishReadyToRun, so the copied build output is pure IL
+# (every startup path JIT-compiled). crossgen2 the publish folder in place for Release.
+if ($Configuration -eq 'Release' -and -not $SkipReadyToRun) {
+  Write-Host '==> ReadyToRun (crossgen2) publish folder' -ForegroundColor Cyan
+  node (Join-Path $root 'scripts\r2r-compile-publish.mjs') $publish
+  if ($LASTEXITCODE -ne 0) { throw "ReadyToRun compile failed ($LASTEXITCODE)" }
 }
 
 Write-Host '==> Portable zip' -ForegroundColor Cyan
