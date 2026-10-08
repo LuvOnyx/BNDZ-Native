@@ -144,13 +144,15 @@ async function deployWorker(configPath, secret) {
     chmodSync(secretsPath, 0o600);
     const wrangler = join(HERE, 'node_modules', '.bin', 'wrangler');
     if (!existsSync(wrangler)) fail('wrangler is not installed. Run npm install in cloud/router.');
-    const log = await run(wrangler, ['deploy', '--config', configPath, '--secrets-file', secretsPath], {
-      ...process.env,
-      CLOUDFLARE_API_TOKEN: token,
-      CLOUDFLARE_ACCOUNT_ID: account,
-    });
+    const env = { ...process.env, CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account };
+    // The pinned wrangler (4.26) has no `deploy --secrets-file`, and newer wrangler needs Node 22.
+    // Deploy first, then upload the secret with `secret bulk`. Until that finishes the Worker sends
+    // an empty X-Bndz-Origin, which the guest panel rejects, so nothing is exposed in between.
+    const log = await run(wrangler, ['deploy', '--config', configPath], env);
     const brief = redact(log).split('\n').map(line => line.trim()).filter(Boolean).slice(-8);
     for (const line of brief) say('wrangler  ' + line);
+    await run(wrangler, ['secret', 'bulk', secretsPath, '--config', configPath], env);
+    say('secret ORIGIN_SECRET uploaded (value not printed)');
     say('deployed worker ' + WORKER);
     say('custom domain ' + PUBLIC_HOST);
   } finally {
