@@ -101,7 +101,8 @@ public static class CloudDriveQemu
         if (!string.IsNullOrEmpty(s.Kernel) && !string.IsNullOrEmpty(s.Initrd))
             a.AddRange(new[] { "-kernel", s.Kernel, "-initrd", s.Initrd, "-append", KernelAppend });
         a.AddRange(new[] { "-drive", "file=" + Q(s.SystemDisk) + ",if=virtio,format=" + DiskFormat(s.SystemDisk) + ",cache=writeback" });
-        a.AddRange(new[] { "-drive", "file=" + Q(s.DataDisk) + ",if=virtio,format=" + DiskFormat(s.DataDisk) + ",cache=writeback" });
+        // discard/zero-detect off: the vhdx driver is safest with plain writes.
+        a.AddRange(new[] { "-drive", "file=" + Q(s.DataDisk) + ",if=virtio,format=" + DiskFormat(s.DataDisk) + ",cache=writeback,discard=ignore,detect-zeroes=off" });
         a.AddRange(new[] { "-drive", "file=" + Q(s.SeedIso) + ",media=cdrom,readonly=on" });
         a.AddRange(new[]
         {
@@ -129,14 +130,14 @@ if [ -z ""$dev"" ]; then
     [ -b ""$d"" ] || continue
     if [ -z ""$(blkid ""$d"")"" ]; then
       command -v mkfs.ext4 >/dev/null 2>&1 || apk add --no-cache e2fsprogs
-      mkfs.ext4 -F -q -L BNDZDATA ""$d"" && dev=""$d""
+      mkfs.ext4 -F -q -E nodiscard -L BNDZDATA ""$d"" && sync && dev=""$d""
     fi
     break
   done
 fi
 grep -q 'LABEL=BNDZDATA' /etc/fstab || echo 'LABEL=BNDZDATA /data ext4 defaults,nofail 0 2' >> /etc/fstab
 if [ -n ""$dev"" ] && ! mountpoint -q /data; then
-  mount -t ext4 ""$dev"" /data || true
+  mount -t ext4 ""$dev"" /data || { echo ""bndz: mount $dev failed"" >&2; dmesg | tail -n 15 >&2; }
 fi
 seed=$(blkid | grep -i 'LABEL=""cidata""' | cut -d: -f1 | head -n1)
 if [ -n ""$seed"" ]; then
