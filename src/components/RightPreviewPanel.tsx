@@ -93,6 +93,29 @@ function firstSorted<T>(items: T[], k: number, cmp: (a: T, b: T) => number): T[]
 /** Cached collator -- localeCompare(..., options) builds one per call (seconds on a 20k-item folder). */
 const FOLDER_PREVIEW_NAME_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' });
 
+/** Text preview cap for the non-native (browser) path; native reads are capped in the backend (2 MB). */
+const PREVIEW_TEXT_MAX_BYTES = 2 * 1024 * 1024;
+
+/** Read at most `max` bytes from a response body, then cancel the rest of the stream. */
+async function readFirstBytes(response: Response, max: number): Promise<Uint8Array> {
+  const reader = response.body?.getReader();
+  if (!reader) return new Uint8Array(await response.arrayBuffer()).slice(0, max);
+  const out = new Uint8Array(max);
+  let n = 0;
+  try {
+    while (n < max) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      const take = Math.min(value.length, max - n);
+      out.set(value.subarray(0, take), n);
+      n += take;
+    }
+  } finally {
+    try { await reader.cancel(); } catch { /* ignore */ }
+  }
+  return out.slice(0, n);
+}
+
 export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview, selectionPaths, onSelectPath, onToast }: RightPreviewPanelProps) {
   useEffect(() => {
     // Warm the common preview engines once the panel is visible (plain text first).
@@ -456,30 +479,39 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
      const delayMs = previewDelayMs || 0;
      let cancelled = false;
 
+     // HTML "Source" and Markdown need the text even though .html is not in the editable-text list.
+     // Before: HTML fell through to the hex-dump branch, fileContent stayed null and the Source tab
+     // showed "Loading source..." forever. Also: stale responses could land after the selection moved.
+     const wantsText = isEditableText || (isHtml && htmlView === 'source') || isMarkdown;
+
      const fetchContent = async () => {
          if (cancelled) return;
          setIsLoadingContent(true);
          try {
-             if (isEditableText) {
+             if (wantsText) {
                  const { IPC } = await import('../lib/ipcBridge');
                  const { resolveLocalReadPath } = await import('../lib/meshPreviewResolve');
                  if (IPC.isNative) {
                      const resolved = await resolveLocalReadPath(path);
                      if (resolved.error) throw new Error(resolved.error);
+                     // Backend caps the read (2 MB) so a huge file can't stall the UI or blow memory.
                      const result = await IPC.readTextFile(resolved.localPath);
+                     if (cancelled) return;
                      if (result.error) throw new Error(result.error);
                      setFileContent(result.content ?? '');
                  } else {
-                     const response = await fetch(virtualUrl);
+                     const response = await fetch(virtualUrl, { headers: { Range: `bytes=0-${PREVIEW_TEXT_MAX_BYTES - 1}` } });
                      if (!response.ok) throw new Error('Failed to load file.');
                      const text = await response.text();
-                     setFileContent(text.length > 500000 ? text.substring(0, 500000) + '\n... [TRUNCATED]' : text);
+                     if (cancelled) return;
+                     setFileContent(text.length > PREVIEW_TEXT_MAX_BYTES ? text.substring(0, PREVIEW_TEXT_MAX_BYTES) + '\n... [TRUNCATED]' : text);
                  }
              } else if (isBinary || (!isImage && !isAudio && !isVideo && !isPdf && !isDocx)) {
-                 const response = await fetch(virtualUrl);
+                 // Only the first 256 bytes are shown -- ask for just those instead of the whole file.
+                 const response = await fetch(virtualUrl, { headers: { Range: 'bytes=0-255' } });
                  if (!response.ok) throw new Error("Failed to load local file via virtual host.");
-                 const buffer = await response.arrayBuffer();
-                 const bytes = new Uint8Array(buffer).slice(0, 256);
+                 const bytes = await readFirstBytes(response, 256);
+                 if (cancelled) return;
                  let hexStr = "";
                  for (let i = 0; i < bytes.length; i++) {
                      hexStr += bytes[i].toString(16).padStart(2, '0').toUpperCase() + " ";
@@ -488,9 +520,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                  setHexContent(hexStr || "Empty File");
              }
          } catch (err: any) {
-             setContentError(err.message || "Failed to load preview.");
+             if (!cancelled) setContentError(err?.message || "Failed to load preview.");
          } finally {
-             setIsLoadingContent(false);
+             if (!cancelled) setIsLoadingContent(false);
          }
      };
 
@@ -945,7 +977,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   </Suspense>
                 ) : null
               ) : (
-                fileContent != null && path ? (
+                contentError ? (
+                  <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 m-2 rounded">{contentError}</div>
+                ) : fileContent != null && path ? (
                   <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>}>
                     <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
                   </Suspense>
@@ -982,7 +1016,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               {htmlView === 'render' ? (
                 path ? <HtmlPreviewPanel path={path} title={entity.name} /> : null
               ) : (
-                fileContent != null && path ? (
+                contentError ? (
+                  <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 m-2 rounded">{contentError}</div>
+                ) : fileContent != null && path ? (
                   <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading source...</div>}>
                     <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
                   </Suspense>

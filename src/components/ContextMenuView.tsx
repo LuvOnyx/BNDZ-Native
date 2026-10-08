@@ -620,14 +620,16 @@ function ContextMenuView({
                 onClose();
               }}
             />
-            <div className="bndz-context-menu-sep" />
-            {[
+            {/* Shipped sample scripts are demos, not the user's own tools: opt-in via
+                config.smartToolsShowExampleScripts (off by default since v1.0.1). */}
+            {(config as { smartToolsShowExampleScripts?: boolean }).smartToolsShowExampleScripts === true && <div className="bndz-context-menu-sep" />}
+            {((config as { smartToolsShowExampleScripts?: boolean }).smartToolsShowExampleScripts === true ? [
               ['Create folders 01-12.bat', 'Assets/Resources/Scripts/Create folders 01-12.bat'],
               ['Example parsing selection with PowerShell.ps1', 'Assets/Resources/Scripts/Example parsing selection with PowerShell.ps1'],
               ['Powershell create folder with current date_time.ps1', 'Assets/Resources/Scripts/Powershell create folder with current date_time.ps1'],
               ['Save details of selected files as text file.bat', 'Assets/Resources/Scripts/Save details of selected files as text file.bat'],
               ['Save folder list as text.bat', 'Assets/Resources/Scripts/Save folder list as text.bat'],
-            ].map(([label, script]) => (
+            ] : []).map(([label, script]) => (
               <ContextMenuItem
                 key={label}
                 label={label}

@@ -287,6 +287,7 @@ import {
 import ListColumnHeaderStrip from './ListColumnHeaderStrip';
 import { computeAutosizedColumnWidths, parseColumnAutosizeLimits } from '../lib/columnAutosize';
 import BndzErrorBoundary from './BndzErrorBoundary';
+import RenderCallback from './RenderCallback';
 import ClipboardMarkBadge from './ClipboardMarkBadge';
 import {
   describeClipboardState,
@@ -300,7 +301,7 @@ import { isMeshPath, buildMeshPath, MESH_ROOT, parseMeshPath } from '../lib/mesh
 import { preserveMeshOrFsPath, meshShellHere, meshDownloadSelection } from '../lib/meshFsOps';
 import { remoteUndoHonestyMessage } from '../lib/remoteMutationHint';
 import { canonicalDropPath, resolveDropRoute, resolveEntityDragPath, MESH_DROP_INBOX_DEST } from '../lib/fsPathRouting';
-import { isValidOutboundDragPath } from '../lib/pathUtils';
+import { isValidOutboundDragPath, isWslRootPanePath } from '../lib/pathUtils';
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
 import { finishCreateAndRename, dedupeListingByName } from '../lib/createItemFlow';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites, collapseKnownFolderShadowPath, orderRapidAccessItems, knownFolderDedupeKey } from '../lib/rapidAccessDefaults';
@@ -11401,6 +11402,25 @@ ${classified.detail}`,
   }, [panes, activePaneId, currentPath, config.syncDualPaneScroll, config.userDefinedCommands, filterText]);
 
   // --- Subcomponents ---
+  /**
+   * renderPane inside its own component + isolated boundary: a throw while building one pane's rows
+   * (e.g. a bad filter pattern) shows an in-pane error with Retry instead of the full-UI crash screen.
+   */
+  const renderPaneIsolated = (pane: PaneState | undefined, index: number) => {
+    if (!pane) return null;
+    const panePathKey = pane.tabs[pane.activeTabIndex]?.path || '';
+    return (
+      <BndzErrorBoundary
+        isolate
+        label="This folder view"
+        resetKey={`${pane.id}:${panePathKey}`}
+        onError={(err) => { try { setToastMessage(`Folder view error: ${err.message}`, 'warning'); } catch { /* ignore */ } }}
+      >
+        <RenderCallback render={() => renderPane(pane, index)} />
+      </BndzErrorBoundary>
+    );
+  };
+
   const renderPane = (pane: PaneState, index: number) => {
     const isActive = pane.id === activePaneId;
     const previewTabIndex = fileDragListPreview?.paneId === pane.id
@@ -14119,6 +14139,8 @@ ${classified.detail}`,
                           : isGlobal && config.enableEverythingSearch === false
                             ? 'No results. Everything is off -- enable it in Settings or build the BNDZ index.'
                           : isGlobal ? 'No global search results.'
+                          : isWslRootPanePath(panePath)
+                            ? 'No Linux distributions found. WSL is installed but no distro is registered (or WSL is not running). Install one with "wsl --install -d Ubuntu" in a terminal, then refresh.'
                           : (config.showMessageWhenListIsEmpty !== false ? 'This folder is empty.' : '')}
                       </span>
                     </>
@@ -16940,7 +16962,7 @@ ${classified.detail}`,
                                  minSize={panelPct(20)}
                                  className="flex flex-col min-w-0 min-h-0 overflow-hidden"
                                >
-                                 {renderPane(panes[0], 0)}
+                                 {renderPaneIsolated(panes[0], 0)}
                                </ResizablePanel>
                                <ResizableHandle
                                  direction="horizontal"
@@ -16954,12 +16976,12 @@ ${classified.detail}`,
                                  className="flex flex-col min-w-0 min-h-0 overflow-hidden"
                                >
                                  <div ref={dualPaneSecondRef} className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
-                                   {renderPane(panes[1], 1)}
+                                   {renderPaneIsolated(panes[1], 1)}
                                  </div>
                                </ResizablePanel>
                              </ResizablePanelGroup>
                            ) : (
-                             renderPane(panes[0], 0)
+                             renderPaneIsolated(panes[0], 0)
                            )}
                            </div>
                            {/* DualPane DiffPlex compare strip -- shown when diff mode is active */}

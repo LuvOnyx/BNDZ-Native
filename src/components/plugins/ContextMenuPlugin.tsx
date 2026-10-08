@@ -847,7 +847,7 @@ export default function ContextMenuPlugin({
                           className="bndz-native-input flex-1 !py-1.5 !text-[11px]"
                           value={selectedAction.icon || ''}
                           onChange={e => updateSelected({ icon: e.target.value })}
-                          placeholder="C:\\App\\icon.ico"
+                          placeholder="C:\App\icon.ico"
                         />
                         <button type="button" className="bndz-hub-btn-ghost text-[11px] px-2.5" onClick={() => void selectIcon()}>
                           Browse

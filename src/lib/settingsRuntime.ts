@@ -1,3 +1,4 @@
+import { stripExtensionSuffix } from './safeRegex';
 import type { AppConfig } from '../data/configContext';
 import { filterTreeListEntities } from './treeListItemFilter';
 import { applyThemeByName } from '../data/themePresets';
@@ -540,7 +541,7 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
     && String(ext || '').toLowerCase() === 'lnk'
     && config.hideShortcutExtensions !== false;
   if (!isDir && ext && (config.showFileExtensions === false || hideShortcutExtension)) {
-    name = name.replace(new RegExp(`\\.${ext}$`, 'i'), '');
+    name = stripExtensionSuffix(name, String(ext));
   }
   if (config.truncateFilenamesInTheMiddle && name.length > 28) {
     const head = Math.ceil((28 - 1) / 2);

@@ -119,7 +119,7 @@ export default function ConditionalFormattingDialog({
 
                 <input
                   className="bndz-native-input h-8 flex-1 min-w-[140px] text-xs"
-                  placeholder="Folder scope (e.g. C:\\Windows)"
+                  placeholder="Folder scope (e.g. C:\Windows)"
                   value={rule.targetScope || ''}
                   onChange={e => updateRule(rule.id, { targetScope: e.target.value })}
                 />

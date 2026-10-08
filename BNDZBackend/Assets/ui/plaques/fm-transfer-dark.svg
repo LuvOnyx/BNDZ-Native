@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="240" height="180" viewBox="0 0 240 180" fill="none">
-  <!-- FM transfer  dual trays + arrow -->
+  <!-- FM transfer - dual trays + arrow -->
   <rect x="24" y="56" width="72" height="72" rx="10" fill="#2A2F3A" stroke="#4A5568" stroke-opacity="0.55"/>
   <path d="M36 72H72M36 86H64M36 100H68" stroke="#5B6A7E" stroke-width="2.5" stroke-linecap="round"/>
   <path d="M108 92H132" stroke="#0078D4" stroke-width="4" stroke-linecap="round"/>
