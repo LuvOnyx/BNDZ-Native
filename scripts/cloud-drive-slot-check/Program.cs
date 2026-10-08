@@ -193,6 +193,9 @@ var prefixed = CloudDriveLocalRootfs.PanelUnit(password, "cloud.bndz.org", "/des
 Assert(prefixed.Contains("BNDZ_PATH_PREFIX=/desk", StringComparison.Ordinal), "prefix env");
 Assert(prefixed.Contains("BNDZ_SLUG_REDIRECTS=old:desk", StringComparison.Ordinal), "redirect env");
 Assert(prefixed.Contains("BNDZ_ROUTE_GUARD=1", StringComparison.Ordinal), "route guard env");
+Assert(!prefixed.Contains("BNDZ_ORIGIN_SECRET", StringComparison.Ordinal), "prefix unit has no secret");
+var locked = CloudDriveLocalRootfs.PanelUnit(password, "cloud.bndz.org", "/desk", null, "abc123secretvalue");
+Assert(locked.Contains("BNDZ_ORIGIN_SECRET=abc123secretvalue", StringComparison.Ordinal), "origin secret env");
 Assert(!CloudDriveLocalRootfs.PanelUnit(password, "files.example.com").Contains("BNDZ_PATH_PREFIX", StringComparison.Ordinal), "plain unit has no prefix");
 Assert(CloudDriveHostname.ContainsInternalOrigin("ssh bndz@app.fly.dev"), "fly origin");
 Assert(CloudDriveHostname.ContainsInternalOrigin("http://10.0.0.8/"), "ip origin");
@@ -210,11 +213,42 @@ Assert(CloudDriveLocalBackend.EnableHowTo.Contains("Enable-WindowsOptionalFeatur
 var dry = CloudDriveCloudflare.Describe("cloud.bndz.org", "desk", false);
 Assert(dry.Mode == "dry-run" && dry.PublicUrl == "https://cloud.bndz.org/desk/", "dry-run url");
 Assert(dry.OriginHost == "d-desk.bndz.org" && dry.DnsName == "d-desk" && dry.WorkerRoute == "cloud.bndz.org/*", "dry-run route");
-Assert(dry.Message.Contains("Zone DNS Edit", StringComparison.Ordinal) && dry.Message.Contains("Workers Scripts Edit", StringComparison.Ordinal) && !dry.Message.Contains(connector, StringComparison.Ordinal), "dry-run scopes");
+Assert(dry.Message.Contains("Zone DNS Edit", StringComparison.Ordinal) && dry.Message.Contains("Workers Scripts Edit", StringComparison.Ordinal) && dry.Message.Contains("deploy.sh", StringComparison.Ordinal) && !dry.Message.Contains(connector, StringComparison.Ordinal), "dry-run scopes");
+foreach (var blocked in new[] { "bndz.org", "www.bndz.org", "www", "@", "cloud.bndz.org", "studio.example.com" })
+{
+    try
+    {
+        CloudDriveCloudflare.RejectDnsChange(blocked);
+        throw new InvalidOperationException("dns allowed " + blocked);
+    }
+    catch (InvalidOperationException ex) when (ex.Message.StartsWith("Refusing", StringComparison.Ordinal))
+    {
+    }
+}
+CloudDriveCloudflare.RejectDnsChange("d-e2e-abc.bndz.org");
+CloudDriveCloudflare.RejectDnsChange("d-desk.bndz.org", "tun1.cfargotunnel.com");
+try
+{
+    CloudDriveCloudflare.RejectDnsChange("d-desk.bndz.org", "15.204.218.94");
+    throw new InvalidOperationException("website address was writable");
+}
+catch (InvalidOperationException ex) when (ex.Message.Contains("live website", StringComparison.Ordinal))
+{
+}
+StubHandler.Reset();
 var live = await CloudDriveCloudflare.PublishAsync("cf-test-token-value-0123456789abcdef", "cloud.bndz.org", "desk", new StubHandler(), CancellationToken.None);
 Assert(live.Mode == "published" && live.TunnelId == "tun1" && live.ConnectorToken == connector, "published plan");
 Assert(live.WorkerScript.Contains("/desk/", StringComparison.Ordinal) && live.WorkerScript.Contains("301", StringComparison.Ordinal), "published worker");
+Assert(live.Message.Contains("bndz-cloud-routes", StringComparison.Ordinal), "kv namespace named");
 Assert(!live.Message.Contains(connector, StringComparison.Ordinal) && !live.Message.Contains("cf-test-token", StringComparison.Ordinal), "plan message has no token");
+Assert(!StubHandler.Urls.Any(u => u.Contains("/workers/", StringComparison.Ordinal)), "no worker upload");
+Assert(StubHandler.Urls.Any(u => u.Contains("drive%3Adesk", StringComparison.Ordinal) || u.Contains("drive:desk", StringComparison.Ordinal)), "kv drive key");
+Assert(!StubHandler.Bodies.Any(b => b.Contains("15.204.218.94", StringComparison.Ordinal) || b.Contains("\"name\":\"bndz.org\"", StringComparison.Ordinal) || b.Contains("\"name\":\"www", StringComparison.Ordinal) || b.Contains("\"name\":\"cloud.bndz.org\"", StringComparison.Ordinal)), "dns guard");
+StubHandler.Reset();
+StubHandler.Mode = "no-kv";
+var partial = await CloudDriveCloudflare.PublishAsync("cf-test-token-value-0123456789abcdef", "cloud.bndz.org", "desk", new StubHandler(), CancellationToken.None);
+Assert(partial.Mode == "published" && partial.ConnectorToken == connector && partial.Message.Contains("deploy.sh", StringComparison.Ordinal), "missing kv stays published");
+Assert(!StubHandler.Urls.Any(u => u.Contains("/workers/", StringComparison.Ordinal)), "missing kv does not upload a worker");
 var noToken = await CloudDriveCloudflare.PublishAsync(null, "cloud.bndz.org", "desk", new StubHandler(), CancellationToken.None);
 Assert(noToken.Mode == "dry-run" && noToken.ConnectorToken == null, "missing token stays dry-run");
 
@@ -290,9 +324,30 @@ static Dictionary<string, byte[]> ReadCidata(string path)
 
 file sealed class StubHandler : HttpMessageHandler
 {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    public static string Mode = "ok";
+    public static readonly List<string> Urls = new();
+    public static readonly List<string> Bodies = new();
+
+    public static void Reset()
+    {
+        Mode = "ok";
+        Urls.Clear();
+        Bodies.Clear();
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var url = request.RequestUri?.AbsoluteUri ?? "";
+        Urls.Add((request.Method?.Method ?? "") + " " + url);
+        var sent = request.Content == null ? "" : await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (sent.Length > 0) Bodies.Add(sent);
+        if (request.Method == HttpMethod.Get && url.Contains("/storage/kv/namespaces/", StringComparison.Ordinal) && url.Contains("/values/", StringComparison.Ordinal))
+        {
+            return new HttpResponseMessage(System.Net.HttpStatusCode.NotFound)
+            {
+                Content = new StringContent("""{"success":false,"errors":[{"code":10009,"message":"key not found"}]}""", Encoding.UTF8, "application/json"),
+            };
+        }
         string json;
         if (url.Contains("/zones?name=", StringComparison.Ordinal))
             json = """{"success":true,"result":[{"id":"zone1","account":{"id":"acct1"}}]}""";
@@ -306,13 +361,17 @@ file sealed class StubHandler : HttpMessageHandler
             json = """{"success":true,"result":[]}""";
         else if (request.Method == HttpMethod.Post && url.Contains("/dns_records", StringComparison.Ordinal))
             json = """{"success":true,"result":{"id":"dns1"}}""";
-        else if (url.Contains("/workers/", StringComparison.Ordinal))
-            json = """{"success":true,"result":[]}""";
+        else if (url.Contains("/storage/kv/namespaces?", StringComparison.Ordinal) || url.EndsWith("/storage/kv/namespaces", StringComparison.Ordinal))
+            json = Mode == "no-kv"
+                ? """{"success":true,"result":[]}"""
+                : """{"success":true,"result":[{"id":"ns1","title":"bndz-cloud-routes"}]}""";
+        else if (request.Method == HttpMethod.Put && url.Contains("/storage/kv/namespaces/", StringComparison.Ordinal) && url.Contains("/values/", StringComparison.Ordinal))
+            json = """{"success":true}""";
         else
             json = """{"success":false,"errors":[{"message":"unexpected"}]}""";
-        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
-        });
+        };
     }
 }

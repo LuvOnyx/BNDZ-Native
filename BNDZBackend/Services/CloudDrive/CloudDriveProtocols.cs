@@ -209,7 +209,7 @@ public static class CloudDriveProtocols
         {
             if (imagePinned)
                 return "Open it when the machine is running. This PC cannot prove the port is open.";
-            return "No machine yet. Set the drive image, then Start.";
+            return "No machine is created until BNDZ_CLOUD_DRIVE_IMAGE is set to an image Fly can pull. Then Start.";
         }
         if (!rootfs)
             return "Nothing is listening. Pin the local rootfs, then Start.";

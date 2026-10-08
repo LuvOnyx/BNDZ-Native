@@ -49,6 +49,7 @@ def main() -> None:
             if SECRET in blob or "newer-secret" in blob:
                 raise SystemExit("panel password leaked to stderr")
         prefix_case()
+        origin_case()
     print("test-cloud-panel: ok")
 
 
@@ -93,6 +94,16 @@ def run(tmp: str) -> None:
     assert names == ["hello.txt"], names
     status, body = call("GET", "/api/download?path=notes/hello.txt", cookie=cookie)
     assert body == "hello-from-test"
+    status, body, headers = call_raw(
+        "GET",
+        "/api/download?path=notes/hello.txt",
+        None,
+        cookie,
+        None,
+        True,
+        {"Range": "bytes=0-4"},
+    )
+    assert status == 206 and body == "hello" and headers.get("content-range") == "bytes 0-4/15", (status, body, headers)
     status, body = call("POST", "/api/rename", {"from": "notes/hello.txt", "name": "read-me.txt"}, cookie=cookie)
     assert status == 200, body
     outside = Path(tmp).parent / "not-on-drive.txt"
@@ -334,6 +345,94 @@ def prefix_case() -> None:
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.communicate(timeout=3)
+
+
+def origin_case() -> None:
+    global PORT
+    previous = PORT
+    PORT = 8768
+    secret = "abcdef0123456789"
+    with tempfile.TemporaryDirectory() as tmp:
+        env = os.environ.copy()
+        env.update({
+            "BNDZ_DATA_MOUNT": tmp,
+            "BNDZ_FTP_PASSWORD": SECRET,
+            "BNDZ_PANEL_HOST": "127.0.0.1",
+            "BNDZ_PANEL_PORT": str(PORT),
+            "BNDZ_PUBLIC_HOST": "cloud.bndz.org",
+            "BNDZ_PATH_PREFIX": "/studio",
+            "BNDZ_ORIGIN_SECRET": secret,
+            "BNDZ_ROUTE_GUARD": "1",
+        })
+        proc = subprocess.Popen(
+            [sys.executable, str(SERVER)],
+            env=env,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            for _ in range(40):
+                try:
+                    status, body = call("GET", "/studio/api/health")
+                    if status == 200 and json.loads(body)["ok"]:
+                        break
+                except OSError:
+                    time.sleep(0.05)
+            else:
+                raise SystemExit("origin-lock panel did not start")
+            status, body = call_raw("GET", "/studio/api/health", None, "", None, False, {"Host": "d-studio.bndz.org"})
+            assert status == 404 and "https://cloud.bndz.org/studio/" in body, body
+            status, body = call_raw(
+                "GET",
+                "/studio/api/health",
+                None,
+                "",
+                None,
+                False,
+                {"Host": "d-studio.bndz.org", "X-Bndz-Origin": "short"},
+            )
+            assert status == 404, body
+            status, body = call_raw(
+                "GET",
+                "/studio/api/health",
+                None,
+                "",
+                None,
+                False,
+                {"Host": "d-studio.bndz.org", "X-Bndz-Origin": "zzzzzz0123456789"},
+            )
+            assert status == 404, body
+            status, body = call_raw(
+                "GET",
+                "/studio/api/health",
+                None,
+                "",
+                None,
+                False,
+                {"Host": "d-studio.bndz.org", "X-Bndz-Route": "1"},
+            )
+            assert status == 404, body
+            status, body = call_raw(
+                "GET",
+                "/studio/api/health",
+                None,
+                "",
+                None,
+                False,
+                {"Host": "d-studio.bndz.org", "X-Bndz-Origin": secret},
+            )
+            assert status == 200, body
+        finally:
+            PORT = previous
+            proc.terminate()
+            try:
+                _, err = proc.communicate(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                _, err = proc.communicate(timeout=3)
+            if secret in (err or ""):
+                raise SystemExit("origin secret leaked to stderr")
 
 
 def call_raw(method, path, data, cookie, content_type, want_headers=False, extra=None):

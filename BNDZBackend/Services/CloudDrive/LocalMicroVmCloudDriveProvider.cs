@@ -158,7 +158,8 @@ public sealed class LocalMicroVmCloudDriveProvider : ICloudDriveProvider
                 panel,
                 CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken),
                 CloudDriveProtocols.GuestPathPrefix(drive),
-                CloudDriveProtocols.GuestRedirects(drive));
+                CloudDriveProtocols.GuestRedirects(drive),
+                drive.GuestOriginSecret);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

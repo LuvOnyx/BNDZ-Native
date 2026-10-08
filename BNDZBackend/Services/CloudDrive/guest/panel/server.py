@@ -324,6 +324,46 @@ def password_ok(password: str, salt_hex: str, digest_hex: str) -> bool:
     return hmac.compare_digest(digest, expect)
 
 
+def _byte_range(header: str, size: int) -> tuple[int, int] | str | None:
+    text = (header or "").strip()
+    if not text:
+        return None
+    if not text.lower().startswith("bytes="):
+        return None
+    spec = text.split("=", 1)[1].split(",", 1)[0].strip()
+    if "-" not in spec:
+        return "unsat"
+    start_s, end_s = spec.split("-", 1)
+    if size <= 0:
+        return "unsat"
+    if start_s == "":
+        try:
+            count = int(end_s)
+        except ValueError:
+            return "unsat"
+        if count <= 0:
+            return "unsat"
+        count = min(count, size)
+        return (size - count, size - 1)
+    try:
+        start = int(start_s)
+    except ValueError:
+        return "unsat"
+    if start < 0 or start >= size:
+        return "unsat"
+    if end_s == "":
+        end = size - 1
+    else:
+        try:
+            end = int(end_s)
+        except ValueError:
+            return "unsat"
+        if end < start:
+            return "unsat"
+        end = min(end, size - 1)
+    return (start, end)
+
+
 def safe(rel: str) -> Path:
     rel = unquote(rel or "").replace("\\", "/").strip()
     while rel.startswith("/"):
@@ -765,9 +805,8 @@ class Panel(BaseHTTPRequestHandler):
         path = safe(rel)
         if not path.is_file():
             raise FileNotFoundError(rel)
-        data = path.read_bytes()
         name = path.name.replace('"', "")
-        self._bytes(data, "application/octet-stream", extra={"Content-Disposition": f'attachment; filename="{name}"'})
+        self._stream_file(path, "application/octet-stream", {"Content-Disposition": f'attachment; filename="{name}"'})
 
     def _mkdir(self) -> None:
         body = self._json_body()
@@ -984,7 +1023,7 @@ class Panel(BaseHTTPRequestHandler):
                 return
             bump_view(token)
             name = target.name.replace('"', "")
-            self._bytes(target.read_bytes(), "application/octet-stream", extra={"Content-Disposition": f'attachment; filename="{name}"'})
+            self._stream_file(target, "application/octet-stream", {"Content-Disposition": f'attachment; filename="{name}"'})
             return
         if method == "GET" and tail == "":
             bump_view(token)
@@ -1091,6 +1130,45 @@ class Panel(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _stream_file(self, path: Path, content_type: str, extra: dict | None = None) -> None:
+        size = path.stat().st_size
+        span = _byte_range(self.headers.get("Range") or "", size)
+        headers = {"Accept-Ranges": "bytes"}
+        if extra:
+            headers.update(extra)
+        if span == "unsat":
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{size}")
+            self.send_header("Content-Length", "0")
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+            return
+        if span is None:
+            start, length, status = 0, size, 200
+        else:
+            start, end = span
+            length = end - start + 1
+            status = 206
+            headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(length))
+        self.send_header("Cache-Control", "private, no-store")
+        for key, value in headers.items():
+            self.send_header(key, value)
+        self.end_headers()
+        if length <= 0:
+            return
+        with path.open("rb") as handle:
+            handle.seek(start)
+            left = length
+            while left:
+                blob = handle.read(min(65536, left))
+                if not blob:
+                    break
+                self.wfile.write(blob)
+                left -= len(blob)
+
     def _bytes(self, data: bytes, content_type: str, extra: dict | None = None) -> None:
         self.send_response(200)
         self.send_header("Content-Type", content_type)
@@ -1103,13 +1181,22 @@ class Panel(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _origin_blocked(self) -> bool:
+        host = (self.headers.get("Host") or "").split(":")[0].strip().lower()
+        local = host in ("", "127.0.0.1", "localhost", "::1")
+        secret = os.environ.get("BNDZ_ORIGIN_SECRET", "").strip()
+        if secret:
+            if local:
+                return False
+            presented = (self.headers.get("X-Bndz-Origin") or "").strip()
+            if len(presented) != len(secret):
+                return True
+            return not hmac.compare_digest(presented, secret)
         flag = os.environ.get("BNDZ_ROUTE_GUARD", "").strip().lower()
         if flag not in ("1", "true", "yes"):
             return False
         if (self.headers.get("X-Bndz-Route") or "").strip():
             return False
-        host = (self.headers.get("Host") or "").split(":")[0].strip().lower()
-        return host not in ("", "127.0.0.1", "localhost", "::1")
+        return not local
 
     def _redirect_target(self, path: str) -> str:
         redirects = slug_redirects()

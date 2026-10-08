@@ -57,6 +57,9 @@ public sealed class CloudDriveRecord
     public string? HostKeyNote { get; set; }
     /// <summary>Stable guest address on the local Hyper-V switch. Not a secret. Unused until a rootfs boots.</summary>
     public string? LocalGuestIp { get; set; }
+    /// <summary>Runtime only. The account origin-lock secret for the next guest start. Never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? GuestOriginSecret { get; set; }
     public List<CloudDriveSnapshot> Snapshots { get; set; } = new();
     public string CreatedUtc { get; set; } = "";
     public string UpdatedUtc { get; set; } = "";
@@ -212,6 +215,8 @@ public sealed class CloudDriveProbe
     public string LandingUrl { get; set; } = "";
     public bool CloudflareTokenConfigured { get; set; }
     public string? CloudflareMessage { get; set; }
+    public bool OriginSecretConfigured { get; set; }
+    public string? OriginSecretMessage { get; set; }
     public string LocalBackend { get; set; } = CloudDriveLocalBackend.None;
     public string? LocalBackendMessage { get; set; }
     public string? LastPlacement { get; set; }

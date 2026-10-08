@@ -486,6 +486,9 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
         var tunnel = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedTunnelToken);
         if (!string.IsNullOrWhiteSpace(tunnel))
             env["BNDZ_TUNNEL_TOKEN"] = tunnel;
+        var originSecret = (drive.GuestOriginSecret ?? "").Trim();
+        if (originSecret.Length >= 16 && originSecret.All(char.IsAsciiLetterOrDigit))
+            env["BNDZ_ORIGIN_SECRET"] = originSecret;
 
         var config = new Dictionary<string, object?>
         {
@@ -546,7 +549,7 @@ public sealed class FlyMachinesCloudDriveProvider : ICloudDriveProvider
     private static string ImageMissingMessage(string? org)
     {
         var who = string.IsNullOrWhiteSpace(org) ? "your Fly org" : "Fly org " + org;
-        return "Fly accepted the token for " + who + ". No machine yet — set the drive image, then Start.";
+        return "Fly accepted the token for " + who + ". No machine is created until BNDZ_CLOUD_DRIVE_IMAGE is set to the image digest or reference Fly can pull. Then Start.";
     }
 
     private static string SshNote(CloudDriveRecord drive)

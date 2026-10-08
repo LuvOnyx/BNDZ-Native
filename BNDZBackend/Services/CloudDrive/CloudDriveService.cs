@@ -59,6 +59,8 @@ public sealed class CloudDriveService
                 "CLOUD_DRIVE_SET_PUBLIC_DOMAIN" => await SetPublicDomainAsync(Str(payload, "domain") ?? Str(payload, "publicBaseDomain"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_SET_CLOUDFLARE_TOKEN" => await SetCloudflareTokenAsync(Str(payload, "token") ?? Str(payload, "cloudflareToken"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_CLEAR_CLOUDFLARE_TOKEN" => ClearCloudflareToken(),
+                "CLOUD_DRIVE_SET_ORIGIN_SECRET" => SetOriginSecret(Str(payload, "originSecret") ?? Str(payload, "secret")),
+                "CLOUD_DRIVE_CLEAR_ORIGIN_SECRET" => ClearOriginSecret(),
                 "CLOUD_DRIVE_PUBLISH" => await PublishOneAsync(Str(payload, "id"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_CHECK_SLUG" => CheckSlug(Str(payload, "slug"), Str(payload, "id")),
                 "CLOUD_DRIVE_RENAME_SLUG" => await RenameSlugAsync(Str(payload, "id"), Str(payload, "slug"), ct).ConfigureAwait(false),
@@ -108,8 +110,12 @@ public sealed class CloudDriveService
         local.LandingUrl = CloudDriveHostname.LandingUrl(local.PublicBaseDomain);
         local.CloudflareTokenConfigured = !string.IsNullOrWhiteSpace(_store.CloudflareTokenProtected);
         local.CloudflareMessage = local.CloudflareTokenConfigured
-            ? "A Cloudflare API token is stored for this Windows user. It is not shown again. " + CloudDriveCloudflare.RequiredScopes
-            : "No Cloudflare API token yet. Addresses are still reserved. " + CloudDriveCloudflare.RequiredScopes;
+            ? "A Cloudflare API token is stored for this Windows user. It is not shown again. The public router is deployed with cloud/router/deploy.sh. " + CloudDriveCloudflare.RequiredScopes
+            : "No Cloudflare API token yet. Addresses are still reserved. Deploy the router with cloud/router/deploy.sh, then save a token. " + CloudDriveCloudflare.RequiredScopes;
+        local.OriginSecretConfigured = !string.IsNullOrWhiteSpace(_store.OriginSecretProtected);
+        local.OriginSecretMessage = local.OriginSecretConfigured
+            ? "The origin lock secret is stored for this Windows user. It is not shown again. Start a drive again so the guest receives it."
+            : "No origin lock secret yet. After cloud/router/deploy.sh, paste the value from cloud/router/.origin-secret once. The script does not print it.";
         local.LastPlacement = _store.LastPlacement is "cloud" or "local" ? _store.LastPlacement : null;
         return local;
     }
@@ -241,12 +247,17 @@ public sealed class CloudDriveService
         }
         try
         {
+            StampGuestSecret(drive);
             await ProviderFor(drive).CreateAsync(drive, req, ReadToken, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             drive.State = "error";
             drive.Message = CloudDriveSecrets.Redact(ex.Message);
+        }
+        finally
+        {
+            drive.GuestOriginSecret = null;
         }
         drive.Message = CloudDriveSecrets.Redact(drive.Message);
         Touch(drive);
@@ -270,12 +281,17 @@ public sealed class CloudDriveService
         }
         try
         {
+            StampGuestSecret(drive);
             await op(drive, ReadToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             drive.State = "error";
             drive.Message = CloudDriveSecrets.Redact(ex.Message);
+        }
+        finally
+        {
+            drive.GuestOriginSecret = null;
         }
         drive.Message = CloudDriveSecrets.Redact(drive.Message);
         Touch(drive);
@@ -427,11 +443,16 @@ public sealed class CloudDriveService
         CloudDriveOp result;
         try
         {
+            StampGuestSecret(drive);
             result = await op(drive, ReadToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             result = new CloudDriveOp(false, CloudDriveSecrets.Redact(ex.Message));
+        }
+        finally
+        {
+            drive.GuestOriginSecret = null;
         }
         if (!result.Ok && !string.IsNullOrWhiteSpace(result.Error))
             drive.Message = result.Error;
@@ -769,6 +790,28 @@ public sealed class CloudDriveService
         return new { ok = true, probe = ProbeSnapshot(), drives = Dtos() };
     }
 
+    private object SetOriginSecret(string? raw)
+    {
+        var trimmed = (raw ?? "").Trim();
+        if (trimmed.Length < 16 || trimmed.Length > 128 || trimmed.Any(c => !char.IsAsciiLetterOrDigit(c)))
+            return new { ok = false, error = "Paste the origin secret from cloud/router/.origin-secret. Use 16 to 128 letters and numbers." };
+        _store.OriginSecretProtected = CloudDriveSecrets.ProtectToBase64(trimmed);
+        Save();
+        return new { ok = true, probe = ProbeSnapshot(), drives = Dtos() };
+    }
+
+    private object ClearOriginSecret()
+    {
+        _store.OriginSecretProtected = null;
+        Save();
+        return new { ok = true, probe = ProbeSnapshot(), drives = Dtos() };
+    }
+
+    private void StampGuestSecret(CloudDriveRecord drive)
+    {
+        drive.GuestOriginSecret = CloudDriveSecrets.UnprotectFromBase64(_store.OriginSecretProtected);
+    }
+
     private async Task<object> PublishOneAsync(string? id, CancellationToken ct)
     {
         var drive = Find(id);
@@ -861,6 +904,7 @@ public sealed class CloudDriveService
         public string? FlyTokenProtected { get; set; }
         public string? PublicBaseDomain { get; set; }
         public string? CloudflareTokenProtected { get; set; }
+        public string? OriginSecretProtected { get; set; }
         public string? LastPlacement { get; set; }
         public List<CloudDriveRecord> Drives { get; set; } = new();
     }

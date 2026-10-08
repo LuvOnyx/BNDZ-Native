@@ -949,6 +949,10 @@ export const IPC = {
     return this._cloudDriveMutate('CLOUD_DRIVE_SET_CLOUDFLARE_TOKEN', { token });
   },
 
+  cloudDriveSetOriginSecret(originSecret: string): Promise<{ ok: boolean; probe?: import('./cloudDrive').CloudDriveProbe; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
+    return this._cloudDriveMutate('CLOUD_DRIVE_SET_ORIGIN_SECRET', { originSecret });
+  },
+
   cloudDrivePublish(driveId: string): Promise<{ ok: boolean; drive?: import('./cloudDrive').CloudDriveRecord; drives?: import('./cloudDrive').CloudDriveRecord[]; error?: string }> {
     return this._cloudDriveMutate('CLOUD_DRIVE_PUBLISH', { id: driveId }, 60000);
   },

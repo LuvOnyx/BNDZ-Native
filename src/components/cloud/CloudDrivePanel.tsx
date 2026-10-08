@@ -793,6 +793,7 @@ function AddressAdmin({
   const base = probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN;
   const [domain, setDomain] = useState(base);
   const [token, setToken] = useState('');
+  const [originSecret, setOriginSecret] = useState('');
   useEffect(() => { setDomain(probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN); }, [probe.publicBaseDomain]);
 
   const saveDomain = async () => {
@@ -832,12 +833,31 @@ function AddressAdmin({
     }
   };
 
+  const saveOrigin = async () => {
+    if (!IPC.isNative) {
+      pushToast({ kind: 'warning', title: 'Origin secret', message: HOST_NOTE });
+      return;
+    }
+    onBusy(true);
+    try {
+      const r = await IPC.cloudDriveSetOriginSecret(originSecret.trim());
+      if (!r.ok) throw new Error(r.error || 'Could not store the origin secret.');
+      setOriginSecret('');
+      if (r.probe) onProbe(r.probe);
+      pushToast({ kind: 'success', title: 'Origin secret stored', message: 'It stays in the Windows secure store. Start a drive again so the guest receives it.' });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Origin secret', message: e instanceof Error ? e.message : 'Could not store the origin secret.' });
+    } finally {
+      onBusy(false);
+    }
+  };
+
   return (
     <section className="bndz-cloud-address" aria-label="Cloud Drive address">
       <h4 className="bndz-cloud-section-label">Address</h4>
       <p className="bndz-cloud-address-url">{probe.landingUrl || landingUrl(base)}</p>
       <p className="bndz-cloud-message">
-        {probe.landingUrl || landingUrl(base)} is the account page. Each drive is a path under that host. {probe.cloudflareMessage || 'Zone DNS Edit, Zone Read, Account Cloudflare Tunnel Edit, and Workers Scripts Edit on the bndz.org zone.'}
+        {probe.landingUrl || landingUrl(base)} is the account page. Each drive is a path under that host. {probe.cloudflareMessage || 'Deploy cloud/router once, then save a Cloudflare token and the origin secret.'}
       </p>
       <label className="grid gap-1">
         <span className="bndz-plugin-field-label">Base domain</span>
@@ -856,9 +876,24 @@ function AddressAdmin({
           onChange={e => setToken(e.target.value)}
         />
       </label>
+      <label className="grid gap-1">
+        <span className="bndz-plugin-field-label">Origin lock secret</span>
+        <input
+          className={PLUGIN_INPUT_CLASS}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          name="bndz-origin-secret"
+          placeholder={probe.originSecretConfigured ? 'Secret stored — paste only to replace it' : 'Paste cloud/router/.origin-secret'}
+          value={originSecret}
+          onChange={e => setOriginSecret(e.target.value)}
+        />
+      </label>
+      {probe.originSecretMessage && <p className="bndz-cloud-message">{probe.originSecretMessage}</p>}
       <div className="flex flex-wrap gap-2">
         <PluginToolbarButton disabled={busy} onClick={() => void saveDomain()}>Save domain</PluginToolbarButton>
         <PluginToolbarButton disabled={busy || !token.trim()} onClick={() => void saveToken()}>Save Cloudflare token</PluginToolbarButton>
+        <PluginToolbarButton disabled={busy || !originSecret.trim()} onClick={() => void saveOrigin()}>Save origin secret</PluginToolbarButton>
       </div>
     </section>
   );

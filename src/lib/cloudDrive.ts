@@ -90,6 +90,8 @@ export type CloudDriveProbe = {
   landingUrl?: string;
   cloudflareTokenConfigured?: boolean;
   cloudflareMessage?: string;
+  originSecretConfigured?: boolean;
+  originSecretMessage?: string;
   localBackend?: CloudDriveLocalBackend | string;
   localBackendMessage?: string;
   lastPlacement?: string | null;

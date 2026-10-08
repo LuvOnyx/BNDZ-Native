@@ -6,15 +6,16 @@ using System.Text.Json;
 namespace BNDZ.Services.CloudDrive;
 
 /// <summary>
-/// Publishes one drive tunnel at the hidden origin d-&lt;slug&gt;.&lt;zone&gt;, then uploads the
-/// Worker that serves every path on the single public host. cloud itself is a proxied
-/// placeholder so the Worker route runs. It is not a CNAME to one drive tunnel: that
-/// would only reach one machine. With no API token this is a dry run.
-/// Token scopes: Zone DNS Edit, Zone Read, Account Cloudflare Tunnel Edit, Workers Scripts Edit.
+/// Publishes one drive tunnel at the hidden origin d-&lt;slug&gt;.bndz.org and upserts the
+/// KV map the public router reads. The Worker on cloud.bndz.org is deployed by
+/// cloud/router/deploy.sh. This class does not upload a script and does not write
+/// DNS for the apex, www, or cloud. With no API token this is a dry run.
 /// </summary>
 public static class CloudDriveCloudflare
 {
-    public const string RequiredScopes = "Zone DNS Edit, Zone Read, Account Cloudflare Tunnel Edit, and Workers Scripts Edit on the bndz.org zone.";
+    public const string RouteNamespaceTitle = "bndz-cloud-routes";
+    public const string WebsiteAddress = "15.204.218.94";
+    public const string RequiredScopes = "Zone DNS Edit, Zone Read, Account Cloudflare Tunnel Edit, Workers Scripts Edit, Workers KV Storage Edit, and Workers Routes on the bndz.org zone. Deploy the public router with cloud/router/deploy.sh.";
     public const string IngressService = "http://127.0.0.1:8080";
 
     public sealed class Plan
@@ -46,7 +47,7 @@ public static class CloudDriveCloudflare
         var route = host + "/*";
         var reserved = url.Length == 0
             ? "The drive needs a path name before it can have an address."
-            : "Address reserved as " + url + ". A Worker on " + host + " sends this path to its own tunnel. Save a Cloudflare API token to publish it. " + RequiredScopes;
+            : "Address reserved as " + url + ". Run cloud/router/deploy.sh once, then save a Cloudflare API token to publish this drive's tunnel. " + RequiredScopes;
         return new Plan
         {
             Mode = tokenConfigured && url.Length > 0 ? "live" : "dry-run",
@@ -85,9 +86,10 @@ public static class CloudDriveCloudflare
             var tunnel = await EnsureTunnelAsync(client, zone.AccountId, plan.TunnelName, ct).ConfigureAwait(false);
             await PutIngressAsync(client, zone.AccountId, tunnel.Id, plan.OriginHost, ct).ConfigureAwait(false);
             await EnsureDnsAsync(client, zone.Id, plan.OriginHost, tunnel.Id, ct).ConfigureAwait(false);
-            await EnsureProxiedPlaceholderAsync(client, zone.Id, plan.Hostname, ct).ConfigureAwait(false);
-            await PutWorkerAsync(client, zone.AccountId, plan.WorkerScript, ct).ConfigureAwait(false);
-            await EnsureWorkerRouteAsync(client, zone.Id, plan.WorkerRoute, ct).ConfigureAwait(false);
+            var routesReady = await UpsertRouteMapAsync(client, zone.AccountId, baseDomain, routes, ct).ConfigureAwait(false);
+            var message = routesReady
+                ? "Published " + plan.PublicUrl + ". The hidden origin is " + plan.OriginHost + ". The public router reads " + RouteNamespaceTitle + "."
+                : "Published the hidden origin " + plan.OriginHost + ". The public router is not installed yet. Run cloud/router/deploy.sh, then publish this drive again.";
             return WithScript(new Plan
             {
                 Mode = "published",
@@ -100,7 +102,7 @@ public static class CloudDriveCloudflare
                 TunnelName = plan.TunnelName,
                 TunnelId = tunnel.Id,
                 ConnectorToken = tunnel.Token,
-                Message = "Published " + plan.PublicUrl + ". The Worker on " + plan.Hostname + " sends that path to this drive. The tunnel runs inside the drive.",
+                Message = message,
             }, plan.WorkerScript);
         }
         catch (Exception ex)
@@ -221,8 +223,26 @@ public static class CloudDriveCloudflare
             ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// C# publish may write only d-&lt;slug&gt;.bndz.org. cloud.bndz.org belongs to deploy.sh.
+    /// The apex, www, and the live website address are refused.
+    /// </summary>
+    public static void RejectDnsChange(string? name, string? content = null)
+    {
+        var host = (name ?? "").Trim().TrimEnd('.').ToLowerInvariant();
+        if (host is "" or "bndz.org" or "www.bndz.org" or "www" or "@")
+            throw new InvalidOperationException("Refusing to change the live website DNS for " + (host.Length == 0 ? "(empty)" : host) + ".");
+        if (string.Equals((content ?? "").Trim(), WebsiteAddress, StringComparison.Ordinal))
+            throw new InvalidOperationException("Refusing to change a record that points at the live website.");
+        if (host == "cloud.bndz.org")
+            throw new InvalidOperationException("Refusing to change cloud.bndz.org. cloud/router/deploy.sh owns that name.");
+        if (!System.Text.RegularExpressions.Regex.IsMatch(host, @"^d-[a-z0-9](?:[a-z0-9-]{0,59}[a-z0-9])?\.bndz\.org$"))
+            throw new InvalidOperationException("Refusing DNS name " + host + ".");
+    }
+
     private static async Task EnsureDnsAsync(HttpClient client, string zoneId, string hostname, string tunnelId, CancellationToken ct)
     {
+        RejectDnsChange(hostname);
         var target = tunnelId + ".cfargotunnel.com";
         var listUrl = "https://api.cloudflare.com/client/v4/zones/" + zoneId + "/dns_records?type=CNAME&name=" + Uri.EscapeDataString(hostname);
         using var doc = await SendAsync(client, HttpMethod.Get, listUrl, null, ct).ConfigureAwait(false);
@@ -231,6 +251,7 @@ public static class CloudDriveCloudflare
             var id = item.GetProperty("id").GetString() ?? "";
             var content = item.TryGetProperty("content", out var c) ? c.GetString() : "";
             if (id.Length == 0) continue;
+            RejectDnsChange(hostname, content);
             if (string.Equals(content, target, StringComparison.OrdinalIgnoreCase)) return;
             var update = JsonSerializer.Serialize(new { type = "CNAME", name = hostname, content = target, proxied = true, ttl = 1 });
             using var _ = await SendAsync(client, HttpMethod.Put, "https://api.cloudflare.com/client/v4/zones/" + zoneId + "/dns_records/" + id, update, ct).ConfigureAwait(false);
@@ -240,65 +261,91 @@ public static class CloudDriveCloudflare
         using var __ = await SendAsync(client, HttpMethod.Post, "https://api.cloudflare.com/client/v4/zones/" + zoneId + "/dns_records", create, ct).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// The public name must be proxied so the Worker route runs. A CNAME to one
-    /// tunnel would only reach that one machine, so a missing record becomes a
-    /// proxied placeholder. An existing proxied record is left alone.
-    /// </summary>
-    private static async Task EnsureProxiedPlaceholderAsync(HttpClient client, string zoneId, string hostname, CancellationToken ct)
+    private static async Task<bool> UpsertRouteMapAsync(HttpClient client, string accountId, string? baseDomain, IReadOnlyList<CloudDriveRouter.DriveRoute> routes, CancellationToken ct)
     {
-        var listUrl = "https://api.cloudflare.com/client/v4/zones/" + zoneId + "/dns_records?name=" + Uri.EscapeDataString(hostname);
-        using var doc = await SendAsync(client, HttpMethod.Get, listUrl, null, ct).ConfigureAwait(false);
-        foreach (var item in doc.RootElement.GetProperty("result").EnumerateArray())
+        var ns = await FindRouteNamespaceAsync(client, accountId, ct).ConfigureAwait(false);
+        if (ns == null) return false;
+        var slugs = new List<string>();
+        var raw = await GetKvRawAsync(client, accountId, ns, "drives", ct).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(raw))
         {
-            var proxied = item.TryGetProperty("proxied", out var flag) && flag.ValueKind == JsonValueKind.True;
-            if (proxied) return;
-        }
-        if (doc.RootElement.GetProperty("result").GetArrayLength() > 0) return;
-        var create = JsonSerializer.Serialize(new { type = "A", name = hostname, content = "192.0.2.1", proxied = true, ttl = 1 });
-        using var _ = await SendAsync(client, HttpMethod.Post, "https://api.cloudflare.com/client/v4/zones/" + zoneId + "/dns_records", create, ct).ConfigureAwait(false);
-    }
-
-    private static async Task PutWorkerAsync(HttpClient client, string accountId, string script, CancellationToken ct)
-    {
-        var boundary = "bndzworker" + Guid.NewGuid().ToString("N");
-        var metadata = "{\"main_module\":\"worker.js\",\"compatibility_date\":\"2024-01-01\"}";
-        var body = new StringBuilder();
-        body.Append("--").Append(boundary).Append("\r\n");
-        body.Append("Content-Disposition: form-data; name=\"metadata\"; filename=\"metadata.json\"\r\n");
-        body.Append("Content-Type: application/json\r\n\r\n");
-        body.Append(metadata).Append("\r\n");
-        body.Append("--").Append(boundary).Append("\r\n");
-        body.Append("Content-Disposition: form-data; name=\"worker.js\"; filename=\"worker.js\"\r\n");
-        body.Append("Content-Type: application/javascript+module\r\n\r\n");
-        body.Append(script).Append("\r\n");
-        body.Append("--").Append(boundary).Append("--\r\n");
-        using var req = new HttpRequestMessage(HttpMethod.Put, "https://api.cloudflare.com/client/v4/accounts/" + accountId + "/workers/scripts/" + CloudDriveRouter.ScriptName);
-        req.Content = new StringContent(body.ToString(), Encoding.UTF8, "multipart/form-data");
-        req.Content.Headers.ContentType = new MediaTypeHeaderValue("multipart/form-data");
-        req.Content.Headers.ContentType.Parameters.Add(new System.Net.Http.Headers.NameValueHeaderValue("boundary", boundary));
-        using var res = await client.SendAsync(req, ct).ConfigureAwait(false);
-        var text = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        if (!res.IsSuccessStatusCode)
-            throw new InvalidOperationException("Cloudflare did not accept the router.");
-        if (text.Contains("\"success\":false", StringComparison.Ordinal) || text.Contains("\"success\": false", StringComparison.Ordinal))
-            throw new InvalidOperationException("Cloudflare did not accept the router.");
-    }
-
-    private static async Task EnsureWorkerRouteAsync(HttpClient client, string zoneId, string pattern, CancellationToken ct)
-    {
-        var listUrl = "https://api.cloudflare.com/client/v4/zones/" + zoneId + "/workers/routes";
-        using var doc = await SendAsync(client, HttpMethod.Get, listUrl, null, ct).ConfigureAwait(false);
-        if (doc.RootElement.TryGetProperty("result", out var result) && result.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in result.EnumerateArray())
+            using var existing = JsonDocument.Parse(raw);
+            if (existing.RootElement.ValueKind == JsonValueKind.Array)
             {
-                var existing = item.TryGetProperty("pattern", out var p) ? p.GetString() : "";
-                if (string.Equals(existing, pattern, StringComparison.OrdinalIgnoreCase)) return;
+                foreach (var item in existing.RootElement.EnumerateArray())
+                {
+                    var name = item.GetString() ?? "";
+                    if (CloudDriveHostname.ValidateSlug(name) == null && !slugs.Contains(name))
+                        slugs.Add(name);
+                }
             }
         }
-        var create = JsonSerializer.Serialize(new { pattern, script = CloudDriveRouter.ScriptName });
-        using var _ = await SendAsync(client, HttpMethod.Post, listUrl, create, ct).ConfigureAwait(false);
+        foreach (var route in routes)
+        {
+            var slug = (route.Slug ?? "").Trim().ToLowerInvariant();
+            if (CloudDriveHostname.ValidateSlug(slug) != null) continue;
+            var originHost = CloudDriveHostname.OriginHost(baseDomain, slug);
+            RejectDnsChange(originHost);
+            var origin = "https://" + originHost;
+            await PutKvRawAsync(client, accountId, ns, "drive:" + slug, "{\"origin\":" + JsonSerializer.Serialize(origin) + "}", ct).ConfigureAwait(false);
+            if (!slugs.Contains(slug)) slugs.Add(slug);
+            if (route.Redirects == null) continue;
+            foreach (var redirect in route.Redirects)
+            {
+                var from = (redirect.From ?? "").Trim().ToLowerInvariant();
+                if (CloudDriveHostname.ValidateSlug(from) != null) continue;
+                if (!DateTime.TryParse(redirect.UntilUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var until)) continue;
+                if (until.ToUniversalTime() <= DateTime.UtcNow) continue;
+                var ms = new DateTimeOffset(DateTime.SpecifyKind(until, until.Kind == DateTimeKind.Unspecified ? DateTimeKind.Utc : until.Kind)).ToUnixTimeMilliseconds();
+                await PutKvRawAsync(client, accountId, ns, "redirect:" + from, "{\"to\":" + JsonSerializer.Serialize(slug) + ",\"until\":" + ms.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}", ct).ConfigureAwait(false);
+            }
+        }
+        await PutKvRawAsync(client, accountId, ns, "drives", JsonSerializer.Serialize(slugs), ct).ConfigureAwait(false);
+        return true;
+    }
+
+    private static async Task<string?> FindRouteNamespaceAsync(HttpClient client, string accountId, CancellationToken ct)
+    {
+        for (var page = 1; page <= 5; page++)
+        {
+            var url = "https://api.cloudflare.com/client/v4/accounts/" + accountId + "/storage/kv/namespaces?per_page=50&page=" + page.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            using var doc = await SendAsync(client, HttpMethod.Get, url, null, ct).ConfigureAwait(false);
+            if (!doc.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.Array)
+                return null;
+            var count = result.GetArrayLength();
+            foreach (var item in result.EnumerateArray())
+            {
+                var title = item.TryGetProperty("title", out var t) ? t.GetString() : "";
+                if (!string.Equals(title, RouteNamespaceTitle, StringComparison.Ordinal)) continue;
+                var id = item.TryGetProperty("id", out var i) ? i.GetString() : "";
+                if (!string.IsNullOrWhiteSpace(id)) return id;
+            }
+            if (count < 50) return null;
+        }
+        return null;
+    }
+
+    private static async Task<string?> GetKvRawAsync(HttpClient client, string accountId, string namespaceId, string key, CancellationToken ct)
+    {
+        var url = "https://api.cloudflare.com/client/v4/accounts/" + accountId + "/storage/kv/namespaces/" + namespaceId + "/values/" + Uri.EscapeDataString(key);
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        using var res = await client.SendAsync(req, ct).ConfigureAwait(false);
+        var text = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        if ((int)res.StatusCode == 404) return null;
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException("Cloudflare returned HTTP " + (int)res.StatusCode + ".");
+        return text;
+    }
+
+    private static async Task PutKvRawAsync(HttpClient client, string accountId, string namespaceId, string key, string value, CancellationToken ct)
+    {
+        var url = "https://api.cloudflare.com/client/v4/accounts/" + accountId + "/storage/kv/namespaces/" + namespaceId + "/values/" + Uri.EscapeDataString(key);
+        using var req = new HttpRequestMessage(HttpMethod.Put, url);
+        req.Content = new StringContent(value, Encoding.UTF8, "text/plain");
+        using var res = await client.SendAsync(req, ct).ConfigureAwait(false);
+        var text = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        if (!res.IsSuccessStatusCode || text.Contains("\"success\":false", StringComparison.Ordinal) || text.Contains("\"success\": false", StringComparison.Ordinal))
+            throw new InvalidOperationException("Cloudflare did not store the drive route.");
     }
 
     private static async Task<JsonDocument> SendAsync(HttpClient client, HttpMethod method, string url, string? json, CancellationToken ct)
