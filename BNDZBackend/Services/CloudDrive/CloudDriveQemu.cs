@@ -143,6 +143,10 @@ if [ -n ""$seed"" ]; then
   for f in server.py index.html app.js app.css qrcodegen.py; do
     [ -f ""/run/bndz-seed/$f"" ] && cp ""/run/bndz-seed/$f"" /opt/bndz/panel/""$f""
   done
+  # Settings are refreshed from the seed on every boot, so cloud-init only runs once.
+  if [ -f /run/bndz-seed/panel.conf ]; then
+    install -m 600 /run/bndz-seed/panel.conf /etc/conf.d/bndz-panel
+  fi
   umount /run/bndz-seed 2>/dev/null || true
 fi
 ";
@@ -158,7 +162,7 @@ directory=""/opt/bndz/panel""
 output_log=""/var/log/bndz-panel.log""
 error_log=""/var/log/bndz-panel.log""
 depend() { need net localmount; after sshd; }
-start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh; }
+start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh; [ -f /etc/conf.d/bndz-panel ] && . /etc/conf.d/bndz-panel; return 0; }
 ";
 
     public static string PanelConf(string password, string? publicHost, string? pathPrefix, string? originSecret)
@@ -195,6 +199,12 @@ start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh; }
         Literal(sb, "/etc/init.d/bndz-panel", "0755", PanelInit());
         Literal(sb, "/etc/conf.d/bndz-panel", "0600", PanelConf(password, publicHost, pathPrefix, originSecret));
         sb.Append("runcmd:\n  - [rc-update, add, bndz-panel, default]\n  - [rc-service, bndz-panel, start]\n");
+        // First boot is done; later boots skip cloud-init (slow under TCG). The bootstrap reapplies settings from the seed.
+        foreach (var svc in new[] { "cloud-init-local:boot", "cloud-init:boot", "cloud-config:default", "cloud-final:default", "cloud-init-hotplugd:default" })
+        {
+            var parts = svc.Split(':');
+            sb.Append("  - [rc-update, del, ").Append(parts[0]).Append(", ").Append(parts[1]).Append("]\n");
+        }
         return sb.ToString();
     }
 
@@ -212,6 +222,7 @@ start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh; }
         {
             ("user-data", Encoding.UTF8.GetBytes(UserData(publicKey, password, publicHost, pathPrefix, originSecret))),
             ("meta-data", Encoding.UTF8.GetBytes("instance-id: bndz-" + id + "\nlocal-hostname: bndz\n")),
+            ("panel.conf", Encoding.UTF8.GetBytes(PanelConf(password, publicHost, pathPrefix, originSecret))),
         };
         foreach (var f in panelFiles)
         {
