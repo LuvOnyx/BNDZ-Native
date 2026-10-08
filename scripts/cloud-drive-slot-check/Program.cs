@@ -214,11 +214,11 @@ Assert(CloudDriveLocalBackend.DefaultPlacement(false, null, "local") == "local",
 Assert(CloudDriveLocalBackend.FasterModeCommand.Contains("HypervisorPlatform", StringComparison.Ordinal) && !CloudDriveLocalBackend.FasterModeCommand.Contains("Hyper-V", StringComparison.Ordinal), "faster mode does not enable Hyper-V");
 Assert(CloudDriveLocalBackend.EnableHowTo.Contains("Optional", StringComparison.Ordinal), "faster mode is optional");
 {
-    var spec = new CloudDriveQemu.LaunchSpec("bndz-t", @"F:\d\system.qcow2", @"F:\d,x\disk.vhdx", @"F:\d\seed.iso", 18100, 22100, 40000, @"F:\d\console.log", @"F:\d\qemu.pid", false);
+    var spec = new CloudDriveQemu.LaunchSpec("bndz-t", @"F:\d\system.qcow2", @"F:\d,x\data.qcow2", @"F:\d\seed.iso", 18100, 22100, 40000, @"F:\d\console.log", @"F:\d\qemu.pid", false);
     var tcg = string.Join(' ', CloudDriveQemu.BuildArgs(spec));
     Assert(tcg.Contains("hostfwd=tcp:127.0.0.1:18100-:8080", StringComparison.Ordinal) && tcg.Contains("hostfwd=tcp:127.0.0.1:22100-:22", StringComparison.Ordinal), "qemu forwards panel and ssh on localhost only");
     Assert(!tcg.Contains("whpx", StringComparison.Ordinal) && tcg.Contains("tcg", StringComparison.Ordinal), "compatibility mode uses tcg");
-    Assert(tcg.Contains(@"F:\d,,x\disk.vhdx,if=virtio,format=vhdx", StringComparison.Ordinal), "data disk is virtio vhdx with escaped comma");
+    Assert(tcg.Contains(@"F:\d,,x\data.qcow2,if=virtio,format=qcow2", StringComparison.Ordinal), "data disk is virtio qcow2 with escaped comma");
     Assert(!tcg.Contains("tap", StringComparison.OrdinalIgnoreCase) && tcg.Contains("-netdev user", StringComparison.Ordinal), "user-mode networking, no TAP");
     var fast = CloudDriveQemu.BuildArgs(spec with { Whpx = true });
     var wi = fast.ToList().IndexOf("whpx,kernel-irqchip=off");

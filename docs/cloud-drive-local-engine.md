@@ -15,9 +15,11 @@ VirtualMachinePlatform, then needs a restart. It never enables or requires Hyper
 Alpine Linux 3.24.1 generic cloud image (cloud-init, python3, OpenSSH, OpenRC). Per drive:
 
 - `system.qcow2`: copy-on-write overlay on the shared pinned image.
-- `disk.vhdx`: data disk, dynamic VHDX, ext4 labelled `BNDZDATA`. QEMU (vhdx driver), Hyper-V and
-  `wsl --mount --vhd` all open it, so a drive made in compatibility mode moves to a faster engine later.
-  The bootstrap formats a disk only when it has no filesystem at all.
+- `data.qcow2`: data disk (sparse), ext4 labelled `BNDZDATA`. QEMU never writes vhdx: in the live test its
+  vhdx driver lost ext4 metadata across a restart. Moving between engines is one offline `qemu-img convert`
+  (`CloudDriveQemu.ConvertDataDisk`): qcow2 → vhdx for Hyper-V / `wsl --mount --vhd`, and an existing
+  `disk.vhdx` is copied to qcow2 automatically the first time QEMU starts that drive (the vhdx is left untouched).
+  The filesystem inside is the same, and the bootstrap formats a disk only when it has no filesystem at all.
 - `seed.iso`: NoCloud seed with the panel files and an OpenRC service.
 - Networking is QEMU user mode with `hostfwd` on 127.0.0.1 for the panel and SSH. No TAP, no vSwitch, no admin.
 

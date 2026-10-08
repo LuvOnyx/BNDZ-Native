@@ -37,7 +37,7 @@ Console.WriteLine("runtime size MiB: " + (Directory.EnumerateFiles(runtime, "*",
 
 Directory.CreateDirectory(slot);
 var sys = Path.Combine(slot, "system.qcow2");
-var data = Path.Combine(slot, "disk.vhdx");
+var data = Path.Combine(slot, CloudDriveQemu.DataDiskName);
 var seed = Path.Combine(slot, "seed.iso");
 CloudDriveQemu.EnsureSystemDisk(runtime, sys);
 CloudDriveQemu.EnsureDataDisk(runtime, data, 8);
@@ -133,6 +133,11 @@ try
     clean = await CloudDriveQemu.StopAsync(qmpPort, pid, TimeSpan.FromSeconds(60), CancellationToken.None);
     Console.WriteLine($"stop 2: {(clean ? "guest powered off" : "forced quit")}");
     var info = CloudDriveQemu.Run(CloudDriveQemu.QemuImg(runtime), new[] { "info", data }, 30_000).output;
+    var vhdxCopy = Path.Combine(slot, "disk.vhdx");
+    var tc = Stopwatch.StartNew();
+    CloudDriveQemu.ConvertDataDisk(runtime, data, vhdxCopy);
+    var cmp = CloudDriveQemu.Run(CloudDriveQemu.QemuImg(runtime), new[] { "compare", "-f", "qcow2", "-F", "vhdx", data, vhdxCopy }, 120_000).output;
+    Ok(cmp.Contains("identical", StringComparison.OrdinalIgnoreCase), $"data disk converts to vhdx for Hyper-V/WSL2 and is identical ({tc.Elapsed.TotalSeconds:F1}s, {new FileInfo(vhdxCopy).Length / 1048576.0:F0} MiB)");
     Console.WriteLine("data disk: " + string.Join(" | ", info.Split('\n').Where(l => l.StartsWith("file format") || l.StartsWith("virtual size") || l.StartsWith("disk size")).Select(l => l.Trim())));
 }
 catch (Exception e)

@@ -795,16 +795,23 @@ Write-Output 'VHD_OK'
             }
             CloudDrivePorts.Ensure(drive);
             var sys = Path.Combine(drive.DiskPath!, "system.qcow2");
-            drive.VhdxPath ??= Path.Combine(drive.DiskPath!, "disk.vhdx");
             CloudDriveQemu.EnsureSystemDisk(runtime, sys);
-            CloudDriveQemu.EnsureDataDisk(runtime, drive.VhdxPath, 64);
+            var data = Path.Combine(drive.DiskPath!, CloudDriveQemu.DataDiskName);
+            var vhdx = drive.VhdxPath ?? Path.Combine(drive.DiskPath!, "disk.vhdx");
+            // A drive that ran under Hyper-V or WSL2 comes over once as a qcow2 copy; the vhdx is kept untouched.
+            if (!File.Exists(data) && File.Exists(vhdx))
+            {
+                drive.Message = "Moving the data disk to this engine (one-time copy).";
+                CloudDriveQemu.ConvertDataDisk(runtime, vhdx, data);
+            }
+            CloudDriveQemu.EnsureDataDisk(runtime, data, 64);
             var seed = Path.Combine(drive.DiskPath!, "seed.iso");
             CloudDriveQemu.WriteSeed(seed, drive.Id, drive.PublicKey, password,
                 CloudDriveProtocols.GuestPublicHost(drive), CloudDrivePanelAssets.Files(),
                 CloudDriveProtocols.GuestPathPrefix(drive), drive.GuestOriginSecret);
             var whpx = backend == CloudDriveLocalBackend.QemuWhpx;
             var qmp = CloudDriveQemu.FreePort();
-            var spec = new CloudDriveQemu.LaunchSpec("bndz-" + drive.Id, sys, drive.VhdxPath, seed,
+            var spec = new CloudDriveQemu.LaunchSpec("bndz-" + drive.Id, sys, data, seed,
                 drive.WebDavPort, drive.SshPort, qmp, Path.Combine(drive.DiskPath!, "console.log"),
                 Path.Combine(drive.DiskPath!, "qemu.pid"), whpx,
                 Kernel: CloudDriveQemu.Kernel(runtime), Initrd: CloudDriveQemu.Initrd(runtime));
@@ -836,7 +843,7 @@ Write-Output 'VHD_OK'
         if (state != null && CloudDriveQemu.Alive(state.Pid))
             await CloudDriveQemu.StopAsync(state.QmpPort, state.Pid, TimeSpan.FromSeconds(45), ct);
         drive.State = "stopped";
-        drive.Message = "Drive stopped. The data disk is still at " + (drive.VhdxPath ?? drive.DiskPath) + ".";
+        drive.Message = "Drive stopped. The data disk is still at " + Path.Combine(drive.DiskPath ?? "", CloudDriveQemu.DataDiskName) + ".";
     }
 
     private static void RefreshQemu(CloudDriveRecord drive)

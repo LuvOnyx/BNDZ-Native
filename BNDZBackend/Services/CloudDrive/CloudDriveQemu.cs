@@ -101,7 +101,6 @@ public static class CloudDriveQemu
         if (!string.IsNullOrEmpty(s.Kernel) && !string.IsNullOrEmpty(s.Initrd))
             a.AddRange(new[] { "-kernel", s.Kernel, "-initrd", s.Initrd, "-append", KernelAppend });
         a.AddRange(new[] { "-drive", "file=" + Q(s.SystemDisk) + ",if=virtio,format=" + DiskFormat(s.SystemDisk) + ",cache=writeback" });
-        // discard/zero-detect off: the vhdx driver is safest with plain writes.
         a.AddRange(new[] { "-drive", "file=" + Q(s.DataDisk) + ",if=virtio,format=" + DiskFormat(s.DataDisk) + ",cache=writeback,discard=ignore,detect-zeroes=off" });
         a.AddRange(new[] { "-drive", "file=" + Q(s.SeedIso) + ",media=cdrom,readonly=on" });
         a.AddRange(new[]
@@ -397,13 +396,31 @@ start_pre() { /bin/sh /usr/local/sbin/bndz-bootstrap.sh || return 1; [ -f /etc/c
     }
 
     /// <summary>
-    /// Data disk as dynamic VHDX: QEMU (vhdx driver), Hyper-V and WSL2 (wsl --mount --vhd) all open it,
-    /// so a drive made in compatibility mode moves to a faster engine later. Never recreated.
+    /// Data disk for QEMU: qcow2 (sparse, QEMU's native format). Live tests showed QEMU's vhdx driver
+    /// losing ext4 metadata across a restart, so vhdx is never written by QEMU. Moving to Hyper-V or WSL2
+    /// is one offline <see cref="ConvertDataDisk"/> to vhdx; the ext4 filesystem (label BNDZDATA) is unchanged.
+    /// Never recreated.
     /// </summary>
     public static void EnsureDataDisk(string runtime, string path, int sizeGb)
     {
         if (File.Exists(path)) return;
-        Run(QemuImg(runtime), new[] { "create", "-q", "-f", DiskFormat(path), "-o", DiskFormat(path) == "vhdx" ? "subformat=dynamic" : "preallocation=off", path, sizeGb + "G" }, 60_000);
+        var fmt = DiskFormat(path);
+        if (fmt == "vhdx" || fmt == "vpc")
+            throw new InvalidOperationException("QEMU keeps the data disk as qcow2. Use ConvertDataDisk to move a vhdx in.");
+        Run(QemuImg(runtime), new[] { "create", "-q", "-f", fmt, path, sizeGb + "G" }, 60_000);
+    }
+
+    public const string DataDiskName = "data.qcow2";
+
+    /// <summary>Offline copy between engines, e.g. data.qcow2 → disk.vhdx for Hyper-V or the reverse.</summary>
+    public static void ConvertDataDisk(string runtime, string from, string to)
+    {
+        if (File.Exists(to)) throw new InvalidOperationException("The target disk already exists: " + to);
+        var extra = DiskFormat(to) == "vhdx" ? new[] { "-o", "subformat=dynamic" } : Array.Empty<string>();
+        var args = new List<string> { "convert", "-p", "-f", DiskFormat(from), "-O", DiskFormat(to) };
+        args.AddRange(extra);
+        args.Add(from); args.Add(to);
+        Run(QemuImg(runtime), args, 6 * 60 * 60 * 1000);
     }
 
     // ---------- process control ----------
