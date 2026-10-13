@@ -1,0 +1,14 @@
+{
+  "name": "bndz-cloud-router",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/router.test.mjs",
+    "dev": "wrangler dev --local",
+    "deploy:dry": "wrangler deploy --dry-run --outdir /tmp/bndz-cloud-router-dry"
+  },
+  "devDependencies": {
+    "miniflare": "4.20250712.2",
+    "wrangler": "4.26.0"
+  }
+}

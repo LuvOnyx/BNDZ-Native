@@ -1,5 +1,5 @@
 /** Bump when PNG/SVG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '22';
+export const LAUNCHER_ICON_REV = '23';
 
 /**
  * DEV ICON MAP -- single place to find / swap UI chrome icons.
@@ -247,6 +247,16 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   ui_image_missing: 'Ui/image-missing.svg',
   ui_preview_folder: 'Ui/preview-Big Folder.svg',
   ui_preview_folder_alt: 'Ui/preview-Big Folder-1.svg',
+  // Command Hub / omnibar aliases -- friendly ids + unused disk assets
+  dual_pane: 'toggle_dual_pane.svg',
+  preview: 'toggle_preview.png',
+  settings: 'settings.png',
+  tabs: 'new_tab.png',
+  command: 'command_ui.png',
+  folder: 'open-folder.png',
+  open_folder: 'open-folder.png',
+  panel: 'panel.png',
+  go_home_png: 'go_home.png',
 };
 
 /** Custom assets that must not be overwritten by the Icons8 downloader. */
@@ -267,7 +277,7 @@ export const CUSTOM_LAUNCHER_ICON_IDS = new Set([
   'info_ui',
 ]);
 
-/** Icon ids that render fine at small (≤16px) sizes without becoming illegible 3D-render mush. */
+/** Icon ids that render fine at small (â‰¤16px) sizes without becoming illegible 3D-render mush. */
 export const UI_GLYPH_IDS = new Set([
   'chevron_right', 'chevron_left', 'chevron_down', 'chevron_up', 'close', 'check',
   'star_ui', 'clock_ui', 'loading', 'warning', 'error_ui', 'external_link', 'send',

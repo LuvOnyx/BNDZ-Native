@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.origin-secret
+.secrets-file.json
+wrangler.deploy.jsonc
+bin/
+.dev.vars

@@ -15,7 +15,7 @@ import {
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 import { FSEntity } from '../../types';
-import { normalizePanePath, isRecycleBinPath } from '../../lib/pathUtils';
+import { normalizePanePath, isRecycleBinPath, isWslPanePath, isWslRootPanePath } from '../../lib/pathUtils';
 import { formatPropertiesPath, formatUiPath } from '../../lib/displayPath';
 import { getPaneTabLabel } from '../../lib/paneLabels';
 import { getLocationIconPath } from '../../lib/virtualLocations';
@@ -421,6 +421,8 @@ export default function PropertiesPlugin({
         ? 'Multi-Selection'
         : (entity as any)?.isVirtual
             ? 'System Folder'
+        : isWslPanePath(targetPath || '') && (isDir || isWslRootPanePath(targetPath || ''))
+            ? (isWslRootPanePath(targetPath || '') ? 'Linux (WSL) location' : 'Linux folder')
         : driveInfo
             ? 'System Volume'
             : isDir

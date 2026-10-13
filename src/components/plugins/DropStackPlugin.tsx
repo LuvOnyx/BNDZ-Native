@@ -28,13 +28,7 @@ import {
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
-export const DropStackPluginDef = {
-  id: 'dropstack',
-  name: 'Drop Stack',
-  icon: 'dropstack',
-  description: 'Hold files from many places, then copy or move them all at once',
-  targetPanel: 'bottom',
-};
+export { DropStackPluginDef } from './pluginDefs';
 
 function splitPath(full: string): { leaf: string; parent: string } {
   const { leaf, parent } = splitUiPath(full);

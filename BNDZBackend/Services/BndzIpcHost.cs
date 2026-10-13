@@ -22,9 +22,11 @@ using BNDZ.Services;
 using BNDZ.Services.Mesh;
 using BNDZ.Services.Mesh.Incus;
 using BNDZ.Services.MeshDrop;
+using BNDZ.Services.LanShare;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
 using BNDZ.Services.OsQuickLook;
+using BNDZ.Services.CloudDrive;
 using BNDZ.Utilities;
 using Microsoft.Web.WebView2.Core;
 
@@ -2264,6 +2266,7 @@ namespace BNDZ.Services
             _automationWatcher.Dispose();
             _automationScheduler.Dispose();
             try { _ramStagingService?.Dispose(); } catch { /* best effort flush */ }
+            try { BNDZ.Services.LanShare.LanShareService.Instance.StopAll(); } catch { /* lan share */ }
             try { _osQuickLook?.Dispose(); } catch { /* ignore */ }
             try { _globalHotkeys.Dispose(); } catch { /* ignore */ }
             _trayService?.Dispose();
@@ -4183,7 +4186,7 @@ namespace BNDZ.Services
         {
             try
             {
-                IpcDebugLog($"[RECV] {messageStr}");
+                IpcDebugLog("[RECV] " + CloudDriveSecrets.Redact(messageStr));
 
                 using var doc = JsonDocument.Parse(messageStr);
                 var root = doc.RootElement;
@@ -4236,6 +4239,29 @@ namespace BNDZ.Services
                     var blockedJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() =>
                         DeliverIpcJson(JsonSerializer.Serialize(blockedResponse, blockedJson)));
+                    return;
+                }
+
+                if (type.StartsWith("CLOUD_DRIVE_", StringComparison.Ordinal))
+                {
+                    JsonElement cloudPayload = default;
+                    if (root.TryGetProperty("payload", out var cloudPayloadEl))
+                        cloudPayload = cloudPayloadEl.Clone();
+                    var cloudType = type;
+                    var cloudId = reqId;
+                    _ = Task.Run(async () =>
+                    {
+                        object result;
+                        try
+                        {
+                            result = await CloudDriveService.Shared.HandleAsync(cloudType, cloudPayload).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            result = new { ok = false, error = CloudDriveSecrets.Redact(ex.Message) };
+                        }
+                        PostMeshIpcResult(cloudId, cloudType + "_RESULT", result);
+                    });
                     return;
                 }
 
@@ -5752,7 +5778,110 @@ namespace BNDZ.Services
                         }
                     });
                 }
-                else if (type == "MESH_INCUS_LIST_ENDPOINTS")
+                
+                else if (type == "LAN_SHARE_START")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folderPath = payload.TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() ?? "" : "";
+                    var password = payload.TryGetProperty("password", out var pwEl) ? pwEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var username = payload.TryGetProperty("username", out var unEl) ? unEl.GetString() : null;
+                            var slug = payload.TryGetProperty("slug", out var slugEl) ? slugEl.GetString() : null;
+                            var label = payload.TryGetProperty("label", out var labEl) ? labEl.GetString() : null;
+                            int? expiryMinutes = payload.TryGetProperty("expiryMinutes", out var expEl) && expEl.ValueKind == System.Text.Json.JsonValueKind.Number ? expEl.GetInt32() : null;
+                            var allowWrite = payload.TryGetProperty("allowWrite", out var awEl) && awEl.ValueKind == System.Text.Json.JsonValueKind.True;
+                            var proto = new BNDZ.Services.LanShare.LanShareProtocolOptions();
+                            if (payload.TryGetProperty("protocols", out var protoEl) && protoEl.ValueKind == System.Text.Json.JsonValueKind.Object)
+                            {
+                                bool Flag(string name, bool defVal = false) => protoEl.TryGetProperty(name, out var e) ? e.ValueKind == System.Text.Json.JsonValueKind.True : defVal;
+                                int Port(string name, int defVal) => protoEl.TryGetProperty(name, out var e) && e.ValueKind == System.Text.Json.JsonValueKind.Number ? e.GetInt32() : defVal;
+                                proto = new BNDZ.Services.LanShare.LanShareProtocolOptions
+                                {
+                                    Http = Flag("http", true),
+                                    WebDav = Flag("webdav", true),
+                                    Ftp = Flag("ftp"),
+                                    Ftps = Flag("ftps"),
+                                    Sftp = Flag("sftp"),
+                                    SshShell = Flag("sshShell"),
+                                    Tftp = Flag("tftp"),
+                                    Smb = Flag("smb"),
+                                    HttpPort = Port("httpPort", 3923),
+                                    FtpPort = Port("ftpPort", 3921),
+                                    FtpsPort = Port("ftpsPort", 3990),
+                                    SshPort = Port("sshPort", 3922),
+                                    TftpPort = Port("tftpPort", 3969),
+                                    SmbPort = Port("smbPort", 3945),
+                                };
+                            }
+                            var startOpts = new BNDZ.Services.LanShare.LanShareStartOptions
+                            {
+                                Password = password,
+                                Username = username,
+                                Slug = slug,
+                                Label = label,
+                                ExpiryMinutes = expiryMinutes,
+                                AllowWrite = allowWrite,
+                                Protocols = proto,
+                            };
+                            var session = BNDZ.Services.LanShare.LanShareService.Instance.Start(folderPath, startOpts);
+                            PostMeshIpcResult(idProp, "LAN_SHARE_START_RESULT", new { ok = true, session = session.ToDto() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "LAN_SHARE_START_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "LAN_SHARE_STOP")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var shareId = root.GetProperty("payload").TryGetProperty("shareId", out var sidEl) ? sidEl.GetString() : null;
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(shareId))
+                            BNDZ.Services.LanShare.LanShareService.Instance.Stop(shareId!);
+                        else
+                            BNDZ.Services.LanShare.LanShareService.Instance.StopAll();
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_RESULT", new { ok = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "LAN_SHARE_STOP_ALL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        BNDZ.Services.LanShare.LanShareService.Instance.StopAll();
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_ALL_RESULT", new { ok = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STOP_ALL_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "LAN_SHARE_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var sessions = BNDZ.Services.LanShare.LanShareService.Instance.ListSessions().Select(s => s.ToDto()).ToList();
+                        var lan = BNDZ.Services.LanShare.LanShareService.GetPrimaryLanAddress();
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STATUS_RESULT", new { sessions, lanAddress = lan });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "LAN_SHARE_STATUS_RESULT", new { sessions = Array.Empty<object>(), error = ex.Message });
+                    }
+                }
+
+else if (type == "MESH_INCUS_LIST_ENDPOINTS")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
                     try
@@ -12441,6 +12570,18 @@ namespace BNDZ.Services
                         catch { /* undo affordance is best-effort mid-op */ }
                     }
 
+                    // Snapshot keep-both siblings BEFORE execute so post-success Resolve
+                    // can distinguish newly landed name (N).ext from pre-existing siblings
+                    // (same MainWindow conflict→log parity).
+                    HashSet<string>? landedBefore = null;
+                    try
+                    {
+                        if (plannedTargets is { Count: > 0 } && action is "copy" or "move" or "rename")
+                            landedBefore = ActionLogLandedPathResolver.SnapshotExistingCandidates(
+                                plannedTargets.Select(pt => pt.Dest));
+                    }
+                    catch { landedBefore = null; }
+
                     try
                     {
                     if (engine == "teracopy" && action is "copy" or "move")
@@ -12652,10 +12793,63 @@ namespace BNDZ.Services
                         if (missing == plannedTargets.Count)
                         {
                             var miss = action == "move" ? "Move did not land on disk." : "Copy did not land on disk.";
+                            if (recordedEarly)
+                            {
+                                try
+                                {
+                                    var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
+                                    _actionLogService.TryDiscardLast(kind, sources);
+                                    await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                                }
+                                catch { /* ignore */ }
+                            }
                             _fileTransferQueue.MarkFailed(operationId, miss);
                             if (ShouldPostFsOperationResult())
                                 await PostFsOperationResultAsync(idProp, false, miss).ConfigureAwait(false);
                             return;
+                        }
+                        // Patch early-record destinations to actual land sites (conflict keep-both / rename).
+                        if (recordedEarly && missing < plannedTargets.Count)
+                        {
+                            try
+                            {
+                                var planned = plannedTargets.Select(pt => pt.Dest).ToList();
+                                var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(
+                                    sources, planned, isMove: action == "move", existingBefore: landedBefore);
+                                if (pairedDest.Count == 0)
+                                {
+                                    pairedSrc = new List<string>();
+                                    pairedDest = new List<string>();
+                                    for (int i = 0; i < sources.Count && i < planned.Count; i++)
+                                    {
+                                        if (File.Exists(planned[i]) || Directory.Exists(planned[i]))
+                                        {
+                                            pairedSrc.Add(sources[i]);
+                                            pairedDest.Add(planned[i]);
+                                        }
+                                    }
+                                }
+                                if (pairedDest.Count > 0)
+                                {
+                                    var kind = action == "copy" ? ActionKind.Copy : ActionKind.Move;
+                                    // Patch destinations in-place when early-record sources still match;
+                                    // otherwise replace the entry with resolver pairs (subset / remapped).
+                                    if (pairedSrc.Count == sources.Count
+                                        && _actionLogService.TryPatchLastTargets(kind, sources, pairedDest))
+                                    {
+                                        // OK — keep-both / actual land sites now on the undo entry.
+                                    }
+                                    else
+                                    {
+                                        _actionLogService.TryDiscardLast(kind, sources);
+                                        if (action == "copy")
+                                            _actionLogService.Record(BndzActionLogService.ForCopy(pairedSrc, pairedDest));
+                                        else
+                                            _actionLogService.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
+                                    }
+                                }
+                            }
+                            catch { /* best-effort path repair */ }
                         }
                     }
 
@@ -13075,7 +13269,16 @@ namespace BNDZ.Services
                 ct.ThrowIfCancellationRequested();
                 var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
                 var ok = RecycleBinService.Empty(hwnd);
-                if (ok) _fileTransferQueue.MarkCompleted(operationId);
+                if (ok)
+                {
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    try
+                    {
+                        _actionLogService.InvalidateAllRecycleUndeletes();
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+                    catch { /* best-effort */ }
+                }
                 else _fileTransferQueue.MarkFailed(operationId, "Could not empty Recycle Bin");
                 // Always post â€” forceWait path. BackgroundProcessing makes ShouldPostDeferredIpcResult()
                 // false, which previously swallowed the RESULT and left FE timed out / "doesn't work".
@@ -13102,9 +13305,19 @@ namespace BNDZ.Services
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 ct.ThrowIfCancellationRequested();
-                var (restored, failed) = RecycleBinService.Restore(restorePaths);
+                var (restored, failed, originals) = RecycleBinService.RestoreDetailed(restorePaths);
                 if (failed > 0 && restored == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not restore {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
+                if (restored > 0 && originals.Count > 0)
+                {
+                    try
+                    {
+                        _actionLogService.InvalidateRecycleUndeletesForOriginals(
+                            originals, "not undoable — already restored from Recycle Bin");
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+                    catch { /* best-effort */ }
+                }
                 await PostIpcResultAsync("RESTORE_RECYCLE_ITEMS_RESULT", idProp, new { restored, failed }).ConfigureAwait(false);
             }
 
@@ -13127,9 +13340,20 @@ namespace BNDZ.Services
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 ct.ThrowIfCancellationRequested();
-                var (purged, failed) = RecycleBinService.Purge(purgePaths);
+                var (purged, failed, originals) = RecycleBinService.PurgeDetailed(purgePaths);
                 if (failed > 0 && purged == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not delete {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
+                if (purged > 0)
+                {
+                    try
+                    {
+                        if (originals.Count > 0)
+                            _actionLogService.InvalidateRecycleUndeletesForOriginals(
+                                originals, "not undoable — permanently deleted from Recycle Bin");
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+                    catch { /* best-effort */ }
+                }
                 await PostIpcResultAsync("PURGE_RECYCLE_ITEMS_RESULT", idProp, new { purged, failed }).ConfigureAwait(false);
             }
 
@@ -13215,34 +13439,66 @@ namespace BNDZ.Services
             List<string> sources,
             string target,
             bool bypassRecycleBin,
-            IReadOnlyList<(string Src, string Dest)>? plannedTargets = null)
+            IReadOnlyList<(string Src, string Dest)>? plannedTargets = null,
+            IReadOnlySet<string>? existingBefore = null)
         {
             try
             {
-                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel,
-                // not the undo stack (matches Settings copy: Ctrl+Z always undoes).
+                // Always record for Ctrl+Z / Redo. "Show action history" only gates the UI panel.
                 action = (action ?? "").ToLowerInvariant();
                 switch (action)
                 {
                     case "copy":
                     {
-                        var created = plannedTargets?.Select(p => p.Dest).ToList()
+                        var planned = plannedTargets?.Select(p => p.Dest).ToList()
                             ?? FileOperationPathPlanner.Plan("copy", sources, target).Select(p => p.Dest).ToList();
-                        if (created.Count == 0 && !string.IsNullOrWhiteSpace(target))
-                            created = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
-                        if (created.Count > 0)
-                            _actionLogService.Record(BndzActionLogService.ForCopy(sources, created));
+                        if (planned.Count == 0 && !string.IsNullOrWhiteSpace(target))
+                            planned = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
+                        var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(sources, planned, isMove: false, existingBefore);
+                        if (pairedDest.Count == 0 && planned.Count > 0)
+                        {
+                            // Fallback: keep planned paths that exist (no conflict rename).
+                            for (int i = 0; i < sources.Count && i < planned.Count; i++)
+                            {
+                                if (File.Exists(planned[i]) || Directory.Exists(planned[i]))
+                                {
+                                    pairedSrc.Add(sources[i]);
+                                    pairedDest.Add(planned[i]);
+                                }
+                            }
+                        }
+                        if (pairedDest.Count > 0)
+                            _actionLogService.Record(BndzActionLogService.ForCopy(pairedSrc, pairedDest));
                         break;
                     }
                     case "move":
                     case "rename":
                     {
-                        var moved = plannedTargets?.Select(p => p.Dest).ToList()
+                        var planned = plannedTargets?.Select(p => p.Dest).ToList()
                             ?? FileOperationPathPlanner.Plan(action, sources, target).Select(p => p.Dest).ToList();
-                        if (moved.Count == 0 && !string.IsNullOrWhiteSpace(target))
-                            moved = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
-                        if (moved.Count > 0)
-                            _actionLogService.Record(BndzActionLogService.ForMove(sources, moved));
+                        if (planned.Count == 0 && !string.IsNullOrWhiteSpace(target))
+                            planned = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
+                        var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(sources, planned, isMove: true, existingBefore);
+                        if (pairedDest.Count == 0 && planned.Count > 0)
+                        {
+                            // Timing fallback: planned dests that exist (replace / no-conflict).
+                            for (int i = 0; i < sources.Count && i < planned.Count; i++)
+                            {
+                                if (File.Exists(planned[i]) || Directory.Exists(planned[i]))
+                                {
+                                    pairedSrc.Add(sources[i]);
+                                    pairedDest.Add(planned[i]);
+                                }
+                            }
+                            if (pairedDest.Count == 0)
+                            {
+                                // Sources gone but dests not visible yet — still record planned for undo attempt.
+                                _actionLogService.Record(BndzActionLogService.ForMove(sources, planned));
+                                break;
+                            }
+                        }
+                        if (pairedDest.Count > 0)
+                            _actionLogService.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
                         break;
                     }
                     case "delete":

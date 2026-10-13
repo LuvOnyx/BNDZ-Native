@@ -1427,6 +1427,23 @@ public sealed partial class CraftPaneHost : UserControl
 				catch (Exception dragEx) { Debug.WriteLine($"[CraftPaneHost] START_DRAG sync: {dragEx.Message}"); }
 				return;
 			}
+			// React-side startup marks (perfMarks.ts) -> same boot.log as the host marks.
+			if (type is "BNDZ_PERF_MARK")
+			{
+				try
+				{
+					if (root.TryGetProperty("payload", out var perfPayload)
+						&& perfPayload.TryGetProperty("phase", out var perfPhaseEl)
+						&& perfPhaseEl.ValueKind == JsonValueKind.String)
+					{
+						var perfPhase = perfPhaseEl.GetString() ?? "?";
+						var feMs = perfPayload.TryGetProperty("t", out var perfTEl) && perfTEl.TryGetDouble(out var perfT) ? perfT : -1;
+						BndzBootLog.Mark($"fe:{perfPhase} (webview +{feMs:0}ms)");
+					}
+				}
+				catch { /* never break host on logging */ }
+				return;
+			}
 			if (type is "OLE_DND_DEBUG")
 			{
 				try

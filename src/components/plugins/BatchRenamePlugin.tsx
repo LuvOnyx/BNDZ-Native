@@ -17,12 +17,7 @@ import {
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
 
-export const BatchRenamePluginDef = {
-    id: "batch-rename",
-    name: "Batch Rename",
-    icon: 'batch_rename',
-    description: 'Rename many files at once, plus drop rules for rename, tag, and move',
-};
+export { BatchRenamePluginDef } from './pluginDefs';
 
 type PanelTabId = 'rename' | 'magnets';
 

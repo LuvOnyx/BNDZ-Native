@@ -9,6 +9,10 @@ import { isNativeShellBoot } from './lib/nativeShellBoot';
 import { getFileDragSession } from './lib/fileDragSession';
 import { installOleDragEscalateGhostHook } from './lib/fileDragUiCleanup';
 import { configureExplorerGradeDragThreshold } from './lib/dragController';
+import { bootMark } from './lib/perfMarks';
+
+// performance.now() here = time from WebView navigation start to main bundle evaluated.
+bootMark('fe-bundle-evaluated');
 
 // Eager init -- external OLE drops must not race the lazy FS-event listener registration.
 IPC.init();

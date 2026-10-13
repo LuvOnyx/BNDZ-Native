@@ -858,8 +858,38 @@ public sealed class BndzFileIndexService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Recent files = meaningful user files. App caches, temp, browser profiles and BNDZ's own data
+    /// (all under AppData / ProgramData / Temp) rewrite constantly and drowned the list in hash-named blobs.
+    /// </summary>
     public List<object> GetRecentFiles(int limit = 500) =>
-        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 ORDER BY modified DESC LIMIT $lim", limit);
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND {RecentNoiseExclusionSql} ORDER BY modified DESC LIMIT $lim", limit);
+
+    internal static readonly string[] RecentNoisePathFragments =
+    {
+        "/appdata/", "/programdata/", "/windows/", "/$recycle.bin/", "/system volume information/",
+        "/temp/", "/tmp/", "/cache/", "/caches/", "/.cache/", "/cache_data/", "/code cache/", "/gpucache/",
+        "/node_modules/", "/.git/", "/.vs/", "/obj/", "/__pycache__/", "/.nuget/", "/.npm/", "/.gradle/",
+        "/bndz-agent-tmp/",
+    };
+
+    internal static readonly string[] RecentNoiseExtensions =
+    {
+        "tmp", "temp", "log", "etl", "lock", "lck", "bin", "blob", "dat", "db", "db-wal", "db-shm", "db-journal",
+        "sqlite-wal", "sqlite-shm", "ldb", "pf", "crdownload", "part", "partial", "cache", "idx", "pack",
+    };
+
+    private static readonly string RecentNoiseExclusionSql = BuildRecentNoiseExclusionSql();
+
+    private static string BuildRecentNoiseExclusionSql()
+    {
+        // Constant lists (no user input) → inline literals; single quotes doubled for safety anyway.
+        static string Q(string v) => "'" + v.Replace("'", "''") + "'";
+        var norm = "('/' || REPLACE(LOWER(path),'\\','/') || '/')";
+        var paths = string.Join(" AND ", RecentNoisePathFragments.Select(f => $"{norm} NOT LIKE {Q("%" + f + "%")}"));
+        var exts = string.Join(",", RecentNoiseExtensions.Select(Q));
+        return $"({paths} AND LOWER(LTRIM(COALESCE(ext,''),'.')) NOT IN ({exts}) AND name NOT LIKE '~$%')";
+    }
 
     /// <summary>Continuum rail rows with media_kind for Peek Orbit + thumb priority.</summary>
     public List<object> GetContinuumFiles(int limit = 28)

@@ -46,6 +46,7 @@ interface IconStudioState {
     importIcon: (libraryId: string, iconPath: string) => void;
     importIconsFromPaths: (libraryId: string | null, paths: string[]) => Promise<boolean>;
     importLibraryFromFolder: () => Promise<void>;
+    importIconsViaPicker: () => Promise<void>;
     removeIcon: (libraryId: string, iconId: string) => void;
     resyncLibrary: (libraryId: string) => Promise<void>;
     exportLibrary: (libraryId: string) => void;
@@ -99,6 +100,7 @@ export function IconStudioProvider({
     const localSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const nativeSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSyncedJson = useRef('');
+    const pendingPersistRef = useRef<IconLibrary[] | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -106,11 +108,32 @@ export function IconStudioProvider({
             try {
                 const libs = await IPC.getIconLibraries();
                 if (cancelled) return;
-                if (libs?.length > 0) {
+
+                const userCleared =
+                    !!config.iconLibrariesInitialized
+                    && Array.isArray(config.iconLibraries)
+                    && config.iconLibraries.length === 0;
+
+                if (userCleared) {
+                    // Settings say the user emptied libraries -- never resurrect stale native JSON.
+                    setLibraries([]);
+                    setActiveLibraryId('');
+                    lastSyncedJson.current = '[]';
+                    dirtyRef.current = true;
+                    try { await IPC.syncIconLibraries([]); } catch { /* heal on next edit */ }
+                    lastSyncedJson.current = JSON.stringify([]);
+                    dirtyRef.current = false;
+                } else if (libs?.length > 0) {
                     const formatted = normalizeLibraries(libs);
                     setLibraries(formatted);
                     setActiveLibraryId(prev => formatted.some(l => l.id === prev) ? prev : (formatted[0]?.id || ''));
                     lastSyncedJson.current = JSON.stringify(formatLibrariesForConfig(formatted));
+                    if (!config.iconLibrariesInitialized) {
+                        updateConfig({
+                            iconLibrariesInitialized: true,
+                            iconLibraries: formatLibrariesForConfig(formatted),
+                        });
+                    }
                 } else if (config.iconLibraries?.length) {
                     const formatted = normalizeLibraries(config.iconLibraries);
                     setLibraries(formatted);
@@ -122,14 +145,45 @@ export function IconStudioProvider({
                     setLibraries(defaults);
                     setActiveLibraryId(defaults[0]?.id || '');
                     dirtyRef.current = true;
-                    updateConfig({ iconLibrariesInitialized: true });
+                    updateConfig({
+                        iconLibrariesInitialized: true,
+                        iconLibraries: formatLibrariesForConfig(defaults),
+                    });
+                    lastSyncedJson.current = '';
+                    try {
+                        await IPC.syncIconLibraries(defaults);
+                        lastSyncedJson.current = JSON.stringify(formatLibrariesForConfig(defaults));
+                        dirtyRef.current = false;
+                    } catch { /* keep dirty for later flush */ }
+                } else {
+                    setLibraries([]);
+                    setActiveLibraryId('');
+                    lastSyncedJson.current = '[]';
                 }
             } catch {
                 if (!cancelled && config.iconLibraries?.length) {
                     setLibraries(normalizeLibraries(config.iconLibraries));
                 }
             }
+            if (cancelled) return;
             hydratedRef.current = true;
+            // Apply any edits that raced hydration (import/delete before native reply).
+            if (pendingPersistRef.current) {
+                const pending = pendingPersistRef.current;
+                pendingPersistRef.current = null;
+                setLibraries(pending);
+                setActiveLibraryId(prev => pending.some(l => l.id === prev) ? prev : (pending[0]?.id || ''));
+                dirtyRef.current = true;
+                updateConfig({
+                    iconLibrariesInitialized: true,
+                    iconLibraries: formatLibrariesForConfig(pending),
+                });
+                try {
+                    await IPC.syncIconLibraries(pending);
+                    lastSyncedJson.current = JSON.stringify(formatLibrariesForConfig(pending));
+                    dirtyRef.current = false;
+                } catch { /* retry via schedulePersist */ }
+            }
         })();
         return () => { cancelled = true; };
     }, []);
@@ -162,27 +216,46 @@ export function IconStudioProvider({
         }
     }, []);
 
-    const schedulePersist = useCallback((libs: IconLibrary[], markDirty = true) => {
-        if (!hydratedRef.current) return;
+    const schedulePersist = useCallback((libs: IconLibrary[], markDirty = true, opts?: { immediate?: boolean }) => {
+        if (!hydratedRef.current) {
+            pendingPersistRef.current = libs;
+            if (markDirty) dirtyRef.current = true;
+            return;
+        }
         if (markDirty) dirtyRef.current = true;
 
-        if (localSaveTimer.current) clearTimeout(localSaveTimer.current);
-        localSaveTimer.current = setTimeout(() => saveLocalConfig(libs), LOCAL_SAVE_MS);
+        // Always mark initialized so an emptied library list never re-seeds starters.
+        updateConfig({
+            iconLibrariesInitialized: true,
+            iconLibraries: formatLibrariesForConfig(libs),
+        });
 
-        if (!nativeSyncEnabled) return;
+        if (localSaveTimer.current) clearTimeout(localSaveTimer.current);
+        if (opts?.immediate) {
+            saveLocalConfig(libs);
+        } else {
+            localSaveTimer.current = setTimeout(() => saveLocalConfig(libs), LOCAL_SAVE_MS);
+        }
+
+        if (!nativeSyncEnabled && !opts?.immediate) return;
         if (nativeSyncTimer.current) clearTimeout(nativeSyncTimer.current);
-        nativeSyncTimer.current = setTimeout(() => {
-            if (dirtyRef.current) void flushNativeSync(libs);
-        }, NATIVE_SYNC_MS);
-    }, [saveLocalConfig, flushNativeSync, nativeSyncEnabled]);
+        if (opts?.immediate) {
+            void flushNativeSync(libs);
+        } else {
+            nativeSyncTimer.current = setTimeout(() => {
+                if (dirtyRef.current) void flushNativeSync(libs);
+            }, NATIVE_SYNC_MS);
+        }
+    }, [saveLocalConfig, flushNativeSync, nativeSyncEnabled, updateConfig]);
 
     const commitLibraries = useCallback((
         updater: (prev: IconLibrary[]) => IconLibrary[],
         markDirty = true,
+        opts?: { immediate?: boolean },
     ) => {
         setLibraries(prev => {
             const next = updater(prev);
-            schedulePersist(next, markDirty);
+            schedulePersist(next, markDirty, opts);
             return next;
         });
     }, [schedulePersist]);
@@ -210,7 +283,7 @@ export function IconStudioProvider({
 
     const deleteLibrary = (id: string) => {
         const newLibs = librariesRef.current.filter(l => l.id !== id);
-        commitLibraries(() => newLibs);
+        commitLibraries(() => newLibs, true, { immediate: true });
         if (activeLibraryId === id) {
             setActiveLibraryId(newLibs[0]?.id || '');
         }
@@ -219,7 +292,7 @@ export function IconStudioProvider({
     const removeIcon = (libraryId: string, iconId: string) => {
         commitLibraries(prev => prev.map(l =>
             l.id === libraryId ? { ...l, icons: l.icons.filter(i => i.id !== iconId) } : l
-        ));
+        ), true, { immediate: true });
         setSelectedIcon(prev => (prev?.id === iconId ? null : prev));
     };
 
@@ -234,6 +307,7 @@ export function IconStudioProvider({
         setIsImporting(true);
         try {
             let newActiveId = '';
+            let addedCount = 0;
             commitLibraries(prev => {
                 let targetId = libraryId || activeLibraryId;
                 let libs = prev;
@@ -257,11 +331,15 @@ export function IconStudioProvider({
                             icoStr,
                         });
                     }
+                    addedCount = added.length;
                     return added.length ? { ...l, icons: [...l.icons, ...added] } : l;
                 });
-            });
+            }, true, { immediate: true });
             if (newActiveId) setActiveLibraryId(newActiveId);
-            return true;
+            if (addedCount > 0) {
+                pushToast({ kind: 'success', title: 'Icons imported', message: `Added ${addedCount} icon${addedCount === 1 ? '' : 's'} to the library.` });
+            }
+            return addedCount > 0 || iconPaths.length > 0;
         } finally {
             setIsImporting(false);
         }
@@ -294,7 +372,7 @@ export function IconStudioProvider({
                         icoStr: normPath(ic.icoStr),
                     })),
                 };
-            }));
+            }), true, { immediate: true });
             pushToast({ kind: 'success', title: 'Library resynced', message: `${icons.length} icons loaded from source folder.` });
         } finally {
             setIsImporting(false);
@@ -322,7 +400,7 @@ export function IconStudioProvider({
         try {
             const icons = await IPC.scanIconFolder(folderPath, config.autoConvertIcons ?? true);
             if (!icons.length) {
-                pushToast({ kind: 'warning', title: 'No icons found', message: 'No supported files (.ico, .png, .jpg, .bmp, .webp) in that folder.' });
+                pushToast({ kind: 'warning', title: 'No icons found', message: 'No supported files (.ico, .png, .jpg, .bmp, .webp, .gif) in that folder (including subfolders).' });
                 return;
             }
             const libName = folderPath.split('\\').pop() || folderPath.split('/').pop() || 'Imported Library';
@@ -337,10 +415,22 @@ export function IconStudioProvider({
                     icoStr: normPath(ic.icoStr),
                 })),
             };
-            commitLibraries(prev => [...prev, newLib]);
+            commitLibraries(prev => [...prev, newLib], true, { immediate: true });
             setActiveLibraryId(id);
+            pushToast({ kind: 'success', title: 'Library imported', message: `${icons.length} icons loaded into "${libName}".` });
         } finally {
             setIsImporting(false);
+        }
+    };
+
+    const importIconsViaPicker = async () => {
+        const files = await IPC.openFileDialog(
+            'Icons (*.ico;*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif)|*.ico;*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif|All files (*.*)|*.*'
+        );
+        if (!files?.length) return;
+        const ok = await importIconsFromPaths(activeLibraryId || null, files);
+        if (!ok) {
+            pushToast({ kind: 'warning', title: 'Import skipped', message: 'No supported icon files were selected.' });
         }
     };
 
@@ -385,7 +475,7 @@ export function IconStudioProvider({
         <IconStudioContext.Provider value={{
             libraries, activeLibraryId, isApplying, isImporting, selectedIcon,
             createLibrary, deleteLibrary, renameLibrary, setActiveLibraryId, setIsApplying, setSelectedIcon,
-            importIcon, importIconsFromPaths, importLibraryFromFolder, removeIcon, resyncLibrary, exportLibrary,
+            importIcon, importIconsFromPaths, importLibraryFromFolder, importIconsViaPicker, removeIcon, resyncLibrary, exportLibrary,
         }}>
             {children}
         </IconStudioContext.Provider>

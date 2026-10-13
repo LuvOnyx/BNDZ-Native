@@ -182,6 +182,33 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     },
 };
 
+/**
+ * Old XYplorer-style seeds filled rows with solid light green / white backgrounds
+ * (unreadable in the dark theme, e.g. Recent files where every row is "modified today").
+ * Swap those exact untouched seed styles for dark-theme ones; user-edited styles are kept.
+ * Declared above applyConfigAliases: defaultConfig = normalizeConfig(...) runs at module load,
+ * so this const must be initialized first (a later declaration threw a TDZ ReferenceError
+ * at startup and left the UI blank).
+ */
+const LEGACY_COLOR_FILTER_STYLES: Record<string, { from: string; to: string }> = {
+    'ageM: <= 30 n //modified in the last 30 mins': { from: 'bg-[#82E05B] text-black px-1', to: 'bg-[rgba(130,224,91,0.18)] text-[#C8F5B8] px-1' },
+    'ageM: d //modified today': { from: 'bg-[#82E05B] text-white px-1', to: 'text-[#9BE77F] px-1' },
+    'size:0 //empty files': { from: 'bg-[#FDFDFD] text-[#3498DB] px-1', to: 'text-[#7FB2E5] px-1' },
+};
+
+export function migrateLegacyColorFilterStyles<T extends { t: string; style: string }>(rows: T[]): T[] {
+    let changed = false;
+    const next = rows.map((row) => {
+        const legacy = row && typeof row.t === 'string' ? LEGACY_COLOR_FILTER_STYLES[row.t.trim()] : undefined;
+        if (legacy && String(row.style || '').trim() === legacy.from) {
+            changed = true;
+            return { ...row, style: legacy.to };
+        }
+        return row;
+    });
+    return changed ? next : rows;
+}
+
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
     applySettingsKeyAliases(merged as Record<string, any>, raw as Record<string, any>);
     if ('fileTagging' in raw) merged.fileTaggingFeature = !!raw.fileTagging;
@@ -353,6 +380,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if (!Array.isArray(merged.colorFilters)) {
         merged.colorFilters = [];
     }
+    merged.colorFilters = migrateLegacyColorFilterStyles(merged.colorFilters);
     if (!Array.isArray(merged.visualFilters)) {
         merged.visualFilters = [];
     }
@@ -479,10 +507,10 @@ export const defaultConfig: AppConfig = normalizeConfig({
         {i: 3, c: true, t: "attr:system", style: "bg-[#F4D03F] text-black px-1"},
         {i: 4, c: true, t: "attr:encrypted", style: "text-[#2ECC71] px-1"},
         {i: 5, c: true, t: "attr:compressed", style: "text-[#3498DB] px-1"},
-        {i: 6, c: true, t: "ageM: <= 30 n //modified in the last 30 mins", style: "bg-[#82E05B] text-black px-1"},
-        {i: 7, c: true, t: "ageM: d //modified today", style: "bg-[#82E05B] text-white px-1"},
+        {i: 6, c: true, t: "ageM: <= 30 n //modified in the last 30 mins", style: "bg-[rgba(130,224,91,0.18)] text-[#C8F5B8] px-1"},
+        {i: 7, c: true, t: "ageM: d //modified today", style: "text-[#9BE77F] px-1"},
         {i: 8, c: true, t: "attr:d", style: "text-[#B6B6B6] px-1"},
-        {i: 9, c: true, t: "size:0 //empty files", style: "bg-[#FDFDFD] text-[#3498DB] px-1"},
+        {i: 9, c: true, t: "size:0 //empty files", style: "text-[#7FB2E5] px-1"},
         {i: 10, c: true, t: "B:prop:#empty:2|f-s //empty folders", style: "bg-transparent text-white px-1 border border-white"},
         {i: 11, c: true, t: "L:prop:#nosubs:2 //folders without subs", style: "text-[#3498DB] px-1"},
         {i: 12, c: true, t: "*.exe;*.bat", style: "text-[#E74C3C] px-1"},
@@ -494,6 +522,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
         {i: 18, c: true, t: "*.mp3;*.wav", style: "text-[#3498DB] px-1"}
     ],
 });
+
 
 let settingsSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSettingsSave: AppConfig | null = null;
@@ -600,7 +629,12 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
                     if (IPC.isNative) {
                         try {
                             const libs = await IPC.getIconLibraries();
-                            if (Array.isArray(libs) && libs.length) {
+                            const userCleared =
+                                !!cfg.iconLibrariesInitialized
+                                && Array.isArray(cfg.iconLibraries)
+                                && cfg.iconLibraries.length === 0;
+                            // Never overwrite an intentional empty library list with stale native JSON.
+                            if (Array.isArray(libs) && libs.length && !userCleared) {
                                 const next = { ...cfg, iconLibraries: formatLibrariesForConfig(libs) };
                                 setConfig(next);
                             }

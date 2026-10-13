@@ -891,7 +891,147 @@
         if (OS.state?.tool === 'rotate-view') OS.resetViewRotation?.();
       });
     }
+
+    installSelectionFixes(OS);
   }
 
-  window.__BNDZ_STUB_TOOLS__ = { install, FORMER_STUBS };
+
+  // ---------------------------------------------------------------------------
+  // Selection fixes (BNDZ, 2026-10-08 bug round)
+  // ---------------------------------------------------------------------------
+
+  /** Document-space points -> "x,y x,y" screen string through a fabric viewportTransform. */
+  function projectDocPoints(points, vpt) {
+    const v = Array.isArray(vpt) && vpt.length >= 6 ? vpt : [1, 0, 0, 1, 0, 0];
+    return (points || []).map((p) => `${p.x * v[0] + v[4]},${p.y * v[3] + v[5]}`).join(' ');
+  }
+
+  /** Full-document selection mask (255 = selected). */
+  function fullDocumentMask(w, h) {
+    const width = Math.max(1, Math.round(w || 1));
+    const height = Math.max(1, Math.round(h || 1));
+    return { mask: new Uint8Array(width * height).fill(255), w: width, h: height };
+  }
+
+  function rectsIntersect(a, b) {
+    return a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  }
+
+  function installSelectionFixes(OS) {
+    if (!OS || OS.__bndzSelectionFixes) return;
+    OS.__bndzSelectionFixes = true;
+
+    const lassoPolygon = () => document.querySelector('#lasso-overlay svg polygon');
+    const hideLassoOutline = () => {
+      OS._lassoDocPoints = null;
+      const poly = lassoPolygon();
+      if (poly) poly.setAttribute('points', '');
+      const ov = document.getElementById('lasso-overlay');
+      if (ov) ov.style.display = 'none';
+    };
+
+    // 1) The committed lasso outline was left in screen pixels, so on zoom/pan its nodes drifted
+    //    off the selected pixels. Keep it in document space and re-project on every viewport change.
+    const origLassoCommit = OS._lassoDoubleClick?.bind(OS);
+    if (origLassoCommit) {
+      OS._lassoDoubleClick = function (...args) {
+        const vpt = this.canvas?.viewportTransform || [1, 0, 0, 1, 0, 0];
+        const docPts = (this._lassoPoints || []).map((entry) => {
+          const [x, y] = String(entry).split(',').map(Number);
+          return { x: (x - vpt[4]) / (vpt[0] || 1), y: (y - vpt[5]) / (vpt[3] || 1) };
+        });
+        this._bndzLassoCommitting = true;
+        try {
+          return origLassoCommit(...args);
+        } finally {
+          this._bndzLassoCommitting = false;
+          this._lassoDocPoints = this._selectionMask && docPts.length >= 3 ? docPts : null;
+        }
+      };
+    }
+
+    // 2) Any other selection (wand, marquee, quick select, Select All) replaces the lasso outline;
+    //    the stale screen-space polygon used to stay up and "move with zoom".
+    const origSetMask = OS._setPixelSelectionMask?.bind(OS);
+    if (origSetMask) {
+      OS._setPixelSelectionMask = function (...args) {
+        if (!this._bndzLassoCommitting) hideLassoOutline();
+        return origSetMask(...args);
+      };
+    }
+
+    const origClear = OS.clearSelection?.bind(OS);
+    if (origClear) {
+      OS.clearSelection = function (...args) {
+        OS._lassoDocPoints = null;
+        return origClear(...args);
+      };
+    }
+
+    // 3) Re-place overlays after every viewport change. The engine only did this when a pixel mask
+    //    existed, so a bounds-only selection box stayed at its old screen position. Hook the engine's
+    //    own per-viewport-change callback (install can run before the fabric canvas exists).
+    const syncSelectionOverlays = () => {
+      if (OS._selectionBounds) OS._placeSelectionBox?.();
+      if (OS._lassoDocPoints && OS._selectionMask && OS.canvas) {
+        const poly = lassoPolygon();
+        if (poly) poly.setAttribute('points', projectDocPoints(OS._lassoDocPoints, OS.canvas.viewportTransform));
+      }
+    };
+    const origSyncVector = OS._syncVectorOverlaysToViewport?.bind(OS);
+    OS._syncVectorOverlaysToViewport = function (...args) {
+      try { syncSelectionOverlays(); } catch { /* overlay sync is cosmetic */ }
+      return origSyncVector?.(...args);
+    };
+
+    // 4) Select All / Deselect after a wand or lasso: Ctrl+A used to switch to the Move tool and
+    //    select layer objects, leaving the old pixel selection in place. With a pixel-selection tool
+    //    active (or a pixel selection present) it now selects the whole document's pixels.
+    const origSelectAll = OS.selectAll?.bind(OS);
+    if (origSelectAll) {
+      OS.selectAll = function (...args) {
+        const pixelTool = this._selectionCombineTools?.has?.(this.state?.tool);
+        if ((pixelTool || this._selectionMask || this._selectionBounds) && origSetMask) {
+          const full = fullDocumentMask(this.canvasW, this.canvasH);
+          this._selectionCombine = 'replace';
+          this._storeLastSelection?.();
+          this._setPixelSelectionMask(full.mask, full.w, full.h, { coverage: true, combine: 'replace' });
+          this._placeSelectionBox?.({ borderRadius: '0' });
+          this.canvas?.requestRenderAll?.();
+          return;
+        }
+        return origSelectAll(...args);
+      };
+    }
+    const origDeselect = OS.deselectAll?.bind(OS);
+    if (origDeselect) {
+      OS.deselectAll = function (...args) {
+        hideLassoOutline();
+        this._lassoPoints = [];
+        return origDeselect(...args);
+      };
+    }
+
+    // 5) "Select pixels first" while a selection exists: the target was only the active canvas object
+    //    or the active layer's raster, which is empty after the wand/lasso discards the active object
+    //    or when the active layer is not an image. Fall back to the topmost visible image under the selection.
+    const origTarget = OS._pixelSelectionTarget?.bind(OS);
+    if (origTarget) {
+      OS._pixelSelectionTarget = function (...args) {
+        const t = origTarget(...args);
+        if (t || !this._selectionBounds) return t;
+        const imgs = (this.canvas?.getObjects?.() || []).filter((o) =>
+          o && o.type === 'image' && !o._wandOverlay && o.name !== '__boundary__' && o.visible !== false);
+        for (let i = imgs.length - 1; i >= 0; i--) {
+          let r = null;
+          try { r = imgs[i].getBoundingRect?.(); } catch { r = null; }
+          if (!r) continue;
+          if (rectsIntersect({ x: r.left, y: r.top, w: r.width, h: r.height }, this._selectionBounds)) return imgs[i];
+        }
+        return null;
+      };
+    }
+  }
+
+  window.__BNDZ_STUB_TOOLS__ = { install, FORMER_STUBS, projectDocPoints, fullDocumentMask, rectsIntersect };
 })();

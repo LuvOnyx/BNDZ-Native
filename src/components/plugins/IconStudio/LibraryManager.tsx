@@ -7,7 +7,7 @@ import { PluginToolbarButton, PLUGIN_INPUT_CLASS } from '../PluginPanelPrimitive
 import { requestNativeConfirm } from '../../../lib/nativeDialog';
 
 export default function LibraryManager() {
-    const { libraries, activeLibraryId, setActiveLibraryId, createLibrary, deleteLibrary, renameLibrary, importLibraryFromFolder, isImporting, resyncLibrary, exportLibrary } = useIconStudio();
+    const { libraries, activeLibraryId, setActiveLibraryId, createLibrary, deleteLibrary, renameLibrary, importLibraryFromFolder, importIconsViaPicker, isImporting, resyncLibrary, exportLibrary } = useIconStudio();
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
 
@@ -113,8 +113,11 @@ export default function LibraryManager() {
                         </PluginToolbarButton>
                     </div>
                 )}
-                <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder} active>
+                <PluginToolbarButton icon="folder_open_ui" onClick={() => void importLibraryFromFolder()} active>
                     Import folder
+                </PluginToolbarButton>
+                <PluginToolbarButton icon="upload" onClick={() => void importIconsViaPicker()}>
+                    Import icons
                 </PluginToolbarButton>
                 <PluginToolbarButton icon="plus_ui" onClick={() => createLibrary('New Library')}>
                     New library

@@ -31,7 +31,7 @@ export default function IconGrid({
     const {
         libraries, activeLibraryId, isApplying, isImporting, setIsApplying,
         selectedIcon, setSelectedIcon,
-        importIconsFromPaths, importLibraryFromFolder, createLibrary, removeIcon,
+        importIconsFromPaths, importLibraryFromFolder, importIconsViaPicker, createLibrary, removeIcon,
     } = useIconStudio();
     const { config } = useAppConfig();
     const activeLibrary = libraries.find(l => l.id === activeLibraryId);
@@ -241,8 +241,11 @@ export default function IconGrid({
                                 className={`${PLUGIN_INPUT_CLASS} !pl-7 !py-1`}
                             />
                         </div>
-                        <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder} disabled={overlayBusy}>
-                            Import
+                        <PluginToolbarButton icon="folder_open_ui" onClick={() => void importLibraryFromFolder()} disabled={overlayBusy}>
+                            Import folder
+                        </PluginToolbarButton>
+                        <PluginToolbarButton icon="upload" onClick={() => void importIconsViaPicker()} disabled={overlayBusy}>
+                            Import icons
                         </PluginToolbarButton>
                     </div>
 
@@ -317,7 +320,8 @@ export default function IconGrid({
                         ) : (
                             <div className="h-full min-h-[200px] flex flex-col items-center justify-center gap-3">
                                 <PluginEmptyState icon="wand_ui" title="Library is empty" description="Drop .ico / .png files here or import a folder." />
-                                <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder}>Import icons</PluginToolbarButton>
+                                <PluginToolbarButton icon="folder_open_ui" onClick={() => void importLibraryFromFolder()}>Import folder</PluginToolbarButton>
+                                <PluginToolbarButton icon="upload" onClick={() => void importIconsViaPicker()}>Import icons</PluginToolbarButton>
                             </div>
                         )}
                     </div>
@@ -332,7 +336,8 @@ export default function IconGrid({
                     <PluginEmptyState icon="palette_ui" title="No library selected" description="Create or import a library to get started." />
                     <div className="flex gap-2">
                         <PluginToolbarButton icon="folder_plus_ui" onClick={() => createLibrary('My Icons')}>New library</PluginToolbarButton>
-                        <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder}>Import folder</PluginToolbarButton>
+                        <PluginToolbarButton icon="folder_open_ui" onClick={() => void importLibraryFromFolder()}>Import folder</PluginToolbarButton>
+                        <PluginToolbarButton icon="upload" onClick={() => void importIconsViaPicker()}>Import icons</PluginToolbarButton>
                     </div>
                 </div>
             )}

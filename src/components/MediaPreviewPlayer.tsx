@@ -603,10 +603,11 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
               disabled={!!loadError}
               className="bndz-media-transport-btn bndz-media-transport-btn--play"
               title={playing ? 'Pause' : 'Play'}
+              aria-label={playing ? 'Pause' : 'Play'}
             >
               <MediaPlayingIcon
                 size={36}
-                paused={!playing}
+                paused={playing}
                 progress={duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0}
               />
             </button>

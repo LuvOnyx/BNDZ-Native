@@ -8,11 +8,7 @@ import PreviewPane from './PreviewPane';
 import { useAppConfig } from '../../../data/configContext';
 import PluginPanelShell from '../PluginPanelShell';
 
-export const IconStudioPluginDef = {
-    id: "icon-studio",
-    name: "Icon Studio",
-    icon: 'icon_studio'
-};
+export { IconStudioPluginDef } from '../pluginDefs';
 
 export default function IconStudioPlugin({
     selectedItems,

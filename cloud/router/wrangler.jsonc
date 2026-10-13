@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bndz-cloud-router",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-08",
+  "workers_dev": false,
+  "preview_urls": false,
+  "account_id": "43aa82716ea9acc4c2e89fdd9843e182",
+  "vars": {
+    "PUBLIC_HOST": "cloud.bndz.org"
+  },
+  // deploy.sh writes wrangler.deploy.jsonc with the real KV id. This placeholder is never deployed.
+  "kv_namespaces": [
+    {
+      "binding": "ROUTES",
+      "id": "REPLACE_WITH_BNDZ_CLOUD_ROUTES_ID"
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "cloud.bndz.org",
+      "custom_domain": true
+    }
+  ]
+}

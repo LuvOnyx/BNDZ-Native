@@ -31,14 +31,7 @@ import {
   type DupGroup,
 } from '../../lib/storageOrganize';
 
-export const StorageCleanupPluginDef = {
-  id: 'storage-cleanup',
-  name: 'Storage Cleanup',
-  icon: 'storage_cleanup',
-  description: 'Free space, find large files, remove duplicates, and check library health',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { StorageCleanupPluginDef } from './pluginDefs';
 
 function launchTabIsRefs(launch: any) {
   const tab = String(launch?.tab || '').toLowerCase();
@@ -320,7 +313,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
     { id: 'capacity', label: 'Capacity', icon: 'hard_drive_ui' },
     { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
-    { id: 'organize', label: 'Organize', icon: 'folder_plus_ui' },
+    { id: 'organize', label: 'Organize (Preview)', icon: 'folder_plus_ui' },
     { id: 'health', label: 'Health', icon: 'heart_monitor_ui' },
   ];
 

@@ -13,8 +13,11 @@ public static class MachineIdService
     public static string GetHardwareId()
     {
         if (!string.IsNullOrEmpty(_cached)) return _cached!;
-        _cached = ComputeHardwareId(includeOsVersionFallback: false);
-        return _cached;
+        var id = ComputeHardwareId(includeOsVersionFallback: false, processorCountOverride: null, out var driveRead);
+        // A system-drive probe that timed out (busy disk at cold boot) yields a different hash;
+        // don't pin that for the whole session, retry on the next call instead.
+        if (driveRead) _cached = id;
+        return id;
     }
 
     /// <summary>
@@ -27,12 +30,41 @@ public static class MachineIdService
         if (string.Equals(stored, GetHardwareId(), StringComparison.OrdinalIgnoreCase))
             return true;
         // Alternate id used briefly when DriveInfo.DriveFormat was removed from the material.
-        var alt = ComputeHardwareId(includeOsVersionFallback: true);
-        return string.Equals(stored, alt, StringComparison.OrdinalIgnoreCase);
+        var alt = ComputeHardwareId(includeOsVersionFallback: true, processorCountOverride: null, out _);
+        if (string.Equals(stored, alt, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return MatchesWithDifferentProcessorCount(stored);
     }
 
-    private static string ComputeHardwareId(bool includeOsVersionFallback)
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> ToleranceCache =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Environment.ProcessorCount is part of the legacy material, but it moves with BIOS/SMT
+    /// toggles, msconfig core limits, VM resizing and CPU swaps (a 16-thread seat reported 14 on
+    /// the dev PC and fell back to trial). MachineGuid, machine name and system drive must still
+    /// match; only the logical-processor count may differ. The activation token stays verified
+    /// against the stored id, so the seat is not rebound or re-signed.
+    /// </summary>
+    private static bool MatchesWithDifferentProcessorCount(string stored)
     {
+        return ToleranceCache.GetOrAdd(stored, s =>
+        {
+            var current = Environment.ProcessorCount;
+            for (var n = 1; n <= 1024; n++)
+            {
+                if (n == current) continue;
+                if (string.Equals(s, ComputeHardwareId(false, n, out _), StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(s, ComputeHardwareId(true, n, out _), StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        });
+    }
+
+    private static string ComputeHardwareId(bool includeOsVersionFallback, int? processorCountOverride, out bool driveRead)
+    {
+        driveRead = false;
         var parts = new List<string>();
         try
         {
@@ -45,7 +77,7 @@ public static class MachineIdService
         try
         {
             parts.Add(Environment.MachineName);
-            parts.Add(Environment.ProcessorCount.ToString());
+            parts.Add((processorCountOverride ?? Environment.ProcessorCount).ToString());
             parts.Add(Environment.Is64BitOperatingSystem ? "x64" : "x86");
         }
         catch { /* ignore */ }
@@ -60,7 +92,10 @@ public static class MachineIdService
             {
                 var drivePart = TryReadSystemDriveMaterial(letter, timeoutMs: 600);
                 if (!string.IsNullOrEmpty(drivePart))
+                {
                     parts.Add(drivePart);
+                    driveRead = true;
+                }
                 else if (includeOsVersionFallback)
                     parts.Add(Environment.OSVersion.VersionString);
             }
@@ -86,7 +121,17 @@ public static class MachineIdService
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    private static string? _driveMaterial;
+
     private static string? TryReadSystemDriveMaterial(string letter, int timeoutMs)
+    {
+        if (_driveMaterial is not null) return _driveMaterial;
+        var read = TryReadSystemDriveMaterialCore(letter, timeoutMs);
+        if (read is not null) _driveMaterial = read;
+        return read;
+    }
+
+    private static string? TryReadSystemDriveMaterialCore(string letter, int timeoutMs)
     {
         try
         {

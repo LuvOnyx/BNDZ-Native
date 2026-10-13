@@ -509,7 +509,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
             id={playing ? 'media-playback-playing' : 'media-playback-paused'}
             size={22}
             progress={duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0}
-            paused={!playing}
+            paused={playing}
           />
           {playing ? 'Pause' : 'Play'}
         </button>

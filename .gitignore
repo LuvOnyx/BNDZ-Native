@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+__pycache__/
+*.pyc
 
 # Frontend build artifacts (source lives in src/)
 dist/
@@ -86,6 +88,7 @@ installer/output/
 !installer/*.iss
 
 external/CodeWalker/
+external/FxSsh/
 
 # Local build dumps (do not commit)
 artifacts/

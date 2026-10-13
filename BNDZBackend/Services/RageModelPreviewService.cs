@@ -62,7 +62,7 @@ public static class RageModelPreviewService
                 ytdLen = yfi.Length;
             }
 
-            var cacheKey = $"{fi.FullName}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{ytdLen}|{ytdTicks}|glb2";
+            var cacheKey = $"{fi.FullName}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{ytdLen}|{ytdTicks}|glb3-yup";
             if (Cache.TryGetValue(cacheKey, out var cached) && File.Exists(cached))
             {
                 var (v, t) = PeekGltfStats(cached);
@@ -83,6 +83,7 @@ public static class RageModelPreviewService
                     return (false, null, null, ext, 0, 0, "No renderable geometry in this RAGE asset");
 
                 EnsureNormals(mesh);
+                ToGltfAxes(mesh);
 
                 var dir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -322,6 +323,26 @@ public static class RageModelPreviewService
                     mesh.Indices.Add(baseIndex + tri.GetVertexIndex(2));
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// RAGE is Z-up with +Y forward; glTF / three.js are Y-up with +Z front. Without this the
+    /// preview showed every model lying on its side and the orbit gimbal spun around the model's
+    /// length axis. (x, y, z) -> (-x, z, y) is a proper rotation (det +1), so triangle winding
+    /// and normals stay valid -- no mirroring. Mirrors rageToGltfAxes in modelViewportFraming.ts.
+    /// </summary>
+    private static void ToGltfAxes(MeshExtract mesh)
+    {
+        for (int i = 0; i < mesh.Positions.Count; i++)
+        {
+            var p = mesh.Positions[i];
+            mesh.Positions[i] = new Vector3(-p.X, p.Z, p.Y);
+        }
+        for (int i = 0; i < mesh.Normals.Count; i++)
+        {
+            var n = mesh.Normals[i];
+            mesh.Normals[i] = new Vector3(-n.X, n.Z, n.Y);
         }
     }
 

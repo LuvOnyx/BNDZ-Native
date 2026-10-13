@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -534,7 +534,9 @@ export default function BottomPluginPanel(props: any & {
               aria-hidden={!isActive}
             >
               <BndzErrorBoundary isolate label={`Plugin:${plugin.id}`} resetKey={plugin.id}>
-                <Component {...mergedPluginProps} isPluginTabActive={isActive} immersive={immersive} />
+                <Suspense fallback={null}>
+                  <Component {...mergedPluginProps} isPluginTabActive={isActive} immersive={immersive} />
+                </Suspense>
               </BndzErrorBoundary>
             </div>
           );
@@ -552,7 +554,9 @@ export default function BottomPluginPanel(props: any & {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
               <BndzErrorBoundary isolate label={`Plugin:${activeTab}`} resetKey={activeTab}>
-                <ActiveComponent {...mergedPluginProps} isPluginTabActive immersive={immersive} />
+                <Suspense fallback={null}>
+                  <ActiveComponent {...mergedPluginProps} isPluginTabActive immersive={immersive} />
+                </Suspense>
               </BndzErrorBoundary>
             </motion.div>
             );

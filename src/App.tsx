@@ -3,10 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import BNDZUI from './components/BNDZUI';
-import PluginPopoutShell from './components/PluginPopoutShell';
-import BndzPaneShell from './components/BndzPaneShell';
 import { ConfigProvider, useAppConfig } from './data/configContext';
 import { ClipboardProvider } from './data/ClipboardContext';
 import ModalProvider from './components/ModalProvider';
@@ -24,6 +22,12 @@ import { applyNativeShellHostDocumentMark } from './lib/nativeShellHostBoot';
 import { applyPaneDocumentMark, readPaneBootFromUrl } from './lib/paneBoot';
 import { applyFilesHostDocumentMark, isFilesHostBoot } from './lib/filesHostBoot';
 import BndzErrorBoundary from './components/BndzErrorBoundary';
+
+// Secondary windows only (plugin pop-outs / craft pane islands). The main file manager boots
+// without them, so they stay out of the startup bundle (they pull Settings, Automation,
+// Spatial Canvas, etc.).
+const PluginPopoutShell = lazy(() => import('./components/PluginPopoutShell'));
+const BndzPaneShell = lazy(() => import('./components/BndzPaneShell'));
 
 const PLUGIN_BOOT = readPluginWindowBootFromUrl();
 const PANE_BOOT = readPaneBootFromUrl();
@@ -84,7 +88,9 @@ export default function App() {
         <ClipboardProvider>
           <PluginRegistryProvider>
             <ModalProvider>
-              <PluginPopoutShell initial={PLUGIN_BOOT} />
+              <Suspense fallback={null}>
+                <PluginPopoutShell initial={PLUGIN_BOOT} />
+              </Suspense>
               <ToastHost />
             </ModalProvider>
           </PluginRegistryProvider>
@@ -121,7 +127,9 @@ export default function App() {
           <PluginRegistryProvider>
             <ModalProvider>
               <AiModelGateProvider>
-                <BndzPaneShell initial={PANE_BOOT} />
+                <Suspense fallback={null}>
+                  <BndzPaneShell initial={PANE_BOOT} />
+                </Suspense>
                 <ToastHost />
               </AiModelGateProvider>
             </ModalProvider>

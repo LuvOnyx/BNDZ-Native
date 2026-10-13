@@ -469,7 +469,7 @@ namespace BNDZ.Services
             try
             {
                 int size = Math.Clamp(pixelSize, 16, 1024);
-                using var hbmp = item.GetImage(new SIZE(size, size), flags);
+                using var hbmp = ShellImageFactory.TryGetImage(item, new SIZE(size, size), flags);
                 if (hbmp == null || hbmp.IsInvalid)
                     return "";
                 // Scan0 / 32bpp ARGB — never hbmp.ToBitmap() (GDI FromHbitmap flattens alpha).

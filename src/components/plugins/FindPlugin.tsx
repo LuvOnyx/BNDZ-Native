@@ -42,12 +42,7 @@ const PROPERTY_CHIPS: Array<{ label: string; token: string }> = [
 type SearchMode = 'local' | 'global' | 'duplicates' | 'advanced';
 type FindPreset = { name: string; query: string; mode: SearchMode; regex: boolean; content: boolean; roots: string };
 
-export const FindPluginDef = {
-    id: "find",
-    name: "Fast Search",
-    icon: 'find',
-    targetPanel: "bottom"
-};
+export { FindPluginDef } from './pluginDefs';
 
 const SEARCH_HISTORY_MAX = 15;
 

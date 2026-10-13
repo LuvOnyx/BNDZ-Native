@@ -136,6 +136,14 @@ export default function BndzHomeView({
   const [deckSyncing, setDeckSyncing] = useState(false);
   const fingerprintRef = useRef<string | undefined>(undefined);
 
+  const homeDate = useMemo(() => {
+    const now = new Date();
+    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(now);
+    const monthDay = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(now);
+    const year = new Intl.DateTimeFormat('en-US', { year: 'numeric' }).format(now);
+    return { weekday, monthDay, year, iso: now.toISOString() };
+  }, []);
+
   const applyDeck = useCallback((deck: any, mergeBody = true) => {
     if (mergeBody) {
       if (deck.continuum) setContinuum(deck.continuum || []);
@@ -440,15 +448,28 @@ export default function BndzHomeView({
 
       <div className="bndz-home-deck">
         <header className="bndz-home-hero">
-          <motion.div
-            className="bndz-home-brand"
-            initial={reduceMotion ? false : { opacity: 0, y: 14, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <span className="bndz-home-wordmark">BNDZ</span>
-            <span className="bndz-home-tag">Home</span>
-          </motion.div>
+          <div className="bndz-home-hero-top">
+            <motion.div
+              className="bndz-home-brand"
+              initial={reduceMotion ? false : { opacity: 0, y: 14, filter: 'blur(6px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <span className="bndz-home-wordmark">BNDZ</span>
+              <span className="bndz-home-tag">Home</span>
+            </motion.div>
+            <motion.div
+              className="bndz-home-date"
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              aria-label={`${homeDate.weekday}, ${homeDate.monthDay}, ${homeDate.year}`}
+            >
+              <span className="bndz-home-date-weekday">{homeDate.weekday}</span>
+              <span className="bndz-home-date-day">{homeDate.monthDay}</span>
+              <span className="bndz-home-date-year">{homeDate.year}</span>
+            </motion.div>
+          </div>
           <motion.p
             className="bndz-home-lede"
             initial={reduceMotion ? false : { opacity: 0 }}
@@ -527,26 +548,9 @@ export default function BndzHomeView({
         <section className="bndz-home-workspaces" aria-label="Workspaces">
           <div className="bndz-home-section-label">
             <span>Workspaces</span>
-            <span className="bndz-home-muted">Zero-launch tools | no external setup</span>
+            <span className="bndz-home-muted">Launch pads</span>
           </div>
           <div className="bndz-ws-launch-grid">
-            <WorkspaceLaunchCard
-              title="Pillar Board"
-              desc="Open Spatial with Sandbox, Health, Inbound, Capacity, Sync, and Automation pinned -- live pillars in under 30 seconds."
-              icon="view_grid"
-              accent="#34d399"
-              badge="Selling pillars"
-              badgeVariant="gold"
-              features={['Live badges', 'Pillar pins', 'One-click open']}
-              onClick={() => {
-                try { sessionStorage.setItem('bndz-pending-pillar-board', '1'); } catch { /* ignore */ }
-                onNavigate(BNDZ_CANVAS);
-                window.setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
-                }, 180);
-              }}
-              className="is-canvas"
-            />
             <WorkspaceLaunchCard
               title="Spatial Canvas"
               desc="Blank freeform board -- organize references across folders without moving files on disk."

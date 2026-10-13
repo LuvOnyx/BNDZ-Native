@@ -16,13 +16,7 @@ import { useAppConfig } from '../../data/configContext';
 import { buildFileOpsRuntime } from '../../lib/settingsWiring';
 import { panePathFromWin } from '../../lib/storageOrganize';
 
-export const ActionLogPluginDef = {
-  id: 'action-log',
-  name: 'Action Log',
-  icon: 'clock_ui',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
-};
+export { ActionLogPluginDef } from './pluginDefs';
 
 type LogEntry = {
   id: string;

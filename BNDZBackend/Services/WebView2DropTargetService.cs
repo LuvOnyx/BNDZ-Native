@@ -1320,22 +1320,34 @@ internal static class WebView2DropTargetService
         catch { return false; }
     }
 
-    /// <summary>Topmost HWND is clearly another app (not shell desktop / our host).</summary>
+    /// <summary>
+    /// Topmost HWND is another app / Explorer folder — not bare wallpaper.
+    /// Geometric DefView is full-screen behind every window; allowlists missed
+    /// DirectUIHWND / DAWs and let wallpaper Escape cancel steal those drops.
+    /// </summary>
     private static bool IsForeignWindowAboveDesktop(IntPtr hit)
     {
         if (hit == IntPtr.Zero) return false;
+        IntPtr root = hit;
         for (var cur = hit; cur != IntPtr.Zero; cur = GetParent(cur))
         {
             var cls = GetHwndClassName(cur);
-            if (cls is "Progman" or "WorkerW" or "SHELLDLL_DefView" or "SysListView32")
+            // Classic desktop shell tree — not foreign.
+            if (cls is "Progman" or "WorkerW")
                 return false;
-            if (cls.StartsWith("Chrome_", StringComparison.Ordinal)
-                || cls.StartsWith("Mozilla", StringComparison.Ordinal)
-                || cls is "ApplicationFrameWindow" or "XamlExplorerHostIslandWindow"
-                || cls.Contains("RenderWidget", StringComparison.Ordinal))
+            // Explorer folder windows are OLE targets, never wallpaper recover.
+            if (cls is "CabinetWClass" or "ExploreWClass")
                 return true;
+            root = cur;
         }
-        return false;
+        var rootCls = GetHwndClassName(root);
+        if (rootCls is "Progman" or "WorkerW")
+            return false;
+        var host = _hostWindowHwnd != IntPtr.Zero ? _hostWindowHwnd : _registeredHwnd;
+        if (host != IntPtr.Zero && (root == host || hit == host || IsChild(host, hit)))
+            return false;
+        // Any other top-level (FL Studio, Chrome, WinUI apps, …) sits above wallpaper.
+        return true;
     }
 
     /// <summary>True when screen point falls on the shell desktop SysListView32 wallpaper area.</summary>
@@ -1542,12 +1554,21 @@ internal static class WebView2DropTargetService
                 // waiting for the cursor to re-enter BNDZ (nested loop otherwise goes quiet).
                 if (Volatile.Read(ref _outboundPhysicalButtonUp) != 0)
                 {
-                    LatchDesktopShellRecoverFromPhysicalUp();
-                    LogDecision($"cancel escape-after-physical-up {DescribeCursorHit()}");
+                    // Only wallpaper recover. Escape must never steal Explorer/DAW drops.
+                    if (!GetCursorPos(out var escPt) || IsDesktopDropTargetAtPoint(escPt.x, escPt.y))
+                    {
+                        LatchDesktopShellRecoverFromPhysicalUp();
+                        LogDecision($"cancel escape-after-physical-up {DescribeCursorHit()}");
+                        return DRAGDROP_S_CANCEL;
+                    }
+                    LogDecision($"escape-after-physical-up ignored (foreign target) {DescribeCursorHit()}");
+                    // Fall through as button-up over a foreign IDropTarget.
+                }
+                else
+                {
+                    LogDecision($"cancel escape {DescribeCursorHit()}");
                     return DRAGDROP_S_CANCEL;
                 }
-                LogDecision($"cancel escape {DescribeCursorHit()}");
-                return DRAGDROP_S_CANCEL;
             }
             const int VK_LBUTTON = 0x01;
             const int VK_RBUTTON = 0x02;
@@ -1702,13 +1723,14 @@ internal static class WebView2DropTargetService
             var fbAgeMs = FreshFeedbackAgeMs();
             var freshFb = HasFreshTrustedFolderFeedback();
 
-            // PRIMARY: button-up outside BNDZ over desktop wallpaper — commit via shell recover.
-            // Prefer shell recover over OLE DROP: DROP onto SysListView32 has been flaky, and
-            // geo-desktop previously false-committed onto Chrome_RenderWidgetHostHWND.
-            if (!underOurHost && (outsideHostRect || overDesktop || geoDesktop))
+            // PRIMARY: button-up over true desktop wallpaper — commit via shell recover.
+            // Prefer shell recover over OLE DROP onto SysListView32 (flaky under WinUI).
+            // Do NOT use bare geoDesktop: DefView is full-screen and false-positives under
+            // Explorer DirectUIHWND / FL Studio / other apps sitting above wallpaper.
+            if (!underOurHost && overDesktop)
             {
                 var effectReady = _latchedAcceptEffect is 1 or 2 or 4;
-                if (!effectReady && geoDesktop && _sawButtonDown)
+                if (!effectReady && _sawButtonDown)
                 {
                     _latchedAcceptEffect = ResolveDefaultForeignDropEffect();
                     _lastTrustedWasDesktop = true;
@@ -1718,8 +1740,8 @@ internal static class WebView2DropTargetService
                 }
 
                 if (effectReady
-                    && (_lastTrustedWasDesktop || overDesktop || geoDesktop)
-                    && (freshFb || overDesktop || geoDesktop || _sawFolderAccept))
+                    && (_lastTrustedWasDesktop || overDesktop)
+                    && (freshFb || overDesktop || _sawFolderAccept))
                 {
                     _requestDesktopShellRecover = true;
                     LogDecision($"cancel-for-desktop-outside-commit cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} fbAgeMs={fbAgeMs} geo={geoDesktop} physicalUp={physicalUp} asyncDown={asyncDown} oleDown={oleDown} {hit}");
@@ -1739,6 +1761,17 @@ internal static class WebView2DropTargetService
             if (overForeignFolder && _latchedAcceptEffect is 1 or 2 or 4 && freshFb)
             {
                 LogDecision($"drop folder cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} latched={_latchedAcceptEffect} oleDown={oleDown} asyncDown={asyncDown} fbAgeMs={fbAgeMs} {hit}");
+                return DRAGDROP_S_DROP;
+            }
+
+            // General foreign OLE IDropTarget (FL Studio, etc.) — CF_HDROP consumers that are
+            // neither Desktop nor Explorer CabinetWClass. Desktop still uses shell-recover above.
+            if (outsideHostForDrop && !underOurHost && !overDeniedChrome && !overDesktop
+                && _latchedAcceptEffect is 1 or 2 or 4
+                && (freshFb || _sawFolderAccept)
+                && !IsBadLatchedCommitHit(hit))
+            {
+                LogDecision($"drop foreign-ole cursor=({pt.x},{pt.y}) effect={_latchedAcceptEffect} fbAgeMs={fbAgeMs} physicalUp={physicalUp} {hit}");
                 return DRAGDROP_S_DROP;
             }
 
@@ -1799,8 +1832,6 @@ internal static class WebView2DropTargetService
             var overForeignFolder = haveCursor
                 && (IsDesktopDropTargetAtPoint(pt.x, pt.y)
                     || IsExplorerFolderDropTargetAtPoint(pt.x, pt.y));
-            var resolved = ResolveCommitDropEffect(bits, overForeignFolder);
-            var prev = _lastFeedbackEffect == uint.MaxValue ? uint.MaxValue : (_lastFeedbackEffect & 0x7u);
             var hit = haveCursor ? DescribeCursorHit(pt.x, pt.y) : "no-cursor";
             var host = _hostWindowHwnd != IntPtr.Zero ? _hostWindowHwnd : _registeredHwnd;
             var insideHostRect = haveCursor && host != IntPtr.Zero
@@ -1809,11 +1840,17 @@ internal static class WebView2DropTargetService
             var overSelf = hit.Contains("ourDropTarget=True", StringComparison.Ordinal)
                 || (insideHostRect && hit.Contains("underHost=True", StringComparison.Ordinal));
             var overDenied = haveCursor && IsDeniedOleDropCommitTarget(pt.x, pt.y);
+            // FL Studio / other HDROP consumers are not CabinetWClass — still latch their accept.
+            var outsideHostOle = haveCursor && !overSelf && !overDenied
+                && IsCursorOutsideHostForOleDrop(pt.x, pt.y);
+            var overForeignOle = overForeignFolder || outsideHostOle;
+            var resolved = ResolveCommitDropEffect(bits, overForeignOle);
+            var prev = _lastFeedbackEffect == uint.MaxValue ? uint.MaxValue : (_lastFeedbackEffect & 0x7u);
             var trusted = haveCursor
                 && !overSelf
                 && !overDenied
                 && resolved != 0
-                && (overForeignFolder || !hit.Contains("MSTaskSwWClass", StringComparison.Ordinal));
+                && (overForeignOle || !hit.Contains("MSTaskSwWClass", StringComparison.Ordinal));
 
             // Crossing back over BNDZ mid-exit — never wipe latched foreign accept.
             if (overSelf && resolved == 0)
@@ -1841,16 +1878,16 @@ internal static class WebView2DropTargetService
             var overDesktop = haveCursor && IsDesktopDropTargetAtPoint(pt.x, pt.y);
             if (overDesktop || (overForeignFolder && haveCursor && IsCursorOverShellDesktopListView(pt.x, pt.y)))
                 Interlocked.Exchange(ref _outboundSawDesktopFeedback, 1);
-            if (!overDenied && resolved != 0 && overForeignFolder)
+            if (!overDenied && resolved != 0 && overForeignOle)
             {
                 _latchedAcceptEffect = resolved;
                 // Desktop SysListView32 must always latch — mis-hits (DesktopChildSiteBridge) skip trusted.
-                if (overDesktop || trusted)
+                if (overDesktop || trusted || outsideHostOle)
                     MarkTrustedFolderFeedback(resolved, overDesktop);
             }
-            if (overForeignFolder)
+            if (overForeignOle)
                 _sawFolderAccept = true;
-            if (overForeignFolder && bits == 7)
+            if (overForeignOle && bits == 7)
                 _lastFeedbackEffect = ResolveCommitDropEffect(7u, overForeignFolder: true);
             else if (resolved != 0)
                 _lastFeedbackEffect = resolved;
@@ -1915,14 +1952,21 @@ internal static class WebView2DropTargetService
                     || _outboundSawButtonDownAtMs == 0
                     || Environment.TickCount64 - _outboundSawButtonDownAtMs < 400)
                     return CallNextHookEx(_llMouseHook, nCode, wParam, lParam);
-                // Live desktop hit-test — do NOT wait for GiveFeedback (that missed releases).
-                if (!IsDesktopDropTargetAtPoint(pt.x, pt.y)
-                    && !IsCursorOverShellDesktopListView(pt.x, pt.y))
-                    return CallNextHookEx(_llMouseHook, nCode, wParam, lParam);
+                // Outside-host physical up: mark so sticky oleDown cannot keep QCD alive.
+                // Escape ONLY for true wallpaper — bare geo DefView false-positives under
+                // Explorer DirectUIHWND / FL Studio and cancelled those drops into desktop-recover.
                 if (Interlocked.Exchange(ref _outboundPhysicalButtonUp, 1) == 0)
                 {
                     AppendOleDndLog($"physical-button-up (LL hook, outside-host) {DescribeCursorHit(pt.x, pt.y)}");
-                    ForceOleDragEndViaEscape();
+                    if (IsDesktopDropTargetAtPoint(pt.x, pt.y))
+                    {
+                        ForceOleDragEndViaEscape();
+                    }
+                    else
+                    {
+                        AppendOleDndLog("OLE wake (no Escape) after foreign physical-up");
+                        WakeOleNestedLoop();
+                    }
                 }
             }
         }

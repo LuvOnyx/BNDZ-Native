@@ -253,7 +253,7 @@ public static class MediaThumbnailService
                 else
                     flags |= ShellItemGetImageOptions.BiggerSizeOk;
 
-                using var hbmp = item.GetImage(new SIZE(pixelSize, pixelSize), flags);
+                using var hbmp = ShellImageFactory.TryGetImage(item, new SIZE(pixelSize, pixelSize), flags);
                 if (hbmp == null || hbmp.IsInvalid)
                     return "";
                 return ShellArgbPngEncoder.EncodeHBitmapPngBase64(hbmp.DangerousGetHandle());

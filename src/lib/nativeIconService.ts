@@ -434,6 +434,12 @@ function applyBatchChunk(
   }
 }
 
+/** Head of `entities` worth scanning for a prefetch of `limit` icons (generous: 8x, min 800). */
+function boundedScan<T>(entities: T[], limit: number): T[] {
+  const cap = Math.max(800, limit * 8);
+  return entities.length > cap ? entities.slice(0, cap) : entities;
+}
+
 export async function prefetchIconsForEntities(
   entities: Array<{ path?: string; name: string; type?: string; isDirectory?: boolean }>,
   panePath: string,
@@ -445,6 +451,10 @@ export async function prefetchIconsForEntities(
   const requests: Array<{ path: string; isDirectory: boolean }> = [];
   const seenTypes = new Set<string>();
   const seenDirs = new Set<string>();
+  // Listing-level warm only needs the head of the list (the visible range has its own warm via
+  // onVisibleRangeChange). Scanning -- and re-scanning after every batch -- all 20k entries of a
+  // big folder cost ~0.7 s of main-thread work per navigation.
+  entities = boundedScan(entities, limit);
   for (const ent of entities) {
     if (requests.length >= limit) break;
     const fullPath = joinPanePath(panePath, ent);
@@ -525,6 +535,7 @@ export async function prefetchMediaThumbnailsForEntities(
   const { joinPanePath } = await import('./pathUtils');
   const { IPC } = await import('./ipcBridge');
   const media: Array<{ path: string; isDirectory: boolean }> = [];
+  entities = boundedScan(entities, limit);
   for (const ent of entities) {
     const isDir = ent.type === 'directory' || ent.isDirectory;
     if (isDir) {

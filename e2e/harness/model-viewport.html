@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>BNDZ model viewport harness</title>
+    <style>
+      html, body { margin: 0; background: #111; }
+      #stage { position: relative; width: 360px; height: 420px; overflow: hidden; }
+      /* Mirrors .bndz-rage-preview-stage .bndz-gpu-viewport in src/index.css (preview panel). */
+      #stage .bndz-gpu-viewport { position: absolute; inset: 0; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <script type="module" src="./modelViewportHarness.tsx"></script>
+  </body>
+</html>

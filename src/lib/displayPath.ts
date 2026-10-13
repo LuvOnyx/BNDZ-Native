@@ -1,3 +1,4 @@
+import { stripExtensionSuffix } from './safeRegex';
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
 import { getPaneTabLabel, isShellDisplayPath, toShellPanePath } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
@@ -256,7 +257,7 @@ export function getEntityDisplayName(
     && String(ext || '').toLowerCase() === 'lnk'
     && config.hideShortcutExtensions !== false;
   if (!isDir && ext && (config.showFileExtensions === false || hideShortcutExtension)) {
-    return name.replace(new RegExp(`\\.${ext}$`, 'i'), '');
+    return stripExtensionSuffix(name, String(ext));
   }
   return name;
 }

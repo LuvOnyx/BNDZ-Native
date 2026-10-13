@@ -92,6 +92,7 @@ export function buildDefaultQuickActions(handlers: {
   onBatchRename?: () => void;
   onQuickLook: () => void;
   onMeshDrop?: () => void;
+  onLanShare?: () => void;
   onTag?: () => void;
   onCompare?: () => void;
   canPaste: boolean;
@@ -101,8 +102,11 @@ export function buildDefaultQuickActions(handlers: {
   const installed = new Set(handlers.installedPlugins ?? []);
   const pluginOn = (pluginId: string) => installed.has(pluginId);
   const extra: QuickAction[] = [];
+  if (handlers.onLanShare) {
+    extra.push({ id: 'lanshare', label: 'Share LAN', icon: 'emblem-shared', onClick: handlers.onLanShare, accent: 'sky' });
+  }
   if (handlers.onMeshDrop && pluginOn('remote-mesh')) {
-    extra.push({ id: 'meshdrop', label: 'Mesh Drop', icon: 'emblem-shared', onClick: handlers.onMeshDrop, accent: 'sky' });
+    extra.push({ id: 'meshdrop', label: 'Mesh Drop', icon: 'share', onClick: handlers.onMeshDrop, accent: 'sky' });
   }
   if (handlers.onTag) extra.push({ id: 'tag', label: 'Tag', icon: 'tag_manager', onClick: handlers.onTag, accent: 'emerald' });
   if (handlers.onCompare && pluginOn('folder-sync')) {

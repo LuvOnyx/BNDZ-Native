@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { IPC } from '../../lib/ipcBridge';
 import { Icons8Icon } from '../Icons8Icon';
 import MeshHostsManager from '../mesh/MeshHostsManager';
@@ -11,12 +11,15 @@ import { type MeshSyncRule, normalizeMeshHost, MESH_STATE_LABEL, MESH_PROVIDER_L
 import { buildMeshPath } from '../../lib/meshPaths';
 import { BNDZ_AUTOMATION, BNDZ_CANVAS } from '../../lib/bndzVirtualViews';
 import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
+// BNDZ Cloud loads only when its settings tab is opened.
+const CloudDrivePanel = lazy(() => import('../cloud/CloudDrivePanel'));
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 
-type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation' | 'mesh-drop';
+type ToolTab = 'cloud-drive' | 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation' | 'mesh-drop';
 
 const TOOL_TABS: { id: ToolTab; label: string; icon: string; desc: string }[] = [
+  { id: 'cloud-drive', label: 'BNDZ Cloud', icon: 'cloud_drive', desc: 'Your drives at cloud.bndz.org' },
   { id: 'remote-mesh', label: 'Remote', icon: 'cloud_ui', desc: 'SSH/SFTP hosts & S3 buckets' },
   { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared', desc: 'P2P WebRTC transfer' },
   { id: 'live-mirror', label: 'Live Mirror', icon: 'sync_folders', desc: 'Push folders on save' },
@@ -256,6 +259,10 @@ export default function WorkspaceToolsTabContent({
           )}
 
           <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar pr-1">
+            {toolTab === 'cloud-drive' && (
+              <Suspense fallback={null}><CloudDrivePanel variant="settings" /></Suspense>
+            )}
+
             {toolTab === 'remote-mesh' && (
               <div className="space-y-5">
                 <div className="bndz-mesh-dashboard">

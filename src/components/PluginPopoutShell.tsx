@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import WindowTitleBar from './WindowTitleBar';
 import StickyWidgetEditor from './StickyWidgetEditor';
 import BndzErrorBoundary from './BndzErrorBoundary';
@@ -101,15 +101,17 @@ export default function PluginPopoutShell({ initial }: Props) {
       return (
         <div className="bndz-plugin-popout-surface flex-1 min-h-0 flex flex-col overflow-hidden">
           <BndzErrorBoundary isolate label={`PluginPopout:${boot.pluginId}`} resetKey={boot.pluginId}>
-            <Active
-              isPluginTabActive
-              immersive
-              popout
-              selectedItems={[]}
-              selectedPaths={[]}
-              currentPath=""
-              onNavigate={navigateMainList}
-            />
+            <Suspense fallback={null}>
+              <Active
+                isPluginTabActive
+                immersive
+                popout
+                selectedItems={[]}
+                selectedPaths={[]}
+                currentPath=""
+                onNavigate={navigateMainList}
+              />
+            </Suspense>
           </BndzErrorBoundary>
         </div>
       );

@@ -6,7 +6,7 @@ type Props = {
   className?: string;
   /** 0-1 progress; when omitted, follows the shared audio session. */
   progress?: number;
-  /** When true, center shows pause bars; ring still tracks seek position. */
+  /** When true (media playing), center shows pause bars; when false, play triangle. */
   paused?: boolean;
 };
 
