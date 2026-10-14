@@ -726,16 +726,16 @@ export default function WorkspaceToolsTabContent({
 
                 <SettingsSection title="List & selection chrome">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
-                    Workstation interaction systems that apply outside Spatial/Automation -- Command Deck, fluid drag, and GPU preview shaders.
+                    Workstation interaction systems that apply outside Spatial/Automation -- the selection bar, fluid drag, and GPU preview shaders.
                   </p>
                   <Checkbox
-                    label="Context Command Deck (selection tool morph bar)"
+                    label="Show selection bar (tools for the selected item, at the bottom)"
                     checked={localConfig.commandDeck === true}
                     onChange={e => updateLocalConfig({ commandDeck: e.target.checked })}
                   />
                   <div className="mt-2">
                     <Checkbox
-                      label="Quick Actions Bar (multi-select strip below omnibar)"
+                      label="Show multi-select actions bar (below the address bar)"
                       checked={localConfig.showQuickActionsBar === true}
                       onChange={e => updateLocalConfig({ showQuickActionsBar: e.target.checked })}
                     />

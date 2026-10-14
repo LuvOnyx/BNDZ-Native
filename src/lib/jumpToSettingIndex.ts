@@ -24,10 +24,17 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
   },
   {
     tab: 'Appearance',
-    label: 'Show selection quick actions bar',
+    label: 'Show multi-select actions bar',
     key: 'showQuickActionsBar',
-    description: 'Floating bar when multiple files are selected (N selected)',
-    keywords: ['bar', 'quick actions', 'quick actions bar', 'selection bar', 'selected', 'n selected', 'actions bar'],
+    description: 'Bar below the address bar when multiple files are selected (N selected)',
+    keywords: ['bar', 'quick actions', 'quick actions bar', 'multi-select', 'selected', 'n selected', 'actions bar'],
+  },
+  {
+    tab: 'Appearance',
+    label: 'Show selection bar',
+    key: 'commandDeck',
+    description: 'Tools for the selected item, in a bar at the bottom of the window',
+    keywords: ['selection bar', 'bar', 'bottom bar', 'selected item tools', 'command deck', 'selection tools'],
   },
   {
     tab: 'Appearance',

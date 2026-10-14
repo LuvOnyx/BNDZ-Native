@@ -2100,36 +2100,39 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Menus & Context",
-    "label": "Point to select",
+    "label": "Hover to select",
     "key": "pointToSelect",
     "keywords": [
-      "point",
+      "hover",
       "to",
       "select",
+      "point",
       "menus",
       "context",
       "selection",
       "highlight",
       "marquee"
     ],
-    "description": "Controls point to select"
+    "description": "Controls hover to select"
   },
   {
     "tab": "Menus & Context",
-    "label": "To the icon only",
+    "label": "Only when hovering over the icon",
     "key": "toTheIconOnly",
     "keywords": [
-      "to",
+      "only",
+      "when",
+      "hovering",
+      "over",
       "the",
       "icon",
-      "only",
       "menus",
       "context",
       "icons",
       "library",
       "custom"
     ],
-    "description": "Controls to the icon only"
+    "description": "Controls only when hovering over the icon"
   },
   {
     "tab": "Menus & Context",

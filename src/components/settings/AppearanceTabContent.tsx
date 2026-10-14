@@ -123,9 +123,14 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           </div>
         </div>
         <Checkbox
-          label="Show selection quick actions bar"
+          label="Show multi-select actions bar"
           checked={localConfig.showQuickActionsBar === true}
           onChange={e => patch({ showQuickActionsBar: e.target.checked })}
+        />
+        <Checkbox
+          label="Show selection bar (tools for the selected item, at the bottom)"
+          checked={localConfig.commandDeck === true}
+          onChange={e => patch({ commandDeck: e.target.checked })}
         />
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">
