@@ -442,6 +442,7 @@ function nested(parent: string, child: string): boolean {
 export function stateLabel(state: string): string {
   switch (state) {
     case 'creating': return 'Creating';
+    case 'starting': return 'Starting';
     case 'running': return 'Running';
     case 'stopped': return 'Stopped';
     case 'error': return 'Needs attention';

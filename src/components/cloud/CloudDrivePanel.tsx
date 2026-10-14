@@ -108,6 +108,16 @@ function CloudDriveBody() {
     void refresh();
   }, [previewLayout, refresh]);
 
+  // Creating and starting finish in the background on the backend (a first
+  // start downloads the engine and takes minutes). Poll the list so the card
+  // shows live progress instead of one long blocked call.
+  const anyTransient = drives.some(d => d.state === 'creating' || d.state === 'starting');
+  useEffect(() => {
+    if (!anyTransient || previewLayout) return;
+    const t = window.setInterval(() => { void refresh(); }, 2000);
+    return () => window.clearInterval(t);
+  }, [anyTransient, previewLayout, refresh]);
+
   useEffect(() => {
     if (placementSet.current || previewLayout || !probeReady) return;
     let stored: string | null = null;
@@ -253,9 +263,11 @@ function CloudDriveBody() {
       if (!r.ok) throw new Error(r.error || r.drive?.message || 'Create failed');
       if (r.drives) setDrives(r.drives);
       else await refresh();
-      const msg = r.drive?.message || (placement === 'cloud'
-        ? 'Drive record is in BNDZ. Files stay on the Fly machine, not on this PC.'
-        : 'Sealed disk slot is on the drive you picked.');
+      const msg = r.drive?.state === 'creating'
+        ? 'Creating your drive. Its card below shows live progress while it finishes.'
+        : (r.drive?.message || (placement === 'cloud'
+          ? 'Drive record is in BNDZ. Files stay on the Fly machine, not on this PC.'
+          : 'Sealed disk slot is on the drive you picked.'));
       pushToast({ kind: r.drive?.state === 'error' ? 'warning' : 'success', title: 'Cloud Drive', message: msg });
     } catch (e) {
       pushToast({ kind: 'error', title: 'Create failed', message: e instanceof Error ? e.message : String(e) });
@@ -276,9 +288,10 @@ function CloudDriveBody() {
       if (r.drives) setDrives(r.drives);
       if (!r.ok) throw new Error(r.error || r.drive?.message || 'Request failed');
       const title = op === 'start' ? 'Start' : op === 'stop' ? 'Stop' : 'Status';
-      const started = op === 'start' && r.drive?.state === 'running';
+      // Start returns as soon as the backend takes the job; the drive card
+      // (polled above) shows it becoming Running. Only flag a real failure.
       pushToast({
-        kind: op === 'start' && !started ? 'warning' : 'success',
+        kind: 'success',
         title,
         message: r.drive?.message || 'Updated.',
       });
@@ -628,11 +641,11 @@ function CloudDriveBody() {
               />
             )}
             <div className="flex flex-wrap gap-2 mt-2">
-              <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'start')}>Start</PluginToolbarButton>
-              <PluginToolbarButton disabled={busy || drive.state === 'deleting'} onClick={() => void run(drive.id, 'stop')}>Stop</PluginToolbarButton>
+              <PluginToolbarButton disabled={busy || drive.state === 'deleting' || drive.state === 'creating' || drive.state === 'starting' || drive.state === 'running'} onClick={() => void run(drive.id, 'start')}>Start</PluginToolbarButton>
+              <PluginToolbarButton disabled={busy || drive.state === 'deleting' || drive.state === 'creating' || drive.state === 'starting'} onClick={() => void run(drive.id, 'stop')}>Stop</PluginToolbarButton>
               <PluginToolbarButton disabled={busy || !drive.sshCommand} onClick={() => void copyText(drive.sshCommand || '', 'SSH command')}>Copy SSH</PluginToolbarButton>
               <PluginToolbarButton disabled={busy || !drive.publicKey} onClick={() => void copyText(drive.publicKey || '', 'Public key')}>Copy public key</PluginToolbarButton>
-              <PluginToolbarButton disabled={busy} onClick={() => { setConfirmId(drive.id); setConfirmName(''); }}>Delete</PluginToolbarButton>
+              <PluginToolbarButton disabled={busy || drive.state === 'creating' || drive.state === 'starting'} onClick={() => { setConfirmId(drive.id); setConfirmName(''); }}>Delete</PluginToolbarButton>
             </div>
             {confirmId === drive.id && (
               <div className="bndz-cloud-confirm">

@@ -12,6 +12,9 @@ public sealed class CloudDriveService
     public static CloudDriveService Shared { get; } = new();
 
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _saveLock = new();
+    private readonly object _opsLock = new();
+    private readonly HashSet<string> _busy = new();
     private readonly FlyMachinesCloudDriveProvider _fly = new();
     private readonly LocalMicroVmCloudDriveProvider _local = new();
     private readonly string _dir;
@@ -46,7 +49,7 @@ public sealed class CloudDriveService
                 "CLOUD_DRIVE_SET_TOKEN" => await SetTokenAsync(Str(payload, "token") ?? Str(payload, "flyToken"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_CLEAR_TOKEN" => ClearToken(),
                 "CLOUD_DRIVE_CREATE" => await CreateAsync(payload, ct).ConfigureAwait(false),
-                "CLOUD_DRIVE_START" => await MutateAsync(Str(payload, "id"), (d, token) => ProviderFor(d).StartAsync(d, token, ct), ct).ConfigureAwait(false),
+                "CLOUD_DRIVE_START" => StartBackground(Str(payload, "id")),
                 "CLOUD_DRIVE_STOP" => await MutateAsync(Str(payload, "id"), (d, token) => ProviderFor(d).StopAsync(d, token, ct), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_REFRESH" => await MutateAsync(Str(payload, "id"), (d, token) => ProviderFor(d).RefreshAsync(d, token, ct), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_DELETE" => await DeleteAsync(Str(payload, "id"), Str(payload, "confirmName"), ct).ConfigureAwait(false),
@@ -240,34 +243,114 @@ public sealed class CloudDriveService
 
         _store.Drives.Add(drive);
         Save();
-        try
+        // Provisioning continues in the background (see RunCreateInBackground):
+        // the caller gets the drive back right away in state "creating" and the
+        // panel polls LIST to watch it settle. A first local create downloads
+        // hundreds of MB and takes minutes — far past any IPC timeout.
+        TryMarkBusy(drive.Id);
+        RunCreateInBackground(drive, req);
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private void RunCreateInBackground(CloudDriveRecord drive, CloudDriveCreateRequest req)
+    {
+        _ = Task.Run(async () =>
         {
-            await PublishDriveAsync(drive, ct).ConfigureAwait(false);
-        }
-        catch (Exception ex)
+            try
+            {
+                await PublishDriveAsync(drive, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                drive.PublishMode = "dry-run";
+                drive.PublishMessage = CloudDriveSecrets.Redact(ex.Message);
+            }
+            try
+            {
+                StampGuestSecret(drive);
+                await ProviderFor(drive).CreateAsync(drive, req, ReadToken, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                drive.State = "error";
+                drive.Message = CloudDriveSecrets.Redact(ex.Message);
+            }
+            finally
+            {
+                drive.GuestOriginSecret = null;
+            }
+            await FinishBackgroundOp(drive).ConfigureAwait(false);
+        });
+    }
+
+    /// <summary>
+    /// Start runs off the request path for the same reason as create: the IPC
+    /// call returns the drive immediately in state "starting", the provider
+    /// keeps updating Message (download percent, boot stage) on the record,
+    /// and the panel polls LIST to watch it. The busy flag makes a second
+    /// Start a no-op instead of a stacked attempt on the same drive.
+    /// </summary>
+    private object StartBackground(string? id)
+    {
+        var drive = Find(id);
+        if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        EnsureProtocolMaterial(drive);
+        if (string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(drive.LocalGuestIp))
         {
-            drive.PublishMode = "dry-run";
-            drive.PublishMessage = CloudDriveSecrets.Redact(ex.Message);
+            var used = _store.Drives
+                .Where(d => !string.Equals(d.Id, drive.Id, StringComparison.Ordinal))
+                .Select(d => d.LocalGuestIp);
+            drive.LocalGuestIp = CloudDriveLocalRootfs.PickGuestIp(drive.Id, used);
         }
-        try
+        if (!TryMarkBusy(drive.Id))
+            return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+        if (!string.Equals(drive.State, "running", StringComparison.OrdinalIgnoreCase))
         {
-            StampGuestSecret(drive);
-            await ProviderFor(drive).CreateAsync(drive, req, ReadToken, ct).ConfigureAwait(false);
+            drive.State = "starting";
+            drive.Message = "Starting…";
+            Touch(drive);
+            Save();
         }
-        catch (Exception ex)
+        RunStartInBackground(drive);
+        return new { ok = true, drive = drive.ToDto(), drives = Dtos() };
+    }
+
+    private void RunStartInBackground(CloudDriveRecord drive)
+    {
+        _ = Task.Run(async () =>
         {
-            drive.State = "error";
-            drive.Message = CloudDriveSecrets.Redact(ex.Message);
-        }
-        finally
-        {
-            drive.GuestOriginSecret = null;
-        }
+            try
+            {
+                StampGuestSecret(drive);
+                await ProviderFor(drive).StartAsync(drive, ReadToken, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                drive.State = "error";
+                drive.Message = CloudDriveSecrets.Redact(ex.Message);
+            }
+            finally
+            {
+                drive.GuestOriginSecret = null;
+            }
+            await FinishBackgroundOp(drive).ConfigureAwait(false);
+        });
+    }
+
+    private bool TryMarkBusy(string id)
+    {
+        lock (_opsLock) { return _busy.Add(id); }
+    }
+
+    private async Task FinishBackgroundOp(CloudDriveRecord drive)
+    {
         drive.Message = CloudDriveSecrets.Redact(drive.Message);
         Touch(drive);
-        Save();
-        var failed = drive.State == "error";
-        return new { ok = !failed, error = failed ? drive.Message : null, drive = drive.ToDto(), drives = Dtos() };
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { Save(); }
+        finally { _gate.Release(); }
+        lock (_opsLock) { _busy.Remove(drive.Id); }
     }
 
     private async Task<object> MutateAsync(string? id, Func<CloudDriveRecord, Func<string?>, Task> op, CancellationToken ct)
@@ -308,6 +391,11 @@ public sealed class CloudDriveService
     {
         var drive = Find(id);
         if (drive == null) return new { ok = false, error = "That Cloud Drive is not in the local registry." };
+        lock (_opsLock)
+        {
+            if (_busy.Contains(drive.Id))
+                return new { ok = false, error = "That drive is busy right now. Wait for it to finish, then delete it." };
+        }
         if (!string.Equals((confirmName ?? "").Trim(), drive.Name, StringComparison.Ordinal))
             return new { ok = false, error = "Type the drive name to confirm delete." };
 
@@ -873,6 +961,19 @@ public sealed class CloudDriveService
             var json = File.ReadAllText(_registryPath);
             _store = JsonSerializer.Deserialize<Store>(json, JsonOpts) ?? new Store();
             _store.Drives ??= new List<CloudDriveRecord>();
+            // A drive left mid-create or mid-start means BNDZ closed during a
+            // background operation. Say so plainly instead of spinning forever.
+            foreach (var d in _store.Drives)
+            {
+                if (d.State is "creating" or "starting")
+                {
+                    var was = d.State;
+                    d.State = "error";
+                    d.Message = was == "creating"
+                        ? "BNDZ closed while this drive was being created. Delete it and create it again."
+                        : "BNDZ closed while this drive was starting. Start it again.";
+                }
+            }
         }
         catch
         {
@@ -882,11 +983,14 @@ public sealed class CloudDriveService
 
     private void Save()
     {
-        Directory.CreateDirectory(_dir);
-        var json = JsonSerializer.Serialize(_store, JsonOpts);
-        var tmp = _registryPath + ".tmp";
-        File.WriteAllText(tmp, json);
-        File.Move(tmp, _registryPath, overwrite: true);
+        lock (_saveLock)
+        {
+            Directory.CreateDirectory(_dir);
+            var json = JsonSerializer.Serialize(_store, JsonOpts);
+            var tmp = _registryPath + ".tmp";
+            File.WriteAllText(tmp, json);
+            File.Move(tmp, _registryPath, overwrite: true);
+        }
     }
 
     private static string? Str(JsonElement payload, string name)

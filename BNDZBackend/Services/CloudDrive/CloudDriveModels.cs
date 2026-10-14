@@ -2,7 +2,7 @@ namespace BNDZ.Services.CloudDrive;
 
 /// <summary>
 /// Phase B Cloud Drive records. Secrets never appear on the DTO sent to the UI.
-/// States: creating | running | stopped | error | deleting.
+/// States: creating | starting | running | stopped | error | deleting.
 /// </summary>
 public sealed class CloudDriveRecord
 {
