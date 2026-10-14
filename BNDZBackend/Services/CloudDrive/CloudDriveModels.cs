@@ -221,6 +221,9 @@ public sealed class CloudDriveProbe
     public string? LocalBackendMessage { get; set; }
     public string? LastPlacement { get; set; }
     public string EnableLocalHowTo { get; set; } = CloudDriveLocalBackend.EnableHowTo;
+    /// <summary>Folder offered in Create. Reuses a volume that already holds the engine when one exists.</summary>
+    public string? SuggestedDiskPath { get; set; }
+    public bool SuggestedRuntimeReady { get; set; }
 }
 
 public static class CloudDriveSsh

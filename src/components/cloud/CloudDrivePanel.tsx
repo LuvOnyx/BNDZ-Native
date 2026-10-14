@@ -41,6 +41,12 @@ type Props = {
 
 const HOST_NOTE = 'Cloud Drive runs inside the BNDZ Windows host. This panel is the remote control.';
 
+function sameFolder(a?: string | null, b?: string | null): boolean {
+  const norm = (value?: string | null) => (value || '').trim().replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+  const left = norm(a);
+  return left.length > 0 && left === norm(b);
+}
+
 export default function CloudDrivePanel({ variant = 'plugin' }: Props) {
   const body = <CloudDriveBody />;
   if (variant === 'settings') return body;
@@ -70,6 +76,7 @@ function CloudDriveBody() {
   const [sizeGb, setSizeGb] = useState(20);
   const [region, setRegion] = useState<string>('iad');
   const [diskPath, setDiskPath] = useState('');
+  const diskSeeded = useRef(false);
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -108,6 +115,12 @@ function CloudDriveBody() {
     setPlacement(defaultPlacement(probe, probe.lastPlacement || stored));
     placementSet.current = true;
   }, [previewLayout, probe, probeReady]);
+
+  useEffect(() => {
+    if (diskSeeded.current || previewLayout || !probeReady) return;
+    diskSeeded.current = true;
+    if (!diskPath.trim() && probe.suggestedDiskPath) setDiskPath(probe.suggestedDiskPath);
+  }, [previewLayout, probeReady, probe.suggestedDiskPath, diskPath]);
 
   const choosePlacement = (next: CloudDrivePlacement) => {
     placementSet.current = true;
@@ -339,6 +352,8 @@ function CloudDriveBody() {
     }
   };
 
+  const engineHere = Boolean(probe.suggestedRuntimeReady && sameFolder(diskPath, probe.suggestedDiskPath));
+
   const copyText = async (value: string, title: string) => {
     if (!value) return;
     try {
@@ -352,8 +367,9 @@ function CloudDriveBody() {
   return (
     <div className="bndz-cloud-stage flex flex-col gap-4 px-4 pb-4">
       <p className="text-[12px] leading-relaxed text-slate-300/90 m-0">
-        Your files live on a private machine with its own disk. BNDZ only remote-controls it.
-        Cloud and This PC are the same drive. The address is a path on {probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN}.
+        {placement === 'local'
+          ? 'This PC keeps the drive on a disk you pick. Create, then Start. The web panel opens when the drive is up.'
+          : `Cloud keeps the drive on your Fly account. The address is still a path on ${probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN}.`}
       </p>
 
       {hostNote && (
@@ -363,10 +379,26 @@ function CloudDriveBody() {
       <p className="bndz-cloud-next">{nextAction(probe, placement, diskPath)}</p>
 
       <div className="bndz-cloud-meters" aria-label="Cloud Drive readiness">
-        <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
+        {placement === 'cloud' ? (
+          <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
+        ) : (
+          <Meter label="Disk folder" value={preflightLocalPath(diskPath) ? 'Needed' : 'Ready'} hint={diskPath || 'Pick a folder off C:.'} />
+        )}
         <Meter label="This PC" value={localAccelerated(probe) ? 'Accelerated' : 'Compatibility'} hint={probe.localBackendMessage || localModeLabel(probe)} />
-        <Meter label="System" value={localBackend(probe) === 'hyper-v' ? (probe.rootfsPresent ? 'Pinned' : 'Missing') : 'Ready'} hint={localBackend(probe) === 'hyper-v' ? probe.rootfsMessage : 'Downloads once on first start (about 390 MB) to the drive you pick, not to C:.'} />
-        <Meter label="Address" value={probe.cloudflareTokenConfigured ? 'Published' : 'Reserved'} hint={probe.cloudflareMessage} />
+        <Meter
+          label={placement === 'local' ? 'Engine' : 'System'}
+          value={placement === 'local'
+            ? (engineHere ? 'Downloaded' : 'On first start')
+            : (localBackend(probe) === 'hyper-v' ? (probe.rootfsPresent ? 'Pinned' : 'Missing') : 'Ready')}
+          hint={placement === 'local'
+            ? (engineHere
+              ? 'The engine is already in this folder. Start does not download it again.'
+              : 'First start downloads about 390 MB into the folder you pick, not onto C:.')
+            : (localBackend(probe) === 'hyper-v' ? probe.rootfsMessage : 'Downloads once on first start (about 390 MB) to the drive you pick, not to C:.')}
+        />
+        {placement === 'cloud' && (
+          <Meter label="Address" value={probe.cloudflareTokenConfigured ? 'Published' : 'Reserved'} hint={probe.cloudflareMessage} />
+        )}
       </div>
       {probe.guidance && (
         <details className="bndz-cloud-guidance">
@@ -375,7 +407,10 @@ function CloudDriveBody() {
         </details>
       )}
 
-      <AddressAdmin probe={probe} busy={busy} onProbe={setProbe} onBusy={setBusy} />
+      <details className="bndz-cloud-guidance">
+        <summary>Publish on {probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN} (optional)</summary>
+        <AddressAdmin probe={probe} busy={busy} onProbe={setProbe} onBusy={setBusy} />
+      </details>
 
       <p className="bndz-cloud-section-label">1 · Placement</p>
       <div className="bndz-cloud-bays" role="radiogroup" aria-label="Cloud Drive placement">
@@ -477,6 +512,11 @@ function CloudDriveBody() {
                 />
                 <PluginToolbarButton icon="folder_open_ui" onClick={() => void pickPath()}>Browse…</PluginToolbarButton>
               </div>
+              <p className="bndz-cloud-message">
+                {engineHere
+                  ? 'This folder already has the engine from the last run. Create, then Start.'
+                  : 'The sealed disk is created inside this folder. Keep it off C:.'}
+              </p>
             </label>
           )}
           <div>

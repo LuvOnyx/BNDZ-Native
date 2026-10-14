@@ -47,6 +47,67 @@ public static class CloudDriveQemu
     /// <summary>Runtime folder on the volume the user picked, so C: is never filled.</summary>
     public static string RuntimeDir(string volumeRoot) => Path.Combine(volumeRoot, "BNDZ", "CloudDrives", ".runtime");
 
+    /// <summary>
+    /// Folder to offer in Create. Prefers a non-system volume that already has the engine,
+    /// then one that already has a CloudDrives folder, then the roomiest other drive.
+    /// </summary>
+    public static string? SuggestVolumeRoot()
+    {
+        DriveInfo[] drives;
+        try { drives = DriveInfo.GetDrives(); }
+        catch (Exception) { return null; }
+
+        string? withEngine = null;
+        string? withFolder = null;
+        string? roomiest = null;
+        long roomiestFree = -1;
+
+        foreach (var drive in drives)
+        {
+            string root;
+            try
+            {
+                if (!drive.IsReady) continue;
+                if (drive.DriveType is not (DriveType.Fixed or DriveType.Removable)) continue;
+                root = drive.RootDirectory.FullName;
+                if (root.Length < 2 || root.StartsWith("C:", StringComparison.OrdinalIgnoreCase)) continue;
+            }
+            catch (Exception) { continue; }
+
+            foreach (var volume in CandidateVolumes(root))
+            {
+                try
+                {
+                    if (RuntimeReady(RuntimeDir(volume)))
+                        withEngine ??= volume;
+                    else if (Directory.Exists(Path.Combine(volume, "BNDZ", "CloudDrives")))
+                        withFolder ??= volume;
+                }
+                catch (Exception) { /* unreadable candidate */ }
+            }
+
+            try
+            {
+                if (drive.AvailableFreeSpace > roomiestFree)
+                {
+                    roomiestFree = drive.AvailableFreeSpace;
+                    roomiest = Path.Combine(root, "BNDZ Drives");
+                }
+            }
+            catch (Exception) { /* quota or ejected media */ }
+        }
+
+        return withEngine ?? withFolder ?? roomiest;
+    }
+
+    private static IEnumerable<string> CandidateVolumes(string root)
+    {
+        var trimmed = root.TrimEnd('\\');
+        yield return trimmed;
+        yield return Path.Combine(root, "cloud");
+        yield return Path.Combine(root, "BNDZ Drives");
+    }
+
     public static string QemuDir(string runtime) => Path.Combine(runtime, "qemu");
     public static string QemuExe(string runtime) => Path.Combine(QemuDir(runtime), "qemu-system-x86_64.exe");
     public static string QemuImg(string runtime) => Path.Combine(QemuDir(runtime), "qemu-img.exe");

@@ -97,6 +97,8 @@ export type CloudDriveProbe = {
   localBackendMessage?: string;
   lastPlacement?: string | null;
   enableLocalHowTo?: string;
+  suggestedDiskPath?: string;
+  suggestedRuntimeReady?: boolean;
 };
 
 export const FLY_REGIONS = ['iad', 'ewr', 'lhr', 'fra', 'sjc', 'syd'] as const;

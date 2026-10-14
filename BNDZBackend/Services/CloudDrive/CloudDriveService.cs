@@ -117,6 +117,10 @@ public sealed class CloudDriveService
             ? "The origin lock secret is stored for this Windows user. It is not shown again. Start a drive again so the guest receives it."
             : "No origin lock secret yet. After cloud/router/deploy.sh, paste the value from cloud/router/.origin-secret once. The script does not print it.";
         local.LastPlacement = _store.LastPlacement is "cloud" or "local" ? _store.LastPlacement : null;
+        var suggested = CloudDriveQemu.SuggestVolumeRoot();
+        local.SuggestedDiskPath = suggested;
+        local.SuggestedRuntimeReady = !string.IsNullOrWhiteSpace(suggested)
+            && CloudDriveQemu.RuntimeReady(CloudDriveQemu.RuntimeDir(suggested));
         return local;
     }
 
