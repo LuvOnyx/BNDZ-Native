@@ -41,6 +41,15 @@ type Props = {
 
 const HOST_NOTE = 'Cloud Drive runs inside the BNDZ Windows host. This panel is the remote control.';
 
+const REGION_LABELS: Record<string, string> = {
+  iad: 'US East (Virginia)',
+  ewr: 'US East (New Jersey)',
+  sjc: 'US West (California)',
+  lhr: 'London',
+  fra: 'Frankfurt',
+  syd: 'Sydney',
+};
+
 function sameFolder(a?: string | null, b?: string | null): boolean {
   const norm = (value?: string | null) => (value || '').trim().replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
   const left = norm(a);
@@ -77,6 +86,7 @@ function CloudDriveBody() {
   const [region, setRegion] = useState<string>('iad');
   const [diskPath, setDiskPath] = useState('');
   const diskSeeded = useRef(false);
+  const autoStart = useRef<Set<string>>(new Set());
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -237,7 +247,7 @@ function CloudDriveBody() {
       pushToast({ kind: 'warning', title: 'Address', message: slugError });
       return;
     }
-    if (slugStatus && slugStatus !== 'Available') {
+    if (placement === 'cloud' && slugStatus && slugStatus !== 'Available') {
       pushToast({ kind: 'warning', title: 'Address', message: slugStatus });
       return;
     }
@@ -263,8 +273,9 @@ function CloudDriveBody() {
       if (!r.ok) throw new Error(r.error || r.drive?.message || 'Create failed');
       if (r.drives) setDrives(r.drives);
       else await refresh();
+      if (r.drive?.id) autoStart.current.add(r.drive.id);
       const msg = r.drive?.state === 'creating'
-        ? 'Creating your drive. Its card below shows live progress while it finishes.'
+        ? 'Creating your drive and starting it. Its card below shows live progress.'
         : (r.drive?.message || (placement === 'cloud'
           ? 'Drive record is in BNDZ. Files stay on the Fly machine, not on this PC.'
           : 'Sealed disk slot is on the drive you picked.'));
@@ -302,6 +313,21 @@ function CloudDriveBody() {
       setBusy(false);
     }
   };
+
+  // One-tap create: when a just-created drive finishes creating and sits
+  // stopped, start it automatically so Create means "ready to use".
+  useEffect(() => {
+    if (previewLayout) return;
+    for (const d of drives) {
+      if (!autoStart.current.has(d.id)) continue;
+      if (d.state === 'stopped') {
+        autoStart.current.delete(d.id);
+        void run(d.id, 'start');
+      } else if (d.state === 'running' || d.state === 'error') {
+        autoStart.current.delete(d.id);
+      }
+    }
+  }, [drives, previewLayout]);
 
   const remove = async (drive: CloudDriveRecord) => {
     if (confirmName.trim() !== drive.name) {
@@ -380,9 +406,7 @@ function CloudDriveBody() {
   return (
     <div className="bndz-cloud-stage flex flex-col gap-4 px-4 pb-4">
       <p className="text-[12px] leading-relaxed text-slate-300/90 m-0">
-        {placement === 'local'
-          ? 'This PC keeps the drive on a disk you pick. Create, then Start. The web panel opens when the drive is up.'
-          : `Cloud keeps the drive on your Fly account. The address is still a path on ${probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN}.`}
+        Make a private drive in three steps: name it, pick where it lives, create it. BNDZ does the rest and starts it for you.
       </p>
 
       {hostNote && (
@@ -391,6 +415,8 @@ function CloudDriveBody() {
 
       <p className="bndz-cloud-next">{nextAction(probe, placement, diskPath)}</p>
 
+      <details className="bndz-cloud-guidance">
+        <summary>Advanced — readiness, web address, help</summary>
       <div className="bndz-cloud-meters" aria-label="Cloud Drive readiness">
         {placement === 'cloud' ? (
           <Meter label="Fly token" value={probe.tokenConfigured ? 'Stored' : 'Needed'} hint={probe.tokenMessage} />
@@ -421,25 +447,34 @@ function CloudDriveBody() {
       )}
 
       <details className="bndz-cloud-guidance">
-        <summary>Publish on {probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN} (optional)</summary>
+        <summary>Web address for drives (optional — only for reaching them away from home)</summary>
         <AddressAdmin probe={probe} busy={busy} onProbe={setProbe} onBusy={setBusy} />
       </details>
+      </details>
 
-      <p className="bndz-cloud-section-label">1 · Placement</p>
+      <p className="bndz-cloud-section-label">1 · Name</p>
+      <PluginCard className="bndz-cloud-form">
+        <label className="grid gap-1">
+          <span className="bndz-plugin-field-label">Name</span>
+          <input className={PLUGIN_INPUT_CLASS} value={name} maxLength={64} placeholder="e.g. Family photos" onChange={e => setName(e.target.value)} />
+        </label>
+      </PluginCard>
+
+      <p className="bndz-cloud-section-label">2 · Where it lives</p>
       <div className="bndz-cloud-bays" role="radiogroup" aria-label="Cloud Drive placement">
-        <Bay
-          selected={placement === 'cloud'}
-          title="Cloud"
-          seal="Fly"
-          body="The VM runs on your Fly account. The address is still a path on cloud.bndz.org."
-          onSelect={() => choosePlacement('cloud')}
-        />
         <Bay
           selected={placement === 'local'}
           title="This PC"
           seal="Disk"
-          body={probe.localBackendMessage || 'The VM runs on this PC. Pick the drive where the disk lives.'}
+          body="Runs on this PC, in a folder you pick. No account needed."
           onSelect={() => choosePlacement('local')}
+        />
+        <Bay
+          selected={placement === 'cloud'}
+          title="Cloud"
+          seal="Fly"
+          body="Runs on Fly, a hosting company. Needs a Fly account — you paste a token in the next step."
+          onSelect={() => choosePlacement('cloud')}
         />
       </div>
       {placement === 'local' && !localAccelerated(probe) && (
@@ -451,15 +486,12 @@ function CloudDriveBody() {
         </div>
       )}
 
-      <p className="bndz-cloud-section-label">2 · Name and disk</p>
+      <p className="bndz-cloud-section-label">3 · Details</p>
       <PluginCard className="bndz-cloud-form">
         <div className="grid gap-3">
+          {placement === 'cloud' && (
           <label className="grid gap-1">
-            <span className="bndz-plugin-field-label">Name</span>
-            <input className={PLUGIN_INPUT_CLASS} value={name} maxLength={64} onChange={e => setName(e.target.value)} />
-          </label>
-          <label className="grid gap-1">
-            <span className="bndz-plugin-field-label">Address</span>
+            <span className="bndz-plugin-field-label">Web address</span>
             <div className="bndz-cloud-pathbox">
               <span className="bndz-cloud-pathbox-prefix">{(probe.publicBaseDomain || CLOUD_DRIVE_BASE_DOMAIN) + '/'}</span>
               <input
@@ -476,8 +508,9 @@ function CloudDriveBody() {
             </div>
             {slugStatus && <p className={slugStatus === 'Available' ? 'bndz-cloud-message' : 'bndz-cloud-next'}>{slugStatus}</p>}
           </label>
+          )}
           <label className="grid gap-1">
-            <span className="bndz-plugin-field-label">Size (GB)</span>
+            <span className="bndz-plugin-field-label">How much space (GB)</span>
             <input
               className={PLUGIN_INPUT_CLASS}
               type="number"
@@ -490,20 +523,24 @@ function CloudDriveBody() {
           {placement === 'cloud' ? (
             <>
               <label className="grid gap-1">
-                <span className="bndz-plugin-field-label">Region</span>
+                <span className="bndz-plugin-field-label">Server location</span>
                 <select className={PLUGIN_SELECT_CLASS} value={region} onChange={e => setRegion(e.target.value)}>
-                  {FLY_REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  {FLY_REGIONS.map(r => <option key={r} value={r}>{REGION_LABELS[r] || r}</option>)}
                 </select>
               </label>
+              <p className="bndz-cloud-message">
+                Cloud drives run on Fly, a separate company, so a Fly account is required — BNDZ can't make one for you.
+                Paste your Fly token here and BNDZ keeps it in Windows secure storage on this PC. It is never shown again.
+              </p>
               <label className="grid gap-1">
-                <span className="bndz-plugin-field-label">Fly API token</span>
+                <span className="bndz-plugin-field-label">Fly token</span>
                 <input
                   className={PLUGIN_INPUT_CLASS}
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
                   name="bndz-fly-token"
-                  placeholder={probe.tokenConfigured ? 'Token stored — paste only to replace it' : 'Paste a BYO org token'}
+                  placeholder={probe.tokenConfigured ? 'Token stored — paste only to replace it' : 'Paste your Fly token'}
                   value={token}
                   onChange={e => setToken(e.target.value)}
                 />
@@ -515,7 +552,7 @@ function CloudDriveBody() {
             </>
           ) : (
             <label className="grid gap-1">
-              <span className="bndz-plugin-field-label">Disk folder — where the VM disk lives</span>
+              <span className="bndz-plugin-field-label">Where on this PC</span>
               <div className="flex gap-2">
                 <input
                   className={PLUGIN_INPUT_CLASS + ' flex-1'}
@@ -527,22 +564,22 @@ function CloudDriveBody() {
               </div>
               <p className="bndz-cloud-message">
                 {engineHere
-                  ? 'This folder already has the engine from the last run. Create, then Start.'
-                  : 'The sealed disk is created inside this folder. Keep it off C:.'}
+                  ? 'This folder already has the engine from the last run.'
+                  : "The drive's files are created inside this folder. Keep it off C: so Windows doesn't run out of room."}
               </p>
             </label>
           )}
           <div>
-            <p className="bndz-cloud-section-label">3 · Create</p>
-            <PluginToolbarButton disabled={busy || Boolean(validateSlug(slug)) || (slugStatus !== '' && slugStatus !== 'Available')} onClick={() => void createDrive()}>Create drive</PluginToolbarButton>
+            <PluginToolbarButton disabled={busy || Boolean(validateSlug(slug)) || (placement === 'cloud' && slugStatus !== '' && slugStatus !== 'Available')} onClick={() => void createDrive()}>Create drive</PluginToolbarButton>
+            <p className="bndz-cloud-message">Creates the drive and starts it. The first start takes a few minutes — progress shows on the drive's card below.</p>
           </div>
         </div>
       </PluginCard>
 
-      <section className="bndz-cloud-move is-local" aria-label="Open an existing sealed folder">
-        <h4 className="bndz-cloud-section-label">Open existing</h4>
+      <details className="bndz-cloud-guidance">
+        <summary>Open a drive folder you already have</summary>
         <p className="bndz-cloud-message">
-          Point BNDZ at a sealed folder you already copied. It needs drive.json. The private key stays on the PC that created the drive.
+          Point BNDZ at a drive folder you already copied to this PC.
         </p>
         <div className="flex gap-2">
           <input
@@ -565,7 +602,7 @@ function CloudDriveBody() {
         <div>
           <PluginToolbarButton disabled={busy || !openPath.trim()} onClick={() => void openExisting(openPath)}>Open folder</PluginToolbarButton>
         </div>
-      </section>
+      </details>
 
       <PluginSectionTitle icon="hard_drive_ui" action={
         <PluginToolbarButton disabled={busy} onClick={() => void refresh()}>Refresh</PluginToolbarButton>
