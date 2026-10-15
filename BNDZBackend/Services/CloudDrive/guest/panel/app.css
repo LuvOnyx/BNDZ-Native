@@ -79,7 +79,62 @@ a { color: inherit; }
 .titlebar nav button:hover { background: #3a3a3a; }
 #page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-.explorer { flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none; }
+.explorer { flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none; position: relative; }
+.dropveil {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  background: rgba(9, 71, 113, 0.35);
+  border: 2px dashed #0078d4;
+  color: #fff;
+  font-size: 15px;
+  pointer-events: none;
+}
+.dropveil[hidden] { display: none; }
+.uploads {
+  flex: none;
+  max-height: 168px;
+  overflow: auto;
+  background: var(--chrome);
+  border-top: 1px solid var(--line);
+  padding: 6px 10px 8px;
+}
+.uploads[hidden] { display: none; }
+.uploads-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.uploads-head strong { font-size: 12px; }
+.uploads-head .upmeta { color: var(--muted); font-size: 12px; }
+.uploads-head button {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid #555;
+  border-radius: 2px;
+  padding: 2px 8px;
+}
+.uploads-head button:hover { background: #3a3a3a; }
+.uprow {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 160px 74px minmax(130px, auto) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+}
+.upname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ubar { height: 6px; background: #111; border: 1px solid #444; }
+.ubar > span { display: block; height: 100%; background: #0078d4; }
+.upstate { color: var(--muted); font-size: 12px; }
+.upstate.error { color: var(--bad); }
+.upstate.done { color: var(--ok); }
+.updetail { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.upbtns { display: flex; gap: 6px; }
+.upbtns button {
+  background: transparent;
+  border: 1px solid #555;
+  border-radius: 2px;
+  padding: 2px 8px;
+}
+.upbtns button:hover { background: #3a3a3a; }
 .cmdbar {
   height: 36px;
   display: flex;

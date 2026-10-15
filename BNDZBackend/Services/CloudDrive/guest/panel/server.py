@@ -769,6 +769,9 @@ class Panel(BaseHTTPRequestHandler):
             if path == "/api/upload/finish" and method == "POST":
                 self._upload_finish()
                 return
+            if path == "/api/upload/abort" and method == "POST":
+                self._upload_abort()
+                return
             if path == "/api/props" and method == "GET":
                 self._props(query.get("path", [""])[0])
                 return
@@ -1435,7 +1438,11 @@ class Panel(BaseHTTPRequestHandler):
         # runs over is cut off and the partial bytes are trimmed back off the part file.
         written = 0
         with (folder / "part").open("ab") as handle:
-            start = handle.tell()
+            # Bytes past the acknowledged offset are leftovers from a cut-off
+            # try (paused, dropped, retried). Drop them so a resumed upload
+            # never stitches stale bytes into the finished file.
+            handle.truncate(current)
+            start = current
             try:
                 for block in self._body_chunks(CHUNK_BYTES):
                     handle.write(block)
@@ -1474,6 +1481,13 @@ class Panel(BaseHTTPRequestHandler):
         os.replace(part, dest)
         shutil.rmtree(folder, ignore_errors=True)
         self._json({"ok": True, "path": rel_of(dest), "size": dest.stat().st_size if dest.is_file() else 0})
+
+    def _upload_abort(self) -> None:
+        body = self._json_body()
+        upload_id = str(body.get("id") or "")
+        folder, _meta = self._read_meta(upload_id)
+        shutil.rmtree(folder, ignore_errors=True)
+        self._json({"ok": True})
 
     def _file(self, path: Path, content_type: str) -> None:
         if not path.is_file():

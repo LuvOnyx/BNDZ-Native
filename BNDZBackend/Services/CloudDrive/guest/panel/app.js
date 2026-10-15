@@ -9,6 +9,10 @@ let sortKey = 'name';
 let sortDir = 1;
 let notice = '';
 let menuBound = false;
+let dropGuardBound = false;
+let uploads = [];
+let uploadSeq = 0;
+let dragDepth = 0;
 
 const folderIcon = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path fill="#dcb67a" d="M1.5 3.5h4l1.2 1.5H14.5v8H1.5z"/><path fill="#c49a45" d="M1.5 6h13v7H1.5z"/></svg>';
 const fileIcon = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path fill="#d0d0d0" d="M4 1.5h5.2L13 5.2V14.5H4z"/><path fill="#1f1f1f" d="M9 1.8v3.4h3.3"/></svg>';
@@ -35,26 +39,251 @@ function post(path, body) {
   return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-async function uploadFile(file) {
-  const start = await post('/api/upload/start', { dir: cwd, name: file.name, size: file.size });
-  const piece = start.chunkSize || (90 * 1024 * 1024);
-  let offset = start.offset || 0;
-  while (offset < file.size) {
-    const slice = file.slice(offset, Math.min(file.size, offset + piece));
-    const res = await fetch(withBase('/api/upload/chunk?id=' + encodeURIComponent(start.id) + '&offset=' + offset), {
-      method: 'PUT',
-      credentials: 'same-origin',
-      body: slice,
+function enqueueFiles(files) {
+  const list = Array.from(files || []).filter(f => f && typeof f.size === 'number');
+  if (!list.length) return;
+  for (const file of list) {
+    uploads.push({
+      lid: ++uploadSeq, file, name: file.name, size: file.size, dir: cwd,
+      offset: 0, status: 'waiting', uploadId: null, chunkSize: 0, error: '', xhr: null, run: 0,
     });
-    const data = await res.json();
-    if (res.status === 409 && typeof data.offset === 'number') {
-      offset = data.offset;
-      continue;
-    }
-    if (!res.ok || data.ok === false) throw new Error(data.error || 'The panel could not finish that.');
-    offset = data.offset;
   }
-  await post('/api/upload/finish', { id: start.id });
+  notice = '';
+  const node = document.getElementById('notice');
+  if (node) node.textContent = '';
+  renderUploads();
+  pumpQueue();
+}
+
+function filesFromTransfer(dt) {
+  const out = [];
+  if (dt && dt.items && dt.items.length) {
+    for (const item of dt.items) {
+      if (item.kind !== 'file') continue;
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry && entry.isDirectory) continue;
+      const file = item.getAsFile();
+      if (file) out.push(file);
+    }
+  }
+  if (!out.length && dt && dt.files) out.push(...dt.files);
+  return out;
+}
+
+function pumpQueue() {
+  let running = uploads.filter(u => u.status === 'uploading').length;
+  for (const item of uploads) {
+    if (running >= 2) break;
+    if (item.status === 'waiting') {
+      running += 1;
+      startWorker(item);
+    }
+  }
+}
+
+function startWorker(item) {
+  item.status = 'uploading';
+  item.error = '';
+  item.run = (item.run || 0) + 1;
+  renderUploads();
+  runUpload(item, item.run);
+}
+
+async function runUpload(item, run) {
+  try {
+    if (!item.uploadId) {
+      const start = await post('/api/upload/start', { dir: item.dir, name: item.name, size: item.size });
+      if (item.run !== run) return;
+      item.uploadId = start.id;
+      item.offset = start.offset || 0;
+      item.chunkSize = start.chunkSize || item.chunkSize || (90 * 1024 * 1024);
+    } else {
+      try {
+        const st = await api('/api/upload/status?id=' + encodeURIComponent(item.uploadId));
+        if (item.run !== run) return;
+        item.offset = st.offset || 0;
+        if (st.chunkSize) item.chunkSize = st.chunkSize;
+      } catch {
+        if (item.run !== run) return;
+        item.uploadId = null; // the drive forgot this upload -- start it over
+        return runUpload(item, run);
+      }
+    }
+    paintUploadRow(item);
+    while (item.offset < item.size) {
+      if (item.run !== run) return;
+      const base = item.offset;
+      const slice = item.file.slice(base, Math.min(item.size, base + (item.chunkSize || (90 * 1024 * 1024))));
+      const out = await putChunk(item, base, slice);
+      if (item.run !== run) return;
+      if (typeof out.conflict === 'number') {
+        item.offset = out.conflict;
+        paintUploadRow(item);
+        continue;
+      }
+      item.offset = out.offset;
+      paintUploadRow(item);
+    }
+    if (item.run !== run) return;
+    await post('/api/upload/finish', { id: item.uploadId });
+    if (item.run !== run) return;
+    item.status = 'done';
+    item.offset = item.size;
+    renderUploads();
+    if (item.dir === cwd) load();
+  } catch (err) {
+    if (item.run !== run) return;
+    item.status = 'error';
+    item.error = err && err.message ? err.message : 'The upload did not finish.';
+    renderUploads();
+  } finally {
+    if (item.run === run) pumpQueue();
+  }
+}
+
+function putChunk(item, base, slice) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    item.xhr = xhr;
+    xhr.open('PUT', withBase('/api/upload/chunk?id=' + encodeURIComponent(item.uploadId) + '&offset=' + base), true);
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) {
+        item.offset = base + ev.loaded;
+        paintUploadRow(item);
+      }
+    };
+    xhr.onload = () => {
+      item.xhr = null;
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || '{}'); } catch { /* not json */ }
+      if (xhr.status === 409 && typeof data.offset === 'number') {
+        resolve({ conflict: data.offset });
+        return;
+      }
+      if (xhr.status < 200 || xhr.status >= 300 || data.ok === false || typeof data.offset !== 'number') {
+        reject(new Error(data.error || 'The panel could not finish that.'));
+        return;
+      }
+      resolve({ offset: data.offset });
+    };
+    xhr.onerror = () => {
+      item.xhr = null;
+      reject(new Error('The connection dropped. Resume picks up where it stopped.'));
+    };
+    xhr.onabort = () => {
+      item.xhr = null;
+      reject(new Error('Paused.'));
+    };
+    xhr.send(slice);
+  });
+}
+
+function pauseUpload(item) {
+  if (item.status !== 'uploading') return;
+  item.run = (item.run || 0) + 1;
+  item.status = 'paused';
+  if (item.xhr) item.xhr.abort();
+  renderUploads();
+  pumpQueue();
+}
+
+function resumeUpload(item) {
+  if (item.status !== 'paused' && item.status !== 'error') return;
+  item.status = 'waiting';
+  item.error = '';
+  renderUploads();
+  pumpQueue();
+}
+
+function cancelUpload(item) {
+  item.run = (item.run || 0) + 1;
+  if (item.xhr) item.xhr.abort();
+  const id = item.uploadId;
+  uploads = uploads.filter(u => u !== item);
+  renderUploads();
+  if (id) post('/api/upload/abort', { id }).catch(() => { /* already gone is fine */ });
+  pumpQueue();
+}
+
+function uploadRowHtml(u) {
+  const pct = u.size ? Math.floor((u.offset / u.size) * 100) : (u.status === 'done' ? 100 : 0);
+  const state = u.status === 'waiting' ? 'Waiting'
+    : u.status === 'uploading' ? 'Uploading'
+    : u.status === 'paused' ? 'Paused'
+    : u.status === 'done' ? 'Done'
+    : 'Failed';
+  const detail = u.status === 'error'
+    ? esc(u.error || 'The upload did not finish.')
+    : fmt(Math.min(u.offset, u.size)) + ' of ' + fmt(u.size) + ' · ' + pct + '%';
+  const buttons = u.status === 'uploading'
+    ? `<button type="button" data-act="pause" data-lid="${u.lid}">Pause</button><button type="button" data-act="cancel" data-lid="${u.lid}">Cancel</button>`
+    : u.status === 'paused'
+      ? `<button type="button" data-act="resume" data-lid="${u.lid}">Resume</button><button type="button" data-act="cancel" data-lid="${u.lid}">Cancel</button>`
+      : u.status === 'waiting'
+        ? `<button type="button" data-act="cancel" data-lid="${u.lid}">Cancel</button>`
+        : u.status === 'error'
+          ? `<button type="button" data-act="retry" data-lid="${u.lid}">Retry</button><button type="button" data-act="cancel" data-lid="${u.lid}">Remove</button>`
+          : '';
+  return `<div class="uprow" data-row="${u.lid}">
+    <span class="upname" title="${esc(u.name)}">${esc(u.name)}</span>
+    <span class="ubar"><span style="width:${pct}%"></span></span>
+    <span class="upstate ${u.status}">${state}</span>
+    <span class="updetail">${detail}</span>
+    <span class="upbtns">${buttons}</span>
+  </div>`;
+}
+
+function renderUploads() {
+  const box = document.getElementById('uploads');
+  if (!box) return;
+  if (!uploads.length) {
+    box.hidden = true;
+    box.innerHTML = '';
+    return;
+  }
+  box.hidden = false;
+  const totalSize = uploads.reduce((n, u) => n + u.size, 0);
+  const totalDone = uploads.reduce((n, u) => n + (u.status === 'done' ? u.size : Math.min(u.offset, u.size)), 0);
+  const pct = totalSize ? Math.floor((totalDone / totalSize) * 100) : 100;
+  const anyFinished = uploads.some(u => u.status === 'done' || u.status === 'error');
+  box.innerHTML = `
+    <div class="uploads-head">
+      <strong>Uploads</strong>
+      <span class="upmeta">${uploads.length} file${uploads.length === 1 ? '' : 's'} · ${pct}% overall</span>
+      ${anyFinished ? '<button type="button" id="up-clear">Clear finished</button>' : ''}
+    </div>
+    ${uploads.map(uploadRowHtml).join('')}`;
+  const clear = document.getElementById('up-clear');
+  if (clear) {
+    clear.onclick = () => {
+      uploads = uploads.filter(u => u.status === 'uploading' || u.status === 'waiting' || u.status === 'paused');
+      renderUploads();
+    };
+  }
+  box.querySelectorAll('[data-act]').forEach(btn => {
+    btn.onclick = () => {
+      const item = uploads.find(u => u.lid === Number(btn.getAttribute('data-lid')));
+      if (!item) return;
+      const act = btn.getAttribute('data-act');
+      if (act === 'pause') pauseUpload(item);
+      else if (act === 'resume' || act === 'retry') resumeUpload(item);
+      else if (act === 'cancel') cancelUpload(item);
+    };
+  });
+}
+
+function paintUploadRow(item) {
+  const row = document.querySelector(`[data-row="${item.lid}"]`);
+  if (!row) {
+    renderUploads();
+    return;
+  }
+  const pct = item.size ? Math.floor((item.offset / item.size) * 100) : 0;
+  const bar = row.querySelector('.ubar > span');
+  if (bar) bar.style.width = pct + '%';
+  const detail = row.querySelector('.updetail');
+  if (detail) detail.textContent = fmt(Math.min(item.offset, item.size)) + ' of ' + fmt(item.size) + ' · ' + pct + '%';
 }
 
 function esc(text) {
@@ -169,9 +398,10 @@ function paintFiles() {
   const page = document.getElementById('page');
   page.innerHTML = `
     <div class="explorer" id="explorer" tabindex="0">
+      <div class="dropveil" id="dropveil" hidden><span>Drop files here to upload them</span></div>
       <div class="cmdbar">
         <button type="button" id="mkdir">New folder</button>
-        <label class="cmd">Upload <input id="file" type="file"></label>
+        <label class="cmd">Upload <input id="file" type="file" multiple></label>
         <span class="sep"></span>
         <button type="button" id="cut" disabled>Cut</button>
         <button type="button" id="copy" disabled>Copy</button>
@@ -199,6 +429,7 @@ function paintFiles() {
           <tbody id="rows"></tbody>
         </table>
       </div>
+      <div class="uploads" id="uploads" hidden></div>
       <div class="status" id="status"></div>
     </div>`;
   const explorer = document.getElementById('explorer');
@@ -208,16 +439,36 @@ function paintFiles() {
     await post('/api/mkdir', { path: cwd, name });
     await load();
   });
-  document.getElementById('file').onchange = async (ev) => {
-    const file = ev.target.files && ev.target.files[0];
+  document.getElementById('file').onchange = (ev) => {
+    enqueueFiles(ev.target.files);
     ev.target.value = '';
-    if (!file) return;
-    try {
-      await uploadFile(file);
-      notice = '';
-      await load();
-    } catch (err) { fail(err); }
   };
+  const veil = document.getElementById('dropveil');
+  const showVeil = (on) => { if (veil) veil.hidden = !on; };
+  explorer.addEventListener('dragenter', (ev) => {
+    ev.preventDefault();
+    dragDepth += 1;
+    showVeil(true);
+  });
+  explorer.addEventListener('dragover', (ev) => {
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+  });
+  explorer.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) showVeil(false);
+  });
+  explorer.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    dragDepth = 0;
+    showVeil(false);
+    enqueueFiles(filesFromTransfer(ev.dataTransfer));
+  });
+  if (!dropGuardBound) {
+    window.addEventListener('dragover', (ev) => ev.preventDefault());
+    window.addEventListener('drop', (ev) => ev.preventDefault());
+    dropGuardBound = true;
+  }
   document.getElementById('cut').onclick = () => setClip('cut');
   document.getElementById('copy').onclick = () => setClip('copy');
   document.getElementById('paste').onclick = () => doPaste();
@@ -240,6 +491,7 @@ function paintFiles() {
     menuBound = true;
   }
   load();
+  renderUploads();
   explorer.focus();
 }
 
@@ -454,6 +706,7 @@ function menuItems(forSelection) {
   if (!forSelection) {
     return [
       { label: 'New folder', run: () => document.getElementById('mkdir').click() },
+      { label: 'Upload files…', run: () => document.getElementById('file').click() },
       { label: 'Paste', key: 'Ctrl+V', disabled: !clip, run: () => doPaste() },
       { sep: true },
       { label: 'Properties', run: () => doProps(cwd) },
