@@ -119,7 +119,8 @@ const TAB_NAV_LABELS: Record<string, string> = {
 
 export default function ConfigurationDialog({ onClose, initialTab }: { onClose: () => void; initialTab?: string }) {
   const { config: globalConfig, updateConfig: updateGlobalConfig } = useAppConfig();
-  const [localConfig, setLocalConfig] = useState(() => sanitizeDialogConfig(globalConfig));
+  const [initialLocalConfig] = useState(() => sanitizeDialogConfig(globalConfig));
+  const [localConfig, setLocalConfig] = useState(initialLocalConfig);
   const [hasChanges, setHasChanges] = useState(false);
   const [applyFeedback, setApplyFeedback] = useState<'idle' | 'applied'>('idle');
   const [shellStatus, setShellStatus] = useState<string | null>(null);
@@ -157,7 +158,16 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
   const applyChanges = () => {
     void import('../data/configContext').then(({ persistConfigNow }) => {
-      void persistConfigNow(globalConfig, localConfig, updateGlobalConfig).then(() => {
+      // Send only what actually changed in this dialog session. Sending the
+      // whole open-time snapshot would silently revert things that moved
+      // while the dialog was open -- the remembered settings tab, per-tab
+      // scroll positions, tabsets, recents -- and the user loses their place.
+      const base = initialLocalConfig as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(localConfig)) {
+        if (JSON.stringify(base[key]) !== JSON.stringify(value)) patch[key] = value;
+      }
+      void persistConfigNow(globalConfig, patch as any, updateGlobalConfig).then(() => {
         applySettingsRuntime(localConfig);
         setHasChanges(false);
         setApplyFeedback('applied');
@@ -388,6 +398,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   );
   const settingsContentRef = useRef<HTMLDivElement>(null);
   const scrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jumpGuardRef = useRef<string | null>(null);
 
   const setActiveTab = useCallback((tab: string) => {
     const el = settingsContentRef.current;
@@ -488,6 +499,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
   const applyJumpHit = useCallback((hit: JumpSettingEntry) => {
     setActiveTab(hit.tab);
+    jumpGuardRef.current = hit.tab;
     setPendingJump(hit);
     setShowJumpDialog(false);
     setJumpQuery('');
@@ -522,6 +534,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   // Restore per-tab scroll; persist while scrolling within a tab.
   useEffect(() => {
     if (pendingJump) return;
+    // A jump just scrolled to its target -- do not yank the view back to the
+    // remembered scroll position for this tab.
+    if (jumpGuardRef.current && jumpGuardRef.current === activeTab) {
+      jumpGuardRef.current = null;
+      return;
+    }
     const el = settingsContentRef.current;
     if (!el) return;
     const map = (globalConfig as any).configurationScrollByTab as Record<string, number> | undefined;

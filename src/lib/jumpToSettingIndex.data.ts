@@ -11,18 +11,6 @@ export const JUMP_SETTING_INDEX: Array<{
 }> = [
   {
     "tab": "Tree and List",
-    "label": "Show hidden files in list",
-    "key": "showHiddenFiles",
-    "keywords": ["show", "hidden", "files", "list", "invisible", "dotfiles"]
-  },
-  {
-    "tab": "Tree and List",
-    "label": "Show system files in list",
-    "key": "showSystemFiles",
-    "keywords": ["show", "system", "files", "list", "pagefile", "system volume"]
-  },
-  {
-    "tab": "Tree and List",
     "label": "Show hidden system folders in tree",
     "key": "showHiddenSystemFoldersInTree",
     "keywords": [
@@ -418,6 +406,52 @@ export const JUMP_SETTING_INDEX: Array<{
       "mini"
     ],
     "description": "Controls show file extensions"
+  },
+  {
+    "tab": "Tree and List",
+    "label": "Show Hidden files in list",
+    "key": "showHiddenFiles",
+    "keywords": [
+      "show",
+      "hidden",
+      "files",
+      "in",
+      "list",
+      "tree",
+      "and",
+      "system",
+      "dotfiles",
+      "wrap",
+      "view",
+      "details",
+      "sidebar",
+      "navigation",
+      "folder",
+      "mini"
+    ],
+    "description": "Controls show hidden files"
+  },
+  {
+    "tab": "Tree and List",
+    "label": "Show System files in list",
+    "key": "showSystemFiles",
+    "keywords": [
+      "show",
+      "system",
+      "files",
+      "in",
+      "list",
+      "tree",
+      "and",
+      "wrap",
+      "view",
+      "details",
+      "sidebar",
+      "navigation",
+      "folder",
+      "mini"
+    ],
+    "description": "Controls show system files"
   },
   {
     "tab": "Tree and List",
@@ -1863,28 +1897,6 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Menus & Context",
-    "label": "Merge Native Windows shell verbs into the BNDZ menu",
-    "key": "nativeContextMenu",
-    "keywords": [
-      "merge",
-      "native",
-      "windows",
-      "shell",
-      "verbs",
-      "into",
-      "the",
-      "bndz",
-      "menu",
-      "context",
-      "menus",
-      "right",
-      "click",
-      "explorer"
-    ],
-    "description": "Controls native context menu"
-  },
-  {
-    "tab": "Menus & Context",
     "label": "Hold Ctrl to invert the above selection",
     "key": "holdCtrlToInvertTheAboveSelection",
     "keywords": [
@@ -2052,227 +2064,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "fuzzy"
     ],
     "description": "Controls use localized search and filter patterns"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Single-click to open an item",
-    "key": "singleClickToOpenAnItem",
-    "keywords": [
-      "single",
-      "click",
-      "to",
-      "open",
-      "an",
-      "item",
-      "menus",
-      "context"
-    ],
-    "description": "Controls single click to open an item"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "On the icon only",
-    "key": "onTheIconOnly",
-    "keywords": [
-      "on",
-      "the",
-      "icon",
-      "only",
-      "menus",
-      "context",
-      "icons",
-      "library",
-      "custom"
-    ],
-    "description": "Controls on the icon only"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Folders only",
-    "key": "foldersOnly",
-    "keywords": [
-      "folders",
-      "only",
-      "menus",
-      "context"
-    ],
-    "description": "Controls folders only"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Hover to select",
-    "key": "pointToSelect",
-    "keywords": [
-      "hover",
-      "to",
-      "select",
-      "point",
-      "menus",
-      "context",
-      "selection",
-      "highlight",
-      "marquee"
-    ],
-    "description": "Controls hover to select"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Only when hovering over the icon",
-    "key": "toTheIconOnly",
-    "keywords": [
-      "only",
-      "when",
-      "hovering",
-      "over",
-      "the",
-      "icon",
-      "menus",
-      "context",
-      "icons",
-      "library",
-      "custom"
-    ],
-    "description": "Controls only when hovering over the icon"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Full name column select",
-    "key": "fullNameColumnSelect",
-    "keywords": [
-      "full",
-      "name",
-      "column",
-      "select",
-      "menus",
-      "context",
-      "selection",
-      "highlight",
-      "marquee"
-    ],
-    "description": "Controls full name column select"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Allow dragging from a background window",
-    "key": "allowDraggingFromABackgroundWindow",
-    "keywords": [
-      "allow",
-      "dragging",
-      "from",
-      "background",
-      "window",
-      "menus",
-      "context",
-      "drag",
-      "drop",
-      "and",
-      "dnd"
-    ],
-    "description": "Controls allow dragging from a background window"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Shift+Wheel scrolls horizontally",
-    "key": "shiftWheelScrollsHorizontally",
-    "keywords": [
-      "shift+wheel",
-      "scrolls",
-      "horizontally",
-      "shift",
-      "wheel",
-      "menus",
-      "context"
-    ],
-    "description": "Controls shift wheel scrolls horizontally"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Ctrl+Wheel scrolls through the list views",
-    "key": "ctrlWheelScrollsThroughTheListViews",
-    "keywords": [
-      "ctrl+wheel",
-      "scrolls",
-      "through",
-      "the",
-      "list",
-      "views",
-      "ctrl",
-      "wheel",
-      "menus",
-      "context",
-      "wrap",
-      "view",
-      "details"
-    ],
-    "description": "Controls ctrl wheel scrolls through the list views"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Highlight hovered items",
-    "key": "highlightHoveredItems",
-    "keywords": [
-      "highlight",
-      "hovered",
-      "items",
-      "menus",
-      "context",
-      "tooltip",
-      "hover",
-      "popup",
-      "info",
-      "tip",
-      "mouse",
-      "over",
-      "preview",
-      "theme",
-      "dark",
-      "mode",
-      "light",
-      "appearance",
-      "colors"
-    ],
-    "description": "Controls highlight hovered items"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Show tooltips",
-    "key": "showTooltips",
-    "keywords": [
-      "show",
-      "tooltips",
-      "menus",
-      "context",
-      "tooltip",
-      "hover",
-      "popup",
-      "info",
-      "tip",
-      "mouse",
-      "over",
-      "preview"
-    ],
-    "description": "Controls show tooltips"
-  },
-  {
-    "tab": "Menus & Context",
-    "label": "Show verbatim tooltips",
-    "key": "showVerbatimTooltips",
-    "keywords": [
-      "show",
-      "verbatim",
-      "tooltips",
-      "menus",
-      "context",
-      "tooltip",
-      "hover",
-      "popup",
-      "info",
-      "tip",
-      "mouse",
-      "over",
-      "preview"
-    ],
-    "description": "Controls show verbatim tooltips"
   },
   {
     "tab": "Safety Belts, Network",
@@ -3271,6 +3062,33 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Startup & Exit",
+    "label": "Follow Windows light / dark continuously",
+    "key": "followOsColorScheme",
+    "keywords": [
+      "follow",
+      "windows",
+      "light",
+      "dark",
+      "continuously",
+      "os",
+      "color",
+      "scheme",
+      "startup",
+      "exit",
+      "theme",
+      "mode",
+      "appearance",
+      "colors",
+      "launch",
+      "on",
+      "start",
+      "quit",
+      "close"
+    ],
+    "description": "Controls follow os color scheme"
+  },
+  {
+    "tab": "Startup & Exit",
     "label": "Save settings on exit",
     "key": "saveSettingsOnExit",
     "keywords": [
@@ -3348,6 +3166,242 @@ export const JUMP_SETTING_INDEX: Array<{
       "close"
     ],
     "description": "Controls save changes to disk immediately"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Single-click to open an item",
+    "key": "singleClickToOpenAnItem",
+    "keywords": [
+      "single",
+      "click",
+      "to",
+      "open",
+      "an",
+      "item",
+      "keyboard",
+      "shortcuts"
+    ],
+    "description": "Controls single click to open an item"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "On the icon only",
+    "key": "onTheIconOnly",
+    "keywords": [
+      "on",
+      "the",
+      "icon",
+      "only",
+      "keyboard",
+      "shortcuts",
+      "icons",
+      "library",
+      "custom"
+    ],
+    "description": "Controls on the icon only"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Folders only",
+    "key": "foldersOnly",
+    "keywords": [
+      "folders",
+      "only",
+      "keyboard",
+      "shortcuts"
+    ],
+    "description": "Controls folders only"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Hover to select",
+    "key": "pointToSelect",
+    "keywords": [
+      "hover",
+      "to",
+      "select",
+      "point",
+      "keyboard",
+      "shortcuts",
+      "tooltip",
+      "popup",
+      "info",
+      "tip",
+      "mouse",
+      "over",
+      "preview",
+      "selection",
+      "highlight",
+      "marquee"
+    ],
+    "description": "Controls point to select"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Only when hovering over the icon",
+    "key": "toTheIconOnly",
+    "keywords": [
+      "only",
+      "when",
+      "hovering",
+      "over",
+      "the",
+      "icon",
+      "to",
+      "keyboard",
+      "shortcuts",
+      "tooltip",
+      "hover",
+      "popup",
+      "info",
+      "tip",
+      "mouse",
+      "preview",
+      "icons",
+      "library",
+      "custom"
+    ],
+    "description": "Controls to the icon only"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Full name column select",
+    "key": "fullNameColumnSelect",
+    "keywords": [
+      "full",
+      "name",
+      "column",
+      "select",
+      "keyboard",
+      "shortcuts",
+      "selection",
+      "highlight",
+      "marquee"
+    ],
+    "description": "Controls full name column select"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Allow dragging from a background window",
+    "key": "allowDraggingFromABackgroundWindow",
+    "keywords": [
+      "allow",
+      "dragging",
+      "from",
+      "background",
+      "window",
+      "keyboard",
+      "shortcuts",
+      "drag",
+      "drop",
+      "and",
+      "dnd"
+    ],
+    "description": "Controls allow dragging from a background window"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Shift+Wheel scrolls horizontally",
+    "key": "shiftWheelScrollsHorizontally",
+    "keywords": [
+      "shift+wheel",
+      "scrolls",
+      "horizontally",
+      "shift",
+      "wheel",
+      "keyboard",
+      "shortcuts"
+    ],
+    "description": "Controls shift wheel scrolls horizontally"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Ctrl+Wheel scrolls through the list views",
+    "key": "ctrlWheelScrollsThroughTheListViews",
+    "keywords": [
+      "ctrl+wheel",
+      "scrolls",
+      "through",
+      "the",
+      "list",
+      "views",
+      "ctrl",
+      "wheel",
+      "keyboard",
+      "shortcuts",
+      "wrap",
+      "view",
+      "details"
+    ],
+    "description": "Controls ctrl wheel scrolls through the list views"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Highlight hovered items",
+    "key": "highlightHoveredItems",
+    "keywords": [
+      "highlight",
+      "hovered",
+      "items",
+      "keyboard",
+      "shortcuts",
+      "tooltip",
+      "hover",
+      "popup",
+      "info",
+      "tip",
+      "mouse",
+      "over",
+      "preview",
+      "theme",
+      "dark",
+      "mode",
+      "light",
+      "appearance",
+      "colors"
+    ],
+    "description": "Controls highlight hovered items"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Show tooltips",
+    "key": "showTooltips",
+    "keywords": [
+      "show",
+      "tooltips",
+      "keyboard",
+      "shortcuts",
+      "tooltip",
+      "hover",
+      "popup",
+      "info",
+      "tip",
+      "mouse",
+      "over",
+      "preview"
+    ],
+    "description": "Controls show tooltips"
+  },
+  {
+    "tab": "Keyboard Shortcuts",
+    "label": "Show verbatim tooltips",
+    "key": "showVerbatimTooltips",
+    "keywords": [
+      "show",
+      "verbatim",
+      "tooltips",
+      "keyboard",
+      "shortcuts",
+      "tooltip",
+      "hover",
+      "popup",
+      "info",
+      "tip",
+      "mouse",
+      "over",
+      "preview"
+    ],
+    "description": "Controls show verbatim tooltips"
   },
   {
     "tab": "Tags",
@@ -5079,6 +5133,147 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Filters & Type Ahead Find",
+    "label": "Enable extended pattern matching",
+    "key": "enableExtendedPatternMatching",
+    "keywords": [
+      "enable",
+      "extended",
+      "pattern",
+      "matching",
+      "filters",
+      "type",
+      "ahead",
+      "find",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
+    ],
+    "description": "Controls enable extended pattern matching"
+  },
+  {
+    "tab": "Filters & Type Ahead Find",
+    "label": "Highlight matches",
+    "key": "highlightMatches",
+    "keywords": [
+      "highlight",
+      "matches",
+      "filters",
+      "type",
+      "ahead",
+      "find",
+      "theme",
+      "dark",
+      "mode",
+      "light",
+      "appearance",
+      "colors",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
+    ],
+    "description": "Controls highlight matches"
+  },
+  {
+    "tab": "Filters & Type Ahead Find",
+    "label": "Ignore diacritics",
+    "key": "ignoreDiacritics",
+    "keywords": [
+      "ignore",
+      "diacritics",
+      "filters",
+      "type",
+      "ahead",
+      "find",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
+    ],
+    "description": "Controls ignore diacritics"
+  },
+  {
+    "tab": "Filters & Type Ahead Find",
+    "label": "Apply to files only",
+    "key": "applyToFilesOnly",
+    "keywords": [
+      "apply",
+      "to",
+      "files",
+      "only",
+      "filters",
+      "type",
+      "ahead",
+      "find",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
+    ],
+    "description": "Controls apply to files only"
+  },
+  {
+    "tab": "Filters & Type Ahead Find",
+    "label": "Match case",
+    "key": "matchCase",
+    "keywords": [
+      "match",
+      "case",
+      "filters",
+      "type",
+      "ahead",
+      "find",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
+    ],
+    "description": "Controls match case"
+  },
+  {
+    "tab": "Filters & Type Ahead Find",
+    "label": "Use space character for Boolean AND",
+    "key": "useSpaceCharacterForBooleanAnd",
+    "keywords": [
+      "use",
+      "space",
+      "character",
+      "for",
+      "boolean",
+      "and",
+      "filters",
+      "type",
+      "ahead",
+      "find",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
+    ],
+    "description": "Controls use space character for boolean and"
+  },
+  {
+    "tab": "Filters & Type Ahead Find",
+    "label": "Multi-column matching",
+    "key": "multiColumnMatching",
+    "keywords": [
+      "multi",
+      "column",
+      "matching",
+      "filters",
+      "type",
+      "ahead",
+      "find",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
+    ],
+    "description": "Controls multi column matching"
+  },
+  {
+    "tab": "Filters & Type Ahead Find",
     "label": "Persist visual filters across folders",
     "key": "persistVisualFiltersAcrossFolders",
     "keywords": [
@@ -5115,26 +5310,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "fuzzy"
     ],
     "description": "Controls toggle on same filter"
-  },
-  {
-    "tab": "Filters & Type Ahead Find",
-    "label": "Enable extended pattern matching",
-    "key": "enableExtendedPatternMatching",
-    "keywords": [
-      "enable",
-      "extended",
-      "pattern",
-      "matching",
-      "filters",
-      "type",
-      "ahead",
-      "find",
-      "search",
-      "filter",
-      "everything",
-      "fuzzy"
-    ],
-    "description": "Controls enable extended pattern matching"
   },
   {
     "tab": "Filters & Type Ahead Find",
@@ -5183,30 +5358,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "fuzzy"
     ],
     "description": "Controls show filter information in tab headers"
-  },
-  {
-    "tab": "Filters & Type Ahead Find",
-    "label": "Highlight matches",
-    "key": "highlightMatches",
-    "keywords": [
-      "highlight",
-      "matches",
-      "filters",
-      "type",
-      "ahead",
-      "find",
-      "theme",
-      "dark",
-      "mode",
-      "light",
-      "appearance",
-      "colors",
-      "search",
-      "filter",
-      "everything",
-      "fuzzy"
-    ],
-    "description": "Controls highlight matches"
   },
   {
     "tab": "Filters & Type Ahead Find",
@@ -5267,103 +5418,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "fuzzy"
     ],
     "description": "Controls enable navigation keys"
-  },
-  {
-    "tab": "Filters & Type Ahead Find",
-    "label": "Apply to files only",
-    "key": "applyToFilesOnly",
-    "keywords": [
-      "apply",
-      "to",
-      "files",
-      "only",
-      "filters",
-      "type",
-      "ahead",
-      "find",
-      "search",
-      "filter",
-      "everything",
-      "fuzzy"
-    ],
-    "description": "Controls apply to files only"
-  },
-  {
-    "tab": "Filters & Type Ahead Find",
-    "label": "Match case",
-    "key": "matchCase",
-    "keywords": [
-      "match",
-      "case",
-      "filters",
-      "type",
-      "ahead",
-      "find",
-      "search",
-      "filter",
-      "everything",
-      "fuzzy"
-    ],
-    "description": "Controls match case"
-  },
-  {
-    "tab": "Filters & Type Ahead Find",
-    "label": "Ignore diacritics",
-    "key": "ignoreDiacritics",
-    "keywords": [
-      "ignore",
-      "diacritics",
-      "filters",
-      "type",
-      "ahead",
-      "find",
-      "search",
-      "filter",
-      "everything",
-      "fuzzy"
-    ],
-    "description": "Controls ignore diacritics"
-  },
-  {
-    "tab": "Filters & Type Ahead Find",
-    "label": "Use space character for Boolean AND",
-    "key": "useSpaceCharacterForBooleanAnd",
-    "keywords": [
-      "use",
-      "space",
-      "character",
-      "for",
-      "boolean",
-      "and",
-      "filters",
-      "type",
-      "ahead",
-      "find",
-      "search",
-      "filter",
-      "everything",
-      "fuzzy"
-    ],
-    "description": "Controls use space character for boolean and"
-  },
-  {
-    "tab": "Filters & Type Ahead Find",
-    "label": "Multi-column matching",
-    "key": "multiColumnMatching",
-    "keywords": [
-      "multi",
-      "column",
-      "matching",
-      "filters",
-      "type",
-      "ahead",
-      "find",
-      "search",
-      "filter",
-      "everything",
-      "fuzzy"
-    ],
-    "description": "Controls multi column matching"
   },
   {
     "tab": "Filters & Type Ahead Find",
@@ -6622,7 +6676,6 @@ export const JUMP_SETTING_INDEX: Array<{
     "key": "permanentHomeTab",
     "keywords": [
       "keep",
-      "continuum",
       "home",
       "as",
       "permanent",
@@ -6693,22 +6746,23 @@ export const JUMP_SETTING_INDEX: Array<{
     "key": "resizableTabs",
     "keywords": [
       "resizable",
-      "resize",
-      "tab",
-      "width",
       "tabs",
-      "handle",
-      "drag"
+      "tab",
+      "bar",
+      "close",
+      "new"
     ],
-    "description": "Drag tab edges to set custom widths"
+    "description": "Controls resizable tabs"
   },
   {
     "tab": "Tabs",
-    "label": "Show icons",
+    "label": "Show folder icons on tabs",
     "key": "showIcons",
     "keywords": [
       "show",
+      "folder",
       "icons",
+      "on",
       "tabs",
       "tab",
       "bar",
@@ -7202,28 +7256,6 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Features",
-    "label": "User-Defined Commands",
-    "key": "userDefinedCommands",
-    "keywords": [
-      "user",
-      "defined",
-      "commands",
-      "features"
-    ],
-    "description": "Controls user defined commands"
-  },
-  {
-    "tab": "Features",
-    "label": "Scripting",
-    "key": "scripting",
-    "keywords": [
-      "scripting",
-      "features"
-    ],
-    "description": "Controls scripting"
-  },
-  {
-    "tab": "Features",
     "label": "Dual Pane",
     "key": "dualPane",
     "keywords": [
@@ -7263,6 +7295,28 @@ export const JUMP_SETTING_INDEX: Array<{
       "features"
     ],
     "description": "Controls catalog"
+  },
+  {
+    "tab": "Features",
+    "label": "User-Defined Commands",
+    "key": "userDefinedCommands",
+    "keywords": [
+      "user",
+      "defined",
+      "commands",
+      "features"
+    ],
+    "description": "Controls user defined commands"
+  },
+  {
+    "tab": "Features",
+    "label": "Scripting",
+    "key": "scripting",
+    "keywords": [
+      "scripting",
+      "features"
+    ],
+    "description": "Controls scripting"
   },
   {
     "tab": "Features",
@@ -7338,6 +7392,54 @@ export const JUMP_SETTING_INDEX: Array<{
       "mini"
     ],
     "description": "Controls match color with tree path tracing"
+  },
+  {
+    "tab": "Highlights & Dark Mode",
+    "label": "Follow Windows light / dark color scheme",
+    "key": "followOsColorScheme",
+    "keywords": [
+      "follow",
+      "windows",
+      "light",
+      "dark",
+      "color",
+      "scheme",
+      "os",
+      "highlights",
+      "mode",
+      "theme",
+      "appearance",
+      "colors"
+    ],
+    "description": "Controls follow os color scheme"
+  },
+  {
+    "tab": "Highlights & Dark Mode",
+    "label": "Adjust to OS light/dark once at startup only",
+    "key": "adjustToOsLightDarkModeAtStartup",
+    "keywords": [
+      "adjust",
+      "to",
+      "os",
+      "light",
+      "dark",
+      "once",
+      "at",
+      "startup",
+      "only",
+      "mode",
+      "highlights",
+      "theme",
+      "appearance",
+      "colors",
+      "launch",
+      "on",
+      "start",
+      "exit",
+      "quit",
+      "close"
+    ],
+    "description": "Controls adjust to os light dark mode at startup"
   },
   {
     "tab": "Styles",
