@@ -130,6 +130,28 @@ public static class DirListingSharedBuffer
         return null;
     }
 
+    /// <summary>
+    /// True when a file's bytes are NOT on this device (OneDrive Files
+    /// On-Demand / any cloud-files placeholder): opening it forces a
+    /// download. Background work (thumbnails, tag reads, content indexing)
+    /// must skip these files — only the user's own explicit open may
+    /// recall them. Checking attributes never triggers a download.
+    /// </summary>
+    public static bool IsOnlineOnlyPlaceholder(FileAttributes attributes)
+    {
+        const FileAttributes RecallOnOpen = (FileAttributes)0x00040000;
+        const FileAttributes RecallOnDataAccess = (FileAttributes)0x00400000;
+        return (attributes & FileAttributes.Offline) != 0
+            || (attributes & RecallOnOpen) != 0
+            || (attributes & RecallOnDataAccess) != 0;
+    }
+
+    public static bool IsOnlineOnlyPlaceholder(string path)
+    {
+        try { return IsOnlineOnlyPlaceholder(File.GetAttributes(path)); }
+        catch { return false; }
+    }
+
     public static DirEntryDto FromShellChild(ShellChildItem item)
     {
         var path = (item.Path ?? "").Replace('\\', '/');

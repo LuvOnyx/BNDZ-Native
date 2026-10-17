@@ -26,6 +26,11 @@ public static class MediaTagMetadataService
         if (meta == null || string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
             return;
 
+        // Cloud placeholders: reading tags would download the file. Shell
+        // properties still show; tag enrichment waits until the file is local.
+        if (DirListingSharedBuffer.IsOnlineOnlyPlaceholder(filePath))
+            return;
+
         try
         {
             EnrichTagLib(meta, filePath);

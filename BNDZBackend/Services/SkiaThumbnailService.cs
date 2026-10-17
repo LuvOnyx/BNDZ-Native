@@ -148,6 +148,8 @@ public static class SkiaThumbnailService
                 scanned++;
                 if (scanned > maxScan) break;
                 if (!IsLikelyImage(file) && !IsSvg(file)) continue;
+                // Cloud placeholders: decoding one would download it.
+                if (DirListingSharedBuffer.IsOnlineOnlyPlaceholder(file)) continue;
                 images.Add(file);
                 if (images.Count >= 4) break;
             }

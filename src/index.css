@@ -2185,6 +2185,16 @@ html[data-theme] .fs-item-wrapper:hover {
   background: var(--list-hover) !important;
 }
 
+/* "Highlight hovered items" off must mean off. The runtime publishes
+   data-highlight-hovered on <html>; without this gate the themed hover
+   tint above (and the base .fs-item-wrapper:hover rule) ignores the
+   setting entirely, so rows kept lighting up on hover. */
+html[data-theme][data-highlight-hovered="false"] .fs-item-wrapper:hover,
+html[data-highlight-hovered="false"] .fs-item-wrapper:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 html[data-theme] .bndz-file-list-scroll {
   color: var(--list-text) !important;
 }

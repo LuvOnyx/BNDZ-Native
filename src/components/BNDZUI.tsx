@@ -894,6 +894,21 @@ export default function BNDZUI() {
   }, []);
   const [drives, setDrives] = useState<DriveInfo[]>([]);
   const [drivesReady, setDrivesReady] = useState(false);
+  // BNDZ Cloud drives the user actually has. null = not checked yet (entries
+  // still show); 0 = no drives, so the tree/sidebar entries hide — there is
+  // nothing to browse to. Drives are created from the BNDZ Cloud plugin tab.
+  const [cloudDriveCount, setCloudDriveCount] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      IPC.cloudDriveList()
+        .then((r: any) => { if (alive && r?.ok && Array.isArray(r.drives)) setCloudDriveCount(r.drives.length); })
+        .catch(() => { /* keep last known count */ });
+    };
+    refresh();
+    const t = setInterval(refresh, 20000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
   const [cloudProviders, setCloudProviders] = useState<CloudProvider[]>([]);
   const [shortcuts, setShortcuts] = useState<ShortcutInfo[]>([]);
   const [networkNodes, setNetworkNodes] = useState<any[]>([]);
@@ -7316,7 +7331,7 @@ ${classified.detail}`,
             };
           }),
       } as NavTreeBuildNode] : []),
-      ...(installedPluginIdSet.has('cloud-drive') && config.cloudDriveShowInTree !== false ? [{
+      ...(installedPluginIdSet.has('cloud-drive') && config.cloudDriveShowInTree !== false && cloudDriveCount !== 0 ? [{
         treeKey: 'cloud-drive',
         draggable: true,
         label: 'BNDZ Cloud',
@@ -7359,7 +7374,7 @@ ${classified.detail}`,
     networkOnlyNodes, networkExpanded, homeTreePath, wslLinuxPath,
     wslRootNode, wslDistroNodes,
     linuxExpanded, librariesExpanded, smartViewsExpanded, workspaceToolsExpanded, config.navTreeOrder,
-    config.meshShowInNavTree, config.cloudDriveShowInTree, meshHosts, meshExpanded, refreshNetworkLocations,
+    config.meshShowInNavTree, config.cloudDriveShowInTree, cloudDriveCount, meshHosts, meshExpanded, refreshNetworkLocations,
     installedPluginIdSet,
   ]);
 
@@ -16860,7 +16875,7 @@ ${classified.detail}`,
                   cloudProvidersContent={
                     <>
                     {/* BNDZ Cloud: first-class entry beside OneDrive and other providers. Opens the drive list and Create. Hidden when the user turns off "Show BNDZ Cloud in the tree and sidebar". */}
-                    {config.cloudDriveShowInTree !== false && (
+                    {config.cloudDriveShowInTree !== false && cloudDriveCount !== 0 && (
                     <div
                       key="bndz-cloud"
                       role="button"

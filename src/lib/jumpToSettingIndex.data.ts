@@ -2456,31 +2456,27 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Controls & More",
-    "label": "Select list items on mouse hover",
-    "key": "selectListItemsOnMouseHover",
+    "label": "Hover to select",
+    "key": "pointToSelect",
     "keywords": [
-      "select",
-      "list",
-      "items",
-      "on",
-      "mouse",
       "hover",
+      "to",
+      "select",
+      "point",
       "controls",
       "more",
       "tooltip",
       "popup",
       "info",
       "tip",
+      "mouse",
       "over",
       "preview",
       "selection",
       "highlight",
-      "marquee",
-      "wrap",
-      "view",
-      "details"
+      "marquee"
     ],
-    "description": "Controls select list items on mouse hover"
+    "description": "Controls point to select"
   },
   {
     "tab": "Controls & More",

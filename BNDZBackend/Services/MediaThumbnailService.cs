@@ -57,6 +57,14 @@ public static class MediaThumbnailService
         if (!System.IO.File.Exists(filePath))
             return "";
 
+        // Cloud placeholders (OneDrive Files On-Demand): the bytes are not on
+        // this PC, so every decoder below would force a download — a folder
+        // full of them stalls the app while OneDrive pulls files the user
+        // never opened. Serve only an already-cached Explorer thumbnail,
+        // exactly like Explorer does.
+        if (DirListingSharedBuffer.IsOnlineOnlyPlaceholder(filePath))
+            return ShellThumbnailCacheService.TryGetCachedBase64(filePath, size);
+
         var ext = Path.GetExtension(filePath);
 
         // 0) MagicScaler stills FIRST — EXIF-correct PNG/JPEG/WEBP. Must beat Explorer thumbcache

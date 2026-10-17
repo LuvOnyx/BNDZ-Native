@@ -833,6 +833,8 @@ public sealed class BndzFileIndexService : IDisposable
 
     private static string ReadTextSnippet(string path, int maxChars)
     {
+        // Never index the contents of cloud placeholders — reading one downloads it.
+        if (DirListingSharedBuffer.IsOnlineOnlyPlaceholder(path)) return "";
         try
         {
             // Charset detection for Shift-JIS / ANSI / UTF-16 logs (UTF.Unknown).
