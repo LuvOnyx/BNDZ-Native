@@ -352,6 +352,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   showLensStage: true,
   lensCollapsedByDefault: false,
   meshShowInNavTree: false,
+  cloudDriveShowInTree: true,
   meshAutoConnectOnBrowse: true,
   meshDropStunServers: 'stun:stun.l.google.com:19302',
   meshDropTurnUrl: '',

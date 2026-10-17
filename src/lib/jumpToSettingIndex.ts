@@ -38,6 +38,13 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
   },
   {
     tab: 'Appearance',
+    label: 'Show BNDZ Cloud in the tree and sidebar',
+    key: 'cloudDriveShowInTree',
+    description: 'Hide or show the BNDZ Cloud entry in the folder tree and the sidebar. Drives stay reachable from the BNDZ Cloud plugin either way.',
+    keywords: ['bndz cloud', 'cloud', 'tree', 'sidebar', 'hide cloud', 'show cloud', 'nav tree', 'drives'],
+  },
+  {
+    tab: 'Appearance',
     label: 'Selection highlight extent',
     key: 'listSelectionChrome',
     description: 'Paint selection on the full row, name only, or through the second column',

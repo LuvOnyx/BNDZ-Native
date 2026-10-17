@@ -3517,6 +3517,36 @@ namespace BNDZ.Services
                 }
             }
 
+            // BNDZ Cloud drives: /cloud/<driveId>/... lists the running drive's
+            // own WebDAV, so a drive's files browse like a normal folder.
+            if (CloudDriveBrowse.TryParsePanePath(path, out var cloudDriveId, out var cloudRel))
+            {
+                var (browseOk, browseError, cloudEntries) = await CloudDriveService.Shared
+                    .BrowseListAsync(cloudDriveId, cloudRel, ct).ConfigureAwait(false);
+                if (!browseOk)
+                {
+                    await PostToUiAsync(() => PostDirContentsError(idProp, path, browseError ?? "Could not open that drive.")).ConfigureAwait(false);
+                    return;
+                }
+                var cloudDtos = cloudEntries.Select(e =>
+                {
+                    var entryPath = "/cloud/" + cloudDriveId + (e.RelPath.Length > 0 ? "/" + e.RelPath : "");
+                    return new DirListingSharedBuffer.DirEntryDto
+                    {
+                        Id = entryPath,
+                        Name = e.Name,
+                        Type = e.IsFolder ? "directory" : "file",
+                        Path = entryPath,
+                        Size = e.Size,
+                        Extension = e.IsFolder ? "" : System.IO.Path.GetExtension(e.Name).TrimStart('.').ToLowerInvariant(),
+                        ModifiedUtc = e.ModifiedUtc,
+                        CreatedUtc = e.ModifiedUtc,
+                    };
+                }).ToList();
+                await PostDirListingPageAsync(idProp, path, cloudDtos, partial: false).ConfigureAwait(false);
+                return;
+            }
+
             // Backend-host pipe: first-paint at 64 rows with embedded glyphs, then full list via GET_DIR_CONTENTS_MORE.
             if (App.IsBackendHost)
             {

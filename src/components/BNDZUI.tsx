@@ -4,6 +4,7 @@ import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { BndzPlaque } from './BndzPlaque';
 import { CloseGlyph } from './ChromeGlyphs';
 import { normalizeDirEntries } from '../lib/normalizeDirEntry';
+import { cloudBrowsePath, parseCloudBrowsePath } from '../lib/cloudDrive';
 import { createInitialFileSystem, getDirContents, getEntityByPath, updateFileSystem } from '../data/initialFS';
 import { VirtualDirectory, FSEntity, DriveInfo, ShortcutInfo } from '../types';
 import { useModal } from './ModalProvider';
@@ -508,6 +509,69 @@ const Spinner = () => (
     <div className="w-[40px] h-[40px] border-[3.5px] border-transparent border-b-[#22c55e] border-l-[#22c55e] rounded-full animate-[spin_1.5s_cubic-bezier(0.5,0,0.5,1)_infinite_reverse] absolute opacity-70" />
   </div>
 );
+
+/** Poll until a drive reports running, then open it in the list. Gives up quietly after ~6 minutes. */
+function openDriveInListWhenReady(driveId: string, driveName: string, openInList: (path: string) => void): void {
+  let attempts = 0;
+  const tick = async () => {
+    attempts += 1;
+    if (attempts > 180) return;
+    try {
+      const { IPC } = await import('../lib/ipcBridge');
+      const listed = await IPC.cloudDriveList().catch(() => null);
+      const drive = listed?.drives?.find(d => d.id === driveId);
+      if (drive?.state === 'running') {
+        openInList(cloudBrowsePath(drive.id));
+        pushToast({ kind: 'info', title: driveName, message: 'Your drive is ready.' });
+        return;
+      }
+      if (drive?.state === 'error') {
+        pushToast({ kind: 'error', title: driveName, message: drive.message || 'That drive could not start.' });
+        return;
+      }
+    } catch { /* keep polling */ }
+    window.setTimeout(() => { void tick(); }, 2000);
+  };
+  window.setTimeout(() => { void tick(); }, 2000);
+}
+
+/**
+ * If `winPath` is the folder a BNDZ Cloud drive lives in, open the drive
+ * itself in the list instead of browsing the raw folder (which only holds
+ * the sealed disk): adopt the folder first if BNDZ has never seen it, start
+ * the drive if it is stopped, and land in its files once it is running.
+ * Returns false when the folder is not a drive folder, so the caller
+ * navigates normally.
+ */
+async function openAsCloudDriveIfFolder(winPath: string, openInList: (path: string) => void): Promise<boolean> {
+  try {
+    const { IPC } = await import('../lib/ipcBridge');
+    const { normalizeLocalPath } = await import('../lib/cloudDrive');
+    const target = normalizeLocalPath(winPath).toLowerCase();
+    if (!target) return false;
+    const listed = await IPC.cloudDriveList().catch(() => null);
+    let drive = listed?.drives?.find(d => d.placement === 'local' && d.diskPath && normalizeLocalPath(d.diskPath).toLowerCase() === target);
+    if (!drive) {
+      const adopted = await IPC.cloudDriveOpenExisting(winPath).catch(() => null);
+      if (adopted?.ok && adopted.drive) drive = adopted.drive;
+    }
+    if (!drive) return false;
+    const title = drive.name || 'BNDZ Cloud drive';
+    if (drive.state === 'running') {
+      openInList(cloudBrowsePath(drive.id));
+      pushToast({ kind: 'info', title, message: 'Opened your drive.' });
+    } else {
+      if (drive.state !== 'starting' && drive.state !== 'creating') {
+        void IPC.cloudDriveStart(drive.id).catch(() => undefined);
+      }
+      pushToast({ kind: 'info', title, message: 'Starting your drive — opening it as soon as it is ready…' });
+      openDriveInListWhenReady(drive.id, title, openInList);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export default function BNDZUI() {
   const { showModal, confirm } = useModal();
@@ -7252,11 +7316,11 @@ ${classified.detail}`,
             };
           }),
       } as NavTreeBuildNode] : []),
-      ...(installedPluginIdSet.has('cloud-drive') ? [{
+      ...(installedPluginIdSet.has('cloud-drive') && config.cloudDriveShowInTree !== false ? [{
         treeKey: 'cloud-drive',
         draggable: true,
         label: 'BNDZ Cloud',
-        icon: 'cloud_ui',
+        icon: 'bndz_cloud',
         iconColor: '#7dd3fc',
         useShellIcon: false,
         leaf: true,
@@ -7295,7 +7359,7 @@ ${classified.detail}`,
     networkOnlyNodes, networkExpanded, homeTreePath, wslLinuxPath,
     wslRootNode, wslDistroNodes,
     linuxExpanded, librariesExpanded, smartViewsExpanded, workspaceToolsExpanded, config.navTreeOrder,
-    config.meshShowInNavTree, meshHosts, meshExpanded, refreshNetworkLocations,
+    config.meshShowInNavTree, config.cloudDriveShowInTree, meshHosts, meshExpanded, refreshNetworkLocations,
     installedPluginIdSet,
   ]);
 
@@ -11586,6 +11650,31 @@ ${classified.detail}`,
         return;
       }
 
+      // BNDZ Cloud drive browsing (/cloud/<driveId>/...): folders navigate
+      // in-pane; files are downloaded from the drive and opened normally.
+      const cloudBrowse = parseCloudBrowsePath(entityPath);
+      if (cloudBrowse) {
+        if (entity.type === 'directory') {
+          setCurrentPath(entityPath, pane.id);
+          if (isGlobal) {
+            setFilterText('');
+            omniFilterRef.current?.blur();
+          }
+          return;
+        }
+        setFocusedItemId(entity.id);
+        setSelectedItems([entity.id], pane.id);
+        scheduleSelectionChrome([entity.id], true);
+        void import('../lib/ipcBridge').then(({ IPC }) =>
+          IPC.cloudDriveOpenFile(cloudBrowse.driveId, cloudBrowse.relPath),
+        ).then(r => {
+          if (r && !r.ok) {
+            pushToast({ kind: 'error', title: 'BNDZ Cloud', message: r.error || 'Could not open that file.' });
+          }
+        }).catch(() => undefined);
+        return;
+      }
+
       const winPath = toWindowsPath(entityPath);
       const shellParsing = rawPath.startsWith('::{')
         || rawPath.toLowerCase().startsWith('shell:')
@@ -11645,21 +11734,30 @@ ${classified.detail}`,
       }
 
       if (entity.type === 'directory') {
-        setCurrentPath(entityPath, pane.id);
-        if (isGlobal) {
-          setFilterText('');
-          omniFilterRef.current?.blur();
-        } else {
-          const findBeh = getFindBehavior(config);
-          if (
-            !findBeh.persistAcrossFolders
-            && !findBeh.persistQuickSearchAcrossFolders
-            && !config.persistQuickSearchAcrossFolders
-            && !findBeh.persistentLiveFilters
-          ) {
+        const navigateToPath = (targetPath: string) => {
+          setCurrentPath(targetPath, pane.id);
+          if (isGlobal) {
             setFilterText('');
             omniFilterRef.current?.blur();
+          } else {
+            const findBeh = getFindBehavior(config);
+            if (
+              !findBeh.persistAcrossFolders
+              && !findBeh.persistQuickSearchAcrossFolders
+              && !config.persistQuickSearchAcrossFolders
+              && !findBeh.persistentLiveFilters
+            ) {
+              setFilterText('');
+              omniFilterRef.current?.blur();
+            }
           }
+        };
+        const navigateInto = () => navigateToPath(entityPath);
+        // A BNDZ Cloud drive's folder opens the drive's files, not the raw folder.
+        if (/^[a-zA-Z]:[\\/]/.test(winPath)) {
+          void openAsCloudDriveIfFolder(winPath, navigateToPath).then(opened => { if (!opened) navigateInto(); });
+        } else {
+          navigateInto();
         }
       } else {
         // Default open = ShellExecute (Explorer association). Quick Look stays on Space / explicit.
@@ -15643,7 +15741,7 @@ ${classified.detail}`,
                        <Icons8Icon id="extension_hub" size={14} /> Extension Hub
                     </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { openBottomPlugin('cloud-drive'); closeMenu(); })}>
-                       <Icons8Icon id="cloud_ui" size={14} /> BNDZ Cloud
+                       <Icons8Icon id="bndz_cloud" size={14} /> BNDZ Cloud
                     </div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); closeMenu(); })}><Icons8Icon id="tag_manager" size={14} /> Manage Tags...</div>
                     <div className="px-3 py-1 bndz-menubar-row cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setBottomPluginTab('batch-rename'); if (!isBottomPanelOpen) toggleBottomPanel(); closeMenu(); })}><Icons8Icon id="batch_rename" size={14} /> Batch Rename</div>
@@ -16761,7 +16859,8 @@ ${classified.detail}`,
                   }
                   cloudProvidersContent={
                     <>
-                    {/* BNDZ Cloud: first-class entry beside OneDrive and other providers. Opens the drive list and Create. */}
+                    {/* BNDZ Cloud: first-class entry beside OneDrive and other providers. Opens the drive list and Create. Hidden when the user turns off "Show BNDZ Cloud in the tree and sidebar". */}
+                    {config.cloudDriveShowInTree !== false && (
                     <div
                       key="bndz-cloud"
                       role="button"
@@ -16773,9 +16872,10 @@ ${classified.detail}`,
                         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBottomPlugin('cloud-drive'); }
                       }}
                     >
-                      <Icons8Icon id="cloud_ui" size={14} />
+                      <Icons8Icon id="bndz_cloud" size={15} />
                       <span className="bndz-sidebar-pin-label text-[11px] font-medium truncate flex-1">BNDZ Cloud</span>
                     </div>
+                    )}
                     {cloudDriveItems.length > 0 ? (
                       cloudDriveItems.map((item: { label: string; path?: string; syncStatus?: string; leaf?: boolean; icon?: string; shellIconPath?: string }, idx: number) => {
                         const cloudPath = item.path ? normalizePanePath(item.path) : '';

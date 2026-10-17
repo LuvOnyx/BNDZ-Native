@@ -70,6 +70,7 @@ public sealed class CloudDriveService
                 "CLOUD_DRIVE_SET_PLACEMENT_PREF" => SetPlacementPref(Str(payload, "placement")),
                 "CLOUD_DRIVE_ENABLE_LOCAL" => EnableLocal(),
                 "CLOUD_DRIVE_REVEAL_FTP_PASSWORD" => RevealFtpPassword(Str(payload, "id")),
+                "CLOUD_DRIVE_OPEN_FILE" => await BrowseOpenFileCoreAsync(Str(payload, "id"), Str(payload, "relPath"), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_SNAPSHOT_CREATE" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).CreateSnapshotAsync(d, token, ct), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_SNAPSHOT_LIST" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).ListSnapshotsAsync(d, token, ct), ct).ConfigureAwait(false),
                 "CLOUD_DRIVE_SNAPSHOT_RESTORE" => await SnapshotAsync(Str(payload, "id"), (d, token) => ProviderFor(d).RestoreSnapshotAsync(d, Str(payload, "snapshotId") ?? "", token, ct), ct).ConfigureAwait(false),
@@ -525,6 +526,75 @@ public sealed class CloudDriveService
         if (string.IsNullOrWhiteSpace(password))
             return new { ok = false, error = "No FTPS password is stored for this drive." };
         return new { ok = true, password };
+    }
+
+    /// <summary>
+    /// List one folder of a running This-PC drive for the file list's
+    /// /cloud/&lt;driveId&gt; pane paths. Called from the IPC host (outside the
+    /// HandleAsync gate), so it takes the gate itself; the core below assumes
+    /// the gate is already held.
+    /// </summary>
+    public async Task<(bool Ok, string? Error, List<CloudBrowseEntry> Entries)> BrowseListAsync(string driveId, string relPath, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await BrowseListCoreAsync(driveId, relPath, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<(bool Ok, string? Error, List<CloudBrowseEntry> Entries)> BrowseListCoreAsync(string driveId, string relPath, CancellationToken ct)
+    {
+        var (drive, error, password, rel) = BrowsePreflight(driveId, relPath);
+        if (drive == null) return (false, error, new List<CloudBrowseEntry>());
+        try
+        {
+            var entries = await CloudDriveBrowse.ListAsync(drive.WebDavPort, password!, rel!, ct).ConfigureAwait(false);
+            return (true, null, entries);
+        }
+        catch (Exception ex)
+        {
+            return (false, CloudDriveSecrets.Redact(ex.Message), new List<CloudBrowseEntry>());
+        }
+    }
+
+    /// <summary>Download a file from a browsed drive and open it with its normal app. Assumes the gate is held.</summary>
+    private async Task<object> BrowseOpenFileCoreAsync(string? id, string? relPath, CancellationToken ct)
+    {
+        var (drive, error, password, rel) = BrowsePreflight(id, relPath);
+        if (drive == null) return new { ok = false, error };
+        if (string.IsNullOrEmpty(rel)) return new { ok = false, error = "That is a folder, not a file." };
+        try
+        {
+            var local = await CloudDriveBrowse.DownloadToOpenedCacheAsync(drive.WebDavPort, password!, drive.Id, rel, ct).ConfigureAwait(false);
+            Process.Start(new ProcessStartInfo(local) { UseShellExecute = true });
+            return new { ok = true };
+        }
+        catch (Exception ex)
+        {
+            return new { ok = false, error = CloudDriveSecrets.Redact(ex.Message) };
+        }
+    }
+
+    /// <summary>Shared guards for browsing: drive exists, lives on This PC, is running, path stays inside the drive.</summary>
+    private (CloudDriveRecord? Drive, string? Error, string? Password, string? Rel) BrowsePreflight(string? id, string? relPath)
+    {
+        var drive = Find(id);
+        if (drive == null) return (null, "That drive is not in the registry.", null, null);
+        if (!string.Equals(drive.Placement, "local", StringComparison.OrdinalIgnoreCase))
+            return (null, "Only drives on This PC can be browsed in the list.", null, null);
+        if (!string.Equals(drive.State, "running", StringComparison.OrdinalIgnoreCase))
+            return (null, "That drive is not running yet.", null, null);
+        if (drive.WebDavPort <= 0) return (null, "That drive has no file address yet.", null, null);
+        var rel = CloudDriveBrowse.SanitizeRel(relPath);
+        if (rel == null) return (null, "That path is not valid.", null, null);
+        var password = CloudDriveSecrets.UnprotectFromBase64(drive.ProtectedFtpPassword);
+        if (string.IsNullOrWhiteSpace(password)) return (null, "No sign-in is stored for this drive.", null, null);
+        return (drive, null, password, rel);
     }
 
     private async Task<object> SnapshotAsync(string? id, Func<CloudDriveRecord, Func<string?>, Task<CloudDriveOp>> op, CancellationToken ct)

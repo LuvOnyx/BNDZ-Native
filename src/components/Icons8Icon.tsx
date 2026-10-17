@@ -2,6 +2,7 @@ import React from 'react';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 import { TagGlyph } from './TagGlyph';
 import { FavoritesGlyph } from './FavoritesGlyph';
+import { BndzCloudGlyph } from './BndzCloudGlyph';
 
 interface Icons8IconProps {
   /** Icon id from TOOLBAR_LAUNCHER_ICONS (e.g. 'copy', 'chevron_right', 'close'). */
@@ -53,6 +54,16 @@ export function Icons8Icon({ id, size = 16, className = '', disabled, spin, titl
     return (
       <FavoritesGlyph
         color={color || '#FACC15'}
+        size={size}
+        className={`${disabled ? 'opacity-35' : ''} ${spin ? 'bndz-icon8-spin' : ''} ${className}`}
+        title={title}
+      />
+    );
+  }
+
+  if (id === 'bndz_cloud') {
+    return (
+      <BndzCloudGlyph
         size={size}
         className={`${disabled ? 'opacity-35' : ''} ${spin ? 'bndz-icon8-spin' : ''} ${className}`}
         title={title}

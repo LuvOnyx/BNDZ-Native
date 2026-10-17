@@ -742,6 +742,16 @@ export default function WorkspaceToolsTabContent({
                   </div>
                   <div className="mt-2">
                     <Checkbox
+                      label="Show BNDZ Cloud in the tree and sidebar"
+                      checked={localConfig.cloudDriveShowInTree !== false}
+                      onChange={e => updateLocalConfig({ cloudDriveShowInTree: e.target.checked })}
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1 ml-6 max-w-[640px]">
+                      Turn this off and BNDZ Cloud leaves the tree and the sidebar. Your drives are not touched — open them any time from the BNDZ Cloud plugin, or by double-clicking a drive's folder on this PC.
+                    </p>
+                  </div>
+                  <div className="mt-2">
+                    <Checkbox
                       label="Fluid drag stacks (thumbnail fan while dragging files)"
                       checked={localConfig.fluidDragStacks !== false}
                       onChange={e => updateLocalConfig({ fluidDragStacks: e.target.checked })}

@@ -140,7 +140,7 @@ const TAG_KEYS = new Set([
 ]);
 
 const MESH_KEYS = new Set([
-  'meshShowInNavTree', 'meshAutoConnectOnBrowse', 'meshDropStunServers', 'meshDropLanDiscovery',
+  'meshShowInNavTree', 'cloudDriveShowInTree', 'meshAutoConnectOnBrowse', 'meshDropStunServers', 'meshDropLanDiscovery',
   'meshDropTurnUrl', 'meshDropTurnUsername', 'meshDropTurnCredential',
   'meshDropWebLinkBase', 'meshDropSignalingRelayUrl',
 ]);

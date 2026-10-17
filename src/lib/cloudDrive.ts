@@ -127,6 +127,27 @@ export function placementLabel(placement: string): string {
   return placement === 'local' ? 'This PC' : 'Cloud';
 }
 
+/**
+ * Virtual pane path for browsing a running This-PC drive inside the file
+ * list: `/cloud/<driveId>` is the drive root, `/cloud/<driveId>/a/b` a
+ * folder inside it. The backend serves these from the drive's local WebDAV.
+ */
+export function cloudBrowsePath(driveId: string, relPath = ''): string {
+  const rel = relPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  return rel ? `/cloud/${driveId}/${rel}` : `/cloud/${driveId}`;
+}
+
+export function parseCloudBrowsePath(path: string | null | undefined): { driveId: string; relPath: string } | null {
+  if (!path) return null;
+  const m = path.replace(/\\/g, '/').match(/^\/cloud\/([^/]+)(?:\/(.*))?$/);
+  if (!m) return null;
+  return { driveId: m[1], relPath: (m[2] || '').replace(/\/+$/g, '') };
+}
+
+export function isCloudBrowsePath(path: string | null | undefined): boolean {
+  return parseCloudBrowsePath(path) != null;
+}
+
 export function normalizeBase(raw?: string | null): string {
   let s = (raw || '').trim();
   s = s.replace(/^https?:\/\//i, '');

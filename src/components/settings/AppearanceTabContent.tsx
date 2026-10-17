@@ -132,6 +132,11 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           checked={localConfig.commandDeck === true}
           onChange={e => patch({ commandDeck: e.target.checked })}
         />
+        <Checkbox
+          label="Show BNDZ Cloud in the tree and sidebar"
+          checked={localConfig.cloudDriveShowInTree !== false}
+          onChange={e => patch({ cloudDriveShowInTree: e.target.checked })}
+        />
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">
             <div className="text-[12px] font-medium text-white/90">Selection highlight</div>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IPC } from '../../lib/ipcBridge';
 import { Icons8Icon } from '../Icons8Icon';
+import { BndzCloudGlyph } from '../BndzCloudGlyph';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from '../plugins/PluginPanelShell';
 import {
@@ -403,11 +404,29 @@ function CloudDriveBody() {
     }
   };
 
+  const runningCount = drives.filter(d => d.state === 'running').length;
+  const totalGb = drives.reduce((sum, d) => sum + (d.sizeGb || 0), 0);
+
   return (
     <div className="bndz-cloud-stage flex flex-col gap-4 px-4 pb-4">
-      <p className="text-[12px] leading-relaxed text-slate-300/90 m-0">
-        Make a private drive in three steps: name it, pick where it lives, create it. BNDZ does the rest and starts it for you.
-      </p>
+      <div className="bndz-cloud-header">
+        <div className="bndz-cloud-medallion is-hero">
+          <BndzCloudGlyph size={26} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="bndz-cloud-title">BNDZ Cloud</h2>
+          <p className="text-[12px] leading-relaxed text-slate-300/90 m-0">
+            Make a private drive in three steps: name it, pick where it lives, create it. BNDZ does the rest and starts it for you.
+          </p>
+        </div>
+        {drives.length > 0 && (
+          <div className="bndz-cloud-summary" aria-label="Drive summary">
+            <span className="bndz-cloud-badge">{drives.length} {drives.length === 1 ? 'drive' : 'drives'}</span>
+            <span className="bndz-cloud-badge is-quiet">{runningCount} running</span>
+            {totalGb > 0 && <span className="bndz-cloud-badge is-quiet">{totalGb} GB</span>}
+          </div>
+        )}
+      </div>
 
       {hostNote && (
         <div className="bndz-cloud-note">{hostNote}</div>
@@ -612,13 +631,16 @@ function CloudDriveBody() {
 
       {drives.length === 0 ? (
         <PluginEmptyState
-          icon="cloud_drive"
+          icon="bndz_cloud"
           title="No Cloud Drives yet"
           description={nextAction(probe, placement, diskPath)}
         />
       ) : drives.map(drive => (
         <article key={drive.id} className={`bndz-cloud-cartridge is-${drive.placement === 'local' ? 'local' : 'cloud'}`}>
           <div className="bndz-cloud-cartridge-spine" aria-hidden />
+          <div className={`bndz-cloud-medallion is-${drive.state || 'stopped'}`}>
+            <BndzCloudGlyph size={22} />
+          </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`bndz-cloud-lamp is-${drive.state || 'stopped'}`} aria-hidden />
@@ -634,6 +656,12 @@ function CloudDriveBody() {
               {drive.fingerprint ? ` · ${drive.fingerprint}` : ''}
             </p>
             {drive.diskPath && <p className="bndz-cloud-path" title={drive.diskPath}>{drive.diskPath}</p>}
+            {(drive.state === 'creating' || drive.state === 'starting') && (
+              <div className="bndz-cloud-progress" role="status">
+                <span>{drive.message || `${stateLabel(drive.state)}…`}</span>
+                <div className="bndz-cloud-progress-bar" aria-hidden />
+              </div>
+            )}
             <p className="bndz-cloud-next">{driveHint(drive)}</p>
             {drive.state !== 'error' && drive.sshNote && <p className="bndz-cloud-message is-note">{drive.sshNote}</p>}
             <AddressPlate

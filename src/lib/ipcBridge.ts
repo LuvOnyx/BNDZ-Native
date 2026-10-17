@@ -1653,6 +1653,16 @@ export const IPC = {
     return this._cloudDriveMutate('CLOUD_DRIVE_OPEN_EXISTING', { diskPath }, 60000);
   },
 
+  /** Download a file from a browsed drive (/cloud/<id>/...) and open it with its normal app. */
+  cloudDriveOpenFile(driveId: string, relPath: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_cdOpenFile`;
+    return _nativeCall<any>('CLOUD_DRIVE_OPEN_FILE', 'CLOUD_DRIVE_OPEN_FILE_RESULT', id, { id: driveId, relPath }, 120000).then(r => ({
+      ok: r?.ok === true,
+      error: r?.error,
+    }));
+  },
+
   cloudDriveRevealFtpPassword(driveId: string): Promise<{ ok: boolean; password?: string; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_cdFtp`;
@@ -3096,7 +3106,8 @@ export const IPC = {
     if (this.isNative) {
       const norm = normalizePanePath(path);
       const isMesh = norm === '/mesh' || norm.startsWith('/mesh/');
-      const timeoutMs = isMesh ? 90000 : 60000;
+      const isCloud = norm === '/cloud' || norm.startsWith('/cloud/');
+      const timeoutMs = isMesh || isCloud ? 90000 : 60000;
       return dedupeInFlight(`dir:${norm}`, async () => {
         // Cold start: wait for named-pipe host before the first listing races ConnectAsync failures.
         await this.waitForHostReady(8000);
