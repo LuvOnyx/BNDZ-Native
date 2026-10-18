@@ -123,6 +123,7 @@ const UI_KEYS = new Set([
   'animatePanelTransitions', 'interfaceScale', 'lockBrowserZoom', 'applyColors', 'theme',
   'followOsColorScheme', 'adjustToOsLightDarkModeAtStartup',
   'richTransitionAnimations', 'showFolderSizeOnPropertiesTab',
+  'homeWallpaperPath', 'homeWallpaperFit', 'homeWallpaperBlur', 'homeWallpaperDim', 'homeWallpaperMica', 'homeWidgets',
 ]);
 
 const SPATIAL_KEYS = new Set([

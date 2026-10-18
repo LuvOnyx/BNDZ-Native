@@ -26,6 +26,7 @@ import {
 } from '../../lib/appearanceVariants';
 import { SIZE_BAR_STYLE_OPTIONS, type SizeBarStyle, SizeBar } from '../SizeBar';
 import { applySettingsRuntime } from '../../lib/settingsRuntime';
+import { IPC } from '../../lib/ipcBridge';
 import type { AppConfig } from '../../data/configContext';
 
 const FONT_SIZE_OPTIONS = [0, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22];
@@ -136,6 +137,79 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           label="Show BNDZ Cloud in the tree and sidebar"
           checked={localConfig.cloudDriveShowInTree !== false}
           onChange={e => patch({ cloudDriveShowInTree: e.target.checked })}
+        />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Home wallpaper</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Picture behind the Home page (or set it from Home → Customize)</div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm"
+              onClick={() => {
+                void IPC.openFileDialog('Images (*.png;*.jpg;*.jpeg;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files (*.*)|*.*')
+                  .then(picked => {
+                    const p = Array.isArray(picked) ? picked[0] : picked;
+                    if (p) patch({ homeWallpaperPath: p } as Partial<AppConfig>);
+                  })
+                  .catch(() => { /* picker cancelled */ });
+              }}
+            >
+              {(localConfig as any).homeWallpaperPath ? 'Change picture…' : 'Choose a picture…'}
+            </button>
+            {(localConfig as any).homeWallpaperPath ? (
+              <button
+                type="button"
+                className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm"
+                onClick={() => patch({ homeWallpaperPath: '' } as Partial<AppConfig>)}
+              >
+                Remove
+              </button>
+            ) : null}
+            <select
+              className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm outline-none"
+              value={(localConfig as any).homeWallpaperFit || 'fill'}
+              onChange={e => patch({ homeWallpaperFit: e.target.value } as Partial<AppConfig>)}
+            >
+              <option value="fill">Fill the screen</option>
+              <option value="fit">Fit whole picture</option>
+              <option value="stretch">Stretch</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Wallpaper blur</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Softens the picture so cards and text stay clear</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="range" min={0} max={30} step={1}
+              value={Number((localConfig as any).homeWallpaperBlur) || 0}
+              onChange={e => patch({ homeWallpaperBlur: Number(e.target.value) } as Partial<AppConfig>)}
+            />
+            <span className="text-[11px] text-white/60">{Number((localConfig as any).homeWallpaperBlur) || 0}px</span>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Wallpaper darken</div>
+            <div className="text-[10px] text-white/40 mt-0.5">How much black sits over the picture</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="range" min={0} max={85} step={1}
+              value={(localConfig as any).homeWallpaperDim ?? 45}
+              onChange={e => patch({ homeWallpaperDim: Number(e.target.value) } as Partial<AppConfig>)}
+            />
+            <span className="text-[11px] text-white/60">{(localConfig as any).homeWallpaperDim ?? 45}%</span>
+          </div>
+        </div>
+        <Checkbox
+          label="Mica frost on Home cards (tinted see-through over the wallpaper)"
+          checked={(localConfig as any).homeWallpaperMica !== false}
+          onChange={e => patch({ homeWallpaperMica: e.target.checked } as Partial<AppConfig>)}
         />
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">

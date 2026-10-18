@@ -3,6 +3,7 @@ import {
   getFloatingTooltip,
   hideFloatingTooltip,
   setHoverPending,
+  setTooltipShiftRequirement,
   updateHoverPendingPosition,
 } from './floatingTooltip';
 import { isIconQueueScrolling } from './iconRequestQueue';
@@ -101,6 +102,10 @@ export function bindFloatingTooltipHandlers(
 } {
   const theme = (config.hoverTooltipTheme as HoverTooltipTheme) || 'glass';
   const requireShift = isShiftRequiredForTooltips(config);
+  // The floating-tooltip singleton gates its reveal on Shift too — keep it
+  // in step with this config so "only while Shift is held" off really
+  // means plain-hover tooltips (Explorer-style).
+  setTooltipShiftRequirement(requireShift);
   const hoverBox = !!config.showHoverBox;
   const surface = opts?.surface ?? 'filename';
   // Settings -> Tips timing / tooltip zoom

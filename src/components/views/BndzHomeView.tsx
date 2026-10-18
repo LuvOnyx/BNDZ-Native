@@ -13,6 +13,19 @@ import { resolveUserPathToPane, formatAddressBarPath } from '../../lib/displayPa
 import { toPanePath } from '../../lib/shellPaths';
 import { getGhostTrail, subscribeGhostTrail, type GhostTrailEntry } from '../../lib/ghostTrail';
 import { loadSmartCollections } from '../../lib/smartCollections';
+import { toVirtualStreamUrl } from '../../lib/pathUtils';
+
+/** Home dashboard cards the user can show/hide (Home -> Customize). */
+export const HOME_WIDGETS: Array<{ id: string; label: string }> = [
+  { id: 'clock', label: 'Clock and date' },
+  { id: 'workspaces', label: 'Workspaces' },
+  { id: 'frequent', label: 'Most accessed' },
+  { id: 'focus', label: 'Focus stage (current item)' },
+  { id: 'continuum', label: 'Home rail (recent files)' },
+  { id: 'places', label: 'Places and drives' },
+  { id: 'trail', label: 'Session trail' },
+];
+export const DEFAULT_HOME_WIDGETS = HOME_WIDGETS.map(w => w.id);
 
 type ContinuumItem = {
   id?: string;
@@ -61,6 +74,9 @@ type Props = {
   onQuickLook?: (items: Array<{ path: string; name: string; type?: string }>, startIndex: number) => void;
   focusStage?: FocusStage;
   navigationHistory?: NavVisit[];
+  /** App config (wallpaper + which Home cards show) and its updater. */
+  config?: Record<string, any>;
+  updateConfig?: (patch: Record<string, any>) => void;
 };
 
 function placeLetter(name: string, explicit?: string): string {
@@ -114,6 +130,8 @@ export default function BndzHomeView({
   onQuickLook,
   focusStage,
   navigationHistory = [],
+  config,
+  updateConfig,
 }: Props) {
   const reduceMotion = useReducedMotion();
   const omniboxRef = useRef<HTMLInputElement>(null);
@@ -135,6 +153,37 @@ export default function BndzHomeView({
   const [mostOpened, setMostOpened] = useState<ContinuumItem[]>([]);
   const [deckSyncing, setDeckSyncing] = useState(false);
   const fingerprintRef = useRef<string | undefined>(undefined);
+
+  // --- Wallpaper + dashboard layout (user-customizable, persisted in config) ---
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 15000);
+    return () => clearInterval(t);
+  }, []);
+  const clockTime = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(now),
+    [now],
+  );
+  const wpPath = typeof config?.homeWallpaperPath === 'string' ? config.homeWallpaperPath : '';
+  const wpFit = (typeof config?.homeWallpaperFit === 'string' ? config.homeWallpaperFit : 'fill');
+  const wpBlur = Math.min(30, Math.max(0, Number(config?.homeWallpaperBlur) || 0));
+  const wpDim = Math.min(85, Math.max(0, Number(config?.homeWallpaperDim ?? 45) || 0));
+  const wpMica = config?.homeWallpaperMica !== false;
+  const wpUrl = wpPath ? toVirtualStreamUrl(wpPath) : '';
+  const widgetIds: string[] = Array.isArray(config?.homeWidgets) ? config.homeWidgets : DEFAULT_HOME_WIDGETS;
+  const showWidget = useCallback((id: string) => widgetIds.includes(id), [widgetIds]);
+  const toggleWidget = useCallback((id: string) => {
+    const next = widgetIds.includes(id) ? widgetIds.filter(w => w !== id) : [...widgetIds, id];
+    updateConfig?.({ homeWidgets: next });
+  }, [widgetIds, updateConfig]);
+  const pickWallpaper = useCallback(async () => {
+    try {
+      const picked = await IPC.openFileDialog('Images (*.png;*.jpg;*.jpeg;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files (*.*)|*.*');
+      const p = Array.isArray(picked) ? picked[0] : picked;
+      if (p) updateConfig?.({ homeWallpaperPath: p });
+    } catch { /* picker cancelled */ }
+  }, [updateConfig]);
 
   const homeDate = useMemo(() => {
     const now = new Date();
@@ -437,7 +486,7 @@ export default function BndzHomeView({
 
   return (
     <div
-      className="bndz-home"
+      className={`bndz-home${wpUrl ? ' has-wallpaper' : ''}${wpUrl && wpMica ? ' is-mica' : ''}`}
       data-bndz-surface
       data-spatial={spatialArmed ? '1' : '0'}
       style={{ ['--home-pulse' as string]: String(pulseWarmth) }}
@@ -445,6 +494,22 @@ export default function BndzHomeView({
       <div className="bndz-home-atmosphere" aria-hidden />
       <div className="bndz-home-mesh" aria-hidden />
       <div className="bndz-home-grain" aria-hidden />
+      {wpUrl && (
+        <div className="bndz-home-wallpaper" aria-hidden>
+          <img
+            src={wpUrl}
+            alt=""
+            draggable={false}
+            style={{
+              objectFit: wpFit === 'fit' ? 'contain' : wpFit === 'stretch' ? 'fill' : 'cover',
+              filter: wpBlur > 0 ? `blur(${wpBlur}px)` : undefined,
+              transform: wpBlur > 0 ? `scale(${1 + wpBlur / 140})` : undefined,
+            }}
+          />
+          <div className="bndz-home-wallpaper-dim" style={{ opacity: wpDim / 100 }} />
+          {wpMica && <div className="bndz-home-wallpaper-mica" />}
+        </div>
+      )}
 
       <div className="bndz-home-deck">
         <header className="bndz-home-hero">
@@ -458,18 +523,106 @@ export default function BndzHomeView({
               <span className="bndz-home-wordmark">BNDZ</span>
               <span className="bndz-home-tag">Home</span>
             </motion.div>
-            <motion.div
-              className="bndz-home-date"
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              aria-label={`${homeDate.weekday}, ${homeDate.monthDay}, ${homeDate.year}`}
-            >
-              <span className="bndz-home-date-weekday">{homeDate.weekday}</span>
-              <span className="bndz-home-date-day">{homeDate.monthDay}</span>
-              <span className="bndz-home-date-year">{homeDate.year}</span>
-            </motion.div>
+            <div className="bndz-home-hero-side">
+              {showWidget('clock') && (
+                <motion.div
+                  className="bndz-home-date"
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                  aria-label={`${homeDate.weekday}, ${homeDate.monthDay}, ${homeDate.year}`}
+                >
+                  <span className="bndz-home-clock-time">{clockTime}</span>
+                  <span className="bndz-home-date-weekday">{homeDate.weekday}</span>
+                  <span className="bndz-home-date-day">{homeDate.monthDay}</span>
+                  <span className="bndz-home-date-year">{homeDate.year}</span>
+                </motion.div>
+              )}
+              <button
+                type="button"
+                className="bndz-home-customize-btn"
+                onClick={() => setCustomizeOpen(o => !o)}
+                aria-expanded={customizeOpen}
+              >
+                Customize
+              </button>
+            </div>
           </div>
+          {customizeOpen && (
+            <div className="bndz-home-customize">
+              <div className="bndz-home-customize-group">
+                <span className="bndz-home-customize-title">Wallpaper</span>
+                <div className="bndz-home-customize-row">
+                  <button type="button" className="bndz-home-chip" onClick={() => void pickWallpaper()}>
+                    {wpPath ? 'Change picture…' : 'Choose a picture…'}
+                  </button>
+                  {wpPath && (
+                    <button type="button" className="bndz-home-chip" onClick={() => updateConfig?.({ homeWallpaperPath: '' })}>
+                      Remove
+                    </button>
+                  )}
+                  {wpPath && <span className="bndz-home-customize-path" title={wpPath}>{wpPath.split(/[\\/]/).pop()}</span>}
+                </div>
+                {wpPath && (
+                  <>
+                    <div className="bndz-home-customize-row" role="group" aria-label="Wallpaper fit">
+                      <span className="bndz-home-customize-label">Fit</span>
+                      {([['fill', 'Fill the screen'], ['fit', 'Fit whole picture'], ['stretch', 'Stretch']] as const).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`bndz-home-chip${wpFit === id ? ' is-active' : ''}`}
+                          aria-pressed={wpFit === id}
+                          onClick={() => updateConfig?.({ homeWallpaperFit: id })}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="bndz-home-customize-row">
+                      <span className="bndz-home-customize-label">Blur</span>
+                      <input
+                        type="range" min={0} max={30} step={1} value={wpBlur}
+                        onChange={e => updateConfig?.({ homeWallpaperBlur: Number(e.target.value) })}
+                        aria-label="Wallpaper blur"
+                      />
+                      <span className="bndz-home-customize-value">{wpBlur}px</span>
+                    </div>
+                    <div className="bndz-home-customize-row">
+                      <span className="bndz-home-customize-label">Darken</span>
+                      <input
+                        type="range" min={0} max={85} step={1} value={wpDim}
+                        onChange={e => updateConfig?.({ homeWallpaperDim: Number(e.target.value) })}
+                        aria-label="Wallpaper darken"
+                      />
+                      <span className="bndz-home-customize-value">{wpDim}%</span>
+                    </div>
+                    <label className="bndz-home-customize-check">
+                      <input
+                        type="checkbox" checked={wpMica}
+                        onChange={e => updateConfig?.({ homeWallpaperMica: e.target.checked })}
+                      />
+                      Mica frost on cards (tinted see-through)
+                    </label>
+                  </>
+                )}
+              </div>
+              <div className="bndz-home-customize-group">
+                <span className="bndz-home-customize-title">Cards on this page</span>
+                <div className="bndz-home-customize-checks">
+                  {HOME_WIDGETS.map(w => (
+                    <label key={w.id} className="bndz-home-customize-check">
+                      <input
+                        type="checkbox" checked={showWidget(w.id)}
+                        onChange={() => toggleWidget(w.id)}
+                      />
+                      {w.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           <motion.p
             className="bndz-home-lede"
             initial={reduceMotion ? false : { opacity: 0 }}
@@ -545,6 +698,7 @@ export default function BndzHomeView({
           </AnimatePresence>
         </section>
 
+        {showWidget('workspaces') && (
         <section className="bndz-home-workspaces" aria-label="Workspaces">
           <div className="bndz-home-section-label">
             <span>Workspaces</span>
@@ -573,8 +727,9 @@ export default function BndzHomeView({
             />
           </div>
         </section>
+        )}
 
-        {(mostOpened.length > 0 || frequentFromNav.length > 0) && (
+        {showWidget('frequent') && (mostOpened.length > 0 || frequentFromNav.length > 0) && (
           <section className="bndz-home-frequent" aria-label="Most accessed">
             <div className="bndz-home-section-label">
               <span>Most accessed</span>
@@ -605,7 +760,7 @@ export default function BndzHomeView({
           </section>
         )}
 
-        {stage && (
+        {showWidget('focus') && stage && (
           <section className="bndz-home-focus" aria-label="Focus stage">
             <motion.div
               className="bndz-home-focus-plate"
@@ -634,6 +789,7 @@ export default function BndzHomeView({
           </section>
         )}
 
+        {showWidget('continuum') && (
         <section className="bndz-home-continuum" aria-label="Home">
           <div className="bndz-home-section-label">
             <span>Home</span>
@@ -754,7 +910,9 @@ export default function BndzHomeView({
             </div>
           )}
         </section>
+        )}
 
+        {showWidget('places') && (
         <section className="bndz-home-places" aria-label="Places">
           <div className="bndz-home-section-label">
             <span>Places</span>
@@ -815,8 +973,9 @@ export default function BndzHomeView({
             })}
           </div>
         </section>
+        )}
 
-        {ghost.length > 0 && (
+        {showWidget('trail') && ghost.length > 0 && (
           <section className="bndz-home-ghost" aria-label="Session trail">
             <div className="bndz-home-section-label">
               <span>Session trail</span>

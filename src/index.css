@@ -11750,6 +11750,143 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   overflow: auto;
 }
 
+/* --- Home wallpaper (user picture) + Mica frost ------------------------- */
+.bndz-home-wallpaper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.bndz-home-wallpaper img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+.bndz-home-wallpaper-dim {
+  position: absolute;
+  inset: 0;
+  background: #05060a;
+}
+.bndz-home-wallpaper-mica {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--accent, #7e22ce) 13%, transparent) 0%, transparent 52%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.16), transparent 40%);
+  backdrop-filter: saturate(1.35);
+}
+.bndz-home.has-wallpaper .bndz-home-atmosphere { opacity: 0.22; }
+.bndz-home.has-wallpaper .bndz-home-mesh { opacity: 0.05; }
+.bndz-home.has-wallpaper .bndz-home-grain { opacity: 0.02; }
+
+/* Mica frost: cards turn tinted see-through over the wallpaper. */
+.bndz-home.is-mica .bndz-home-omnibox,
+.bndz-home.is-mica .bndz-home-rail-item,
+.bndz-home.is-mica .bndz-home-place,
+.bndz-home.is-mica .bndz-home-frequent-chip,
+.bndz-home.is-mica .bndz-home-focus-plate,
+.bndz-home.is-mica .bndz-home-ghost-chip,
+.bndz-home.is-mica .bndz-home-peek-tile,
+.bndz-home.is-mica .bndz-ws-launch-card,
+.bndz-home.is-mica .bndz-home-customize {
+  background: color-mix(in srgb, #14151b 56%, transparent);
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* --- Home hero side: live clock + Customize ---------------------------- */
+.bndz-home-hero-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.bndz-home-clock-time {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #f2f4f8;
+}
+.bndz-home-customize-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #c9ced8;
+  font-size: 11px;
+  cursor: pointer;
+}
+.bndz-home-customize-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+.bndz-home-customize {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--home-line);
+  border-radius: 12px;
+  background: rgba(16, 17, 22, 0.72);
+}
+.bndz-home-customize-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 240px;
+}
+.bndz-home-customize-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #aeb4c0;
+}
+.bndz-home-customize-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bndz-home-customize-label {
+  font-size: 11px;
+  color: #9aa1ad;
+  width: 44px;
+}
+.bndz-home-customize-value { font-size: 11px; color: #c9ced8; min-width: 34px; }
+.bndz-home-customize-path {
+  font-size: 11px;
+  color: #9aa1ad;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bndz-home-customize-row input[type="range"] { width: 130px; accent-color: var(--home-accent); }
+.bndz-home-customize-checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 14px;
+}
+.bndz-home-customize-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #d5d9e0;
+  cursor: pointer;
+}
+.bndz-home-customize-check input { accent-color: var(--home-accent); }
+.bndz-home-chip.is-active {
+  border-color: color-mix(in srgb, var(--home-accent) 65%, transparent);
+  color: #fff;
+  background: color-mix(in srgb, var(--home-accent) 22%, rgba(0, 0, 0, 0.25));
+}
+
 .bndz-home-hero {
   display: flex;
   flex-direction: column;
@@ -19846,13 +19983,16 @@ html.theme-light .bndz-xfer-toast-track {
   content: "";
   display: block;
   height: 100%;
-  width: 28%;
-  background: var(--accent, #0078d4);
-  animation: bndz-list-busy-rail 0.9s linear infinite;
-}
-@keyframes bndz-list-busy-rail {
-  from { transform: translateX(-130%); }
-  to { transform: translateX(380%); }
+  width: 100%;
+  /* Same breathing bar as a busy tab — one calm language for "working". */
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent, #0078d4) 85%, #fff),
+    transparent
+  );
+  transform-origin: center;
+  animation: bndz-tab-busy-pulse 1.2s ease-in-out infinite;
 }
 
 /* â”€â”€ Branching Time â€” folder timeline craft (Launch Ready A3) â”€â”€ */
@@ -21382,6 +21522,7 @@ html.theme-light .bndz-omni-suggest {
   color: #e8f4ff;
   background: color-mix(in srgb, var(--accent, #0078d4) 72%, #0b3a5c);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  animation: bndz-tab-busy-dot 1s ease-in-out infinite;
 }
 /* Explorer-snap list feel: shorter hover/selection wash, no soft scroll easing */
 .bndz-file-list-scroll,

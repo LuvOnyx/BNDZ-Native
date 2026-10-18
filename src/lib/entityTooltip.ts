@@ -15,6 +15,7 @@ import { showPhotoDataInHoverBox } from './tooltipSettings';
 import { getExtendedMetadataCached } from './extendedMetadataCache';
 import {
   bindFloatingTooltipHandlers,
+  isShiftRequiredForTooltips,
   shouldShowTooltipForEntity,
   shouldShowTooltipOnSurface,
   type TooltipSurface,
@@ -280,8 +281,10 @@ export function createEntityTooltipHandlers(
     if (!isHovering || !ev) return;
     const clippedTips = !!config.showTipsForClippedTreeAndListItems;
     const clipped = isPointerTargetClipped(ev.target);
-    // Clipped-name tips can show without Shift; rich tips still require Shift.
-    if (!optsArm?.forceImmediate && !isShiftKeyHeld() && !(clippedTips && clipped)) return;
+    // Rich tips require Shift only when the user turned that setting on;
+    // otherwise a plain hover arms them, like Explorer. Clipped-name tips
+    // can always show without Shift.
+    if (!optsArm?.forceImmediate && isShiftRequiredForTooltips(config) && !isShiftKeyHeld() && !(clippedTips && clipped)) return;
     if (!shouldShowTooltipOnSurface(config, surface)) return;
 
     const generation = ++loadGeneration;
@@ -289,8 +292,9 @@ export function createEntityTooltipHandlers(
     if (generation !== loadGeneration || !isHovering) return;
     if (!content) return;
 
-    // When only the clipped tip is firing, prefer a lean name tip (no Shift required).
-    const clippedImmediate = clippedTips && clipped && !isShiftKeyHeld();
+    // When only the clipped tip is firing (Shift mode, Shift not held),
+    // prefer a lean name tip instead of the full rich tip.
+    const clippedImmediate = clippedTips && clipped && isShiftRequiredForTooltips(config) && !isShiftKeyHeld();
     const tipContent = clippedImmediate
       ? {
           title: String(entity.name || content.title),
@@ -326,13 +330,13 @@ export function createEntityTooltipHandlers(
       activeEntityHover = hoverController;
       const clippedTips = !!config.showTipsForClippedTreeAndListItems;
       const clipped = isPointerTargetClipped(e.target);
-      if (isShiftKeyHeld()) void tryArm(e);
+      if (isShiftKeyHeld() || !isShiftRequiredForTooltips(config)) void tryArm(e);
       else if (clippedTips && clipped) void tryArm(e, { forceImmediate: true });
     },
     onMouseMove: (e: React.MouseEvent) => {
       lastEvent = e;
       if (!cachedContent) return;
-      if (!isShiftKeyHeld() && !(config.showTipsForClippedTreeAndListItems && isPointerTargetClipped(e.target))) return;
+      if (!isShiftKeyHeld() && isShiftRequiredForTooltips(config) && !(config.showTipsForClippedTreeAndListItems && isPointerTargetClipped(e.target))) return;
       bindFloatingTooltipHandlers(cachedContent, config, { surface, context }).onMouseMove(e);
     },
     onMouseLeave: () => disarm(),

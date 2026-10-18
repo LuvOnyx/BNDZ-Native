@@ -45,6 +45,13 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
   },
   {
     tab: 'Appearance',
+    label: 'Home wallpaper',
+    key: 'homeWallpaperPath',
+    description: 'Pick a picture to sit behind the Home page, with fit, blur, darken, and Mica frost controls. The same controls live on Home itself under Customize.',
+    keywords: ['wallpaper', 'background', 'home', 'picture', 'image', 'mica', 'blur', 'dashboard', 'customize home'],
+  },
+  {
+    tab: 'Appearance',
     label: 'Selection highlight extent',
     key: 'listSelectionChrome',
     description: 'Paint selection on the full row, name only, or through the second column',

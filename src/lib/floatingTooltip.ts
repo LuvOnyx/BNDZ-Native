@@ -50,9 +50,19 @@ function clearVisibleTooltip() {
   notify();
 }
 
+/**
+ * Whether tooltips are in "only while Shift is held" mode. Driven from the
+ * user's setting each time tooltip handlers bind (tooltipSettings). Default
+ * true preserves the legacy behavior until a config says otherwise.
+ */
+let shiftRequiredForTooltips = true;
+export function setTooltipShiftRequirement(required: boolean): void {
+  shiftRequiredForTooltips = required;
+}
+
 function revealPending() {
   if (!hoverPending) return;
-  const canShow = hoverPending.showImmediately || isShiftKeyHeld();
+  const canShow = hoverPending.showImmediately || isShiftKeyHeld() || !shiftRequiredForTooltips;
   if (!canShow) {
     clearVisibleTooltip();
     return;
@@ -107,7 +117,7 @@ export function setHoverPending(
 export function updateHoverPendingPosition(x: number, y: number) {
   if (!hoverPending) return;
   hoverPending = { ...hoverPending, x, y };
-  if (!hoverPending.showImmediately && !isShiftKeyHeld()) {
+  if (!hoverPending.showImmediately && !isShiftKeyHeld() && shiftRequiredForTooltips) {
     clearVisibleTooltip();
     return;
   }

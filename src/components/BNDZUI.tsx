@@ -13859,13 +13859,15 @@ ${classified.detail}`,
           {!isPaneLoading && isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading)) && (
              <div className="flex flex-col items-center justify-center h-full gap-3 text-amber-400/80 min-h-[200px]">
                <Icons8Icon id="loading" size={22} spin />
-               <span className="text-[11px]">Searching{globalSearchEngine === 'indexed' ? ' local cache' : config.enableEverythingSearch !== false ? ' with Everything' : ''}...</span>
+               <span className="flex items-center gap-2 text-[11px]"><span className="bndz-list-skeleton-pulse" />Searching{globalSearchEngine === 'indexed' ? ' local cache' : config.enableEverythingSearch !== false ? ' with Everything' : ''}...</span>
              </div>
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzHomePath(normPanePath) && (
             <BndzHomeView
               onNavigate={p => setCurrentPath(p, pane.id)}
               navigationHistory={config.navigationHistory || []}
+              config={config}
+              updateConfig={updateConfig}
               onOpenPath={(p, meta) => {
                 const panePathNorm = normalizePanePath(toPanePath(p));
                 const isDir = meta?.type === 'directory'
