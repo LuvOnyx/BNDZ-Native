@@ -158,12 +158,12 @@
     <AdditionalFiles Include="NativeMethods.txt" />
   </ItemGroup>
 
-  <!-- Optional RAGE (.ydr/.ybn/…) mesh preview via CodeWalker.Core (cloned under external/). -->
-  <PropertyGroup Condition="Exists('..\external\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj')">
+  <!-- RAGE (.ydr/.ybn/…) mesh preview via CodeWalker.Core (MIT; vendored under libs/). -->
+  <PropertyGroup>
     <DefineConstants>$(DefineConstants);BNDZ_HAS_CODEWALKER</DefineConstants>
   </PropertyGroup>
-  <ItemGroup Condition="Exists('..\external\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj')">
-    <ProjectReference Include="..\external\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj" />
+  <ItemGroup>
+    <ProjectReference Include="..\libs\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj" />
   </ItemGroup>
 
   <!--
@@ -178,39 +178,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="LauncherShellWindow.xaml.cs" />
-    <Compile Remove="Services\BndzActivationSound.cs" />
-    <Compile Remove="Services\BndzBrandingText.cs" />
-    <Compile Remove="Services\BndzFlowLauncherService.cs" />
-    <Compile Remove="Services\BndzGeminiClient.cs" />
-    <Compile Remove="Services\BndzHostCoordinator.cs" />
-    <Compile Remove="Services\BndzInstalledAppsIndex.cs" />
-    <Compile Remove="Services\BndzLauncherAiChatStore.cs" />
-    <Compile Remove="Services\BndzLauncherIpcService.cs" />
-    <Compile Remove="Services\BndzLauncherPendingActions.cs" />
-    <Compile Remove="Services\BndzLauncherSettingsBridge.cs" />
-    <Compile Remove="Services\BndzLauncherShellService.cs" />
-    <Compile Remove="Services\BndzNoteStore.cs" />
-    <Compile Remove="Services\BndzQuickLinkStore.cs" />
-    <Compile Remove="Services\BndzShellQueryClient.cs" />
-    <Compile Remove="Services\BndzSnippetStore.cs" />
-    <Compile Remove="Services\BndzWindowLayoutService.cs" />
-    <Compile Remove="Services\FilePreviewMetaService.cs" />
-    <Compile Remove="Services\LauncherCommandService.cs" />
-    <Compile Remove="Services\LauncherShellBridge.cs" />
-    <Compile Remove="Services\LauncherSystemCommands.cs" />
-    <Compile Remove="Services\LauncherWindowCommands.cs" />
-    <Compile Remove="Services\BndzShellExecute.cs" />
-    <Compile Remove="Services\BndzFileManagerBridge.cs" />
-    <Page Remove="LauncherShellWindow.xaml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Remove="Assets\BNDZLauncher\**\*" />
-    <Content Remove="Assets\launcher-ui\**\*" />
   </ItemGroup>
 
   <ItemGroup>

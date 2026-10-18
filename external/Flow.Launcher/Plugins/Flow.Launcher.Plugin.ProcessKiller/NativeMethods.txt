@@ -1,7 +1,0 @@
-﻿QueryFullProcessImageName
-OpenProcess
-EnumWindows
-GetWindowTextLength
-GetWindowText
-IsWindowVisible
-GetWindowThreadProcessId

@@ -140,16 +140,10 @@ function Ensure-BndzShellMsixAssets {
 Write-Host "==> MSIX tile assets" -ForegroundColor Cyan
 Ensure-BndzShellMsixAssets
 
-# RAGE (.ydr/.ybn/…) preview depends on CodeWalker.Core (MIT) under external/.
-$cwProj = Join-Path $root "external\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj"
+# RAGE (.ydr/.ybn/…) preview uses CodeWalker.Core (MIT), vendored in this repo under libs/.
+$cwProj = Join-Path $root "libs\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj"
 if (-not (Test-Path $cwProj)) {
-    Write-Host "==> Cloning CodeWalker.Core (sparse) for RAGE model preview" -ForegroundColor Cyan
-    $cwRoot = Join-Path $root "external\CodeWalker"
-    New-Item -ItemType Directory -Force -Path (Join-Path $root "external") | Out-Null
-    git clone --depth 1 --filter=blob:none --sparse https://github.com/dexyfex/CodeWalker.git $cwRoot
-    Push-Location $cwRoot
-    git sparse-checkout set CodeWalker.Core
-    Pop-Location
+    throw "CodeWalker.Core is missing under libs\CodeWalker - it ships inside this repo, so restore it from git."
 }
 
 Write-Host "==> OpenPencil engine host" -ForegroundColor Cyan
