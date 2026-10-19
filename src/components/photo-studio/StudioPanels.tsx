@@ -185,8 +185,8 @@ export function StudioPanels(props: Props): React.ReactElement {
   const qa = props.quickAdjust;
   const setQa = (patch: Partial<QuickAdjust>) => props.onQuickAdjust({ ...qa, ...patch });
 
-  const isAdjustment = activeLayer?.content.kind === 'adjustment';
-  const isRasterLike = activeLayer && (activeLayer.content.kind === 'raster' || activeLayer.content.kind === 'smart');
+  const isAdjustment = activeLayer?.content?.kind === 'adjustment';
+  const isRasterLike = activeLayer && (activeLayer.content?.kind === 'raster' || activeLayer.content?.kind === 'smart');
 
   const fxItems = activeLayer?.effects.items ?? [];
   const findFx = (kind: string) => fxItems.find(e => e.kind === kind);

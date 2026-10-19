@@ -546,7 +546,7 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
   const activeRaster = useCallback((): { layer: Layer; obj: FObj } | null => {
     const id = docRef.current.activeLayerId as LayerId | null;
     if (id == null) return null;
-    const layer = findLayer(docRef.current.layers, id);
+    const layer = findLayer(docRef.current.layers, id)?.layer;
     const obj = objByLayerRef.current.get(id);
     if (!layer || !obj || layer.content.kind !== 'raster') return null;
     return { layer, obj };
@@ -727,7 +727,8 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
     if (parent) parent.add(fresh);
     else canvas.add(fresh);
     objByLayerRef.current.set(obj.__layerId!, fresh as FObj);
-    applyLayerProps(findLayer(docRef.current.layers, obj.__layerId!)!, fresh as FObj);
+    const ownerLayer = findLayer(docRef.current.layers, obj.__layerId!)?.layer;
+    if (ownerLayer) applyLayerProps(ownerLayer, fresh as FObj);
     if (penRef.current?.targetId === obj.__layerId) rebuildPenOverlay();
     canvas.requestRenderAll();
   }, [applyLayerProps, rebuildPenOverlay]);
@@ -1283,7 +1284,10 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
 
   /* --------------------------- layers panel wiring -------------------------- */
 
-  const layerById = (id: LayerId): Layer | null => findLayer(docRef.current.layers, id);
+  // findLayer returns a { layer, path } result — always unwrap .layer here.
+  // (Treating the result as the Layer itself hands panels an object with no
+  // content, which is what crashed the studio on open.)
+  const layerById = (id: LayerId): Layer | null => findLayer(docRef.current.layers, id)?.layer ?? null;
 
   const panelCallbacks = {
     onSelect: (id: LayerId, additive: boolean) => setActive(id, additive),
