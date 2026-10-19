@@ -11791,7 +11791,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
 .bndz-home.is-mica .bndz-home-peek-tile,
 .bndz-home.is-mica .bndz-ws-launch-card,
 .bndz-home.is-mica .bndz-home-card {
-  background: color-mix(in srgb, #14151b 56%, transparent);
+  background: color-mix(in srgb, var(--bndz-surface-panel) 62%, transparent);
   backdrop-filter: blur(14px) saturate(1.5);
   -webkit-backdrop-filter: blur(14px) saturate(1.5);
   border-color: rgba(255, 255, 255, 0.1);
@@ -11859,8 +11859,8 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
    them (the wallpaper, or the app's own atmosphere when no picture is set). */
 .bndz-home.is-mica .bndz-home-card {
   background: linear-gradient(168deg,
-    color-mix(in srgb, var(--accent, #7e22ce) 7%, rgba(20, 21, 27, 0.52)),
-    color-mix(in srgb, #14151b 52%, transparent) 60%);
+    color-mix(in srgb, var(--accent, #7e22ce) 7%, color-mix(in srgb, var(--bndz-surface-panel) 55%, transparent)),
+    color-mix(in srgb, var(--bndz-surface-panel) 55%, transparent) 60%);
   backdrop-filter: blur(18px) saturate(1.55);
   -webkit-backdrop-filter: blur(18px) saturate(1.55);
   border-color: rgba(255, 255, 255, 0.11);

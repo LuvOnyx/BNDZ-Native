@@ -10,7 +10,11 @@ export function isWorkspaceTextInputFocused(): boolean {
 /** Workspace surface is visible and in the active pane (not hidden by another tab layout). */
 export function isWorkspaceSurfaceLive(surface: HTMLElement | null): boolean {
   if (!surface) return false;
-  if (surface.offsetParent === null) return false;
+  if (!surface.isConnected) return false;
+  // NOTE: do not gate on offsetParent — it is null for position:fixed
+  // surfaces and under display:contents ancestors even when the surface is
+  // fully visible, which silently killed every workspace shortcut (Delete,
+  // Ctrl+Z, …). A zero-size rect already covers display:none ancestors.
   const rect = surface.getBoundingClientRect();
   if (rect.width < 2 || rect.height < 2) return false;
   const pane = surface.closest('[data-list-pane-id]');

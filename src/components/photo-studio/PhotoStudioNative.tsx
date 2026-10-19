@@ -843,10 +843,20 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
       }
     })();
 
+    let lastW = 0;
+    let lastH = 0;
     const onResize = () => {
       const wrap = wrapRef.current;
       if (!wrap) return;
-      canvas.setDimensions({ width: wrap.clientWidth, height: wrap.clientHeight });
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      // Guard: resizing the canvas can itself nudge layout and re-fire the
+      // observer; without this, the studio sat in a ResizeObserver loop
+      // ("loop completed with undelivered notifications") burning CPU.
+      if (Math.abs(w - lastW) < 2 && Math.abs(h - lastH) < 2) return;
+      lastW = w;
+      lastH = h;
+      canvas.setDimensions({ width: w, height: h });
       canvas.requestRenderAll();
     };
     onResize();

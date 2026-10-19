@@ -469,7 +469,7 @@ export default function BndzHomeView({
 
   return (
     <div
-      className={`bndz-home${wpUrl ? ' has-wallpaper' : ''}${wpUrl && wpMica ? ' is-mica' : ''}`}
+      className={`bndz-home${wpUrl ? ' has-wallpaper' : ''}${wpMica ? ' is-mica' : ''}`}
       data-bndz-surface
       data-spatial={spatialArmed ? '1' : '0'}
       style={{ ['--home-pulse' as string]: String(pulseWarmth) }}
