@@ -149,7 +149,7 @@ import OmnibarCommandHub from './OmnibarCommandHub';
 import { matchOmnibarCommands, looksLikeOmnibarPath } from '../lib/omnibarCommands';
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
-// Mesh Drop (LAN transfer UI + terminal log) only loads when opened.
+// Drop Share (LAN transfer UI + terminal log) only loads when opened.
 const MeshDropDialog = lazy(() => import('./meshdrop/MeshDropDialog'));
 import LanShareDialog from './lanshare/LanShareDialog';
 import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
@@ -1807,7 +1807,7 @@ export default function BNDZUI() {
   const installedPluginIdSet = React.useMemo(() => new Set(installedPluginIds), [installedPluginIds]);
 
   const openBottomPlugin = React.useCallback((pluginId: string, launch?: BottomPluginLaunchContext) => {
-    // Mesh Drop is a dialog, not a bottom plugin -- never open a phantom tab.
+    // Drop Share is a dialog, not a bottom plugin -- never open a phantom tab.
     if (pluginId === 'mesh-drop') {
       const paths = launch?.paths?.filter(Boolean) ?? [];
       setMeshDropPaths(paths);
@@ -4299,8 +4299,18 @@ export default function BNDZUI() {
         || target?.closest?.('.bndz-omni-filter, [data-omni-filter]')
         || ae?.closest?.('.bndz-omni-filter, [data-omni-filter]')
       );
-      const isInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
-        || ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement;
+      // Only TEXT-editing fields keep native Ctrl+Z. A focused checkbox,
+      // slider, radio or select has no text to undo — treating it as an input
+      // used to silently swallow the file manager's undo shortcut.
+      const isTextField = (el: HTMLElement | null | undefined): boolean => {
+        if (!el) return false;
+        if (el instanceof HTMLTextAreaElement) return true;
+        if (el instanceof HTMLInputElement) {
+          return /^(text|search|url|tel|password|email|number)$/.test(el.type || 'text');
+        }
+        return false;
+      };
+      const isInput = isTextField(target) || isTextField(ae);
       const isContentEdit = !!(target?.isContentEditable || ae?.isContentEditable);
       // Real editors (rename, dialogs, contenteditable) keep native text undo.
       // Omni filter + file list yield to Action Log undo (FM safety net).
@@ -8117,10 +8127,10 @@ ${classified.detail}`,
         : route.kind === 'mesh-download' ? 'Downloading'
         : route.kind === 'mesh-relay' ? 'Relaying'
         : route.kind === 'mesh-replicate' ? (meshOp === 'move' ? 'Moving' : 'Copying')
-        : isMeshDropSend ? 'Mesh Drop'
+        : isMeshDropSend ? 'Drop Share'
         : op === 'copy' ? 'Copying' : 'Moving';
       if (isMeshDropSend) {
-        // Mesh Drop opens the pairing dialog -- no fake progress toast.
+        // Drop Share opens the pairing dialog -- no fake progress toast.
         dismissToast(`xfer-${opId}`);
       }
 
@@ -8131,7 +8141,7 @@ ${classified.detail}`,
           dismissToast(`xfer-${opId}`);
           pushToast({ kind: 'error', title: `${verb} failed`, message: result.error || label });
         } else if (isMeshDropSend) {
-          pushToast({ kind: 'info', title: 'Mesh Drop', message: 'Pairing dialog opened -- share the Mesh Code with your peer.' });
+          pushToast({ kind: 'info', title: 'Drop Share', message: 'Pairing dialog opened -- share the Mesh Code with your peer.' });
         }
         return;
       }

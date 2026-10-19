@@ -21,7 +21,7 @@ type ToolTab = 'cloud-drive' | 'remote-mesh' | 'live-mirror' | 'folder-sync' | '
 const TOOL_TABS: { id: ToolTab; label: string; icon: string; desc: string }[] = [
   { id: 'cloud-drive', label: 'BNDZ Cloud', icon: 'cloud_drive', desc: 'Your drives at cloud.bndz.org' },
   { id: 'remote-mesh', label: 'Remote', icon: 'cloud_ui', desc: 'SSH/SFTP hosts & S3 buckets' },
-  { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared', desc: 'P2P WebRTC transfer' },
+  { id: 'mesh-drop', label: 'Drop Share', icon: 'emblem-shared', desc: 'P2P WebRTC transfer' },
   { id: 'live-mirror', label: 'Live Mirror', icon: 'sync_folders', desc: 'Push folders on save' },
   { id: 'folder-sync', label: 'Folder Sync', icon: 'sync', desc: 'Bidirectional jobs' },
   { id: 'spatial-automation', label: 'Spatial & Pipelines', icon: 'view_grid', desc: 'Canvas and automations' },
@@ -407,7 +407,7 @@ export default function WorkspaceToolsTabContent({
                     checked={localConfig.meshDropLanDiscovery !== false}
                     onChange={e => updateLocalConfig({ meshDropLanDiscovery: e.target.checked })}
                   />
-                  <p className="text-[11px] text-gray-500 mt-1">Same-subnet peers find active Mesh Drop offers via BNDZ UDP beacons (no cloud).</p>
+                  <p className="text-[11px] text-gray-500 mt-1">Same-subnet peers find active Drop Share offers via BNDZ UDP beacons (no cloud).</p>
                   <PluginFieldLabel className="mt-3">Web share link base</PluginFieldLabel>
                   <input
                     className={PLUGIN_INPUT_CLASS}
@@ -424,7 +424,7 @@ export default function WorkspaceToolsTabContent({
                   />
                   <div className="mt-3">
                     <PluginToolbarButton onClick={() => (openMeshDrop ?? (() => openBottomPlugin?.('mesh-drop')))()}>
-                      Open Mesh Drop panel
+                      Open Drop Share panel
                     </PluginToolbarButton>
                   </div>
                 </SettingsSection>

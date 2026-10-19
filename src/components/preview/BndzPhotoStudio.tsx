@@ -24,6 +24,22 @@ type Props = {
 
 type SaveMode = 'sibling' | 'overwrite' | 'pick';
 
+/** Last-resort net: a studio crash shows the host's error screen (which stays
+ *  open with a Close button) instead of the studio flashing and vanishing. */
+class StudioBoundary extends React.Component<
+  { onError: (message: string) => void; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } { return { failed: true }; }
+  componentDidCatch(err: Error): void {
+    this.props.onError(err?.message || 'The studio hit an unexpected error.');
+  }
+  render(): React.ReactNode {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 function editedPathFor(sourcePath: string, ext: string): string {
   const win = toWindowsPath(sourcePath);
   const stem = win.replace(/\.[^.]+$/, '');
@@ -218,13 +234,16 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         </div>
       )}
       {!loading && !error && image && (
-        <PhotoStudioNative
-          key={`${docKey}:${image.name}`}
-          ref={studioRef}
-          initialImage={image}
-          fonts={fonts}
-          onDirtyChange={setDirty}
-        />
+        <StudioBoundary onError={(msg) => setError(msg)}>
+          <PhotoStudioNative
+            key={`${docKey}:${image.name}`}
+            ref={studioRef}
+            initialImage={image}
+            fonts={fonts}
+            onDirtyChange={setDirty}
+            onError={(msg) => setError(msg)}
+          />
+        </StudioBoundary>
       )}
       {toast && <div className="bndz-photo-studio-toast">{toast}</div>}
     </div>

@@ -1,4 +1,4 @@
-/** Mesh Drop pairing helpers -- mirrors BNDZBackend/Services/MeshDrop/MeshDropSignaling.cs */
+/** Drop Share pairing helpers -- mirrors BNDZBackend/Services/MeshDrop/MeshDropSignaling.cs */
 
 const PREFIX = 'BNDZMD:';
 

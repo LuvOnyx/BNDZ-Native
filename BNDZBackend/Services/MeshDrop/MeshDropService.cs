@@ -54,7 +54,7 @@ public sealed class MeshDropService : IDisposable
         var sessionId = Guid.NewGuid().ToString("N")[..12];
         var (manifest, sourcePaths, sourceMap) = BuildManifest(sessionId, paths);
         if (manifest.Files.Count(f => !f.IsDirectory) == 0)
-            throw new InvalidOperationException("No readable files for Mesh Drop — pick files or folders that exist.");
+            throw new InvalidOperationException("No readable files for Drop Share — pick files or folders that exist.");
 
         var session = new MeshDropSession
         {
@@ -183,7 +183,7 @@ public sealed class MeshDropService : IDisposable
         if (hostCred != null)
         {
             if (!MeshDropCredentialVault.TryConsumeToken(sessionId, answer.OneTimeToken))
-                throw new InvalidOperationException("Mesh Drop pairing token invalid or already used.");
+                throw new InvalidOperationException("Drop Share pairing token invalid or already used.");
         }
 
         var remoteInit = new RTCSessionDescriptionInit { type = RTCSdpType.answer, sdp = answer.Sdp };
@@ -209,7 +209,7 @@ public sealed class MeshDropService : IDisposable
         session.State = MeshDropSessionState.Transferring;
         NotifySessionChanged(session);
 
-        _queue.RegisterJob(operationId, "mesh-drop-send", session.Label ?? "Mesh Drop", "webrtc",
+        _queue.RegisterJob(operationId, "mesh-drop-send", session.Label ?? "Drop Share", "webrtc",
             ctx.Manifest.Files.Count(f => !f.IsDirectory), "mesh-drop", FileTransferPriority.High);
 
         var sw = Stopwatch.StartNew();
@@ -275,8 +275,8 @@ public sealed class MeshDropService : IDisposable
             {
                 throw new InvalidOperationException(
                     missing > 0
-                        ? $"Mesh Drop send failed — could not open any of {files.Count} file(s) (missing paths)."
-                        : "Mesh Drop send failed — no bytes were streamed.");
+                        ? $"Drop Share send failed — could not open any of {files.Count} file(s) (missing paths)."
+                        : "Drop Share send failed — no bytes were streamed.");
             }
 
             await SendFrameAsync(ctx, MeshDropProtocol.BuildCompleteFrame(), ct);

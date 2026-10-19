@@ -137,7 +137,7 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop }: P
           <div className="space-y-2">
             {onOpenMeshDrop && (
               <WorkspaceLaunchCard
-                title="Mesh Drop"
+                title="Drop Share"
                 desc="Send files over your network with a one-time code -- no cloud account"
                 icon="share"
                 emblemId="share-check"

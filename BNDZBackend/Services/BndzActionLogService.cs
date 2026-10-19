@@ -130,8 +130,11 @@ public sealed class BndzActionLogService
     {
         get
         {
+            // Any undoable entry counts — a history-only entry on top (permanent
+            // delete, over-limit batch) must not make Ctrl+Z report "nothing to
+            // undo" while real undoable actions sit underneath it.
             lock (_lock)
-                return _undo.Count > 0 && IsEntryUndoable(_undo[^1]);
+                return _undo.Any(IsEntryUndoable);
         }
     }
 
@@ -314,24 +317,34 @@ public sealed class BndzActionLogService
     public async Task<ActionLogResult> UndoAsync(FileOperationService fileOps)
     {
         ActionLogEntry? entry;
+        int entryIndex;
+        string? blockedWhy = null;
         lock (_lock)
         {
             if (_undo.Count == 0) return ActionLogResult.Failure("Nothing to undo.");
-            entry = _undo[^1];
-            _undo.RemoveAt(_undo.Count - 1);
+            // Undo the newest UNDOABLE entry. History-only rows above it (permanent
+            // deletes, over-limit batches) stay on the stack for the History panel
+            // instead of silently swallowing the Ctrl+Z.
+            entryIndex = _undo.FindLastIndex(e => IsEntryUndoable(e));
+            if (entryIndex < 0)
+            {
+                var top = _undo[^1];
+                blockedWhy = top.Kind == ActionKind.Delete && !top.UsedRecycleBin
+                    ? "Can't undo \u2014 permanent delete (Recycle Bin was bypassed)."
+                    : (string.IsNullOrWhiteSpace(top.Label)
+                        ? "Can't undo \u2014 this action was logged for history only."
+                        : $"Can't undo \u2014 {top.Label}");
+                entry = null;
+            }
+            else
+            {
+                entry = _undo[entryIndex];
+                _undo.RemoveAt(entryIndex);
+            }
         }
 
-        if (!IsEntryUndoable(entry))
-        {
-            // Keep permanent / truncated rows out of the redo chain; leave them off the undo stack.
-            if (_persistBetweenSessions) PersistNow();
-            var why = entry.Kind == ActionKind.Delete && !entry.UsedRecycleBin
-                ? "Can't undo â€” permanent delete (Recycle Bin was bypassed)."
-                : (string.IsNullOrWhiteSpace(entry.Label)
-                    ? "Can't undo â€” this action was logged for history only."
-                    : $"Can't undo â€” {entry.Label}");
-            return ActionLogResult.Failure(why);
-        }
+        if (entry is null)
+            return ActionLogResult.Failure(blockedWhy ?? "Nothing to undo.");
 
         try
         {
@@ -342,7 +355,7 @@ public sealed class BndzActionLogService
         }
         catch (Exception ex)
         {
-            lock (_lock) _undo.Add(entry);
+            lock (_lock) _undo.Insert(Math.Min(entryIndex, _undo.Count), entry);
             return ActionLogResult.Failure(ex.Message);
         }
     }

@@ -220,7 +220,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
       setStatus('Streaming files directly to peer...');
       const send = await IPC.meshDropSend(sessionId);
       if (!send.ok) throw new Error(send.error || 'Transfer failed');
-      pushToast({ kind: 'success', title: 'Mesh Drop complete', message: 'Files streamed directly to peer.' });
+      pushToast({ kind: 'success', title: 'Drop Share complete', message: 'Files streamed directly to peer.' });
       onClose();
     } catch (e) {
       setStatus((e as Error).message);
@@ -235,7 +235,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
   };
 
   const pickDestFolder = async () => {
-    const picked = await IPC.openFolderDialog('Select folder to receive Mesh Drop files');
+    const picked = await IPC.openFolderDialog('Select folder to receive Drop Share files');
     if (picked) setDestDir(picked);
   };
 
@@ -274,7 +274,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
 
   const resolveRelayRoom = async () => {
     if (!relayBase || !relayJoinUrl.trim()) {
-      pushToast({ kind: 'warning', title: 'Relay not configured', message: 'Set a signaling relay URL in Settings → Workspace Tools → Mesh Drop.' });
+      pushToast({ kind: 'warning', title: 'Relay not configured', message: 'Set a signaling relay URL in Settings → Workspace Tools → Drop Share.' });
       return;
     }
     const roomId = parseRoomIdFromJoinInput(relayJoinUrl);
@@ -311,7 +311,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
         <header className="bndz-meshdrop-head">
           <span className="bndz-meshdrop-sigil"><EmblemIcon id="share-check" size={22} /></span>
           <div className="min-w-0 flex-1">
-            <h2 className="bndz-meshdrop-title">Mesh Drop</h2>
+            <h2 className="bndz-meshdrop-title">Drop Share</h2>
             <p className="bndz-meshdrop-sub">Zero-trust WebRTC P2P | encrypted pairing | unlimited size</p>
           </div>
           <button type="button" className="bndz-meshdrop-close" onClick={onClose} aria-label="Close">×</button>
@@ -369,7 +369,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                   className="bndz-meshdrop-btn"
                   disabled={busy}
                   onClick={() => {
-                    void IPC.openFolderDialog('Add folder to Mesh Drop').then(folder => {
+                    void IPC.openFolderDialog('Add folder to Drop Share').then(folder => {
                       if (folder) {
                         setSendPaths(prev => [...new Set([...prev, String(folder)])]);
                         setStatus('Folder added');
@@ -436,7 +436,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                           <code className="bndz-meshdrop-code bndz-meshdrop-code--link">{webLink}</code>
                           <button type="button" className="bndz-meshdrop-btn" onClick={() => copyText(webLink, 'Web link')}>Copy</button>
                         </div>
-                        <p className="bndz-meshdrop-micro">Uses your configured Mesh Drop web base.</p>
+                        <p className="bndz-meshdrop-micro">Uses your configured Drop Share web base.</p>
                       </div>
                     )}
                   </div>
@@ -445,7 +445,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                 {shareMode === 'qr' && (
                   <div className="bndz-meshdrop-panel bndz-meshdrop-qr-wrap">
                     {qrDataUrl ? (
-                      <img src={qrDataUrl} alt="Mesh Drop QR code" className="bndz-meshdrop-qr" />
+                      <img src={qrDataUrl} alt="Drop Share QR code" className="bndz-meshdrop-qr" />
                     ) : (
                       <div className="bndz-meshdrop-qr-placeholder">Generating QR...</div>
                     )}
@@ -473,7 +473,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                         )}
                       </>
                     ) : (
-                      <p className="bndz-meshdrop-warn">Configure <strong>Signaling relay URL</strong> in Settings → Workspace Tools → Mesh Drop for auto answer exchange.</p>
+                      <p className="bndz-meshdrop-warn">Configure <strong>Signaling relay URL</strong> in Settings → Workspace Tools → Drop Share for auto answer exchange.</p>
                     )}
                   </div>
                 )}
@@ -564,7 +564,7 @@ export default function MeshDropDialog({ paths: initialPaths = [], initialMode, 
                   {lanScanning ? 'Scanning LAN...' : 'Scan for nearby senders'}
                 </button>
                 {lanPeers.length === 0 ? (
-                  <p className="bndz-meshdrop-micro">No peers found. Ensure sender has Mesh Drop open on the same network.</p>
+                  <p className="bndz-meshdrop-micro">No peers found. Ensure sender has Drop Share open on the same network.</p>
                 ) : (
                   <div className="bndz-meshdrop-lan-list">
                     {lanPeers.map(p => (

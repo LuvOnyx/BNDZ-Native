@@ -1,7 +1,7 @@
 import { IPC } from './ipcBridge';
 import { getWorkspaceLeftoverBehavior } from './settingsBehavior';
 
-/** Push Mesh Drop ICE/TURN settings from app config to the native host. */
+/** Push Drop Share ICE/TURN settings from app config to the native host. */
 export function syncMeshDropConfig(config: {
   meshDropStunServers?: string;
   meshDropLanDiscovery?: boolean;

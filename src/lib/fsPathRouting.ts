@@ -12,7 +12,7 @@ export type DropRoute =
   | { kind: 'mesh-relay'; srcHostId: string; destHostId: string; remoteDestDir: string; move: boolean }
   | { kind: 'mesh-drop-send'; paths: string[] };
 
-/** Synthetic dest when dropping onto a Mesh Drop inbox surface. */
+/** Synthetic dest when dropping onto a Drop Share inbox surface. */
 export const MESH_DROP_INBOX_DEST = '__bndz_mesh_drop_inbox__';
 
 /**

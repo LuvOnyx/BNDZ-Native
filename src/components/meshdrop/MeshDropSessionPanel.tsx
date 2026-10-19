@@ -119,12 +119,12 @@ export default function MeshDropSessionPanel() {
     <div
       className="bndz-meshdrop-sessions px-3 py-2 border-b border-white/[0.06]"
       data-mesh-drop-inbox="1"
-      title="Drop files here to start a Mesh Drop"
+      title="Drop files here to start a Drop Share"
     >
       <div className="flex items-center gap-2 mb-1.5">
         <EmblemIcon id="share-check" size={12} />
         <div className="text-[10px] uppercase tracking-wider text-cyan-300/80">
-          {active.length ? 'Mesh Drop sessions' : 'Mesh Drop inbox'}
+          {active.length ? 'Drop Share sessions' : 'Drop Share inbox'}
         </div>
         {!active.length && (
           <span className="text-[10px] text-gray-500 truncate">Drop files to pair &amp; stream</span>

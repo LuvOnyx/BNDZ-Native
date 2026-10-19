@@ -27,7 +27,7 @@ const CATEGORY_ROWS: Array<{ id: WindowsNotifyCategory; label: string; hint: str
   { id: 'errors', label: 'Errors', hint: 'Failures and warnings that need attention' },
   { id: 'filesystem', label: 'Filesystem', hint: 'New folder / file and list refresh notices' },
   { id: 'plugins', label: 'Plugins', hint: 'Bottom-plugin and Extension Hub chatter' },
-  { id: 'mesh', label: 'Remote', hint: 'SSH, Mesh Drop, and Shell Here status' },
+  { id: 'mesh', label: 'Remote', hint: 'SSH, Drop Share, and Shell Here status' },
   { id: 'system', label: 'System', hint: 'Startup, tray, and host status' },
   { id: 'progress', label: 'Progress', hint: 'Noisy in-progress ticks (usually leave off)' },
 ];

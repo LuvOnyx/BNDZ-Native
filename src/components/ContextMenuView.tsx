@@ -1458,7 +1458,7 @@ function ContextMenuView({
           />
           {stockOn('mesh-drop') && (
           <ContextMenuItem
-            label="Mesh Drop (desktop P2P)..."
+            label="Drop Share (desktop P2P)..."
             iconVerb="share"
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />

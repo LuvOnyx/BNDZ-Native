@@ -48,6 +48,7 @@ interface Props {
   initialImage: StudioImageInput | null;
   fonts: string[];
   onDirtyChange?: (dirty: boolean) => void;
+  onError?: (message: string) => void;
 }
 
 type ToolId =
@@ -125,7 +126,25 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
   } as Document);
   const objByLayerRef = useRef(new Map<LayerId, FObj>());
   const layerAdjRef = useRef(new Map<LayerId, QuickAdjust>());
-  const historyRef = useRef<{ undo: string[]; redo: string[] }>({ undo: [], redo: [] });
+  // History entries are structured, NOT serialized strings: raster pixels are
+  // held as bitmap canvas clones. Serializing them through fabric JSON turned
+  // every snapshot into a giant base64 string per layer (tens of MB on real
+  // photos) — that memory churn is what crashed the studio on open and dragged
+  // the whole preview panel down with it.
+  type HistoryEntry = {
+    doc: Document;
+    layerAdj: Array<[LayerId, QuickAdjust]>;
+    objects: unknown[];
+    pixels: Map<LayerId, HTMLCanvasElement>;
+    pixelsVer: Map<LayerId, number>;
+  };
+  const historyRef = useRef<{ undo: HistoryEntry[]; redo: HistoryEntry[] }>({ undo: [], redo: [] });
+  const pixelsVersionRef = useRef(new Map<LayerId, number>());
+  const lastSnapRef = useRef<{ pixels: Map<LayerId, HTMLCanvasElement>; ver: Map<LayerId, number> } | null>(null);
+  const touchPixels = useCallback((obj: FObj | undefined | null) => {
+    const id = obj?.__layerId;
+    if (id != null) pixelsVersionRef.current.set(id, (pixelsVersionRef.current.get(id) ?? 0) + 1);
+  }, []);
   const gestureRef = useRef<any>(null);
   const selectionRef = useRef<SelectionShape | null>(null);
   const selOverlayRef = useRef<fabric.FabricObject | null>(null);
@@ -179,6 +198,20 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
     const next = new Map<LayerId, string>();
     objByLayerRef.current.forEach((obj, id) => {
       try {
+        const img = obj as fabric.FabricImage;
+        // Raster layers: draw the pixel canvas straight into the thumb —
+        // fabric's toDataURL re-renders the whole object at full size first.
+        if (typeof img.isType === 'function' && img.isType('image') && obj.__pixels) {
+          const src = obj.__display ?? obj.__pixels;
+          const t = makeCanvas(44, 30);
+          const tctx = t.getContext('2d')!;
+          const scale = Math.min(44 / Math.max(1, src.width), 30 / Math.max(1, src.height));
+          const w = Math.max(1, Math.round(src.width * scale));
+          const h = Math.max(1, Math.round(src.height * scale));
+          tctx.drawImage(src, Math.round((44 - w) / 2), Math.round((30 - h) / 2), w, h);
+          next.set(id, t.toDataURL('image/png'));
+          return;
+        }
         const url = (obj as fabric.FabricObject).toDataURL({ format: 'png', multiplier: 44 / Math.max(1, obj.width || 44) });
         if (url) next.set(id, url);
       } catch { /* thumbnail is best-effort */ }
@@ -238,30 +271,80 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
 
   /* -------------------------------- history -------------------------------- */
 
-  const snapshot = useCallback((): string => {
+  const snapshot = useCallback((): HistoryEntry => {
     const canvas = canvasRef.current!;
-    const data = {
-      doc: JSON.parse(JSON.stringify(docRef.current)),
-      objects: (canvas.toJSON(['__layerId']) as any).objects.filter((o: any) => o.__layerId != null),
+    // Serialize fabric objects with every image element swapped for a 2x2
+    // placeholder first, so no full-res pixel data ever enters the JSON.
+    const placeholder = makeCanvas(2, 2);
+    const swaps: Array<[fabric.FabricImage, HTMLImageElement | HTMLCanvasElement]> = [];
+    canvas.getObjects().forEach(o => {
+      const img = o as fabric.FabricImage;
+      if (typeof img.isType === 'function' && img.isType('image')) {
+        const el = img.getElement() as HTMLImageElement | HTMLCanvasElement | undefined;
+        if (el) { swaps.push([img, el]); img.setElement(placeholder as never); }
+      }
+    });
+    let objects: unknown[] = [];
+    try {
+      objects = ((canvas.toObject(['__layerId', '__penPoints']) as { objects?: unknown[] }).objects ?? [])
+        .filter((o) => (o as { __layerId?: unknown }).__layerId != null);
+    } finally {
+      swaps.forEach(([img, el]) => { try { img.setElement(el as never); } catch { /* keep placeholder */ } });
+    }
+    // Pixel bitmaps: clone only layers whose pixels changed since the last
+    // snapshot (or whose pixel canvas was replaced); reuse the rest.
+    const prev = lastSnapRef.current;
+    const pixels = new Map<LayerId, HTMLCanvasElement>();
+    const pixelsVer = new Map<LayerId, number>();
+    walkLayers(docRef.current.layers).forEach(({ layer }) => {
+      if (layer.content.kind !== 'raster' && layer.content.kind !== 'smart') return;
+      const obj = objByLayerRef.current.get(layer.id);
+      const src = obj?.__pixels;
+      if (!src) return;
+      const ver = pixelsVersionRef.current.get(layer.id) ?? 0;
+      pixelsVer.set(layer.id, ver);
+      const prevCanvas = prev?.pixels.get(layer.id);
+      if (prevCanvas && prev!.ver.get(layer.id) === ver && prevCanvas.width === src.width && prevCanvas.height === src.height) {
+        pixels.set(layer.id, prevCanvas);
+      } else {
+        const clone = makeCanvas(src.width, src.height);
+        clone.getContext('2d')!.drawImage(src, 0, 0);
+        pixels.set(layer.id, clone);
+      }
+    });
+    lastSnapRef.current = { pixels, ver: pixelsVer };
+    return {
+      doc: JSON.parse(JSON.stringify(docRef.current)) as Document,
       layerAdj: Array.from(layerAdjRef.current.entries()),
+      objects,
+      pixels,
+      pixelsVer,
     };
-    return JSON.stringify(data);
   }, []);
 
+  // Undo stack holds PAST states: each commit pushes the previously committed
+  // state and remembers the new one, so one Ctrl+Z always lands exactly one
+  // action back. All call sites commit AFTER their change.
+  const lastCommittedRef = useRef<HistoryEntry | null>(null);
   const commitHistory = useCallback(() => {
     try {
-      historyRef.current.undo.push(snapshot());
-      if (historyRef.current.undo.length > 60) historyRef.current.undo.shift();
+      const now = snapshot();
+      if (lastCommittedRef.current) {
+        historyRef.current.undo.push(lastCommittedRef.current);
+        if (historyRef.current.undo.length > 40) historyRef.current.undo.shift();
+      }
+      lastCommittedRef.current = now;
       historyRef.current.redo = [];
       markDirty();
     } catch { /* history is best-effort */ }
   }, [snapshot, markDirty]);
 
-  const restoreSnapshot = useCallback(async (json: string) => {
+  const restoreSnapshot = useCallback(async (entry: HistoryEntry) => {
     const canvas = canvasRef.current!;
-    const data = JSON.parse(json);
-    docRef.current = data.doc;
-    layerAdjRef.current = new Map(data.layerAdj ?? []);
+    docRef.current = JSON.parse(JSON.stringify(entry.doc)) as Document;
+    layerAdjRef.current = new Map(entry.layerAdj ?? []);
+    pixelsVersionRef.current = new Map(entry.pixelsVer);
+    lastSnapRef.current = { pixels: entry.pixels, ver: new Map(entry.pixelsVer) };
     // remove all layer objects
     [...objByLayerRef.current.values()].forEach(o => {
       if (o.group) o.group.remove(o as fabric.FabricObject);
@@ -271,7 +354,7 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
     penRef.current = null;
     selectionRef.current = null;
     if (selOverlayRef.current) { canvas.remove(selOverlayRef.current); selOverlayRef.current = null; }
-    const enlivened = await fabric.util.enlivenObjects(data.objects ?? []);
+    const enlivened = await fabric.util.enlivenObjects(entry.objects as never[]);
     // Rebuild in model tree order (groups nest their children).
     const byId = new Map<LayerId, FObj>();
     const collectIds = (o: FObj) => {
@@ -285,15 +368,27 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
         const obj = byId.get(layer.id);
         if (!obj) return;
         objByLayerRef.current.set(layer.id, obj);
-        // Pixel canvases don't survive JSON: rebuild them from the image element.
+        // Pixels come from the entry's bitmap clones — never the placeholder
+        // element the object was serialized with. Live objects get their own
+        // clone so painting can never corrupt a history entry.
         if ((obj as fabric.FabricImage).isType && (obj as fabric.FabricImage).isType('image')) {
           const img = obj as fabric.FabricImage;
-          const el = img.getElement() as HTMLImageElement;
-          if (el) {
-            const px = makeCanvas(el.naturalWidth || el.width, el.naturalHeight || el.height);
-            px.getContext('2d')!.drawImage(el, 0, 0);
+          const stored = layer.id != null ? entry.pixels.get(layer.id) : undefined;
+          if (stored) {
+            const px = makeCanvas(stored.width, stored.height);
+            px.getContext('2d')!.drawImage(stored, 0, 0);
             (obj as FObj).__pixels = px;
             (obj as FObj).__display = px;
+            img.setElement(px as never);
+            refreshRasterDisplay(obj as FObj);
+          } else {
+            const el = img.getElement() as HTMLImageElement | undefined;
+            if (el) {
+              const px = makeCanvas(el.naturalWidth || el.width || 2, el.naturalHeight || el.height || 2);
+              px.getContext('2d')!.drawImage(el, 0, 0);
+              (obj as FObj).__pixels = px;
+              (obj as FObj).__display = px;
+            }
           }
         }
         const alreadyInside = !!(obj as FObj).group;
@@ -308,23 +403,30 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
     setDocSize({ w: docRef.current.width, h: docRef.current.height });
     syncCanvasFromModel();
     canvas.requestRenderAll();
+    // refreshRasterDisplay is declared further down the component; it is only
+    // invoked at restore time (after first render), never during render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncCanvasFromModel]);
 
   const undo = useCallback(async () => {
     const h = historyRef.current;
-    if (!h.undo.length) return;
-    h.redo.push(snapshot());
-    await restoreSnapshot(h.undo.pop()!);
+    if (!h.undo.length || !lastCommittedRef.current) return;
+    h.redo.push(lastCommittedRef.current);
+    const target = h.undo.pop()!;
+    lastCommittedRef.current = target;
+    await restoreSnapshot(target);
     markDirty();
-  }, [snapshot, restoreSnapshot, markDirty]);
+  }, [restoreSnapshot, markDirty]);
 
   const redo = useCallback(async () => {
     const h = historyRef.current;
-    if (!h.redo.length) return;
-    h.undo.push(snapshot());
-    await restoreSnapshot(h.redo.pop()!);
+    if (!h.redo.length || !lastCommittedRef.current) return;
+    h.undo.push(lastCommittedRef.current);
+    const target = h.redo.pop()!;
+    lastCommittedRef.current = target;
+    await restoreSnapshot(target);
     markDirty();
-  }, [snapshot, restoreSnapshot, markDirty]);
+  }, [restoreSnapshot, markDirty]);
 
   /* ------------------------------ layer ops ------------------------------- */
 
@@ -702,34 +804,42 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
       setZoom(z, new fabric.Point(ev.offsetX, ev.offsetY) as never);
     });
 
-    // Initial document.
+    // Initial document. Any failure here must surface through onError — the
+    // host shows it on a stable error screen instead of the studio vanishing.
     void (async () => {
-      if (props.initialImage) {
-        const img = new Image();
-        await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('image')); img.src = props.initialImage!.dataUrl; });
-        docRef.current.width = img.naturalWidth;
-        docRef.current.height = img.naturalHeight;
-        docRef.current.name = props.initialImage.name;
-        const artboard = (canvas as unknown as { __artboard?: fabric.Rect }).__artboard;
-        artboard?.set({ width: img.naturalWidth + 2, height: img.naturalHeight + 2 });
-        const { layer, obj } = await makeRasterImage(props.initialImage.dataUrl, props.initialImage.name.replace(/\.[^.]+$/, '') || 'Background');
-        obj.set({ left: img.naturalWidth / 2, top: img.naturalHeight / 2, originX: 'center', originY: 'center' });
-        addLayerObject(layer, obj);
-      } else {
-        const layer = createRasterLayer('Background');
-        const px = makeCanvas(docRef.current.width, docRef.current.height);
-        const pctx = px.getContext('2d')!;
-        pctx.fillStyle = '#ffffff';
-        pctx.fillRect(0, 0, px.width, px.height);
-        const img = new fabric.FabricImage(px, { left: docRef.current.width / 2, top: docRef.current.height / 2, originX: 'center', originY: 'center' }) as FObj;
-        img.__pixels = px; img.__display = px; img.objectCaching = false;
-        addLayerObject(layer, img);
+      try {
+        if (props.initialImage) {
+          const img = new Image();
+          await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('That image could not be loaded.')); img.src = props.initialImage!.dataUrl; });
+          docRef.current.width = img.naturalWidth;
+          docRef.current.height = img.naturalHeight;
+          docRef.current.name = props.initialImage.name;
+          const artboard = (canvas as unknown as { __artboard?: fabric.Rect }).__artboard;
+          artboard?.set({ width: img.naturalWidth + 2, height: img.naturalHeight + 2 });
+          const { layer, obj } = await makeRasterImage(props.initialImage.dataUrl, props.initialImage.name.replace(/\.[^.]+$/, '') || 'Background');
+          obj.set({ left: img.naturalWidth / 2, top: img.naturalHeight / 2, originX: 'center', originY: 'center' });
+          addLayerObject(layer, obj);
+        } else {
+          const layer = createRasterLayer('Background');
+          const px = makeCanvas(docRef.current.width, docRef.current.height);
+          const pctx = px.getContext('2d')!;
+          pctx.fillStyle = '#ffffff';
+          pctx.fillRect(0, 0, px.width, px.height);
+          const img = new fabric.FabricImage(px, { left: docRef.current.width / 2, top: docRef.current.height / 2, originX: 'center', originY: 'center' }) as FObj;
+          img.__pixels = px; img.__display = px; img.objectCaching = false;
+          addLayerObject(layer, img);
+        }
+        setDocSize({ w: docRef.current.width, h: docRef.current.height });
+        historyRef.current.undo = [];
+        historyRef.current.redo = [];
+        lastCommittedRef.current = null;
+        lastSnapRef.current = null;
+        pixelsVersionRef.current.clear();
+        commitHistory();
+        fitZoom();
+      } catch (err) {
+        props.onError?.(err instanceof Error ? err.message : 'The studio could not open this image.');
       }
-      setDocSize({ w: docRef.current.width, h: docRef.current.height });
-      historyRef.current.undo = [];
-      historyRef.current.redo = [];
-      commitHistory();
-      fitZoom();
     })();
 
     const onResize = () => {
@@ -772,8 +882,9 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
     }
     g.lastPaint = local;
     target.obj.dirty = true;
+    touchPixels(target.obj);
     canvasRef.current?.requestRenderAll();
-  }, [brushOpacity, brushSize, brushSoft, toLayerPixels]);
+  }, [brushOpacity, brushSize, brushSoft, toLayerPixels, touchPixels]);
 
   const onMouseDown = (e: fabric.TEvent) => {
     const canvas = canvasRef.current!;
@@ -804,13 +915,14 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
       case 'fill': {
         const target = ensurePaintTarget();
         if (!target) break;
-        commitHistory();
         const local = toLayerPixels(target.obj, pointer);
         const selMask = selectionRef.current
           ? selectionToMask(selectionRef.current, target.obj.__pixels!.width, target.obj.__pixels!.height)
           : null;
         floodFill(target.obj.__pixels!, local.x, local.y, fgRef.current, tolerance, selMask);
+        touchPixels(target.obj);
         refreshRasterDisplay(target.obj);
+        commitHistory();
         scheduleAdjRefresh();
         break;
       }
@@ -1009,11 +1121,12 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
       case 'gradient': {
         const pointer = (e as { pointer?: DocPoint }).pointer ?? g.current;
         if (pointer && g.paintTarget) {
-          commitHistory();
           const from = toLayerPixels(g.paintTarget.obj, g.start);
           const to = toLayerPixels(g.paintTarget.obj, pointer);
           paintGradient(g.paintTarget.obj.__pixels!, from, to, fgRef.current, bgRef.current, null);
+          touchPixels(g.paintTarget.obj);
           refreshRasterDisplay(g.paintTarget.obj);
+          commitHistory();
           scheduleAdjRefresh();
         }
         break;
@@ -1535,9 +1648,10 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
       const sel = selectionRef.current;
       const target = activeRaster();
       if (sel && target?.obj.__pixels) {
-        commitHistory();
         clearSelection(target.obj.__pixels, sel);
+        touchPixels(target.obj);
         refreshRasterDisplay(target.obj);
+        commitHistory();
         scheduleAdjRefresh();
       } else if (selectedIds.length) {
         panelCallbacks.onDelete(selectedIds);
@@ -1617,10 +1731,11 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
                   <button type="button" disabled={!selectionRef.current} onClick={menuAction(() => {
                     const target = activeRaster();
                     if (!target?.obj.__pixels || !selectionRef.current) return;
-                    commitHistory();
                     const mask = selectionToMask(selectionRef.current, target.obj.__pixels.width, target.obj.__pixels.height);
                     fillSelection(target.obj.__pixels, { kind: 'mask', canvas: mask }, fg);
+                    touchPixels(target.obj);
                     refreshRasterDisplay(target.obj);
+                    commitHistory();
                   })}>Fill selection with color</button>
                 </>)}
                 {name === 'View' && (<>
@@ -1675,9 +1790,10 @@ export const PhotoStudioNative = forwardRef<PhotoStudioHandle, Props>(function P
           <button type="button" className="ps-apply" onClick={() => {
             const target = activeRaster();
             if (!target?.obj.__pixels || !selectionRef.current) return;
-            commitHistory();
             fillSelection(target.obj.__pixels, selectionRef.current, fg);
+            touchPixels(target.obj);
             refreshRasterDisplay(target.obj);
+            commitHistory();
           }}>Fill selection</button>
         )}
         <div className="ps-colors">

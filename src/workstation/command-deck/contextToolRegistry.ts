@@ -115,7 +115,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
     const tools: ContextTool[] = [
       tool('compare', 'Compare', 'compare', 'folder-sync'),
       tool('batch-rename', 'Batch rename', 'batch_rename', 'batch-rename'),
-      tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+      tool('mesh-drop', 'Drop Share', 'emblem-shared', 'remote-mesh'),
       tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
       tool('capacity-solver', 'Capacity', 'bar_chart', 'storage-cleanup'),
       tool('inbound-volume', 'Intake', 'download_ui', 'dropstack'),
@@ -138,7 +138,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('analyze-audio', 'Analyze BPM/Key', 'music_ui', 'metadata'),
         tool('media-tab', 'Media', 'film_ui', undefined, 'host'),
         tool('batch-rename', 'Rename', 'batch_rename', 'batch-rename'),
-        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('mesh-drop', 'Drop Share', 'emblem-shared', 'remote-mesh'),
         tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'image':
@@ -154,7 +154,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
       // 3D / FiveM RAGE (.ydr/.ybn/...) -- main preview GpuModelViewport only; no Loupe/Luma.
       return [
         tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
-        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('mesh-drop', 'Drop Share', 'emblem-shared', 'remote-mesh'),
         tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
         tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
@@ -163,7 +163,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
         tool('archive-extract', 'Extract', 'zip', undefined, 'host'),
         tool('mesh-ephemeral', 'Ephemeral', 'cloud_ui', 'remote-mesh'),
-        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('mesh-drop', 'Drop Share', 'emblem-shared', 'remote-mesh'),
         tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'video':
@@ -193,7 +193,7 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
         tool('properties', 'Properties', 'sys_properties', 'properties'),
         tool('batch-rename', 'Rename', 'batch_rename', 'batch-rename'),
         tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
-        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('mesh-drop', 'Drop Share', 'emblem-shared', 'remote-mesh'),
         tool('mesh-shell-here', 'Shell Here', 'terminal', 'remote-mesh'),
         tool('mesh-download', 'Download', 'download', 'remote-mesh'),
         tool('mesh-edit-remote', 'Edit Remote', 'edit', 'remote-mesh'),

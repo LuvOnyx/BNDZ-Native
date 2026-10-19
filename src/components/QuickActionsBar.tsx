@@ -106,7 +106,7 @@ export function buildDefaultQuickActions(handlers: {
     extra.push({ id: 'lanshare', label: 'Share LAN', icon: 'emblem-shared', onClick: handlers.onLanShare, accent: 'sky' });
   }
   if (handlers.onMeshDrop && pluginOn('remote-mesh')) {
-    extra.push({ id: 'meshdrop', label: 'Mesh Drop', icon: 'share', onClick: handlers.onMeshDrop, accent: 'sky' });
+    extra.push({ id: 'meshdrop', label: 'Drop Share', icon: 'share', onClick: handlers.onMeshDrop, accent: 'sky' });
   }
   if (handlers.onTag) extra.push({ id: 'tag', label: 'Tag', icon: 'tag_manager', onClick: handlers.onTag, accent: 'emerald' });
   if (handlers.onCompare && pluginOn('folder-sync')) {

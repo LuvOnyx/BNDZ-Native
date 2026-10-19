@@ -52,7 +52,7 @@ export function formatTransferAction(action: string): string {
     case 'archive-extract-rpf': return 'Extract RPF';
     case 'mesh-upload': return 'Upload (Mesh)';
     case 'mesh-download': return 'Download (Mesh)';
-    case 'mesh-drop-send': return 'Mesh Drop';
+    case 'mesh-drop-send': return 'Drop Share';
     case 'archive-create': return 'Archive';
     case 'undo': return 'Undo';
     case 'redo': return 'Redo';
@@ -69,7 +69,7 @@ export function formatTransferCategory(category: string): string {
     case 'recycle': return 'Recycle Bin';
     case 'folder-sync': return 'Sync';
     case 'mesh': return 'Mesh';
-    case 'mesh-drop': return 'Mesh Drop';
+    case 'mesh-drop': return 'Drop Share';
     case 'ghost-link': return 'Transfer';
     case 'ram-staging': return 'Transfer';
     default: return category;

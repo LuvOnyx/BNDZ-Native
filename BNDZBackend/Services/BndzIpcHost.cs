@@ -12843,6 +12843,34 @@ else if (type == "MESH_INCUS_LIST_ENDPOINTS")
                         {
                             try
                             {
+                                // Single-item ops: the landed path is exact — the
+                                // one planned pair, or the target itself when the
+                                // planner expanded a folder rename per-file. Never
+                                // let the resolver pair a folder with its first file.
+                                List<string>? singleDest = null;
+                                if (sources.Count == 1)
+                                {
+                                    if (plannedTargets.Count == 1
+                                        && (File.Exists(plannedTargets[0].Dest) || Directory.Exists(plannedTargets[0].Dest)))
+                                        singleDest = new List<string> { plannedTargets[0].Dest };
+                                    else if (plannedTargets.Count > 1
+                                        && (File.Exists(target) || Directory.Exists(target)))
+                                        singleDest = new List<string> { target };
+                                }
+                                if (singleDest != null)
+                                {
+                                    var kind1 = action == "copy" ? ActionKind.Copy : ActionKind.Move;
+                                    if (!_actionLogService.TryPatchLastTargets(kind1, sources, singleDest))
+                                    {
+                                        _actionLogService.TryDiscardLast(kind1, sources);
+                                        if (action == "copy")
+                                            _actionLogService.Record(BndzActionLogService.ForCopy(sources, singleDest));
+                                        else
+                                            _actionLogService.Record(BndzActionLogService.ForMove(sources, singleDest));
+                                    }
+                                }
+                                else
+                                {
                                 var planned = plannedTargets.Select(pt => pt.Dest).ToList();
                                 var (pairedSrc, pairedDest) = ActionLogLandedPathResolver.Resolve(
                                     sources, planned, isMove: action == "move", existingBefore: landedBefore);
@@ -12877,6 +12905,7 @@ else if (type == "MESH_INCUS_LIST_ENDPOINTS")
                                         else
                                             _actionLogService.Record(BndzActionLogService.ForMove(pairedSrc, pairedDest));
                                     }
+                                }
                                 }
                             }
                             catch { /* best-effort path repair */ }
@@ -13504,6 +13533,16 @@ else if (type == "MESH_INCUS_LIST_ENDPOINTS")
                     case "move":
                     case "rename":
                     {
+                        // Single item renamed / moved-as: the target IS the new
+                        // full path — pair it 1:1. The planner expands a folder
+                        // rename into one pair per contained file, which used
+                        // to corrupt the undo entry (folder -> its first file),
+                        // so undoing a folder rename could never work.
+                        if (sources.Count == 1 && !string.IsNullOrWhiteSpace(target) && !Directory.Exists(target))
+                        {
+                            _actionLogService.Record(BndzActionLogService.ForMove(sources, new List<string> { target }));
+                            break;
+                        }
                         var planned = plannedTargets?.Select(p => p.Dest).ToList()
                             ?? FileOperationPathPlanner.Plan(action, sources, target).Select(p => p.Dest).ToList();
                         if (planned.Count == 0 && !string.IsNullOrWhiteSpace(target))

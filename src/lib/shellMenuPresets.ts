@@ -62,7 +62,7 @@ export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
   { id: 'smart-rename', label: 'Smart Rename', desc: 'Batch rename on files', iconVerb: 'sparkles', surfaces: ['file'] as const },
   { id: 'spatial-pin', label: 'Pin to Spatial Canvas', desc: 'Drop selection onto Spatial', iconVerb: 'map', surfaces: ['file', 'folder'] as const },
   { id: 'automation', label: 'Send to Automation', desc: 'Open Automations with selected paths', iconVerb: 'emblem-shared', surfaces: ['file', 'folder'] as const },
-  { id: 'mesh-drop', label: 'Mesh Drop...', desc: 'Ship selection over Mesh Drop', iconVerb: 'share', surfaces: ['file', 'folder'] as const },
+  { id: 'mesh-drop', label: 'Drop Share...', desc: 'Ship selection over Drop Share', iconVerb: 'share', surfaces: ['file', 'folder'] as const },
   { id: 'lan-share', label: 'Share on LAN...', desc: 'BNDZ CopyParty-style LAN share (HTTP/WebDAV + opt-in protocols)', iconVerb: 'emblem-shared', surfaces: ['file', 'folder'] as const },
   { id: 'change-icon', label: 'Change Icon', desc: 'Icon Studio submenu on Properties', iconVerb: 'picture_ui', surfaces: ['file', 'folder'] as const },
   { id: 'photo-studio', label: 'Edit in Photo Studio', desc: 'Full layered image editor', iconVerb: 'picture_ui', surfaces: ['file'] as const },

@@ -266,7 +266,7 @@ export default function LanShareDialog({ paths: initialPaths = [], onClose }: Pr
             <button type="button" className="bndz-meshdrop-btn" onClick={onClose}>Close</button>
           </div>
           <p className="bndz-meshdrop-micro">
-            Mesh Drop remains available as desktop↔desktop P2P. For phone / link sharing, use this Share on LAN path.
+            Drop Share remains available as desktop↔desktop P2P. For phone / link sharing, use this Share on LAN path.
           </p>
         </div>
       </div>
