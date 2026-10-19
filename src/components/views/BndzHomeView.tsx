@@ -15,8 +15,17 @@ import { getGhostTrail, subscribeGhostTrail, type GhostTrailEntry } from '../../
 import { loadSmartCollections } from '../../lib/smartCollections';
 import { toVirtualStreamUrl } from '../../lib/pathUtils';
 
-export { HOME_WIDGETS, DEFAULT_HOME_WIDGETS } from '../../lib/homeWidgets';
-import { HOME_WIDGETS, DEFAULT_HOME_WIDGETS } from '../../lib/homeWidgets';
+/** Home dashboard cards the user can show/hide (Home -> Customize). */
+export const HOME_WIDGETS: Array<{ id: string; label: string }> = [
+  { id: 'clock', label: 'Clock and date' },
+  { id: 'workspaces', label: 'Workspaces' },
+  { id: 'frequent', label: 'Most accessed' },
+  { id: 'focus', label: 'Focus stage (current item)' },
+  { id: 'continuum', label: 'Home rail (recent files)' },
+  { id: 'places', label: 'Places and drives' },
+  { id: 'trail', label: 'Session trail' },
+];
+export const DEFAULT_HOME_WIDGETS = HOME_WIDGETS.map(w => w.id);
 
 type ContinuumItem = {
   id?: string;
@@ -145,7 +154,8 @@ export default function BndzHomeView({
   const [deckSyncing, setDeckSyncing] = useState(false);
   const fingerprintRef = useRef<string | undefined>(undefined);
 
-  // --- Wallpaper + dashboard layout (customized in Settings -> Appearance) ---
+  // --- Wallpaper + dashboard layout (user-customizable, persisted in config) ---
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 15000);
@@ -163,10 +173,17 @@ export default function BndzHomeView({
   const wpUrl = wpPath ? toVirtualStreamUrl(wpPath) : '';
   const widgetIds: string[] = Array.isArray(config?.homeWidgets) ? config.homeWidgets : DEFAULT_HOME_WIDGETS;
   const showWidget = useCallback((id: string) => widgetIds.includes(id), [widgetIds]);
-  const greeting = useMemo(() => {
-    const h = now.getHours();
-    return h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-  }, [now]);
+  const toggleWidget = useCallback((id: string) => {
+    const next = widgetIds.includes(id) ? widgetIds.filter(w => w !== id) : [...widgetIds, id];
+    updateConfig?.({ homeWidgets: next });
+  }, [widgetIds, updateConfig]);
+  const pickWallpaper = useCallback(async () => {
+    try {
+      const picked = await IPC.openFileDialog('Images (*.png;*.jpg;*.jpeg;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files (*.*)|*.*');
+      const p = Array.isArray(picked) ? picked[0] : picked;
+      if (p) updateConfig?.({ homeWallpaperPath: p });
+    } catch { /* picker cancelled */ }
+  }, [updateConfig]);
 
   const homeDate = useMemo(() => {
     const now = new Date();
@@ -469,7 +486,7 @@ export default function BndzHomeView({
 
   return (
     <div
-      className={`bndz-home${wpUrl ? ' has-wallpaper' : ''}${wpMica ? ' is-mica' : ''}`}
+      className={`bndz-home${wpUrl ? ' has-wallpaper' : ''}${wpUrl && wpMica ? ' is-mica' : ''}`}
       data-bndz-surface
       data-spatial={spatialArmed ? '1' : '0'}
       style={{ ['--home-pulse' as string]: String(pulseWarmth) }}
@@ -496,7 +513,7 @@ export default function BndzHomeView({
 
       <div className="bndz-home-deck">
         <header className="bndz-home-hero">
-          <div className="bndz-home-hero-main">
+          <div className="bndz-home-hero-top">
             <motion.div
               className="bndz-home-brand"
               initial={reduceMotion ? false : { opacity: 0, y: 14, filter: 'blur(6px)' }}
@@ -506,82 +523,119 @@ export default function BndzHomeView({
               <span className="bndz-home-wordmark">BNDZ</span>
               <span className="bndz-home-tag">Home</span>
             </motion.div>
-            <motion.h1
-              className="bndz-home-greeting"
-              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-            >
-              {greeting}
-            </motion.h1>
-            <motion.p
-              className="bndz-home-lede"
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.12, duration: 0.4 }}
-            >
-              {homeDate.weekday}, {homeDate.monthDay}, {homeDate.year}
-              {fileCount > 0
-                ? ` | ${fileCount.toLocaleString()} files indexed`
-                  + (library.images ? ` | ${library.images.toLocaleString()} photos` : '')
-                  + (library.videos ? ` | ${library.videos.toLocaleString()} videos` : '')
-                : ' | Places are live. Index libraries to fill the Home rail.'}
-            </motion.p>
+            <div className="bndz-home-hero-side">
+              {showWidget('clock') && (
+                <motion.div
+                  className="bndz-home-date"
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                  aria-label={`${homeDate.weekday}, ${homeDate.monthDay}, ${homeDate.year}`}
+                >
+                  <span className="bndz-home-clock-time">{clockTime}</span>
+                  <span className="bndz-home-date-weekday">{homeDate.weekday}</span>
+                  <span className="bndz-home-date-day">{homeDate.monthDay}</span>
+                  <span className="bndz-home-date-year">{homeDate.year}</span>
+                </motion.div>
+              )}
+              <button
+                type="button"
+                className="bndz-home-customize-btn"
+                onClick={() => setCustomizeOpen(o => !o)}
+                aria-expanded={customizeOpen}
+              >
+                Customize
+              </button>
+            </div>
           </div>
-          {showWidget('clock') && (
-            <motion.div
-              className="bndz-home-clock-card bndz-home-card"
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              aria-label={`${homeDate.weekday}, ${homeDate.monthDay}, ${homeDate.year}, ${clockTime}`}
-            >
-              <span className="bndz-home-clock-time">{clockTime}</span>
-              <span className="bndz-home-clock-date">{homeDate.weekday} | {homeDate.monthDay}</span>
-            </motion.div>
+          {customizeOpen && (
+            <div className="bndz-home-customize">
+              <div className="bndz-home-customize-group">
+                <span className="bndz-home-customize-title">Wallpaper</span>
+                <div className="bndz-home-customize-row">
+                  <button type="button" className="bndz-home-chip" onClick={() => void pickWallpaper()}>
+                    {wpPath ? 'Change picture…' : 'Choose a picture…'}
+                  </button>
+                  {wpPath && (
+                    <button type="button" className="bndz-home-chip" onClick={() => updateConfig?.({ homeWallpaperPath: '' })}>
+                      Remove
+                    </button>
+                  )}
+                  {wpPath && <span className="bndz-home-customize-path" title={wpPath}>{wpPath.split(/[\\/]/).pop()}</span>}
+                </div>
+                {wpPath && (
+                  <>
+                    <div className="bndz-home-customize-row" role="group" aria-label="Wallpaper fit">
+                      <span className="bndz-home-customize-label">Fit</span>
+                      {([['fill', 'Fill the screen'], ['fit', 'Fit whole picture'], ['stretch', 'Stretch']] as const).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`bndz-home-chip${wpFit === id ? ' is-active' : ''}`}
+                          aria-pressed={wpFit === id}
+                          onClick={() => updateConfig?.({ homeWallpaperFit: id })}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="bndz-home-customize-row">
+                      <span className="bndz-home-customize-label">Blur</span>
+                      <input
+                        type="range" min={0} max={30} step={1} value={wpBlur}
+                        onChange={e => updateConfig?.({ homeWallpaperBlur: Number(e.target.value) })}
+                        aria-label="Wallpaper blur"
+                      />
+                      <span className="bndz-home-customize-value">{wpBlur}px</span>
+                    </div>
+                    <div className="bndz-home-customize-row">
+                      <span className="bndz-home-customize-label">Darken</span>
+                      <input
+                        type="range" min={0} max={85} step={1} value={wpDim}
+                        onChange={e => updateConfig?.({ homeWallpaperDim: Number(e.target.value) })}
+                        aria-label="Wallpaper darken"
+                      />
+                      <span className="bndz-home-customize-value">{wpDim}%</span>
+                    </div>
+                    <label className="bndz-home-customize-check">
+                      <input
+                        type="checkbox" checked={wpMica}
+                        onChange={e => updateConfig?.({ homeWallpaperMica: e.target.checked })}
+                      />
+                      Mica frost on cards (tinted see-through)
+                    </label>
+                  </>
+                )}
+              </div>
+              <div className="bndz-home-customize-group">
+                <span className="bndz-home-customize-title">Cards on this page</span>
+                <div className="bndz-home-customize-checks">
+                  {HOME_WIDGETS.map(w => (
+                    <label key={w.id} className="bndz-home-customize-check">
+                      <input
+                        type="checkbox" checked={showWidget(w.id)}
+                        onChange={() => toggleWidget(w.id)}
+                      />
+                      {w.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
+          <motion.p
+            className="bndz-home-lede"
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.12, duration: 0.4 }}
+          >
+            {fileCount > 0
+              ? `${fileCount.toLocaleString()} files indexed`
+                + (library.images ? ` | ${library.images.toLocaleString()} photos` : '')
+                + (library.videos ? ` | ${library.videos.toLocaleString()} videos` : '')
+              : 'Places are live. Index libraries to fill the Home rail.'}
+          </motion.p>
         </header>
-
-        {(fileCount > 0 || library.images || library.videos || library.audio || library.documents) && (
-          <section className="bndz-home-stats" aria-label="Library at a glance">
-            {fileCount > 0 && (
-              <div className="bndz-home-stat bndz-home-card">
-                <span className="bndz-home-stat-value">{fileCount.toLocaleString()}</span>
-                <span className="bndz-home-stat-label">Files indexed</span>
-              </div>
-            )}
-            {!!library.images && (
-              <div className="bndz-home-stat bndz-home-card">
-                <span className="bndz-home-stat-value">{library.images.toLocaleString()}</span>
-                <span className="bndz-home-stat-label">Photos</span>
-              </div>
-            )}
-            {!!library.videos && (
-              <div className="bndz-home-stat bndz-home-card">
-                <span className="bndz-home-stat-value">{library.videos.toLocaleString()}</span>
-                <span className="bndz-home-stat-label">Videos</span>
-              </div>
-            )}
-            {!!library.audio && (
-              <div className="bndz-home-stat bndz-home-card">
-                <span className="bndz-home-stat-value">{library.audio.toLocaleString()}</span>
-                <span className="bndz-home-stat-label">Audio files</span>
-              </div>
-            )}
-            {!!library.documents && (
-              <div className="bndz-home-stat bndz-home-card">
-                <span className="bndz-home-stat-value">{library.documents.toLocaleString()}</span>
-                <span className="bndz-home-stat-label">Documents</span>
-              </div>
-            )}
-            {places.filter(pl => pl.kind === 'drive').length > 0 && (
-              <div className="bndz-home-stat bndz-home-card">
-                <span className="bndz-home-stat-value">{places.filter(pl => pl.kind === 'drive').length}</span>
-                <span className="bndz-home-stat-label">Drives</span>
-              </div>
-            )}
-          </section>
-        )}
 
         <section className="bndz-home-omnibox-wrap" aria-label="Go anywhere">
           <div className={`bndz-home-omnibox${suggestions.length ? ' has-suggest' : ''}`}>
@@ -644,9 +698,8 @@ export default function BndzHomeView({
           </AnimatePresence>
         </section>
 
-        <div className="bndz-home-row bndz-home-row-top">
         {showWidget('workspaces') && (
-        <section className="bndz-home-workspaces bndz-home-card" aria-label="Workspaces">
+        <section className="bndz-home-workspaces" aria-label="Workspaces">
           <div className="bndz-home-section-label">
             <span>Workspaces</span>
             <span className="bndz-home-muted">Launch pads</span>
@@ -675,38 +728,9 @@ export default function BndzHomeView({
           </div>
         </section>
         )}
-        {showWidget('focus') && stage && (
-          <section className="bndz-home-focus" aria-label="Focus stage">
-            <motion.div
-              className="bndz-home-focus-plate bndz-home-card"
-              layout={!reduceMotion}
-              initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <div className="bndz-home-focus-thumb">
-                <ShellNativeIcon path={stage.path} size={56} preferThumbnail eager hero />
-              </div>
-              <div className="bndz-home-focus-meta">
-                <span className="bndz-home-focus-eyebrow">
-                  {stage.kind === 'clipboard' ? 'Clipboard' : stage.kind === 'preview' ? 'Preview' : 'Now'}
-                </span>
-                <div className="bndz-home-focus-name" title={formatAddressBarPath(stage.path)}>{stage.name}</div>
-                <div className="bndz-home-focus-path">{formatAddressBarPath(stage.path)}</div>
-              </div>
-              <div className="bndz-home-focus-actions">
-                <button type="button" className="bndz-home-chip" onClick={() => onOpenPath(stage.path)}>Open</button>
-                <button type="button" className="bndz-home-chip" onClick={() => onRevealFolder?.(parentPane(stage.path))}>Reveal</button>
-                {onOpenOpposite && (
-                  <button type="button" className="bndz-home-chip" onClick={() => onOpenOpposite(parentPane(stage.path))}>Opposite</button>
-                )}
-              </div>
-            </motion.div>
-          </section>
-        )}
-        </div>
 
         {showWidget('frequent') && (mostOpened.length > 0 || frequentFromNav.length > 0) && (
-          <section className="bndz-home-frequent bndz-home-card" aria-label="Most accessed">
+          <section className="bndz-home-frequent" aria-label="Most accessed">
             <div className="bndz-home-section-label">
               <span>Most accessed</span>
               <span className="bndz-home-muted">Opens + navigation heat</span>
@@ -736,8 +760,37 @@ export default function BndzHomeView({
           </section>
         )}
 
+        {showWidget('focus') && stage && (
+          <section className="bndz-home-focus" aria-label="Focus stage">
+            <motion.div
+              className="bndz-home-focus-plate"
+              layout={!reduceMotion}
+              initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <div className="bndz-home-focus-thumb">
+                <ShellNativeIcon path={stage.path} size={56} preferThumbnail eager hero />
+              </div>
+              <div className="bndz-home-focus-meta">
+                <span className="bndz-home-focus-eyebrow">
+                  {stage.kind === 'clipboard' ? 'Clipboard' : stage.kind === 'preview' ? 'Preview' : 'Now'}
+                </span>
+                <div className="bndz-home-focus-name" title={formatAddressBarPath(stage.path)}>{stage.name}</div>
+                <div className="bndz-home-focus-path">{formatAddressBarPath(stage.path)}</div>
+              </div>
+              <div className="bndz-home-focus-actions">
+                <button type="button" className="bndz-home-chip" onClick={() => onOpenPath(stage.path)}>Open</button>
+                <button type="button" className="bndz-home-chip" onClick={() => onRevealFolder?.(parentPane(stage.path))}>Reveal</button>
+                {onOpenOpposite && (
+                  <button type="button" className="bndz-home-chip" onClick={() => onOpenOpposite(parentPane(stage.path))}>Opposite</button>
+                )}
+              </div>
+            </motion.div>
+          </section>
+        )}
+
         {showWidget('continuum') && (
-        <section className="bndz-home-continuum bndz-home-card" aria-label="Home">
+        <section className="bndz-home-continuum" aria-label="Home">
           <div className="bndz-home-section-label">
             <span>Home</span>
             <span className="bndz-home-muted">
@@ -859,9 +912,8 @@ export default function BndzHomeView({
         </section>
         )}
 
-        <div className="bndz-home-row bndz-home-row-bottom">
         {showWidget('places') && (
-        <section className="bndz-home-places bndz-home-card" aria-label="Places">
+        <section className="bndz-home-places" aria-label="Places">
           <div className="bndz-home-section-label">
             <span>Places</span>
             <span className="bndz-home-muted">
@@ -924,7 +976,7 @@ export default function BndzHomeView({
         )}
 
         {showWidget('trail') && ghost.length > 0 && (
-          <section className="bndz-home-ghost bndz-home-card" aria-label="Session trail">
+          <section className="bndz-home-ghost" aria-label="Session trail">
             <div className="bndz-home-section-label">
               <span>Session trail</span>
               <span className="bndz-home-muted">This session | fades with time</span>
@@ -946,8 +998,6 @@ export default function BndzHomeView({
             </div>
           </section>
         )}
-
-        </div>
 
         <footer className="bndz-home-pulse" aria-label="Pulse">
           <div className="bndz-home-pulse-track">
