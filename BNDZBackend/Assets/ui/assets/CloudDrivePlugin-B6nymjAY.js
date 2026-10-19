@@ -1,1 +1,0 @@
-import{j as r}from"./vendor-CEOYDVut.js";import i from"./CloudDrivePanel-DhaICYM_.js";import"./index-CBT9mSoY.js";import"./motion-CEpLXg-0.js";import"./virtual-iJRCiQa0.js";import"./PluginPanelShell-C7enss8t.js";import"./PluginPanelPrimitives-DMCOyLZC.js";function a(){return r.jsx(i,{variant:"plugin"})}export{a as default};
