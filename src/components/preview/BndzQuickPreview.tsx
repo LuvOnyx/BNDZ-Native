@@ -4,7 +4,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import { CloseGlyph } from '../ChromeGlyphs';
 import { FSEntity } from '../../types';
 import { toWindowsPath, toVirtualStreamUrl } from '../../lib/pathUtils';
-import { isImageExt, isVideoExt, isAudioExt, isModelExt, isShellActivateExt, isGpuNativeModelExt, isRageConvertModelExt } from '../../lib/mediaTypes';
+import { isImageExt, isVideoExt, isAudioExt, isModelExt, isShellActivateExt, isGpuNativeModelExt, isRageConvertModelExt, isRageTextureExt } from '../../lib/mediaTypes';
 import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt, isFontExt } from '../../lib/textFileTypes';
 import { isArchiveExt } from '../../lib/archiveTypes';
 import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
@@ -17,6 +17,7 @@ import PdfPreviewPanel from '../PdfPreviewPanel';
 import TextPreviewEditor from '../TextPreviewEditor';
 import MarkdownPreviewPanel from '../MarkdownPreviewPanel';
 import ArchivePreviewPanel from '../ArchivePreviewPanel';
+import { RageTextureGallery } from './RageTextureGallery';
 import PreviewMetadataStrip, { curatedPreviewFacts } from './PreviewMetadataStrip';
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
 import { requestMediaResume } from '../../lib/mediaPlaybackBridge';
@@ -162,6 +163,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const isArchive = !isDir && isArchiveExt(ext);
   const isFont = !isDir && isFontExt(ext);
   const isModel = !isDir && isModelExt(ext);
+  const isRageTexture = !isDir && isRageTextureExt(ext);
   const isEditableText = isTextRaw || isCode || isMarkdown;
   const virtualUrl = current?.path ? toVirtualStreamUrl(current.path) : '';
   const canEditMedia = canOpenStudio || isAudio;
@@ -230,7 +232,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
 
   useEffect(() => {
     setFileContent(null);
-    if (!open || !current?.path || isDir || isImage || isSvg || isVideo || isAudio || isPdf || isDocx || isArchive || isFont || isModel) return;
+    if (!open || !current?.path || isDir || isImage || isSvg || isVideo || isAudio || isPdf || isDocx || isArchive || isFont || isModel || isRageTexture) return;
     if (!isEditableText && !isHtml) return;
 
     let cancelled = false;
@@ -242,7 +244,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       .catch(() => { if (!cancelled) setFileContent(null); })
       .finally(() => { if (!cancelled) setContentLoading(false); });
     return () => { cancelled = true; };
-  }, [open, current?.path, isDir, isImage, isSvg, isVideo, isAudio, isPdf, isDocx, isArchive, isFont, isModel, isEditableText, isHtml]);
+  }, [open, current?.path, isDir, isImage, isSvg, isVideo, isAudio, isPdf, isDocx, isArchive, isFont, isModel, isRageTexture, isEditableText, isHtml]);
 
   useEffect(() => {
     if (!open) return;
@@ -295,7 +297,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
 
   const kindLabel = indexedKind
     ? indexedKind.charAt(0).toUpperCase() + indexedKind.slice(1)
-    : isDir ? 'Folder' : isSvg ? 'SVG' : isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isPdf ? 'PDF' : isArchive ? 'Archive' : isModel ? '3D' : isFont ? 'Font' : isDocx ? 'Word' : ext ? ext.toUpperCase() : 'File';
+    : isDir ? 'Folder' : isSvg ? 'SVG' : isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isPdf ? 'PDF' : isArchive ? 'Archive' : isRageTexture ? 'Textures' : isModel ? '3D' : isFont ? 'Font' : isDocx ? 'Word' : ext ? ext.toUpperCase() : 'File';
 
   const renderPreview = () => {
     if (editMode && canOpenStudio) {
@@ -374,6 +376,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       );
     }
     if (isArchive) return <ArchivePreviewPanel path={current.path} format={ext} onExtract={extractArchive} />;
+    if (isRageTexture) return <RageTextureGallery path={current.path} title={current.entity.name} />;
     if (isModel) {
       if (!probeWebGL()) {
         return (

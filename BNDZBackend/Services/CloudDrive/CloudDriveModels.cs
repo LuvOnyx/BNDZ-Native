@@ -14,6 +14,9 @@ public sealed class CloudDriveRecord
     public string Provider { get; set; } = "";
     public string State { get; set; } = "stopped";
     public string? Message { get; set; }
+    /// <summary>Runtime only: the local guest panel answered on its WebDAV port at last refresh.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool PanelUp { get; set; }
     public int SizeGb { get; set; } = 20;
     public string? Region { get; set; }
     public string? DiskPath { get; set; }
@@ -79,6 +82,7 @@ public sealed class CloudDriveRecord
             Provider = Provider,
             State = State,
             Message = CloudDriveSecrets.Redact(Message),
+            PanelUp = PanelUp,
             SizeGb = SizeGb,
             Region = Region,
             DiskPath = DiskPath,
@@ -136,6 +140,7 @@ public sealed class CloudDriveDto
     public string Provider { get; set; } = "";
     public string State { get; set; } = "";
     public string? Message { get; set; }
+    public bool PanelUp { get; set; }
     public int SizeGb { get; set; }
     public string? Region { get; set; }
     public string? DiskPath { get; set; }

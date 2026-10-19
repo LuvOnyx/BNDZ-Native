@@ -8745,6 +8745,34 @@ else if (type == "MESH_INCUS_LIST_ENDPOINTS")
                         PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response)));
                     });
                 }
+                else if (type == "GET_RAGE_TEXTURES")
+                {
+                    var payload = root.GetProperty("payload");
+                    string rawPath = payload.GetProperty("path").GetString() ?? "";
+                    string path = NormalizeFsPath(rawPath);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        object resultPayload;
+                        try
+                        {
+                            var (ok, items, skipped, error) = RageTexturePreviewService.TryGetTextures(path);
+                            resultPayload = ok
+                                ? new
+                                {
+                                    textures = items.Select(t => new { name = t.Name, width = t.Width, height = t.Height, format = t.Format, path = t.Path }).ToArray(),
+                                    skipped,
+                                }
+                                : new { error = error ?? "Texture preview failed", textures = Array.Empty<object>(), skipped };
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { error = ex.Message, textures = Array.Empty<object>(), skipped = 0 };
+                        }
+                        var response = new { type = "RAGE_TEXTURES_RESULT", id = idProp, payload = resultPayload };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response)));
+                    });
+                }
                 else if (type == "GET_MEDIA_BLOB")
                 {
                     var payload = root.GetProperty("payload");

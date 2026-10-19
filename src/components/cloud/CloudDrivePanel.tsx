@@ -121,13 +121,37 @@ function CloudDriveBody() {
 
   // Creating and starting finish in the background on the backend (a first
   // start downloads the engine and takes minutes). Poll the list so the card
-  // shows live progress instead of one long blocked call.
+  // shows live progress instead of one long blocked call. A local drive whose
+  // engine is up but whose panel is not answering yet keeps polling too --
+  // that window used to go silent and read as "it did not work".
   const anyTransient = drives.some(d => d.state === 'creating' || d.state === 'starting');
+  const anyBooting = drives.some(d => d.placement === 'local' && d.state === 'running' && !d.panelUp);
   useEffect(() => {
-    if (!anyTransient || previewLayout) return;
+    if ((!anyTransient && !anyBooting) || previewLayout) return;
     const t = window.setInterval(() => { void refresh(); }, 2000);
     return () => window.clearInterval(t);
-  }, [anyTransient, previewLayout, refresh]);
+  }, [anyTransient, anyBooting, previewLayout, refresh]);
+
+  // A drive that lands in the error state gets a notification, not just
+  // quiet card text. Only transitions seen while the panel is open toast --
+  // the first load just records where things stand.
+  const prevDriveStatesRef = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    const prev = prevDriveStatesRef.current;
+    const next = new Map(drives.map(d => [d.id, d.state]));
+    if (prev) {
+      drives.forEach(d => {
+        if (d.state === 'error' && prev.get(d.id) !== 'error') {
+          pushToast({
+            kind: 'error',
+            title: `${d.name} hit a problem`,
+            message: d.message || 'The drive stopped with an error. Its card shows what happened.',
+          });
+        }
+      });
+    }
+    prevDriveStatesRef.current = next;
+  }, [drives]);
 
   useEffect(() => {
     if (placementSet.current || previewLayout || !probeReady) return;
@@ -659,6 +683,17 @@ function CloudDriveBody() {
             {(drive.state === 'creating' || drive.state === 'starting') && (
               <div className="bndz-cloud-progress" role="status">
                 <span>{drive.message || `${stateLabel(drive.state)}…`}</span>
+                <div className="bndz-cloud-progress-bar" aria-hidden />
+              </div>
+            )}
+            {drive.state === 'error' && drive.message && (
+              <div className="bndz-cloud-error" role="alert">
+                <strong>Something went wrong.</strong> <span>{drive.message}</span>
+              </div>
+            )}
+            {drive.state === 'running' && drive.placement === 'local' && !drive.panelUp && (
+              <div className="bndz-cloud-progress" role="status">
+                <span>{drive.message || 'The drive is still booting…'}</span>
                 <div className="bndz-cloud-progress-bar" aria-hidden />
               </div>
             )}

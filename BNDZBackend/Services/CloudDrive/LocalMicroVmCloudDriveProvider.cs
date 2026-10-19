@@ -828,7 +828,10 @@ Write-Output 'VHD_OK'
             drive.Port = drive.SshPort;
             drive.SshNote = CloudDriveProtocols.OperatorNote(drive);
             drive.State = "running";
-            drive.Message = CloudDriveLocalBackend.ModeLabel(backend) + ". The panel is at http://127.0.0.1:" + drive.WebDavPort + "/ once the drive finishes booting.";
+            drive.Message = CloudDriveLocalBackend.ModeLabel(backend) + ". The panel is at http://127.0.0.1:" + drive.WebDavPort + "/ once the drive finishes booting."
+                + (backend == CloudDriveLocalBackend.QemuTcg
+                    ? " No fast mode is available on this PC, so booting is slow. Turning on Faster mode in this panel (it enables Virtual Machine Platform) and restarting Windows makes starts fast."
+                    : "");
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
@@ -851,12 +854,34 @@ Write-Output 'VHD_OK'
         var state = ReadQemuState(drive);
         if (state == null || !CloudDriveQemu.Alive(state.Pid))
         {
+            drive.PanelUp = false;
             if (drive.State == "running") drive.State = "stopped";
             return;
         }
-        drive.State = "running";
         var panelUp = CloudDriveLocalRootfs.TcpOpen("127.0.0.1", drive.WebDavPort, 400);
-        drive.Message = CloudDriveLocalBackend.ModeLabel(drive.Hypervisor) + (panelUp ? ". The panel is answering on this PC." : ". The drive is still booting.");
+        drive.PanelUp = panelUp;
+        if (panelUp)
+        {
+            drive.State = "running";
+            drive.Message = CloudDriveLocalBackend.ModeLabel(drive.Hypervisor) + ". The panel is answering on this PC.";
+            return;
+        }
+        // The engine process is alive but the drive itself is not answering.
+        // Give a first boot a fair chance, then say so plainly and stop the
+        // engine — sitting in "still booting" forever reads as "it did not
+        // work" with no error, which is worse than an honest failure.
+        var bootedAt = File.GetLastWriteTimeUtc(QemuStatePath(drive));
+        var bootAge = DateTime.UtcNow - bootedAt;
+        if (bootAge > TimeSpan.FromMinutes(12) && drive.State != "error")
+        {
+            _ = CloudDriveQemu.StopAsync(state.QmpPort, state.Pid, TimeSpan.FromSeconds(45), CancellationToken.None);
+            drive.State = "error";
+            drive.Message = "The drive engine ran for " + (int)bootAge.TotalMinutes
+                + " minutes but the drive never answered. This usually means Windows' Virtual Machine Platform is turned off, or the first boot got stuck. Turn on Faster mode in this panel (it switches Virtual Machine Platform on), restart Windows, then start the drive again. Details are in console.log in the drive's folder.";
+            return;
+        }
+        drive.State = "running";
+        drive.Message = CloudDriveLocalBackend.ModeLabel(drive.Hypervisor) + ". The drive is still booting.";
     }
 
     /// <summary>CPUID leaf 1 ECX bit 31: a hypervisor is already running under Windows.</summary>

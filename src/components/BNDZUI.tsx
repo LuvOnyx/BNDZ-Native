@@ -5639,10 +5639,28 @@ ${classified.detail}`,
                 });
 
               } else {
-                pushToast({
-                  kind: 'error',
+                // Windows-style error dialog for failures the classifier has no
+                // richer sheet for (including every delete failure) — a toast
+                // alone is too easy to miss for a failed file operation.
+                const pendingForRetry = localTransferByOpRef.current.get(job.operationId) || lastLocalTransferRef.current;
+                const canRetry = !isDelete && !!pendingForRetry?.sources?.length;
+                const opNoun = isDelete ? 'deleting' : isRename ? 'renaming' : isMove ? 'moving' : isCopy ? 'copying' : 'finishing';
+                showModal({
+                  type: 'destructive',
                   title: failTitle,
-                  message: job.error || label,
+                  message: `An unexpected error is keeping you from ${opNoun} ${label && label !== 'items' ? label : 'the item'}.\n\n${job.error || 'The operation failed.'}`,
+                  actions: [
+                    ...(canRetry ? [{
+                      label: 'Try again',
+                      style: 'primary' as const,
+                      action: () => {
+                        const pending = pendingForRetry!;
+                        const sources = failedPaths.length > 0 ? failedPaths : pending.sources;
+                        executeInternalDropRef.current?.(pending.action, sources, pending.destDir, undefined, { skipConfirm: true });
+                      },
+                    }] : []),
+                    { label: 'Close', style: canRetry ? 'secondary' as const : 'primary' as const, action: () => { /* dismiss */ } },
+                  ],
                 });
               }
             } else if (job.status === 'completed') {
@@ -6607,7 +6625,7 @@ ${classified.detail}`,
         }
          showModal({
            type: 'conflict',
-           title: conflictDetails.isFolder ? 'Folder already exists' : 'File already exists',
+           title: conflictDetails.isFolder ? 'Merge folders?' : 'File already exists',
            message: '',
            actions: [],
            conflict: {

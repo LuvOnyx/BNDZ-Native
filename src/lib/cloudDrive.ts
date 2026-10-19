@@ -13,6 +13,7 @@ export type CloudDriveRecord = {
   provider?: string;
   state: string;
   message?: string;
+  panelUp?: boolean;
   sizeGb?: number;
   region?: string;
   diskPath?: string;

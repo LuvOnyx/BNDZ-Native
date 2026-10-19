@@ -3499,6 +3499,20 @@ export const IPC = {
     return Promise.resolve({ error: 'Not native', path });
   },
 
+  getRageTextures(path: string): Promise<{
+    textures?: Array<{ name: string; width: number; height: number; format: string; path: string }>;
+    skipped?: number;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_rageTextures`;
+      return _nativeCall(
+        'GET_RAGE_TEXTURES', 'RAGE_TEXTURES_RESULT', id, { path }, 120000
+      );
+    }
+    return Promise.resolve({ error: 'Not native', textures: [] });
+  },
+
   getIconLibraries(): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_getIconLibs`;

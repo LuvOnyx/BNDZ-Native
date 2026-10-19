@@ -11790,7 +11790,7 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
 .bndz-home.is-mica .bndz-home-ghost-chip,
 .bndz-home.is-mica .bndz-home-peek-tile,
 .bndz-home.is-mica .bndz-ws-launch-card,
-.bndz-home.is-mica .bndz-home-customize {
+.bndz-home.is-mica .bndz-home-card {
   background: color-mix(in srgb, #14151b 56%, transparent);
   backdrop-filter: blur(14px) saturate(1.5);
   -webkit-backdrop-filter: blur(14px) saturate(1.5);
@@ -11811,81 +11811,101 @@ html.theme-light:not([data-bndz-shell="native-host"]):not([data-bndz-shell="file
   line-height: 1;
   color: #f2f4f8;
 }
-.bndz-home-customize-btn {
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #c9ced8;
-  font-size: 11px;
-  cursor: pointer;
+/* --- Dashboard layout: greeting hero, stat tiles, card grid ------------ */
+.bndz-home .bndz-home-hero {
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
 }
-.bndz-home-customize-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
-
-.bndz-home-customize {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin-top: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--home-line);
-  border-radius: 12px;
-  background: rgba(16, 17, 22, 0.72);
-}
-.bndz-home-customize-group {
+.bndz-home-hero-main {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  min-width: 240px;
+  gap: 6px;
+  min-width: 0;
 }
-.bndz-home-customize-title {
-  font-size: 11px;
+.bndz-home-greeting {
+  margin: 0;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #aeb4c0;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: #f4f6fa;
 }
-.bndz-home-customize-row {
+.bndz-home-clock-card {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 12px 18px;
+  flex-shrink: 0;
 }
-.bndz-home-customize-label {
-  font-size: 11px;
-  color: #9aa1ad;
-  width: 44px;
+.bndz-home-clock-date {
+  font-size: 11.5px;
+  font-weight: 550;
+  letter-spacing: 0.04em;
+  color: #aeb6c4;
 }
-.bndz-home-customize-value { font-size: 11px; color: #c9ced8; min-width: 34px; }
-.bndz-home-customize-path {
-  font-size: 11px;
-  color: #9aa1ad;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+
+/* Dashboard card surface: one material for every Home section. */
+.bndz-home-card {
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--home-line);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  padding: 14px 16px;
 }
-.bndz-home-customize-row input[type="range"] { width: 130px; accent-color: var(--home-accent); }
-.bndz-home-customize-checks {
+/* Mica: when on, cards go tinted see-through and frost whatever is behind
+   them (the wallpaper, or the app's own atmosphere when no picture is set). */
+.bndz-home.is-mica .bndz-home-card {
+  background: linear-gradient(168deg,
+    color-mix(in srgb, var(--accent, #7e22ce) 7%, rgba(20, 21, 27, 0.52)),
+    color-mix(in srgb, #14151b 52%, transparent) 60%);
+  backdrop-filter: blur(18px) saturate(1.55);
+  -webkit-backdrop-filter: blur(18px) saturate(1.55);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+.bndz-home-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
 }
-.bndz-home-customize-check {
+.bndz-home-stat {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: #d5d9e0;
-  cursor: pointer;
+  flex-direction: column;
+  gap: 1px;
+  padding: 12px 16px;
 }
-.bndz-home-customize-check input { accent-color: var(--home-accent); }
-.bndz-home-chip.is-active {
-  border-color: color-mix(in srgb, var(--home-accent) 65%, transparent);
-  color: #fff;
-  background: color-mix(in srgb, var(--home-accent) 22%, rgba(0, 0, 0, 0.25));
+.bndz-home-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #f2f4f8;
 }
+.bndz-home-stat-label {
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9aa3b2;
+}
+
+.bndz-home-row {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+.bndz-home-row-top { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.bndz-home-row-bottom { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.bndz-home-row:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1150px) {
+  .bndz-home-row-top, .bndz-home-row-bottom { grid-template-columns: minmax(0, 1fr); }
+  .bndz-home-greeting { font-size: 28px; }
+}
+.bndz-home-deck { gap: 14px; }
+
 
 .bndz-home-hero {
   display: flex;
@@ -21793,6 +21813,92 @@ html.theme-light .bndz-omni-suggest {
   color: #fde68a;
   font-size: 12px;
   line-height: 1.45;
+}
+.bndz-cloud-error {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.bndz-cloud-error strong { color: #fff; }
+
+/* RAGE texture dictionary (.ytd) gallery */
+.rage-tex-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 10px;
+}
+.rage-tex-stage {
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background:
+    repeating-conic-gradient(rgba(255, 255, 255, 0.07) 0% 25%, rgba(0, 0, 0, 0.22) 0% 50%)
+    0 0 / 18px 18px;
+  overflow: hidden;
+}
+.rage-tex-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.rage-tex-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.65);
+}
+.rage-tex-caption .rage-tex-name { color: #fff; font-weight: 600; }
+.rage-tex-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.rage-tex-thumb {
+  flex: 0 0 auto;
+  width: 74px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  color: rgba(226, 232, 240, 0.6);
+  font-size: 9px;
+}
+.rage-tex-thumb img {
+  width: 100%;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 5px;
+  background:
+    repeating-conic-gradient(rgba(255, 255, 255, 0.08) 0% 25%, rgba(0, 0, 0, 0.25) 0% 50%)
+    0 0 / 10px 10px;
+}
+.rage-tex-thumb span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rage-tex-thumb.is-active {
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .bndz-cloud-progress-bar {
   margin-top: 6px;

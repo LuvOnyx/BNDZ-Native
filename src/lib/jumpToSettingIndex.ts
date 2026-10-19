@@ -47,8 +47,15 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
     tab: 'Appearance',
     label: 'Home wallpaper',
     key: 'homeWallpaperPath',
-    description: 'Pick a picture to sit behind the Home page, with fit, blur, darken, and Mica frost controls. The same controls live on Home itself under Customize.',
+    description: 'Pick a picture to sit behind the Home page, with fit, blur, darken, and Mica frost controls.',
     keywords: ['wallpaper', 'background', 'home', 'picture', 'image', 'mica', 'blur', 'dashboard', 'customize home'],
+  },
+  {
+    tab: 'Appearance',
+    label: 'Cards on the Home page',
+    key: 'homeWidgets',
+    description: 'Choose which cards the Home dashboard shows: clock, workspaces, most accessed, focus stage, Home rail, places and drives, session trail.',
+    keywords: ['home', 'dashboard', 'cards', 'widgets', 'clock', 'workspaces', 'places', 'customize home', 'show cards', 'hide cards'],
   },
   {
     tab: 'Appearance',

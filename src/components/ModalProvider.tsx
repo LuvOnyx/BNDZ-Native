@@ -198,14 +198,19 @@ function FileConflictModal({
       title={config.title}
       subtitle={
         c.isFolder
-          ? 'A folder with this name already exists -- choose how to proceed.'
+          ? 'A folder with this name already exists. Merging combines the two folders into one -- nothing is deleted, and you will be asked about any files inside that also match.'
           : 'A file with this name already exists -- choose how to proceed.'
       }
       tone="conflict"
       variant="sheet"
       size="lg"
       onClose={cancel}
-      buttons={[
+      buttons={c.isFolder ? [
+        { label: 'Cancel all', style: 'secondary', onClick: cancel },
+        { label: 'Skip', style: 'secondary', onClick: () => resolve('skip') },
+        { label: 'Keep both', style: 'secondary', onClick: () => resolve('keepboth') },
+        { label: 'Merge', style: 'primary', onClick: () => resolve('replace') },
+      ] : [
         { label: 'Cancel all', style: 'secondary', onClick: cancel },
         { label: 'Skip', style: 'secondary', onClick: () => resolve('skip') },
         { label: 'Keep both', style: 'secondary', onClick: () => resolve('keepboth') },
@@ -217,7 +222,7 @@ function FileConflictModal({
           <BndzPlaque tone="warn" size="md" className="bndz-plaque--hex-well" animate={false} />
           <p className="text-[11px] text-gray-400 leading-relaxed m-0">
             {c.isFolder
-              ? 'Same folder name on disk -- compare Incoming vs Existing, then Replace, Keep both, or Skip.'
+              ? 'Same folder name on disk -- Merge combines them, Keep both saves the incoming folder under a new name, or Skip leaves both untouched.'
               : 'Same name on disk -- compare Incoming vs Existing, then Replace, Keep both, or Skip.'}
           </p>
         </div>

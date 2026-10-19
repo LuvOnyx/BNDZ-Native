@@ -33,11 +33,12 @@ import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
 import { isArchiveExt, isTorrentExt } from '../lib/archiveTypes';
-import { isAudioExt, isVideoExt, isImageExt, isModelExt, isGpuNativeModelExt, isRageConvertModelExt, isShellActivateExt } from '../lib/mediaTypes';
+import { isAudioExt, isVideoExt, isImageExt, isModelExt, isGpuNativeModelExt, isRageConvertModelExt, isRageTextureExt, isShellActivateExt } from '../lib/mediaTypes';
 import { useModelPreviewSource } from '../lib/useModelPreviewSource';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
+import { RageTextureGallery } from './preview/RageTextureGallery';
 import PreviewMetadataStrip from './preview/PreviewMetadataStrip';
 import { prefetchWhenIdle } from '../lib/idlePrefetch';
 import { SelectionFilmstrip } from './SelectionFilmstrip';
@@ -323,6 +324,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const ext = extRaw.toLowerCase().replace(/^\./, '');
   const isImage = isImageExt(ext);
   const isModel = isModelExt(ext);
+  const isRageTexture = isRageTextureExt(ext);
+  const rageKindLabel = ext === 'ytd' ? 'RAGE texture dictionary'
+    : ext === 'ydr' ? 'RAGE drawable (model)'
+    : ext === 'ydd' ? 'RAGE drawable dictionary'
+    : ext === 'yft' ? 'RAGE fragment (model)'
+    : ext === 'ybn' ? 'RAGE collision bounds'
+    : null;
   const isFont = isFontExt(ext);
   const isSvg = ext === 'svg' || ext === 'svgz';
   const isAudio = isAudioExt(ext);
@@ -340,6 +348,23 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const isTorrent = isTorrentExt(ext);
   const isDrive = !!(entity as any)?.driveInfo;
   const modelPreview = useModelPreviewSource(isModel && path ? path : null, ext);
+  const [rageTexSummary, setRageTexSummary] = useState<{ count: number; maxWidth: number; maxHeight: number } | null>(null);
+  useEffect(() => {
+    setRageTexSummary(null);
+    if (!isRageTexture || !path) return;
+    let cancelled = false;
+    IPC.getRageTextures(toWindowsPath(path))
+      .then(r => {
+        if (cancelled || !r.textures) return;
+        setRageTexSummary({
+          count: r.textures.length,
+          maxWidth: r.textures.reduce((m, t) => Math.max(m, t.width), 0),
+          maxHeight: r.textures.reduce((m, t) => Math.max(m, t.height), 0),
+        });
+      })
+      .catch(() => { /* details row just stays hidden */ });
+    return () => { cancelled = true; };
+  }, [isRageTexture, path]);
   const fontFamilyName = isFont && path
     ? `bndz-preview-font-${ext}-${(entity?.name || 'f').replace(/[^a-zA-Z0-9]/g, '')}`
     : '';
@@ -365,7 +390,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const virtualUrl = previewFsPath && !isDir
       ? (isNative ? toVirtualStreamUrl(previewFsPath) : `/local-stream/${encodeLocalStreamPath(toWindowsPath(previewFsPath))}`)
       : '';
-  const previewAllowed = isArchive || isTorrent || isRageConvertModelExt(ext) || isPreviewEnabledForExt(ext, config);
+  const previewAllowed = isArchive || isTorrent || isRageConvertModelExt(ext) || isRageTexture || isPreviewEnabledForExt(ext, config);
 
   useEffect(() => {
     if (!entity) return;
@@ -799,6 +824,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               0123456789 | ABCDEFGHIJKLMNOPQRSTUVWXYZ
             </div>
             <div className="text-[11px] opacity-40 truncate max-w-full">{entity.name}</div>
+          </div>
+        );
+      }
+
+      if (isRageTexture && previewAllowed) {
+        return (
+          <div className="w-full h-full min-h-[240px] bndz-preview-stage">
+            <RageTextureGallery path={path} title={entity.name} />
           </div>
         );
       }
@@ -1338,7 +1371,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <div className="pb-3 border-b border-[var(--border-subtle,rgba(255,255,255,0.08))]">
                        <h2 className="text-[14px] font-bold break-words leading-tight">{entity.name}</h2>
                        <div className="bndz-panel-muted mt-1 bndz-mono">
-                          {isDrive ? (entity as any).typeDescription : (isDir ? 'File Folder' : `${ext.toUpperCase()} File`)}
+                          {isDrive ? (entity as any).typeDescription : (isDir ? 'File Folder' : (rageKindLabel || `${ext.toUpperCase()} File`))}
                        </div>
                     </div>
 
@@ -1377,6 +1410,24 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                                      <div className="bndz-mono text-gray-400 break-all leading-snug">{formatUiPath(path)}</div>
                                   </>
                                )}
+                               {isRageTexture && (
+                                  <>
+                                     <div className="text-gray-500">Textures:</div>
+                                     <div className="text-gray-300">
+                                        {rageTexSummary
+                                          ? `${rageTexSummary.count} in this dictionary${rageTexSummary.maxWidth ? ` · largest ${rageTexSummary.maxWidth} × ${rageTexSummary.maxHeight}` : ''}`
+                                          : 'Reading...'}
+                                     </div>
+                                  </>
+                               )}
+                               {isModel && isRageConvertModelExt(ext) && (modelPreview.vertices || modelPreview.triangles) ? (
+                                  <>
+                                     <div className="text-gray-500">Mesh:</div>
+                                     <div className="text-gray-300">
+                                        {modelPreview.vertices?.toLocaleString()} vertices · {modelPreview.triangles?.toLocaleString()} triangles
+                                     </div>
+                                  </>
+                               ) : null}
                                {fileHashes?.md5 && (
                                   <>
                                      <div className="text-gray-500">MD5:</div>

@@ -26,6 +26,7 @@ import {
 } from '../../lib/appearanceVariants';
 import { SIZE_BAR_STYLE_OPTIONS, type SizeBarStyle, SizeBar } from '../SizeBar';
 import { applySettingsRuntime } from '../../lib/settingsRuntime';
+import { HOME_WIDGETS, DEFAULT_HOME_WIDGETS } from '../../lib/homeWidgets';
 import { IPC } from '../../lib/ipcBridge';
 import type { AppConfig } from '../../data/configContext';
 
@@ -141,7 +142,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">
             <div className="text-[12px] font-medium text-white/90">Home wallpaper</div>
-            <div className="text-[10px] text-white/40 mt-0.5">Picture behind the Home page (or set it from Home → Customize)</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Picture behind the Home page</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -211,6 +212,33 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           checked={(localConfig as any).homeWallpaperMica !== false}
           onChange={e => patch({ homeWallpaperMica: e.target.checked } as Partial<AppConfig>)}
         />
+        <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Cards on the Home page</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Which cards the Home dashboard shows</div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+            {HOME_WIDGETS.map(w => {
+              const current: string[] = Array.isArray((localConfig as any).homeWidgets)
+                ? (localConfig as any).homeWidgets
+                : DEFAULT_HOME_WIDGETS;
+              const on = current.includes(w.id);
+              return (
+                <Checkbox
+                  key={w.id}
+                  label={w.label}
+                  checked={on}
+                  onChange={e => {
+                    const next = e.target.checked
+                      ? [...current, w.id]
+                      : current.filter((id: string) => id !== w.id);
+                    patch({ homeWidgets: next } as Partial<AppConfig>);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">
             <div className="text-[12px] font-medium text-white/90">Selection highlight</div>

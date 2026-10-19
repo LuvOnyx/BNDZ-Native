@@ -55,6 +55,13 @@ export function isRageConvertModelExt(ext: string): boolean {
   return RAGE_CONVERT_MODEL_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
 }
 
+/** RAGE texture dictionaries -- no geometry; the host extracts PNGs for a gallery preview. */
+export const RAGE_TEXTURE_EXTENSIONS = new Set(['ytd']);
+
+export function isRageTextureExt(ext: string): boolean {
+  return RAGE_TEXTURE_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
+}
+
 /** Executables / installers -- ShellExecute only; never Quick Look or heavy metadata. */
 export const SHELL_ACTIVATE_EXTENSIONS = new Set([
   'exe', 'msi', 'msp', 'com', 'scr', 'bat', 'cmd', 'ps1', 'cpl', 'msc',
