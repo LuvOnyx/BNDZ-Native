@@ -15,17 +15,10 @@ import { getGhostTrail, subscribeGhostTrail, type GhostTrailEntry } from '../../
 import { loadSmartCollections } from '../../lib/smartCollections';
 import { toVirtualStreamUrl } from '../../lib/pathUtils';
 
-/** Home dashboard cards the user can show/hide (Home -> Customize). */
-export const HOME_WIDGETS: Array<{ id: string; label: string }> = [
-  { id: 'clock', label: 'Clock and date' },
-  { id: 'workspaces', label: 'Workspaces' },
-  { id: 'frequent', label: 'Most accessed' },
-  { id: 'focus', label: 'Focus stage (current item)' },
-  { id: 'continuum', label: 'Home rail (recent files)' },
-  { id: 'places', label: 'Places and drives' },
-  { id: 'trail', label: 'Session trail' },
-];
-export const DEFAULT_HOME_WIDGETS = HOME_WIDGETS.map(w => w.id);
+import { HOME_WIDGETS, DEFAULT_HOME_WIDGETS, DEFAULT_HOME_MODULE_ORDER } from '../../lib/homeWidgets';
+import HomeDashboard from '../home/HomeDashboard';
+import GitHubFeedModule from '../home/GitHubFeedModule';
+import type { ReactNode } from 'react';
 
 type ContinuumItem = {
   id?: string;
@@ -484,6 +477,313 @@ export default function BndzHomeView({
   const stage = focusStage;
   const pulsePct = Math.round(12 + pulseWarmth * 88);
 
+  const moduleNodes: Record<string, ReactNode> = {
+    workspaces: (showWidget('workspaces')) ? (
+        <section className="bndz-home-workspaces" aria-label="Workspaces">
+          <div className="bndz-home-section-label">
+            <span>Workspaces</span>
+            <span className="bndz-home-muted">Launch pads</span>
+          </div>
+          <div className="bndz-ws-launch-grid">
+            <WorkspaceLaunchCard
+              title="Spatial Canvas"
+              desc="Blank freeform board -- organize references across folders without moving files on disk."
+              icon="view_grid"
+              accent="#c4a35a"
+              features={['Drop from panes', 'Sticky notes', 'Pan & zoom']}
+              onClick={() => onNavigate(BNDZ_CANVAS)}
+              className="is-canvas"
+            />
+            <WorkspaceLaunchCard
+              title="Automation"
+              desc="Visual file pipelines with watch, filter, copy, move, and built-in rsync deploy blocks."
+              icon="zap_ui"
+              accent="#34d399"
+              badge="Pipeline"
+              badgeVariant="green"
+              features={['Visual editor', 'Remote deploy', 'Auto-save']}
+              onClick={() => onNavigate(BNDZ_AUTOMATION)}
+              className="is-automation"
+            />
+          </div>
+        </section>
+    ) : null,
+    frequent: (showWidget('frequent') && (mostOpened.length > 0 || frequentFromNav.length > 0)) ? (
+          <section className="bndz-home-frequent" aria-label="Most accessed">
+            <div className="bndz-home-section-label">
+              <span>Most accessed</span>
+              <span className="bndz-home-muted">Opens + navigation heat</span>
+            </div>
+            <div className="bndz-home-frequent-row">
+              {(mostOpened.length ? mostOpened : frequentFromNav.map(f => ({ path: f.path, name: f.label, openCount: f.hits }))).slice(0, 8).map((item, i) => {
+                const path = toPanePath((item as any).path || '');
+                const name = (item as any).name || path.split('/').pop() || 'Item';
+                const opens = (item as any).openCount as number | undefined;
+                const navHits = navHitMap.get(path.toLowerCase()) || 0;
+                const badge = accessBadge(opens, navHits);
+                return (
+                  <button
+                    key={path + i}
+                    type="button"
+                    className="bndz-home-frequent-chip"
+                    title={formatAddressBarPath(path)}
+                    onClick={() => onOpenPath(path, { type: 'file' })}
+                  >
+                    <ShellNativeIcon path={path} size={22} preferThumbnail eager />
+                    <span className="bndz-home-frequent-name">{name}</span>
+                    {badge && <span className={`bndz-home-badge is-${badge.toLowerCase()}`}>{badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+    ) : null,
+    focus: (showWidget('focus') && stage) ? (
+          <section className="bndz-home-focus" aria-label="Focus stage">
+            <motion.div
+              className="bndz-home-focus-plate"
+              layout={!reduceMotion}
+              initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <div className="bndz-home-focus-thumb">
+                <ShellNativeIcon path={stage.path} size={56} preferThumbnail eager hero />
+              </div>
+              <div className="bndz-home-focus-meta">
+                <span className="bndz-home-focus-eyebrow">
+                  {stage.kind === 'clipboard' ? 'Clipboard' : stage.kind === 'preview' ? 'Preview' : 'Now'}
+                </span>
+                <div className="bndz-home-focus-name" title={formatAddressBarPath(stage.path)}>{stage.name}</div>
+                <div className="bndz-home-focus-path">{formatAddressBarPath(stage.path)}</div>
+              </div>
+              <div className="bndz-home-focus-actions">
+                <button type="button" className="bndz-home-chip" onClick={() => onOpenPath(stage.path)}>Open</button>
+                <button type="button" className="bndz-home-chip" onClick={() => onRevealFolder?.(parentPane(stage.path))}>Reveal</button>
+                {onOpenOpposite && (
+                  <button type="button" className="bndz-home-chip" onClick={() => onOpenOpposite(parentPane(stage.path))}>Opposite</button>
+                )}
+              </div>
+            </motion.div>
+          </section>
+    ) : null,
+    continuum: (showWidget('continuum')) ? (
+        <section className="bndz-home-continuum" aria-label="Home">
+          <div className="bndz-home-section-label">
+            <span>Home</span>
+            <span className="bndz-home-muted">
+              {loading ? 'Loading Home...' : deckSyncing ? 'Refreshing...' : '← → snap | Space Quick Look | click opens'}
+            </span>
+          </div>
+          <div
+            className="bndz-home-rail-wrap"
+            onKeyDown={e => {
+              if (e.key === 'ArrowRight') { e.preventDefault(); snapRail(1); }
+              if (e.key === 'ArrowLeft') { e.preventDefault(); snapRail(-1); }
+              if (e.key === 'Enter' && continuum[railFocus]) openContinuum(continuum[railFocus]);
+            }}
+            tabIndex={0}
+          >
+            <motion.div
+              ref={railRef}
+              className="bndz-home-rail"
+              initial={reduceMotion ? false : { opacity: 0, x: 36 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1], delay: 0.06 }}
+            >
+              {continuum.length === 0 && !loading ? (
+                <button
+                  type="button"
+                  className="bndz-home-rail-empty"
+                  onClick={() => { onIndexInvite?.(); }}
+                >
+                  <span className="bndz-home-rail-empty-title">Home rail is empty</span>
+                  <span>Index Desktop, Documents, Pictures, Music, and Videos -- then the rail lights with real CAS thumbs.</span>
+                </button>
+              ) : continuum.map((item, i) => {
+                const path = toPanePath(item.path || item.id || '');
+                const name = item.name || path.split('/').pop() || 'File';
+                const accent = mediaAccent(item.mediaKind);
+                const navHits = navHitMap.get(path.toLowerCase()) || 0;
+                const badge = accessBadge(item.openCount, navHits);
+                return (
+                  <button
+                    key={path + i}
+                    type="button"
+                    data-rail-ix={i}
+                    className={`bndz-home-rail-item${railFocus === i ? ' is-focus' : ''}`}
+                    style={{ ['--rail-accent' as string]: accent }}
+                    title={formatAddressBarPath(path)}
+                    onMouseEnter={() => setRailFocus(i)}
+                    onFocus={() => setRailFocus(i)}
+                    onClick={e => openContinuum(item, e)}
+                    onAuxClick={e => {
+                      if (e.button === 1) {
+                        e.preventDefault();
+                        openContinuum(item, e);
+                      }
+                    }}
+                  >
+                    <span className="bndz-home-rail-thumb">
+                      <ShellNativeIcon path={path} size={76} preferThumbnail eager />
+                    </span>
+                    <span className="bndz-home-rail-name">{name}</span>
+                    {badge && <span className={`bndz-home-badge is-${badge.toLowerCase()}`}>{badge}</span>}
+                    {item.mediaKind && <span className="bndz-home-rail-kind">{item.mediaKind}</span>}
+                  </button>
+                );
+              })}
+            </motion.div>
+          </div>
+
+          {(continuum[railFocus] || peekItems.length > 0) && (
+            <div className="bndz-home-peek" aria-label="Folder peek">
+              <div className="bndz-home-peek-head">
+                <span>Folder peek</span>
+                <span className="bndz-home-muted">
+                  {peekItems.length > 0
+                    ? `${peekItems.length} neighbor${peekItems.length === 1 ? '' : 's'} | same folder`
+                    : 'Open folder | Space for Quick Look'}
+                </span>
+              </div>
+              <div className="bndz-home-peek-rail">
+                {continuum[railFocus] && (
+                  <button
+                    type="button"
+                    className="bndz-home-peek-tile is-folder"
+                    title="Open containing folder"
+                    onClick={() => {
+                      const p = toPanePath(continuum[railFocus].path || continuum[railFocus].id || '');
+                      onRevealFolder?.(parentPane(p));
+                    }}
+                  >
+                    <span className="bndz-home-peek-thumb">
+                      <Icons8Icon id="folder_open_ui" size={28} />
+                    </span>
+                    <span className="bndz-home-peek-name">Folder</span>
+                  </button>
+                )}
+                {peekItems.map((sib, i) => {
+                  const sp = toPanePath(sib.path || sib.id || '');
+                  const sn = sib.name || sp.split('/').pop() || '';
+                  return (
+                    <button
+                      key={sp + i}
+                      type="button"
+                      className="bndz-home-peek-tile"
+                      title={formatAddressBarPath(sp)}
+                      onClick={() => onOpenPath(sp, { type: sib.type === 'directory' ? 'directory' : 'file' })}
+                    >
+                      <span className="bndz-home-peek-thumb">
+                        <ShellNativeIcon path={sp} size={40} preferThumbnail eager />
+                      </span>
+                      <span className="bndz-home-peek-name">{sn}</span>
+                    </button>
+                  );
+                })}
+                {peekItems.length === 0 && continuum[railFocus] && (
+                  <span className="bndz-home-peek-empty">No indexed neighbors yet -- Space still Quick Looks this file.</span>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+    ) : null,
+    places: (showWidget('places')) ? (
+        <section className="bndz-home-places" aria-label="Places">
+          <div className="bndz-home-section-label">
+            <span>Places</span>
+            <span className="bndz-home-muted">
+              {spatialArmed ? 'Letter opens | release Alt to cancel' : 'Hold Alt | Spatial Jump'}
+            </span>
+          </div>
+          <div className="bndz-home-places-row">
+            {places.map((place, ix) => {
+              const letter = placeLetter(place.name, place.letter);
+              return (
+                <motion.button
+                  key={place.path + place.name}
+                  type="button"
+                  data-home-nav-path={place.path}
+                  className={`bndz-home-place${place.kind === 'drive' ? ' is-drive' : ''}${spatialArmed ? ' is-spatial' : ''}`}
+                  initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.04 + ix * 0.018, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  whileHover={reduceMotion ? undefined : { y: -3, transition: { type: 'spring', stiffness: 480, damping: 28 } }}
+                  onClick={() => onNavigate(place.path)}
+                  onAuxClick={e => {
+                    if (e.button === 1) {
+                      e.preventDefault();
+                      onOpenInNewTab?.(place.path);
+                    }
+                  }}
+                >
+                  <span className="bndz-home-place-icon">
+                    <ShellNativeIcon path={place.path} isDir size={30} preferThumbnail eager />
+                  </span>
+                  <span className="bndz-home-place-text">
+                    <span className="bndz-home-place-name">{place.name}</span>
+                    {place.freeLabel && <span className="bndz-home-place-free">{place.freeLabel}</span>}
+                  </span>
+                  {place.kind === 'drive' && place.freeRatio != null && (
+                    <span
+                      className="bndz-home-place-meter"
+                      style={{ ['--free' as string]: String(place.freeRatio) }}
+                      aria-hidden
+                    />
+                  )}
+                  <AnimatePresence>
+                    {spatialArmed && (
+                      <motion.span
+                        className="bndz-home-place-letter"
+                        initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.85 }}
+                        aria-hidden
+                      >
+                        {letter}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              );
+            })}
+          </div>
+        </section>
+    ) : null,
+    trail: (showWidget('trail') && ghost.length > 0) ? (
+          <section className="bndz-home-ghost" aria-label="Session trail">
+            <div className="bndz-home-section-label">
+              <span>Session trail</span>
+              <span className="bndz-home-muted">This session | fades with time</span>
+            </div>
+            <div className="bndz-home-ghost-row">
+              {ghost.map((g, i) => (
+                <button
+                  key={g.path + g.at}
+                  type="button"
+                  className="bndz-home-ghost-chip"
+                  style={{ opacity: Math.max(0.42, 1 - i * 0.08) }}
+                  title={formatAddressBarPath(g.path)}
+                  onClick={() => onNavigate(g.path)}
+                >
+                  <ShellNativeIcon path={g.path} size={18} preferThumbnail eager />
+                  <span>{g.name}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+    ) : null,
+    githubFeed: showWidget('githubFeed') ? (
+      <GitHubFeedModule config={config} updateConfig={updateConfig} />
+    ) : null,
+  };
+  const dashboardModules = Object.entries(moduleNodes)
+    .filter(([, n]) => n != null)
+    .map(([id, node]) => ({ id, node }));
+  const moduleOrder: string[] = Array.isArray(config?.homeModuleOrder)
+    ? config.homeModuleOrder
+    : DEFAULT_HOME_MODULE_ORDER;
+
   return (
     <div
       className={`bndz-home${wpUrl ? ' has-wallpaper' : ''}${wpUrl && wpMica ? ' is-mica' : ''}`}
@@ -698,306 +998,14 @@ export default function BndzHomeView({
           </AnimatePresence>
         </section>
 
-        {showWidget('workspaces') && (
-        <section className="bndz-home-workspaces" aria-label="Workspaces">
-          <div className="bndz-home-section-label">
-            <span>Workspaces</span>
-            <span className="bndz-home-muted">Launch pads</span>
-          </div>
-          <div className="bndz-ws-launch-grid">
-            <WorkspaceLaunchCard
-              title="Spatial Canvas"
-              desc="Blank freeform board -- organize references across folders without moving files on disk."
-              icon="view_grid"
-              accent="#c4a35a"
-              features={['Drop from panes', 'Sticky notes', 'Pan & zoom']}
-              onClick={() => onNavigate(BNDZ_CANVAS)}
-              className="is-canvas"
-            />
-            <WorkspaceLaunchCard
-              title="Automation"
-              desc="Visual file pipelines with watch, filter, copy, move, and built-in rsync deploy blocks."
-              icon="zap_ui"
-              accent="#34d399"
-              badge="Pipeline"
-              badgeVariant="green"
-              features={['Visual editor', 'Remote deploy', 'Auto-save']}
-              onClick={() => onNavigate(BNDZ_AUTOMATION)}
-              className="is-automation"
-            />
-          </div>
-        </section>
-        )}
-
-        {showWidget('frequent') && (mostOpened.length > 0 || frequentFromNav.length > 0) && (
-          <section className="bndz-home-frequent" aria-label="Most accessed">
-            <div className="bndz-home-section-label">
-              <span>Most accessed</span>
-              <span className="bndz-home-muted">Opens + navigation heat</span>
-            </div>
-            <div className="bndz-home-frequent-row">
-              {(mostOpened.length ? mostOpened : frequentFromNav.map(f => ({ path: f.path, name: f.label, openCount: f.hits }))).slice(0, 8).map((item, i) => {
-                const path = toPanePath((item as any).path || '');
-                const name = (item as any).name || path.split('/').pop() || 'Item';
-                const opens = (item as any).openCount as number | undefined;
-                const navHits = navHitMap.get(path.toLowerCase()) || 0;
-                const badge = accessBadge(opens, navHits);
-                return (
-                  <button
-                    key={path + i}
-                    type="button"
-                    className="bndz-home-frequent-chip"
-                    title={formatAddressBarPath(path)}
-                    onClick={() => onOpenPath(path, { type: 'file' })}
-                  >
-                    <ShellNativeIcon path={path} size={22} preferThumbnail eager />
-                    <span className="bndz-home-frequent-name">{name}</span>
-                    {badge && <span className={`bndz-home-badge is-${badge.toLowerCase()}`}>{badge}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {showWidget('focus') && stage && (
-          <section className="bndz-home-focus" aria-label="Focus stage">
-            <motion.div
-              className="bndz-home-focus-plate"
-              layout={!reduceMotion}
-              initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <div className="bndz-home-focus-thumb">
-                <ShellNativeIcon path={stage.path} size={56} preferThumbnail eager hero />
-              </div>
-              <div className="bndz-home-focus-meta">
-                <span className="bndz-home-focus-eyebrow">
-                  {stage.kind === 'clipboard' ? 'Clipboard' : stage.kind === 'preview' ? 'Preview' : 'Now'}
-                </span>
-                <div className="bndz-home-focus-name" title={formatAddressBarPath(stage.path)}>{stage.name}</div>
-                <div className="bndz-home-focus-path">{formatAddressBarPath(stage.path)}</div>
-              </div>
-              <div className="bndz-home-focus-actions">
-                <button type="button" className="bndz-home-chip" onClick={() => onOpenPath(stage.path)}>Open</button>
-                <button type="button" className="bndz-home-chip" onClick={() => onRevealFolder?.(parentPane(stage.path))}>Reveal</button>
-                {onOpenOpposite && (
-                  <button type="button" className="bndz-home-chip" onClick={() => onOpenOpposite(parentPane(stage.path))}>Opposite</button>
-                )}
-              </div>
-            </motion.div>
-          </section>
-        )}
-
-        {showWidget('continuum') && (
-        <section className="bndz-home-continuum" aria-label="Home">
-          <div className="bndz-home-section-label">
-            <span>Home</span>
-            <span className="bndz-home-muted">
-              {loading ? 'Loading Home...' : deckSyncing ? 'Refreshing...' : '← → snap | Space Quick Look | click opens'}
-            </span>
-          </div>
-          <div
-            className="bndz-home-rail-wrap"
-            onKeyDown={e => {
-              if (e.key === 'ArrowRight') { e.preventDefault(); snapRail(1); }
-              if (e.key === 'ArrowLeft') { e.preventDefault(); snapRail(-1); }
-              if (e.key === 'Enter' && continuum[railFocus]) openContinuum(continuum[railFocus]);
-            }}
-            tabIndex={0}
-          >
-            <motion.div
-              ref={railRef}
-              className="bndz-home-rail"
-              initial={reduceMotion ? false : { opacity: 0, x: 36 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1], delay: 0.06 }}
-            >
-              {continuum.length === 0 && !loading ? (
-                <button
-                  type="button"
-                  className="bndz-home-rail-empty"
-                  onClick={() => { onIndexInvite?.(); }}
-                >
-                  <span className="bndz-home-rail-empty-title">Home rail is empty</span>
-                  <span>Index Desktop, Documents, Pictures, Music, and Videos -- then the rail lights with real CAS thumbs.</span>
-                </button>
-              ) : continuum.map((item, i) => {
-                const path = toPanePath(item.path || item.id || '');
-                const name = item.name || path.split('/').pop() || 'File';
-                const accent = mediaAccent(item.mediaKind);
-                const navHits = navHitMap.get(path.toLowerCase()) || 0;
-                const badge = accessBadge(item.openCount, navHits);
-                return (
-                  <button
-                    key={path + i}
-                    type="button"
-                    data-rail-ix={i}
-                    className={`bndz-home-rail-item${railFocus === i ? ' is-focus' : ''}`}
-                    style={{ ['--rail-accent' as string]: accent }}
-                    title={formatAddressBarPath(path)}
-                    onMouseEnter={() => setRailFocus(i)}
-                    onFocus={() => setRailFocus(i)}
-                    onClick={e => openContinuum(item, e)}
-                    onAuxClick={e => {
-                      if (e.button === 1) {
-                        e.preventDefault();
-                        openContinuum(item, e);
-                      }
-                    }}
-                  >
-                    <span className="bndz-home-rail-thumb">
-                      <ShellNativeIcon path={path} size={76} preferThumbnail eager />
-                    </span>
-                    <span className="bndz-home-rail-name">{name}</span>
-                    {badge && <span className={`bndz-home-badge is-${badge.toLowerCase()}`}>{badge}</span>}
-                    {item.mediaKind && <span className="bndz-home-rail-kind">{item.mediaKind}</span>}
-                  </button>
-                );
-              })}
-            </motion.div>
-          </div>
-
-          {(continuum[railFocus] || peekItems.length > 0) && (
-            <div className="bndz-home-peek" aria-label="Folder peek">
-              <div className="bndz-home-peek-head">
-                <span>Folder peek</span>
-                <span className="bndz-home-muted">
-                  {peekItems.length > 0
-                    ? `${peekItems.length} neighbor${peekItems.length === 1 ? '' : 's'} | same folder`
-                    : 'Open folder | Space for Quick Look'}
-                </span>
-              </div>
-              <div className="bndz-home-peek-rail">
-                {continuum[railFocus] && (
-                  <button
-                    type="button"
-                    className="bndz-home-peek-tile is-folder"
-                    title="Open containing folder"
-                    onClick={() => {
-                      const p = toPanePath(continuum[railFocus].path || continuum[railFocus].id || '');
-                      onRevealFolder?.(parentPane(p));
-                    }}
-                  >
-                    <span className="bndz-home-peek-thumb">
-                      <Icons8Icon id="folder_open_ui" size={28} />
-                    </span>
-                    <span className="bndz-home-peek-name">Folder</span>
-                  </button>
-                )}
-                {peekItems.map((sib, i) => {
-                  const sp = toPanePath(sib.path || sib.id || '');
-                  const sn = sib.name || sp.split('/').pop() || '';
-                  return (
-                    <button
-                      key={sp + i}
-                      type="button"
-                      className="bndz-home-peek-tile"
-                      title={formatAddressBarPath(sp)}
-                      onClick={() => onOpenPath(sp, { type: sib.type === 'directory' ? 'directory' : 'file' })}
-                    >
-                      <span className="bndz-home-peek-thumb">
-                        <ShellNativeIcon path={sp} size={40} preferThumbnail eager />
-                      </span>
-                      <span className="bndz-home-peek-name">{sn}</span>
-                    </button>
-                  );
-                })}
-                {peekItems.length === 0 && continuum[railFocus] && (
-                  <span className="bndz-home-peek-empty">No indexed neighbors yet -- Space still Quick Looks this file.</span>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-        )}
-
-        {showWidget('places') && (
-        <section className="bndz-home-places" aria-label="Places">
-          <div className="bndz-home-section-label">
-            <span>Places</span>
-            <span className="bndz-home-muted">
-              {spatialArmed ? 'Letter opens | release Alt to cancel' : 'Hold Alt | Spatial Jump'}
-            </span>
-          </div>
-          <div className="bndz-home-places-row">
-            {places.map((place, ix) => {
-              const letter = placeLetter(place.name, place.letter);
-              return (
-                <motion.button
-                  key={place.path + place.name}
-                  type="button"
-                  data-home-nav-path={place.path}
-                  className={`bndz-home-place${place.kind === 'drive' ? ' is-drive' : ''}${spatialArmed ? ' is-spatial' : ''}`}
-                  initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.04 + ix * 0.018, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                  whileHover={reduceMotion ? undefined : { y: -3, transition: { type: 'spring', stiffness: 480, damping: 28 } }}
-                  onClick={() => onNavigate(place.path)}
-                  onAuxClick={e => {
-                    if (e.button === 1) {
-                      e.preventDefault();
-                      onOpenInNewTab?.(place.path);
-                    }
-                  }}
-                >
-                  <span className="bndz-home-place-icon">
-                    <ShellNativeIcon path={place.path} isDir size={30} preferThumbnail eager />
-                  </span>
-                  <span className="bndz-home-place-text">
-                    <span className="bndz-home-place-name">{place.name}</span>
-                    {place.freeLabel && <span className="bndz-home-place-free">{place.freeLabel}</span>}
-                  </span>
-                  {place.kind === 'drive' && place.freeRatio != null && (
-                    <span
-                      className="bndz-home-place-meter"
-                      style={{ ['--free' as string]: String(place.freeRatio) }}
-                      aria-hidden
-                    />
-                  )}
-                  <AnimatePresence>
-                    {spatialArmed && (
-                      <motion.span
-                        className="bndz-home-place-letter"
-                        initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.85 }}
-                        aria-hidden
-                      >
-                        {letter}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
-              );
-            })}
-          </div>
-        </section>
-        )}
-
-        {showWidget('trail') && ghost.length > 0 && (
-          <section className="bndz-home-ghost" aria-label="Session trail">
-            <div className="bndz-home-section-label">
-              <span>Session trail</span>
-              <span className="bndz-home-muted">This session | fades with time</span>
-            </div>
-            <div className="bndz-home-ghost-row">
-              {ghost.map((g, i) => (
-                <button
-                  key={g.path + g.at}
-                  type="button"
-                  className="bndz-home-ghost-chip"
-                  style={{ opacity: Math.max(0.42, 1 - i * 0.08) }}
-                  title={formatAddressBarPath(g.path)}
-                  onClick={() => onNavigate(g.path)}
-                >
-                  <ShellNativeIcon path={g.path} size={18} preferThumbnail eager />
-                  <span>{g.name}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+        <HomeDashboard
+          modules={dashboardModules}
+          order={moduleOrder}
+          onOrderChange={next => updateConfig?.({ homeModuleOrder: next })}
+          catalog={HOME_WIDGETS}
+          visibleIds={widgetIds}
+          onToggleWidget={toggleWidget}
+        />
 
         <footer className="bndz-home-pulse" aria-label="Pulse">
           <div className="bndz-home-pulse-track">
